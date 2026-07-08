@@ -131,10 +131,7 @@ function PhotoBlock({
           <Text style={styles.photoCaptionText}>{photo.caption}</Text>
         </LinearGradient>
       ) : (
-        <LinearGradient
-          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.4)']}
-          style={styles.photoTapHint}
-        >
+        <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.4)']} style={styles.photoTapHint}>
           <MessageCircle size={14} color={colors.iris} />
           <Text style={styles.photoTapHintText}>Tap photo to reply</Text>
         </LinearGradient>
@@ -148,8 +145,17 @@ export default function DatingScreen() {
   const { height: screenHeight } = useWindowDimensions();
   const { user } = useAuthStore();
   const { profile: currentUserProfile } = useProfileStore();
-  const { profiles, loading, prefetching, error, hasMore, fetchProfiles, likeUser, passUser, sendAskOut } =
-    useDatingStore();
+  const {
+    profiles,
+    loading,
+    prefetching,
+    error,
+    hasMore,
+    fetchProfiles,
+    likeUser,
+    passUser,
+    sendAskOut,
+  } = useDatingStore();
   const isPremium = useSubscriptionStore((state) => state.isPremium);
   const openPaywall = useSubscriptionStore((state) => state.openPaywall);
   const [likesSent, setLikesSent] = useState<string[]>([]);
@@ -166,10 +172,20 @@ export default function DatingScreen() {
   const handleDismissMatch = useCallback(() => setMatchProfile(null), []);
 
   const VIBE_TAG_OPTIONS = [
-    'Music', 'Dancing', 'Casual', 'Vibing', 'Party', 'Chill', 'Luxury', 'Networking',
+    'Music',
+    'Dancing',
+    'Casual',
+    'Vibing',
+    'Party',
+    'Chill',
+    'Luxury',
+    'Networking',
   ];
   const INTENT_OPTIONS = [
-    'Casual Dating', 'Something Serious', 'Friends', 'Looking for Connections',
+    'Casual Dating',
+    'Something Serious',
+    'Friends',
+    'Looking for Connections',
   ];
   const HEIGHT_OPTIONS = [0, 150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200];
 
@@ -352,10 +368,7 @@ export default function DatingScreen() {
             contentContainerStyle={styles.profileScrollContent}
           >
             {/* Hero section — first photo + name/age + venue + tags */}
-            <Pressable
-              onPress={() => handleOpenReply(firstPrompt)}
-              style={styles.heroSection}
-            >
+            <Pressable onPress={() => handleOpenReply(firstPrompt)} style={styles.heroSection}>
               <Image
                 source={profile.photos[0].source}
                 style={styles.heroImage}
@@ -408,9 +421,7 @@ export default function DatingScreen() {
             </View>
 
             {/* Interleaved prompts + photos */}
-            {(profile as any).anthem ? (
-              <AnthemPlayer anthem={(profile as any).anthem} />
-            ) : null}
+            {(profile as any).anthem ? <AnthemPlayer anthem={(profile as any).anthem} /> : null}
 
             {profile.prompts[0] && (
               <PromptBlock
@@ -419,10 +430,7 @@ export default function DatingScreen() {
               />
             )}
             {profile.photos[1] && (
-              <PhotoBlock
-                photo={profile.photos[1]}
-                onReply={handleOpenPhotoReply}
-              />
+              <PhotoBlock photo={profile.photos[1]} onReply={handleOpenPhotoReply} />
             )}
             {profile.prompts[1] && (
               <PromptBlock
@@ -431,10 +439,7 @@ export default function DatingScreen() {
               />
             )}
             {profile.photos[2] && (
-              <PhotoBlock
-                photo={profile.photos[2]}
-                onReply={handleOpenPhotoReply}
-              />
+              <PhotoBlock photo={profile.photos[2]} onReply={handleOpenPhotoReply} />
             )}
             {profile.prompts[2] && (
               <PromptBlock
@@ -488,19 +493,25 @@ export default function DatingScreen() {
         onSend={handleSendReply}
       />
 
-      <Modal visible={matchProfile !== null} transparent animationType="fade" onRequestClose={handleDismissMatch}>
+      <Modal
+        visible={matchProfile !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={handleDismissMatch}
+      >
         <View style={styles.modalRoot}>
           <Pressable style={styles.modalScrim} onPress={handleDismissMatch} />
           <View style={styles.matchModal}>
             <Text style={styles.matchEmoji}>💫</Text>
             <Text style={styles.matchTitle}>It's a Match!</Text>
-            <Text style={styles.matchSubtitle}>
-              You and {matchProfile?.name} liked each other
-            </Text>
-            <Pressable style={styles.matchChatButton} onPress={() => {
-              handleDismissMatch();
-              router.push('/(tabs)/inbox');
-            }}>
+            <Text style={styles.matchSubtitle}>You and {matchProfile?.name} liked each other</Text>
+            <Pressable
+              style={styles.matchChatButton}
+              onPress={() => {
+                handleDismissMatch();
+                router.push('/(tabs)/inbox');
+              }}
+            >
               <Text style={styles.matchChatText}>Send a Message</Text>
             </Pressable>
             <Pressable style={styles.matchKeepButton} onPress={handleDismissMatch}>

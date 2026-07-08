@@ -117,17 +117,17 @@ async function apiFetch<T = any>(
     ...(fetchOptions.headers as Record<string, string>),
   };
 
-    if (requireAuth) {
-      const auth = getFirebaseAuth();
-      const user = auth.currentUser;
-      if (!user) {
-        throw new Error('Authentication required. Please sign in.');
-      }
+  if (requireAuth) {
+    const auth = getFirebaseAuth();
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error('Authentication required. Please sign in.');
+    }
 
-      let token;
-      try {
-        token = await user.getIdToken(_retry);
-      } catch (error: any) {
+    let token;
+    try {
+      token = await user.getIdToken(_retry);
+    } catch (error: any) {
       const isDisabled =
         error.code === 'auth/user-disabled' ||
         error.code === 'auth/user-not-found' ||

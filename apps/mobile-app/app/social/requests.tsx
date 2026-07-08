@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
@@ -63,7 +71,7 @@ function RequestCard({
             style={({ pressed }) => [
               styles.declineButton,
               pressed && styles.buttonPressed,
-              isLoading && styles.buttonDisabled
+              isLoading && styles.buttonDisabled,
             ]}
           >
             <Text style={styles.declineText}>Decline</Text>
@@ -74,7 +82,7 @@ function RequestCard({
             style={({ pressed }) => [
               styles.acceptButton,
               pressed && styles.buttonPressed,
-              isLoading && styles.buttonDisabled
+              isLoading && styles.buttonDisabled,
             ]}
           >
             {isLoading ? (
@@ -222,7 +230,13 @@ export default function DMRequestsScreen() {
                 setError(null);
                 loadRequests();
               }}
-              style={{ backgroundColor: colors.iris, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, marginTop: 16 }}
+              style={{
+                backgroundColor: colors.iris,
+                paddingHorizontal: 24,
+                paddingVertical: 12,
+                borderRadius: 24,
+                marginTop: 16,
+              }}
             >
               <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
             </Pressable>
@@ -233,13 +247,12 @@ export default function DMRequestsScreen() {
           <View style={styles.centerContainer}>
             <Text style={styles.emptyEmoji}>📭</Text>
             <Text style={styles.emptyTitle}>No Requests</Text>
-            <Text style={styles.emptyText}>
-              You don't have any pending message requests
-            </Text>
+            <Text style={styles.emptyText}>You don't have any pending message requests</Text>
           </View>
         )}
 
-        {!loading && !error &&
+        {!loading &&
+          !error &&
           requests.map(({ request, senderName, eventTitle }, index) => (
             <RequestCard
               key={request.id}

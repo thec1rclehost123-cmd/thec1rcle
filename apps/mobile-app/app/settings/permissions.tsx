@@ -140,10 +140,7 @@ export default function PermissionsSettingsScreen() {
       <HelperText>Control your profile visibility and privacy settings across the app.</HelperText>
 
       <SettingsGroup>
-        <SettingsRow
-          title="Blocked Accounts"
-          onPress={() => {}}
-        />
+        <SettingsRow title="Blocked Accounts" onPress={() => {}} />
       </SettingsGroup>
       <HelperText>Blocked accounts can't chat with you or invite you to events.</HelperText>
     </DittoSettingsScreen>

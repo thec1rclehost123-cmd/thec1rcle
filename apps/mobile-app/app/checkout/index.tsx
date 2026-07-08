@@ -39,7 +39,12 @@ let _pricingCache: {
 const PRICING_CACHE_TTL = 30_000;
 const PRIVACY_POLICY_URL = 'https://thec1rcle.com/privacy';
 
-function getPricingCacheKey(eventId: string, items: { tierId: string; quantity: number }[], promoCode: string | null, promoterCode: string | null) {
+function getPricingCacheKey(
+  eventId: string,
+  items: { tierId: string; quantity: number }[],
+  promoCode: string | null,
+  promoterCode: string | null,
+) {
   return `${eventId}:${JSON.stringify(items)}:${promoCode ?? ''}:${promoterCode ?? ''}`;
 }
 
@@ -117,9 +122,7 @@ function CheckoutConfirmationHandoff({
             <ActivityIndicator color="#fff" size="large" />
           )}
         </View>
-        <Text style={styles.handoffTitle}>
-          {confirmed ? "You're in" : 'Confirming payment'}
-        </Text>
+        <Text style={styles.handoffTitle}>{confirmed ? "You're in" : 'Confirming payment'}</Text>
         <Text style={styles.handoffCopy}>
           {confirmed
             ? 'Taking you to your ticket confirmation.'
@@ -185,10 +188,7 @@ function PromoModal({
               />
               <Pressable
                 onPress={() => onApply(input.trim().toUpperCase())}
-                style={({ pressed }) => [
-                  styles.modalApplyButton,
-                  pressed && { opacity: 0.8 },
-                ]}
+                style={({ pressed }) => [styles.modalApplyButton, pressed && { opacity: 0.8 }]}
               >
                 <LinearGradient
                   colors={gradients.primary as [string, string]}
@@ -213,7 +213,10 @@ function PromoModal({
 
 function GlassCard({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   return (
-    <Animated.View entering={FadeInUp.delay(delay).springify().damping(20)} style={styles.glassCard}>
+    <Animated.View
+      entering={FadeInUp.delay(delay).springify().damping(20)}
+      style={styles.glassCard}
+    >
       <BlurView
         blurMethod="dimezisBlurView"
         intensity={28}
@@ -270,7 +273,12 @@ export default function CheckoutScreen() {
       return;
     }
 
-    const cacheKey = getPricingCacheKey(eventId, checkoutItems, promo?.code ?? null, promoterCode ?? null);
+    const cacheKey = getPricingCacheKey(
+      eventId,
+      checkoutItems,
+      promo?.code ?? null,
+      promoterCode ?? null,
+    );
     const cached = getCachedPricing(cacheKey);
     if (cached) {
       setPricing(cached);
@@ -450,7 +458,9 @@ export default function CheckoutScreen() {
             <Ionicons name="ticket-outline" size={28} color={colors.iris} />
           </View>
           <Text style={styles.emptyTitle}>No tickets selected</Text>
-          <Text style={styles.emptyCopy}>Pick an event and choose ticket tiers before checkout.</Text>
+          <Text style={styles.emptyCopy}>
+            Pick an event and choose ticket tiers before checkout.
+          </Text>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -519,7 +529,11 @@ export default function CheckoutScreen() {
         <Animated.View entering={FadeInUp.springify().damping(20)} style={styles.heroSection}>
           <View style={styles.heroPosterWrap}>
             {cartEventImage ? (
-              <Image source={{ uri: cartEventImage }} style={styles.heroPoster} contentFit="cover" />
+              <Image
+                source={{ uri: cartEventImage }}
+                style={styles.heroPoster}
+                contentFit="cover"
+              />
             ) : (
               <LinearGradient
                 colors={gradients.primary as [string, string]}
@@ -707,10 +721,7 @@ export default function CheckoutScreen() {
           disabled={payDisabled}
           style={[styles.payButton, payDisabled && styles.payButtonDisabled]}
         >
-          <LinearGradient
-            colors={gradients.primary as [string, string]}
-            style={styles.payGradient}
-          >
+          <LinearGradient colors={gradients.primary as [string, string]} style={styles.payGradient}>
             {processing ? (
               <ActivityIndicator color="#fff" />
             ) : (
@@ -729,11 +740,17 @@ export default function CheckoutScreen() {
 
         <Text style={styles.finePrint}>
           By confirming, you agree to the{' '}
-          <Text style={styles.finePrintLink} onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}>
+          <Text
+            style={styles.finePrintLink}
+            onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}
+          >
             Terms
           </Text>{' '}
           &{' '}
-          <Text style={styles.finePrintLink} onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}>
+          <Text
+            style={styles.finePrintLink}
+            onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}
+          >
             Privacy Policy
           </Text>
         </Text>
@@ -753,7 +770,11 @@ export default function CheckoutScreen() {
 function hexToRgba(hex: string, alpha: number): string {
   if (!hex || hex === 'transparent') return `rgba(0,0,0,${alpha})`;
   let h = hex.replace('#', '');
-  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  if (h.length === 3)
+    h = h
+      .split('')
+      .map((c) => c + c)
+      .join('');
   const num = parseInt(h, 16);
   if (isNaN(num)) return `rgba(0,0,0,${alpha})`;
   const r = (num >> 16) & 255;

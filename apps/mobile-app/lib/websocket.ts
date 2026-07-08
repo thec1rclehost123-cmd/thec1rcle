@@ -147,12 +147,16 @@ class WebSocketManager {
       }
       topics.forEach((topic) => {
         this.subscriptions.get(topic)?.forEach((h) => {
-          try { h(msg); } catch {}
+          try {
+            h(msg);
+          } catch {}
         });
       });
 
       this.subscriptions.get('*')?.forEach((h) => {
-        try { h(msg); } catch {}
+        try {
+          h(msg);
+        } catch {}
       });
     };
 

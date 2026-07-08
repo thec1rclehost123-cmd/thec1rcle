@@ -74,16 +74,15 @@ export function BrightChatSurface({ theme, children }: BrightChatSurfaceProps) {
             contentFit="cover"
             blurRadius={90}
           />
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.7)' }]} pointerEvents="none" />
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.7)' }]}
+            pointerEvents="none"
+          />
         </>
       ) : null}
       {theme.moodColor ? (
         <Animated.View
-          style={[
-            StyleSheet.absoluteFill,
-            glowStyle,
-            { backgroundColor: theme.moodColor },
-          ]}
+          style={[StyleSheet.absoluteFill, glowStyle, { backgroundColor: theme.moodColor }]}
           pointerEvents="none"
         />
       ) : null}
@@ -137,9 +136,7 @@ export function BrightChatHeader({
           <View style={brightChatStyles.headerPill}>{content}</View>
         )}
         {rightAccessory ? (
-          <View style={brightChatStyles.headerRightButton}>
-            {rightAccessory}
-          </View>
+          <View style={brightChatStyles.headerRightButton}>{rightAccessory}</View>
         ) : (
           <View style={{ width: 38 }} />
         )}
@@ -268,7 +265,15 @@ export const BrightMessage = memo(function BrightMessage({
       ]}
     >
       {!isOwnMessage && senderName ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 34, marginBottom: 4 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            marginLeft: 34,
+            marginBottom: 4,
+          }}
+        >
           <Text style={brightChatStyles.senderName}>{senderName}</Text>
           {badgeLabel ? (
             <View style={brightChatStyles.hostBadge}>
@@ -319,7 +324,12 @@ export const BrightMessage = memo(function BrightMessage({
         )}
       </View>
       {isLiked && (
-        <View style={[brightChatStyles.heartBadge, isOwnMessage ? brightChatStyles.heartBadgeOwn : brightChatStyles.heartBadgeOther]}>
+        <View
+          style={[
+            brightChatStyles.heartBadge,
+            isOwnMessage ? brightChatStyles.heartBadgeOwn : brightChatStyles.heartBadgeOther,
+          ]}
+        >
           <Heart size={12} color="#F44A22" fill="#F44A22" />
         </View>
       )}
@@ -328,7 +338,11 @@ export const BrightMessage = memo(function BrightMessage({
 
   if (!onLongPress && !onDoubleTap) return bubble;
 
-  return <Pressable onPress={handlePress} onLongPress={onLongPress}>{bubble}</Pressable>;
+  return (
+    <Pressable onPress={handlePress} onLongPress={onLongPress}>
+      {bubble}
+    </Pressable>
+  );
 });
 
 function MessageAvatar({
@@ -362,7 +376,11 @@ type BrightTypingIndicatorProps = {
   energy?: number; // 0 (gentle) to 1 (intense), default 0.5
 };
 
-export function BrightTypingIndicator({ name, avatarUrl, energy = 0.5 }: BrightTypingIndicatorProps) {
+export function BrightTypingIndicator({
+  name,
+  avatarUrl,
+  energy = 0.5,
+}: BrightTypingIndicatorProps) {
   const bounceHeight = 2 + energy * 4;
   const bounceDuration = 280 - energy * 120;
   const restDuration = 320 - energy * 80;
@@ -372,9 +390,24 @@ export function BrightTypingIndicator({ name, avatarUrl, energy = 0.5 }: BrightT
       <MessageAvatar senderAvatar={avatarUrl} senderName={name} />
       <View style={brightChatStyles.typingBubble}>
         <View style={brightChatStyles.typingDots}>
-          <TypingDot delay={0} bounceHeight={bounceHeight} bounceDuration={bounceDuration} restDuration={restDuration} />
-          <TypingDot delay={bounceDuration * 0.5} bounceHeight={bounceHeight} bounceDuration={bounceDuration} restDuration={restDuration} />
-          <TypingDot delay={bounceDuration} bounceHeight={bounceHeight} bounceDuration={bounceDuration} restDuration={restDuration} />
+          <TypingDot
+            delay={0}
+            bounceHeight={bounceHeight}
+            bounceDuration={bounceDuration}
+            restDuration={restDuration}
+          />
+          <TypingDot
+            delay={bounceDuration * 0.5}
+            bounceHeight={bounceHeight}
+            bounceDuration={bounceDuration}
+            restDuration={restDuration}
+          />
+          <TypingDot
+            delay={bounceDuration}
+            bounceHeight={bounceHeight}
+            bounceDuration={bounceDuration}
+            restDuration={restDuration}
+          />
         </View>
         <Text style={brightChatStyles.typingText}>{name} is typing</Text>
       </View>
@@ -382,7 +415,12 @@ export function BrightTypingIndicator({ name, avatarUrl, energy = 0.5 }: BrightT
   );
 }
 
-function TypingDot({ delay, bounceHeight, bounceDuration, restDuration }: {
+function TypingDot({
+  delay,
+  bounceHeight,
+  bounceDuration,
+  restDuration,
+}: {
   delay: number;
   bounceHeight: number;
   bounceDuration: number;

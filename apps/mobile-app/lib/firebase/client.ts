@@ -268,15 +268,17 @@ export async function loginWithGoogle(): Promise<{ user: FirebaseAuthTypes.User 
 
     const googleCredential = auth.GoogleAuthProvider.credential(idToken, accessToken);
 
-    const result = await auth().signInWithCredential(googleCredential).catch(async (error) => {
-      await handleAccountExistsWithDifferentCredential(
-        error,
-        googleCredential,
-        signInResult.data?.user?.email,
-        'Google',
-      );
-      throw error;
-    });
+    const result = await auth()
+      .signInWithCredential(googleCredential)
+      .catch(async (error) => {
+        await handleAccountExistsWithDifferentCredential(
+          error,
+          googleCredential,
+          signInResult.data?.user?.email,
+          'Google',
+        );
+        throw error;
+      });
 
     return { user: result.user };
   } catch (e: any) {
@@ -284,10 +286,7 @@ export async function loginWithGoogle(): Promise<{ user: FirebaseAuthTypes.User 
       throw e;
     }
     if (__DEV__) console.error('Google Sign-In failed:', e);
-    throw new Error(
-      e.message ||
-        'Google Sign-In failed.',
-    );
+    throw new Error(e.message || 'Google Sign-In failed.');
   }
 }
 

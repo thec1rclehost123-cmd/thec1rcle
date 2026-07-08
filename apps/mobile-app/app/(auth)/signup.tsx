@@ -152,7 +152,10 @@ export default function SignupScreen() {
                 resolve();
               }
             });
-            setTimeout(() => { unsub(); resolve(); }, 5000);
+            setTimeout(() => {
+              unsub();
+              resolve();
+            }, 5000);
           });
         } catch {
           if (__DEV__) console.warn('[Signup] Auth state sync wait timed out');
@@ -452,12 +455,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <View style={s.fieldWrap}>
       <Text style={s.fieldLabel}>{label}</Text>
-      <BlurView
-        blurMethod="dimezisBlurView"
-        intensity={40}
-        tint="dark"
-        style={s.fieldBox}
-      >
+      <BlurView blurMethod="dimezisBlurView" intensity={40} tint="dark" style={s.fieldBox}>
         {children}
       </BlurView>
     </View>
@@ -707,5 +705,4 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
     textDecorationLine: 'underline',
   },
-
 });

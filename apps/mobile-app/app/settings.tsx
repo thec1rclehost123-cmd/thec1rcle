@@ -4,7 +4,16 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Alert, View, Text, ScrollView, Pressable, StyleSheet, Linking, ActivityIndicator } from 'react-native';
+import {
+  Alert,
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  StyleSheet,
+  Linking,
+  ActivityIndicator,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -205,255 +214,265 @@ export default function SettingsScreen() {
   };
 
   const handleDisconnectSpotify = () => {
-    Alert.alert('Disconnect Spotify?', 'Your Spotify profile will be removed from your C1RCLE profile.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Disconnect', style: 'destructive', onPress: async () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        await disconnectSpotify();
-      }},
-    ]);
+    Alert.alert(
+      'Disconnect Spotify?',
+      'Your Spotify profile will be removed from your C1RCLE profile.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            await disconnectSpotify();
+          },
+        },
+      ],
+    );
   };
 
   return (
     <>
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Animated.View entering={FadeIn} style={styles.header}>
-        <Pressable
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/');
-            }
-          }}
-          style={styles.backButton}
-        >
-          <ArrowLeft size={25} color="#F8F8F8" strokeWidth={2.4} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={styles.headerSpacer} />
-      </Animated.View>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Animated.View entering={FadeIn} style={styles.header}>
+          <Pressable
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/');
+              }
+            }}
+            style={styles.backButton}
+          >
+            <ArrowLeft size={25} color="#F8F8F8" strokeWidth={2.4} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Settings</Text>
+          <View style={styles.headerSpacer} />
+        </Animated.View>
 
-      <ScrollView
-        bounces={false}
-        overScrollMode="never"
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {user ? (
-          <>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {user ? (
+            <>
+              <Group delay={80}>
+                <SettingsRow
+                  icon={
+                    <LinearGradient
+                      colors={['#E8E0FF', '#C7FFE1']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.avatar}
+                    >
+                      <Text style={styles.avatarFace}>••{'\n'}⌣</Text>
+                    </LinearGradient>
+                  }
+                  title={displayName}
+                  subtitle="View Profile"
+                  onPress={() => router.push('/(tabs)/profile')}
+                />
+                <Divider />
+                <SettingsRow title="Edit Profile" onPress={() => router.push('/profile/edit')} />
+              </Group>
+
+              <Group delay={140}>
+                <SettingsRow
+                  icon={
+                    <SettingIcon tone="account">
+                      <CircleUser
+                        size={17}
+                        color="#fff"
+                        fill="rgba(255,255,255,0.45)"
+                        strokeWidth={2.2}
+                      />
+                    </SettingIcon>
+                  }
+                  title="Account Settings"
+                  onPress={() => router.push('/settings/account' as any)}
+                />
+              </Group>
+            </>
+          ) : (
             <Group delay={80}>
               <SettingsRow
                 icon={
-                  <LinearGradient
-                    colors={['#E8E0FF', '#C7FFE1']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.avatar}
-                  >
-                    <Text style={styles.avatarFace}>••{'\n'}⌣</Text>
-                  </LinearGradient>
-                }
-                title={displayName}
-                subtitle="View Profile"
-                onPress={() => router.push('/(tabs)/profile')}
-              />
-              <Divider />
-              <SettingsRow title="Edit Profile" onPress={() => router.push('/profile/edit')} />
-            </Group>
-
-            <Group delay={140}>
-              <SettingsRow
-                icon={
                   <SettingIcon tone="account">
-                    <CircleUser
-                      size={17}
-                      color="#fff"
-                      fill="rgba(255,255,255,0.45)"
-                      strokeWidth={2.2}
-                    />
+                    <CircleUser size={17} color="#fff" strokeWidth={2.2} />
                   </SettingIcon>
                 }
-                title="Account Settings"
-                onPress={() => router.push('/settings/account' as any)}
+                title="Login / Sign Up"
+                subtitle="Access your profile and tickets"
+                onPress={() => router.push('/(auth)/login')}
               />
             </Group>
-          </>
-        ) : (
-          <Group delay={80}>
+          )}
+
+          <SectionLabel title="Preferences" delay={200} />
+          <Group delay={240}>
             <SettingsRow
               icon={
-                <SettingIcon tone="account">
-                  <CircleUser size={17} color="#fff" strokeWidth={2.2} />
+                <SettingIcon tone="notifications">
+                  <Bell size={17} color="#fff" fill="#fff" strokeWidth={2.2} />
                 </SettingIcon>
               }
-              title="Login / Sign Up"
-              subtitle="Access your profile and tickets"
-              onPress={() => router.push('/(auth)/login')}
+              title="Notifications"
+              onPress={() => router.push('/settings/notifications' as any)}
+            />
+            <Divider />
+            <SettingsRow
+              icon={
+                <SettingIcon tone="nightlife">
+                  <Music size={17} color="#fff" strokeWidth={2.2} />
+                </SettingIcon>
+              }
+              title="Nightlife Profile"
+              onPress={() => router.push('/profile-creation')}
+            />
+            <Divider />
+            <SettingsRow
+              icon={
+                <SettingIcon tone="permissions">
+                  <ShieldCheck
+                    size={17}
+                    color="#fff"
+                    fill="rgba(255,255,255,0.35)"
+                    strokeWidth={2.2}
+                  />
+                </SettingIcon>
+              }
+              title="Permissions"
+              onPress={() => router.push('/settings/permissions' as any)}
+            />
+            <Divider />
+            <SettingsRow
+              icon={
+                <SettingIcon tone="appearance">
+                  <Eye size={17} color="#fff" strokeWidth={2.2} />
+                </SettingIcon>
+              }
+              title="Appearance"
+              onPress={() => router.push('/settings/appearance' as any)}
             />
           </Group>
-        )}
 
-        <SectionLabel title="Preferences" delay={200} />
-        <Group delay={240}>
-          <SettingsRow
-            icon={
-              <SettingIcon tone="notifications">
-                <Bell size={17} color="#fff" fill="#fff" strokeWidth={2.2} />
+          <SectionLabel title="Connected Accounts" delay={280} />
+          <Group delay={300}>
+            <Pressable
+              disabled={spotifyLoading}
+              onPress={spotifyConnected ? handleDisconnectSpotify : handleConnectSpotify}
+              style={styles.row}
+            >
+              <SettingIcon tone="spotify">
+                {spotifyLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <FontAwesome5 name="spotify" size={17} color="#fff" />
+                )}
               </SettingIcon>
-            }
-            title="Notifications"
-            onPress={() => router.push('/settings/notifications' as any)}
-          />
-          <Divider />
-          <SettingsRow
-            icon={
-              <SettingIcon tone="nightlife">
-                <Music size={17} color="#fff" strokeWidth={2.2} />
-              </SettingIcon>
-            }
-            title="Nightlife Profile"
-            onPress={() => router.push('/profile-creation')}
-          />
-          <Divider />
-          <SettingsRow
-            icon={
-              <SettingIcon tone="permissions">
-                <ShieldCheck
-                  size={17}
-                  color="#fff"
-                  fill="rgba(255,255,255,0.35)"
-                  strokeWidth={2.2}
-                />
-              </SettingIcon>
-            }
-            title="Permissions"
-            onPress={() => router.push('/settings/permissions' as any)}
-          />
-          <Divider />
-          <SettingsRow
-            icon={
-              <SettingIcon tone="appearance">
-                <Eye size={17} color="#fff" strokeWidth={2.2} />
-              </SettingIcon>
-            }
-            title="Appearance"
-            onPress={() => router.push('/settings/appearance' as any)}
-          />
-        </Group>
+              <View style={styles.rowText}>
+                <Text style={styles.rowTitle}>Spotify</Text>
+                {spotifyConnected && spotifyProfile ? (
+                  <Text style={[styles.rowSubtitle, { color: '#1DB954' }]} numberOfLines={1}>
+                    Connected as {spotifyProfile.displayName}
+                  </Text>
+                ) : (
+                  <Text style={styles.rowSubtitle} numberOfLines={1}>
+                    {spotifyLoading ? 'Connecting…' : 'Show your music taste on your profile'}
+                  </Text>
+                )}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {spotifyConnected ? (
+                  <Text style={{ color: '#F44A22', fontSize: 12, fontWeight: '600' }}>
+                    Disconnect
+                  </Text>
+                ) : (
+                  <ChevronRight size={17} color="rgba(255,255,255,0.45)" strokeWidth={2.2} />
+                )}
+              </View>
+            </Pressable>
+          </Group>
 
-        <SectionLabel title="Connected Accounts" delay={280} />
-        <Group delay={300}>
-          <Pressable
-            disabled={spotifyLoading}
-            onPress={spotifyConnected ? handleDisconnectSpotify : handleConnectSpotify}
-            style={styles.row}
-          >
-            <SettingIcon tone="spotify">
-              {spotifyLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <FontAwesome5 name="spotify" size={17} color="#fff" />
-              )}
-            </SettingIcon>
-            <View style={styles.rowText}>
-              <Text style={styles.rowTitle}>Spotify</Text>
-              {spotifyConnected && spotifyProfile ? (
-                <Text style={[styles.rowSubtitle, { color: '#1DB954' }]} numberOfLines={1}>
-                  Connected as {spotifyProfile.displayName}
-                </Text>
-              ) : (
-                <Text style={styles.rowSubtitle} numberOfLines={1}>
-                  {spotifyLoading ? 'Connecting…' : 'Show your music taste on your profile'}
-                </Text>
-              )}
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {spotifyConnected ? (
-                <Text style={{ color: '#F44A22', fontSize: 12, fontWeight: '600' }}>Disconnect</Text>
-              ) : (
-                <ChevronRight size={17} color="rgba(255,255,255,0.45)" strokeWidth={2.2} />
-              )}
-            </View>
-          </Pressable>
-        </Group>
+          <SectionLabel title="Resources" delay={360} />
+          <Group delay={340}>
+            <SettingsRow
+              icon={
+                <SettingIcon tone="support">
+                  <Mail size={17} color="#fff" fill="rgba(255,255,255,0.25)" strokeWidth={2.2} />
+                </SettingIcon>
+              }
+              title="Contact Support"
+              onPress={() => openLink(supportMailto)}
+            />
+            <Divider />
+            <SettingsRow
+              icon={
+                <SettingIcon tone="store">
+                  <Text style={styles.starIcon}>★</Text>
+                </SettingIcon>
+              }
+              title="Rate in App Store"
+              onPress={() => openLink('https://apps.apple.com/app/id6475739329')}
+              external
+            />
+            <Divider />
+            <SettingsRow
+              icon={
+                <SettingIcon tone="instagram">
+                  <Text style={styles.brandIcon}>◎</Text>
+                </SettingIcon>
+              }
+              title="THEC1RCLE on Instagram"
+              onPress={() => openLink('https://instagram.com/thec1rcle')}
+              external
+            />
+            <Divider />
+            <SettingsRow
+              icon={
+                <SettingIcon tone="x">
+                  <X size={15} color="#fff" strokeWidth={2.4} />
+                </SettingIcon>
+              }
+              title="THEC1RCLE on X (Twitter)"
+              onPress={() => openLink('https://x.com/thec1rcle')}
+              external
+            />
+          </Group>
 
-        <SectionLabel title="Resources" delay={360} />
-        <Group delay={340}>
-          <SettingsRow
-            icon={
-              <SettingIcon tone="support">
-                <Mail size={17} color="#fff" fill="rgba(255,255,255,0.25)" strokeWidth={2.2} />
-              </SettingIcon>
-            }
-            title="Contact Support"
-            onPress={() => openLink(supportMailto)}
-          />
-          <Divider />
-          <SettingsRow
-            icon={
-              <SettingIcon tone="store">
-                <Text style={styles.starIcon}>★</Text>
-              </SettingIcon>
-            }
-            title="Rate in App Store"
-            onPress={() => openLink('https://apps.apple.com/app/id6475739329')}
-            external
-          />
-          <Divider />
-          <SettingsRow
-            icon={
-              <SettingIcon tone="instagram">
-                <Text style={styles.brandIcon}>◎</Text>
-              </SettingIcon>
-            }
-            title="THEC1RCLE on Instagram"
-            onPress={() => openLink('https://instagram.com/thec1rcle')}
-            external
-          />
-          <Divider />
-          <SettingsRow
-            icon={
-              <SettingIcon tone="x">
-                <X size={15} color="#fff" strokeWidth={2.4} />
-              </SettingIcon>
-            }
-            title="THEC1RCLE on X (Twitter)"
-            onPress={() => openLink('https://x.com/thec1rcle')}
-            external
-          />
-        </Group>
+          <SectionLabel title="Build Info" delay={360} />
+          <Group delay={380}>
+            <SettingsRow title="App Version" value="1.0.0" />
+            <Divider />
+            <SettingsRow title="Build Version" value="2117" />
+            <Divider />
+            <SettingsRow
+              title="Legal"
+              value="Privacy Policy"
+              onPress={() => openLink(PRIVACY_POLICY_URL)}
+              external
+            />
+          </Group>
 
-        <SectionLabel title="Build Info" delay={360} />
-        <Group delay={380}>
-          <SettingsRow title="App Version" value="1.0.0" />
-          <Divider />
-          <SettingsRow title="Build Version" value="2117" />
-          <Divider />
-          <SettingsRow
-            title="Legal"
-            value="Privacy Policy"
-            onPress={() => openLink(PRIVACY_POLICY_URL)}
-            external
-          />
-        </Group>
-
-        {user ? (
-          <>
-            <SectionLabel title="Danger Zone" delay={400} />
-            <Group delay={420}>
-              <SettingsRow title="Logout" onPress={handleLogout} danger />
-            </Group>
-          </>
-        ) : null}
-      </ScrollView>
-    </View>
-    {isLoggingOut && (
-      <View style={styles.loadingOverlay}>
-        <ActivityIndicator size="large" color="#fff" />
+          {user ? (
+            <>
+              <SectionLabel title="Danger Zone" delay={400} />
+              <Group delay={420}>
+                <SettingsRow title="Logout" onPress={handleLogout} danger />
+              </Group>
+            </>
+          ) : null}
+        </ScrollView>
       </View>
-    )}
+      {isLoggingOut && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#fff" />
+        </View>
+      )}
     </>
   );
 }

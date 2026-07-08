@@ -66,8 +66,14 @@ const attendeeAvatarImages = {
 };
 
 const AVATAR_COLORS = [
-  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
-  '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
+  '#FF6B6B',
+  '#4ECDC4',
+  '#45B7D1',
+  '#96CEB4',
+  '#FFEAA7',
+  '#DDA0DD',
+  '#98D8C8',
+  '#F7DC6F',
 ];
 
 function getFallbackInterestedUsers() {
@@ -191,7 +197,7 @@ function isViewerInterestedEntry(
 
   return Boolean(
     (viewerDisplayName && candidateName === normalizeIdentityString(viewerDisplayName)) ||
-      (viewerPhoto && candidatePhoto === viewerPhoto),
+    (viewerPhoto && candidatePhoto === viewerPhoto),
   );
 }
 
@@ -245,7 +251,9 @@ function DynamicBackground({ events, scrollY }: { events: Event[]; scrollY: Shar
           return { opacity };
         });
 
-        return <DynamicBackgroundLayer key={layer.key} img={layer.img} opacityStyle={opacityStyle} />;
+        return (
+          <DynamicBackgroundLayer key={layer.key} img={layer.img} opacityStyle={opacityStyle} />
+        );
       })}
       <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.6)' }]} />
     </View>
@@ -365,107 +373,107 @@ function FeedCard({
 
             <View style={styles.infoOverlay}>
               <View style={styles.infoBlock}>
-              <View style={styles.titleRow}>
-                <View style={{ flex: 1, marginRight: 16 }}>
-                  <Text style={styles.eventTitle} numberOfLines={2}>
-                    {event.title}
-                  </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-                    <Text
-                      style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '600' }}
-                      numberOfLines={1}
-                    >
-                      {venueStr}
+                <View style={styles.titleRow}>
+                  <View style={{ flex: 1, marginRight: 16 }}>
+                    <Text style={styles.eventTitle} numberOfLines={2}>
+                      {event.title}
                     </Text>
-                    <View style={styles.verifiedVenueDot}>
-                      <Check color="#FFFFFF" size={10} strokeWidth={3} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                      <Text
+                        style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '600' }}
+                        numberOfLines={1}
+                      >
+                        {venueStr}
+                      </Text>
+                      <View style={styles.verifiedVenueDot}>
+                        <Check color="#FFFFFF" size={10} strokeWidth={3} />
+                      </View>
                     </View>
+                    <Text style={[styles.dateVenueText, { marginTop: 4 }]} numberOfLines={1}>
+                      {dateStr} at {timeStr}
+                    </Text>
                   </View>
-                  <Text style={[styles.dateVenueText, { marginTop: 4 }]} numberOfLines={1}>
-                    {dateStr} at {timeStr}
-                  </Text>
-                </View>
-                <View style={styles.actionIcons}>
-                  <Pressable
-                    hitSlop={12}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      const Haptics = require('expo-haptics');
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      handleShare();
-                    }}
-                  >
-                    <Share color="rgba(255,255,255,0.7)" size={22} />
-                  </Pressable>
-                  <Pressable
-                    hitSlop={12}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      const Haptics = require('expo-haptics');
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      if (!user?.uid) return;
-                      toggleInterest(event.id, user.uid, {
-                        displayName: profile?.displayName || user.displayName || 'C1rcle User',
-                        photoURL: profile?.photoURL || user.photoURL || null,
-                      });
-                    }}
-                  >
-                    <Heart
-                      color={interested ? '#F44A22' : 'rgba(255,255,255,0.7)'}
-                      fill={interested ? '#F44A22' : 'transparent'}
-                      size={22}
-                    />
-                  </Pressable>
+                  <View style={styles.actionIcons}>
+                    <Pressable
+                      hitSlop={12}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        const Haptics = require('expo-haptics');
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        handleShare();
+                      }}
+                    >
+                      <Share color="rgba(255,255,255,0.7)" size={22} />
+                    </Pressable>
+                    <Pressable
+                      hitSlop={12}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        const Haptics = require('expo-haptics');
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        if (!user?.uid) return;
+                        toggleInterest(event.id, user.uid, {
+                          displayName: profile?.displayName || user.displayName || 'C1rcle User',
+                          photoURL: profile?.photoURL || user.photoURL || null,
+                        });
+                      }}
+                    >
+                      <Heart
+                        color={interested ? '#F44A22' : 'rgba(255,255,255,0.7)'}
+                        fill={interested ? '#F44A22' : 'transparent'}
+                        size={22}
+                      />
+                    </Pressable>
+                  </View>
                 </View>
               </View>
             </View>
-          </View>
 
-          <View style={styles.interestedBar}>
-            <View style={styles.interestedAvatars}>
-              {guestlistUsers.slice(0, 5).map((userInfo: any, idx: number) => {
-                const initial = (userInfo?.displayName || userInfo?.name || '?')
-                  .charAt(0)
-                  .toUpperCase();
-                const avatarUri = firstNonEmptyString(
-                  userInfo?.photoURL,
-                  userInfo?.avatar,
-                  userInfo?.photo,
-                  userInfo?.imageUrl,
-                );
-                const avatarSource = userInfo?.photoSource
-                  ? userInfo.photoSource
-                  : avatarUri
-                    ? { uri: avatarUri }
-                    : null;
+            <View style={styles.interestedBar}>
+              <View style={styles.interestedAvatars}>
+                {guestlistUsers.slice(0, 5).map((userInfo: any, idx: number) => {
+                  const initial = (userInfo?.displayName || userInfo?.name || '?')
+                    .charAt(0)
+                    .toUpperCase();
+                  const avatarUri = firstNonEmptyString(
+                    userInfo?.photoURL,
+                    userInfo?.avatar,
+                    userInfo?.photo,
+                    userInfo?.imageUrl,
+                  );
+                  const avatarSource = userInfo?.photoSource
+                    ? userInfo.photoSource
+                    : avatarUri
+                      ? { uri: avatarUri }
+                      : null;
 
-                return (
-                  <View
-                    key={userInfo?.userId ?? userInfo?.uid ?? userInfo?.id ?? `${initial}-${idx}`}
-                    style={[
-                      styles.interestedAvatar,
-                      {
-                        marginLeft: idx > 0 ? -11 : 0,
-                        backgroundColor: AVATAR_COLORS[(index + idx) % AVATAR_COLORS.length],
-                        zIndex: 20 - idx,
-                      },
-                    ]}
-                  >
-                    {avatarSource ? (
-                      <Image
-                        source={avatarSource}
-                        style={StyleSheet.absoluteFill}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <Text style={styles.interestedAvatarText}>{initial}</Text>
-                    )}
-                  </View>
-                );
-              })}
+                  return (
+                    <View
+                      key={userInfo?.userId ?? userInfo?.uid ?? userInfo?.id ?? `${initial}-${idx}`}
+                      style={[
+                        styles.interestedAvatar,
+                        {
+                          marginLeft: idx > 0 ? -11 : 0,
+                          backgroundColor: AVATAR_COLORS[(index + idx) % AVATAR_COLORS.length],
+                          zIndex: 20 - idx,
+                        },
+                      ]}
+                    >
+                      {avatarSource ? (
+                        <Image
+                          source={avatarSource}
+                          style={StyleSheet.absoluteFill}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <Text style={styles.interestedAvatarText}>{initial}</Text>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
             </View>
           </View>
-        </View>
         </Pressable>
       </Animated.View>
     </View>
@@ -535,9 +543,12 @@ export default function ImmersiveFeedScreen() {
 
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const viewabilityConfig = useMemo(() => ({
-    itemVisiblePercentThreshold: 50,
-  }), []);
+  const viewabilityConfig = useMemo(
+    () => ({
+      itemVisiblePercentThreshold: 50,
+    }),
+    [],
+  );
 
   const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
     if (viewableItems.length > 0) {
@@ -550,12 +561,7 @@ export default function ImmersiveFeedScreen() {
 
   const renderFeedItem = useCallback(
     ({ item, index }: { item: Event; index: number }) => (
-      <FeedCard
-        event={item}
-        index={index}
-        scrollY={scrollY}
-        insetsTop={insets.top}
-      />
+      <FeedCard event={item} index={index} scrollY={scrollY} insetsTop={insets.top} />
     ),
     [insets.top, scrollY],
   );
@@ -680,7 +686,6 @@ export default function ImmersiveFeedScreen() {
           </Text>
         </Pressable>
       </View>
-
     </View>
   );
 }

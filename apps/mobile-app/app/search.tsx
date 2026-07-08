@@ -4,7 +4,16 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, StyleSheet, Keyboard, InteractionManager } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  TextInput,
+  StyleSheet,
+  Keyboard,
+  InteractionManager,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
@@ -254,8 +263,7 @@ export default function SearchScreen() {
       setError(null);
 
       try {
-        const cityParam =
-          selectedCity !== 'All Cities' ? selectedCity : undefined;
+        const cityParam = selectedCity !== 'All Cities' ? selectedCity : undefined;
 
         let response: any;
         if (activeFilter === 'all' || activeFilter === 'events') {
@@ -277,7 +285,12 @@ export default function SearchScreen() {
 
         if (searchId !== searchIdRef.current) return;
 
-        const rawItems = response?.items || response?.events || response?.data?.items || response?.data?.events || [];
+        const rawItems =
+          response?.items ||
+          response?.events ||
+          response?.data?.items ||
+          response?.data?.events ||
+          [];
         const items: any[] = Array.isArray(rawItems) ? rawItems : [];
 
         let mapped: SearchResult[];
@@ -892,5 +905,4 @@ const styles = StyleSheet.create({
     color: colors.goldMetallic,
     fontSize: 14,
   },
-
 });

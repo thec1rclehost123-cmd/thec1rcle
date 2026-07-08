@@ -207,12 +207,7 @@ export function PremiumHeroCard({
       <View style={styles.content}>
         {/* Date chip with frosted glass */}
         <View style={styles.dateChip}>
-          <BlurView
-            blurMethod="dimezisBlurView"
-            intensity={50}
-            tint="dark"
-            style={styles.dateBlur}
-          >
+          <BlurView blurMethod="dimezisBlurView" intensity={50} tint="dark" style={styles.dateBlur}>
             <Text style={styles.dateIcon}>📅</Text>
             <Text style={styles.dateText}>{date}</Text>
           </BlurView>

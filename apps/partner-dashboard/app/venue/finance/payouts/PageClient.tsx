@@ -64,8 +64,7 @@ export default function VenuePayoutsSettingsClient() {
         setAvailableBalance(data.metrics?.availableBalance || 0);
         setTotalSettled(data.metrics?.settledPayouts || 0);
         const rawPayoutState = (data.metrics as any)?.payoutState as
-          | PayoutSettingsState
-          | undefined;
+          PayoutSettingsState | undefined;
         if (rawPayoutState) setSettingsState(rawPayoutState);
       }
     } catch {

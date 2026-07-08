@@ -69,7 +69,8 @@ export default function LoginScreen() {
   const emailInputRef = useRef<TextInput>(null);
   const phoneInputRef = useRef<TextInput>(null);
 
-  const { login, loginApple, loginGoogle, sendPhoneCode, loading, error, setError, clearError } = useAuth();
+  const { login, loginApple, loginGoogle, sendPhoneCode, loading, error, setError, clearError } =
+    useAuth();
   const insets = useSafeAreaInsets();
 
   // Animated values for staggered layout slide & fade-in
@@ -161,9 +162,8 @@ export default function LoginScreen() {
 
   const [verificationSent, setVerificationSent] = useState(false);
   const isAuthFormOpen = showEmailForm || showPhoneForm;
-  const returnTo = typeof params.returnTo === 'string' && params.returnTo.startsWith('/')
-    ? params.returnTo
-    : '/';
+  const returnTo =
+    typeof params.returnTo === 'string' && params.returnTo.startsWith('/') ? params.returnTo : '/';
 
   const finishAuthNavigation = () => {
     if (router.canDismiss()) router.dismissAll();
@@ -173,9 +173,18 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     Keyboard.dismiss();
     const trimmedEmail = email.trim();
-    if (!trimmedEmail) { setError('Please enter your email'); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) { setError('Please enter a valid email address'); return; }
-    if (!password) { setError('Please enter your password'); return; }
+    if (!trimmedEmail) {
+      setError('Please enter your email');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password');
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const result = await login(trimmedEmail, password);
     if (result.success) {
@@ -273,7 +282,10 @@ export default function LoginScreen() {
             <Text style={s.skipText}>Skip</Text>
           </Pressable>
         </View>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} style={s.kav}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          style={s.kav}
+        >
           <ScrollView
             contentContainerStyle={s.scrollContent}
             showsVerticalScrollIndicator={false}
@@ -282,240 +294,263 @@ export default function LoginScreen() {
           >
             <View style={s.content}>
               {/* Header Section */}
-            <Animated.View
-              style={[
-                s.header,
-                isAuthFormOpen && s.headerCompact,
-                { opacity: fadeLogo, transform: [{ translateY: slideLogo }] },
-              ]}
-            >
-              <Text style={s.title}>THEC1RCLE</Text>
-              <Text style={s.tagline}>Nightlife, sorted.</Text>
-            </Animated.View>
-
-            {/* Error box */}
-            {error ? (
-              <View style={s.errorBox}>
-                <Text style={s.errorText}>{error}</Text>
-              </View>
-            ) : null}
-
-            {/* Buttons / Form */}
-            {verificationSent ? (
-              <View style={s.form}>
-                <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                  <Mail size={48} color="#ffffff" style={{ opacity: 0.8, marginBottom: 16 }} />
-                  <Text style={{ color: '#fff', fontSize: 24, fontWeight: '700', marginBottom: 8 }}>Check your email</Text>
-                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, textAlign: 'center', lineHeight: 22 }}>
-                    We couldn't find an account for <Text style={{ fontWeight: '600', color: '#fff' }}>{email}</Text>, so we're creating one for you!
-                  </Text>
-                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, textAlign: 'center', marginTop: 12, lineHeight: 22 }}>
-                    Click the secure link we just sent you to verify your email and finish setting up your account.
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => setVerificationSent(false)}
-                  style={s.backBtn}
-                >
-                  <Text style={s.backText}>Back to Login</Text>
-                </Pressable>
-              </View>
-            ) : (!showEmailForm && !showPhoneForm) ? (
-              <View style={s.buttonGroup}>
-                {Platform.OS === 'ios' && (
-                  <Animated.View
-                    style={{ opacity: fadeApple, transform: [{ translateY: slideApple }] }}
-                    pointerEvents={loading ? 'none' : 'auto'}
-                  >
-                    <AppleAuthentication.AppleAuthenticationButton
-                      buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-                      buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-                      cornerRadius={8}
-                      style={s.appleAuthButton}
-                      onPress={handleApple}
-                    />
-                  </Animated.View>
-                )}
-
-                <Animated.View
-                  style={{ opacity: fadeGoogle, transform: [{ translateY: slideGoogle }] }}
-                >
-                  <Pressable style={s.googleBtn} onPress={handleGoogle} disabled={loading}>
-                    <View style={s.btnIcon}>
-                      <GoogleSvg size={18} />
-                    </View>
-                    <Text style={s.googleBtnText}>Continue with Google</Text>
-                  </Pressable>
-                </Animated.View>
-
-                <Animated.View
-                  style={{ opacity: fadeEmail, transform: [{ translateY: slideEmail }] }}
-                >
-                  <Pressable
-                    style={s.emailBtn}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setShowPhoneForm(true);
-                    }}
-                    disabled={loading}
-                  >
-                    <View style={s.btnIcon}>
-                      <Phone size={16} color="#ffffff" />
-                    </View>
-                    <Text style={s.emailBtnText}>Continue with Phone</Text>
-                  </Pressable>
-                </Animated.View>
-
-                <Animated.View
-                  style={{ opacity: fadeEmail, transform: [{ translateY: slideEmail }] }}
-                >
-                  <Pressable
-                    style={s.emailBtn}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setShowEmailForm(true);
-                    }}
-                    disabled={loading}
-                  >
-                    <View style={s.btnIcon}>
-                      <Mail size={16} color="#ffffff" />
-                    </View>
-                    <Text style={s.emailBtnText}>Continue with Email</Text>
-                  </Pressable>
-                </Animated.View>
-              </View>
-            ) : showPhoneForm ? (
-              <Animated.View style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}>
-                <View style={s.phoneInputRow}>
-                  <CountryCodePicker
-                    selectedCountry={phoneCountry}
-                    onSelect={handleCountrySelect}
-                  />
-                  <TextInput
-                    ref={phoneInputRef}
-                    style={[s.input, s.phoneNumberInput]}
-                    placeholder={phoneCountry.example}
-                    placeholderTextColor="rgba(255,255,255,0.4)"
-                    keyboardType="number-pad"
-                    autoComplete="tel"
-                    autoFocus
-                    maxLength={phoneCountry.localDigits}
-                    value={phone}
-                    onChangeText={(t) => {
-                      setPhone(t.replace(/\D/g, '').slice(0, phoneCountry.localDigits));
-                      clearError();
-                    }}
-                  />
-                </View>
-
-                <Pressable
-                  onPress={handlePhoneSubmit}
-                  disabled={loading || phoneDigits.length < phoneCountry.localDigits}
-                  style={[
-                    s.submitBtn,
-                    (loading || phoneDigits.length < phoneCountry.localDigits) &&
-                      s.submitBtnDisabled,
-                  ]}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#000" />
-                  ) : (
-                    <Text style={s.submitBtnText}>Send OTP</Text>
-                  )}
-                </Pressable>
-
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowPhoneForm(false);
-                  }}
-                  style={s.backBtn}
-                >
-                  <Text style={s.backText}>Use another method</Text>
-                </Pressable>
+              <Animated.View
+                style={[
+                  s.header,
+                  isAuthFormOpen && s.headerCompact,
+                  { opacity: fadeLogo, transform: [{ translateY: slideLogo }] },
+                ]}
+              >
+                <Text style={s.title}>THEC1RCLE</Text>
+                <Text style={s.tagline}>Nightlife, sorted.</Text>
               </Animated.View>
-            ) : showEmailForm ? (
-              <Animated.View style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}>
-                <TextInput
-                  ref={emailInputRef}
-                  style={s.input}
-                  placeholder="Email"
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoFocus
-                  value={email}
-                  onChangeText={(t) => {
-                    setEmail(t);
-                    clearError();
-                  }}
-                />
 
-                <View style={s.passwordContainer}>
-                  <TextInput
-                    style={[s.input, { paddingRight: 48 }]}
-                    placeholder="Password"
-                    placeholderTextColor="rgba(255,255,255,0.4)"
-                    secureTextEntry={!showPassword}
-                    value={password}
-                    onChangeText={(t) => {
-                      setPassword(t);
-                      clearError();
-                    }}
-                  />
-                  <Pressable onPress={() => setShowPassword((v) => !v)} style={s.eyeIcon}>
-                    {showPassword ? (
-                      <EyeOff size={18} color="rgba(255,255,255,0.6)" />
+              {/* Error box */}
+              {error ? (
+                <View style={s.errorBox}>
+                  <Text style={s.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              {/* Buttons / Form */}
+              {verificationSent ? (
+                <View style={s.form}>
+                  <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                    <Mail size={48} color="#ffffff" style={{ opacity: 0.8, marginBottom: 16 }} />
+                    <Text
+                      style={{ color: '#fff', fontSize: 24, fontWeight: '700', marginBottom: 8 }}
+                    >
+                      Check your email
+                    </Text>
+                    <Text
+                      style={{
+                        color: 'rgba(255,255,255,0.7)',
+                        fontSize: 16,
+                        textAlign: 'center',
+                        lineHeight: 22,
+                      }}
+                    >
+                      We couldn't find an account for{' '}
+                      <Text style={{ fontWeight: '600', color: '#fff' }}>{email}</Text>, so we're
+                      creating one for you!
+                    </Text>
+                    <Text
+                      style={{
+                        color: 'rgba(255,255,255,0.7)',
+                        fontSize: 16,
+                        textAlign: 'center',
+                        marginTop: 12,
+                        lineHeight: 22,
+                      }}
+                    >
+                      Click the secure link we just sent you to verify your email and finish setting
+                      up your account.
+                    </Text>
+                  </View>
+                  <Pressable onPress={() => setVerificationSent(false)} style={s.backBtn}>
+                    <Text style={s.backText}>Back to Login</Text>
+                  </Pressable>
+                </View>
+              ) : !showEmailForm && !showPhoneForm ? (
+                <View style={s.buttonGroup}>
+                  {Platform.OS === 'ios' && (
+                    <Animated.View
+                      style={{ opacity: fadeApple, transform: [{ translateY: slideApple }] }}
+                      pointerEvents={loading ? 'none' : 'auto'}
+                    >
+                      <AppleAuthentication.AppleAuthenticationButton
+                        buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                        buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                        cornerRadius={8}
+                        style={s.appleAuthButton}
+                        onPress={handleApple}
+                      />
+                    </Animated.View>
+                  )}
+
+                  <Animated.View
+                    style={{ opacity: fadeGoogle, transform: [{ translateY: slideGoogle }] }}
+                  >
+                    <Pressable style={s.googleBtn} onPress={handleGoogle} disabled={loading}>
+                      <View style={s.btnIcon}>
+                        <GoogleSvg size={18} />
+                      </View>
+                      <Text style={s.googleBtnText}>Continue with Google</Text>
+                    </Pressable>
+                  </Animated.View>
+
+                  <Animated.View
+                    style={{ opacity: fadeEmail, transform: [{ translateY: slideEmail }] }}
+                  >
+                    <Pressable
+                      style={s.emailBtn}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setShowPhoneForm(true);
+                      }}
+                      disabled={loading}
+                    >
+                      <View style={s.btnIcon}>
+                        <Phone size={16} color="#ffffff" />
+                      </View>
+                      <Text style={s.emailBtnText}>Continue with Phone</Text>
+                    </Pressable>
+                  </Animated.View>
+
+                  <Animated.View
+                    style={{ opacity: fadeEmail, transform: [{ translateY: slideEmail }] }}
+                  >
+                    <Pressable
+                      style={s.emailBtn}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setShowEmailForm(true);
+                      }}
+                      disabled={loading}
+                    >
+                      <View style={s.btnIcon}>
+                        <Mail size={16} color="#ffffff" />
+                      </View>
+                      <Text style={s.emailBtnText}>Continue with Email</Text>
+                    </Pressable>
+                  </Animated.View>
+                </View>
+              ) : showPhoneForm ? (
+                <Animated.View
+                  style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}
+                >
+                  <View style={s.phoneInputRow}>
+                    <CountryCodePicker
+                      selectedCountry={phoneCountry}
+                      onSelect={handleCountrySelect}
+                    />
+                    <TextInput
+                      ref={phoneInputRef}
+                      style={[s.input, s.phoneNumberInput]}
+                      placeholder={phoneCountry.example}
+                      placeholderTextColor="rgba(255,255,255,0.4)"
+                      keyboardType="number-pad"
+                      autoComplete="tel"
+                      autoFocus
+                      maxLength={phoneCountry.localDigits}
+                      value={phone}
+                      onChangeText={(t) => {
+                        setPhone(t.replace(/\D/g, '').slice(0, phoneCountry.localDigits));
+                        clearError();
+                      }}
+                    />
+                  </View>
+
+                  <Pressable
+                    onPress={handlePhoneSubmit}
+                    disabled={loading || phoneDigits.length < phoneCountry.localDigits}
+                    style={[
+                      s.submitBtn,
+                      (loading || phoneDigits.length < phoneCountry.localDigits) &&
+                        s.submitBtnDisabled,
+                    ]}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#000" />
                     ) : (
-                      <Eye size={18} color="rgba(255,255,255,0.6)" />
+                      <Text style={s.submitBtnText}>Send OTP</Text>
                     )}
                   </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowPhoneForm(false);
+                    }}
+                    style={s.backBtn}
+                  >
+                    <Text style={s.backText}>Use another method</Text>
+                  </Pressable>
+                </Animated.View>
+              ) : showEmailForm ? (
+                <Animated.View
+                  style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}
+                >
+                  <TextInput
+                    ref={emailInputRef}
+                    style={s.input}
+                    placeholder="Email"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoFocus
+                    value={email}
+                    onChangeText={(t) => {
+                      setEmail(t);
+                      clearError();
+                    }}
+                  />
+
+                  <View style={s.passwordContainer}>
+                    <TextInput
+                      style={[s.input, { paddingRight: 48 }]}
+                      placeholder="Password"
+                      placeholderTextColor="rgba(255,255,255,0.4)"
+                      secureTextEntry={!showPassword}
+                      value={password}
+                      onChangeText={(t) => {
+                        setPassword(t);
+                        clearError();
+                      }}
+                    />
+                    <Pressable onPress={() => setShowPassword((v) => !v)} style={s.eyeIcon}>
+                      {showPassword ? (
+                        <EyeOff size={18} color="rgba(255,255,255,0.6)" />
+                      ) : (
+                        <Eye size={18} color="rgba(255,255,255,0.6)" />
+                      )}
+                    </Pressable>
+                  </View>
+
+                  <Pressable
+                    onPress={handleLogin}
+                    disabled={!canSubmit}
+                    style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#000" />
+                    ) : (
+                      <Text style={s.submitBtnText}>Sign In</Text>
+                    )}
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => router.push('/(auth)/forgot-password')}
+                    style={s.forgotBtn}
+                  >
+                    <Text style={s.forgotText}>Forgot Password?</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowEmailForm(false);
+                    }}
+                    style={s.backBtn}
+                  >
+                    <Text style={s.backText}>Use another method</Text>
+                  </Pressable>
+                </Animated.View>
+              ) : null}
+
+              {/* Staggered Footer & Request Access / Legal text */}
+              <Animated.View
+                style={[
+                  s.footerContainer,
+                  { opacity: fadeFooter, transform: [{ translateY: slideFooter }] },
+                ]}
+              >
+                <View style={s.footerSubContainer}>
+                  {/* Removed Signup link since auth is now unified */}
                 </View>
-
-                <Pressable
-                  onPress={handleLogin}
-                  disabled={!canSubmit}
-                  style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#000" />
-                  ) : (
-                    <Text style={s.submitBtnText}>Sign In</Text>
-                  )}
-                </Pressable>
-
-                <Pressable
-                  onPress={() => router.push('/(auth)/forgot-password')}
-                  style={s.forgotBtn}
-                >
-                  <Text style={s.forgotText}>Forgot Password?</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowEmailForm(false);
-                  }}
-                  style={s.backBtn}
-                >
-                  <Text style={s.backText}>Use another method</Text>
-                </Pressable>
               </Animated.View>
-            ) : null}
-
-            {/* Staggered Footer & Request Access / Legal text */}
-            <Animated.View
-              style={[
-                s.footerContainer,
-                { opacity: fadeFooter, transform: [{ translateY: slideFooter }] },
-              ]}
-            >
-              <View style={s.footerSubContainer}>
-                {/* Removed Signup link since auth is now unified */}
-              </View>
-            </Animated.View>
-          </View>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

@@ -9,15 +9,7 @@ const WEB_DOMAIN = 'thec1rcle.com';
 
 // Deep link types
 export type DeepLinkType =
-  | 'event'
-  | 'transfer'
-  | 'profile'
-  | 'invite'
-  | 'ticket'
-  | 'chat'
-  | 'safety'
-  | 'claim'
-  | 'going';
+  'event' | 'transfer' | 'profile' | 'invite' | 'ticket' | 'chat' | 'safety' | 'claim' | 'going';
 
 // Build deep link URL
 export function buildDeepLink(type: DeepLinkType, params: Record<string, string>): string {

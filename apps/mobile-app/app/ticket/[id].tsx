@@ -27,7 +27,15 @@ import {
 } from '@/components/tickets/TicketActionSheets';
 import { colors, gradients, radii } from '@/lib/design/theme';
 import { resolveEventAccentColor } from '@/hooks/useEventAccent';
-import { API_BASE, cancelShareBundle, createShareBundle, getPendingFormalTransfers, getTicketShares, reclaimSharedTicket, revokeSharedTicket } from '@/lib/api';
+import {
+  API_BASE,
+  cancelShareBundle,
+  createShareBundle,
+  getPendingFormalTransfers,
+  getTicketShares,
+  reclaimSharedTicket,
+  revokeSharedTicket,
+} from '@/lib/api';
 import { initiateTransfer, cancelTransfer } from '@/lib/transfers';
 import { track, trackScreen, AnalyticsEvents } from '@/lib/analytics';
 import { shareEventLink } from '@/lib/deeplinks';
@@ -291,11 +299,10 @@ export default function TicketDetailScreen() {
 
     let result: any;
     try {
-      result = await initiateTransfer(
-        claimedTicket.ticketId,
-        order.userId,
-        { tierName: claimedTicket.tierName, quantity: claimedTicket.quantity },
-      );
+      result = await initiateTransfer(claimedTicket.ticketId, order.userId, {
+        tierName: claimedTicket.tierName,
+        quantity: claimedTicket.quantity,
+      });
       if (!result.success) {
         if (result.premiumRequired) {
           openPaywall('ticketTransfers', result.error);

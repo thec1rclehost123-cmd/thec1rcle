@@ -47,9 +47,8 @@ export default function OtpScreen() {
 
   const inputRef = useRef<TextInput>(null);
   const { confirmPhoneCode, linkPhoneCode, sendPhoneCode, loading, error, clearError } = useAuth();
-  const returnTo = typeof params.returnTo === 'string' && params.returnTo.startsWith('/')
-    ? params.returnTo
-    : '/';
+  const returnTo =
+    typeof params.returnTo === 'string' && params.returnTo.startsWith('/') ? params.returnTo : '/';
 
   // Animation values
   const successAnim = useSharedValue(0);
@@ -96,7 +95,7 @@ export default function OtpScreen() {
     }
 
     const isLinking = params.isLinking === 'true';
-    const result = isLinking 
+    const result = isLinking
       ? await linkPhoneCode(params.verificationId, otpString)
       : await confirmPhoneCode(params.verificationId, otpString);
 
@@ -115,7 +114,7 @@ export default function OtpScreen() {
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <Pressable 
+          <Pressable
             onPress={() => {
               if (router.canGoBack()) {
                 router.back();
@@ -137,123 +136,126 @@ export default function OtpScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-          {/* Header Texts */}
-          {useMemo(() => (
-            <Animated.View style={[{ alignItems: 'center', marginBottom: 20 }]}>
-              <View style={styles.topDash} />
-              <Text style={styles.title}>
-                {isSuccess ? 'Verified successfully' : "Let's verify your number"}
-              </Text>
+            {/* Header Texts */}
+            {useMemo(
+              () => (
+                <Animated.View style={[{ alignItems: 'center', marginBottom: 20 }]}>
+                  <View style={styles.topDash} />
+                  <Text style={styles.title}>
+                    {isSuccess ? 'Verified successfully' : "Let's verify your number"}
+                  </Text>
 
-              {!isSuccess && (
-                <Text style={styles.subtitle}>
-                  We've sent a 6-digit code to your phone.{'\n'}It'll auto-verify once entered.
-                </Text>
-              )}
-            </Animated.View>
-          ), [isSuccess])}
+                  {!isSuccess && (
+                    <Text style={styles.subtitle}>
+                      We've sent a 6-digit code to your phone.{'\n'}It'll auto-verify once entered.
+                    </Text>
+                  )}
+                </Animated.View>
+              ),
+              [isSuccess],
+            )}
 
-          {/* OTP Boxes Area wrapped in dynamic spacer */}
-          <View style={{ flex: 1, justifyContent: 'center' }}>
-            <View style={styles.otpContainer}>
-              {/* The actual hidden input */}
-              <TextInput
-              ref={inputRef}
-              value={code}
-              onChangeText={handleCodeChange}
-              keyboardType="number-pad"
-              textContentType="oneTimeCode"
-              maxLength={OTP_LENGTH}
-              autoFocus
-              caretHidden
-              style={styles.hiddenInput}
-              editable={!loading && !isSuccess}
-            />
+            {/* OTP Boxes Area wrapped in dynamic spacer */}
+            <View style={{ flex: 1, justifyContent: 'center' }}>
+              <View style={styles.otpContainer}>
+                {/* The actual hidden input */}
+                <TextInput
+                  ref={inputRef}
+                  value={code}
+                  onChangeText={handleCodeChange}
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  maxLength={OTP_LENGTH}
+                  autoFocus
+                  caretHidden
+                  style={styles.hiddenInput}
+                  editable={!loading && !isSuccess}
+                />
 
-            {/* Render 6 Animated Boxes */}
-            <View style={styles.boxesRow}>
-              {Array.from({ length: OTP_LENGTH }).map((_, index) => {
-                const digit = code[index] || '';
-                const isFocused = code.length === index;
+                {/* Render 6 Animated Boxes */}
+                <View style={styles.boxesRow}>
+                  {Array.from({ length: OTP_LENGTH }).map((_, index) => {
+                    const digit = code[index] || '';
+                    const isFocused = code.length === index;
 
-                // Calculate distance from center for merge animation
-                const centerIndex = (OTP_LENGTH - 1) / 2;
-                const offsetFromCenter = index - centerIndex;
-                const distanceToMove = -(offsetFromCenter * (BOX_SIZE + 8));
+                    // Calculate distance from center for merge animation
+                    const centerIndex = (OTP_LENGTH - 1) / 2;
+                    const offsetFromCenter = index - centerIndex;
+                    const distanceToMove = -(offsetFromCenter * (BOX_SIZE + 8));
 
-                const animatedBoxStyle = useAnimatedStyle(() => {
-                  const translateX = interpolate(
-                    successAnim.value,
-                    [0, 1],
-                    [0, distanceToMove],
-                    Extrapolation.CLAMP
-                  );
-                  const opacity = interpolate(
-                    successAnim.value,
-                    [0, 0.8, 1],
-                    [1, 0, 0],
-                    Extrapolation.CLAMP
-                  );
-                  return {
-                    transform: [{ translateX }],
-                    opacity,
-                  };
-                });
+                    const animatedBoxStyle = useAnimatedStyle(() => {
+                      const translateX = interpolate(
+                        successAnim.value,
+                        [0, 1],
+                        [0, distanceToMove],
+                        Extrapolation.CLAMP,
+                      );
+                      const opacity = interpolate(
+                        successAnim.value,
+                        [0, 0.8, 1],
+                        [1, 0, 0],
+                        Extrapolation.CLAMP,
+                      );
+                      return {
+                        transform: [{ translateX }],
+                        opacity,
+                      };
+                    });
 
-                return (
+                    return (
+                      <Animated.View
+                        key={index}
+                        style={[
+                          styles.boxWrap,
+                          { width: BOX_SIZE },
+                          isFocused && styles.boxFocused,
+                          digit && !isFocused && styles.boxFilled,
+                          animatedBoxStyle,
+                        ]}
+                      >
+                        <Text style={styles.inputBoxText}>{digit}</Text>
+                      </Animated.View>
+                    );
+                  })}
+
+                  {/* The Success Checkmark Box (appears in center) */}
                   <Animated.View
-                    key={index}
                     style={[
-                      styles.boxWrap,
+                      styles.successBox,
                       { width: BOX_SIZE },
-                      isFocused && styles.boxFocused,
-                      digit && !isFocused && styles.boxFilled,
-                      animatedBoxStyle,
+                      useAnimatedStyle(() => {
+                        const scale = interpolate(successAnim.value, [0, 0.6, 1], [0.5, 0.5, 1]);
+                        const opacity = interpolate(successAnim.value, [0, 0.8, 1], [0, 1, 1]);
+                        return { transform: [{ scale }], opacity };
+                      }),
                     ]}
                   >
-                    <Text style={styles.inputBoxText}>{digit}</Text>
+                    <Check color="#FFFFFF" strokeWidth={3} size={28} />
                   </Animated.View>
-                );
-              })}
+                </View>
+              </View>
 
-              {/* The Success Checkmark Box (appears in center) */}
-              <Animated.View
-                style={[
-                  styles.successBox,
-                  { width: BOX_SIZE },
-                  useAnimatedStyle(() => {
-                    const scale = interpolate(successAnim.value, [0, 0.6, 1], [0.5, 0.5, 1]);
-                    const opacity = interpolate(successAnim.value, [0, 0.8, 1], [0, 1, 1]);
-                    return { transform: [{ scale }], opacity };
-                  })
-                ]}
-              >
-                <Check color="#FFFFFF" strokeWidth={3} size={28} />
-              </Animated.View>
+              {localError || error ? <Text style={styles.error}>{localError || error}</Text> : null}
+
+              {/* Loading Indicator */}
+              {loading && !isSuccess && (
+                <ActivityIndicator color={colors.iris} style={{ marginTop: 20 }} />
+              )}
             </View>
-          </View>
 
-          {localError || error ? <Text style={styles.error}>{localError || error}</Text> : null}
-
-          {/* Loading Indicator */}
-          {loading && !isSuccess && (
-            <ActivityIndicator color={colors.iris} style={{ marginTop: 20 }} />
-          )}
-        </View>
-
-          {/* Footer Resend */}
-          {!isSuccess && (
-            <View style={styles.footerLinks}>
-              <Pressable onPress={handleResend} disabled={timer > 0 || loading}>
-                <Text style={styles.resendText}>
-                  Didn't receive the code?{' '}
-                  <Text style={timer === 0 ? styles.resendActive : styles.resendDisabled}>
-                    Resend {timer > 0 ? `(${timer}s)` : ''}
+            {/* Footer Resend */}
+            {!isSuccess && (
+              <View style={styles.footerLinks}>
+                <Pressable onPress={handleResend} disabled={timer > 0 || loading}>
+                  <Text style={styles.resendText}>
+                    Didn't receive the code?{' '}
+                    <Text style={timer === 0 ? styles.resendActive : styles.resendDisabled}>
+                      Resend {timer > 0 ? `(${timer}s)` : ''}
+                    </Text>
                   </Text>
-                </Text>
-              </Pressable>
-            </View>
-          )}
+                </Pressable>
+              </View>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

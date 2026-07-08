@@ -525,7 +525,6 @@ export default function InboxScreen() {
   //   return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
   // }
 
-  
   const handleInboxSwipe = useCallback(
     (direction: 'next' | 'previous') => {
       switchTab(direction === 'next' ? 'private' : 'events');
@@ -540,8 +539,7 @@ export default function InboxScreen() {
         .failOffsetY([-18, 18])
         .onEnd((event) => {
           const shouldSwitch =
-            Math.abs(event.translationX) >= 52 ||
-            Math.abs(event.velocityX) >= 650;
+            Math.abs(event.translationX) >= 52 || Math.abs(event.velocityX) >= 650;
 
           if (!shouldSwitch) return;
 
@@ -585,10 +583,7 @@ export default function InboxScreen() {
 
       {/* ── Segment control ── */}
       <GestureDetector gesture={inboxSwipeGesture}>
-        <Animated.View
-          entering={FadeIn.duration(160)}
-          style={styles.segmentWrap}
-        >
+        <Animated.View entering={FadeIn.duration(160)} style={styles.segmentWrap}>
           <View style={styles.segmentTrack}>
             {/* Event Chats tab */}
             <Pressable
@@ -600,7 +595,9 @@ export default function InboxScreen() {
                 color={activeTab === 'events' ? '#fff' : 'rgba(255,255,255,0.4)'}
                 strokeWidth={activeTab === 'events' ? 2.2 : 1.8}
               />
-              <Text style={[styles.segmentText, activeTab === 'events' && styles.segmentTextActive]}>
+              <Text
+                style={[styles.segmentText, activeTab === 'events' && styles.segmentTextActive]}
+              >
                 Event Chats
               </Text>
             </Pressable>
@@ -615,7 +612,9 @@ export default function InboxScreen() {
                 color={activeTab === 'private' ? '#fff' : 'rgba(255,255,255,0.4)'}
                 strokeWidth={activeTab === 'private' ? 2.2 : 1.8}
               />
-              <Text style={[styles.segmentText, activeTab === 'private' && styles.segmentTextActive]}>
+              <Text
+                style={[styles.segmentText, activeTab === 'private' && styles.segmentTextActive]}
+              >
                 Private Chats
               </Text>
               {/* Badge showing unread + new matches */}

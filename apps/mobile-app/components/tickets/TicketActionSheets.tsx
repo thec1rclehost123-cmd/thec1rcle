@@ -212,10 +212,7 @@ export function ShareSheetContent({ tickets, onShare }: ShareSheetContentProps) 
               style={[styles.segment, quantityMode === 'all' && styles.segmentActive]}
             >
               <Text
-                style={[
-                  styles.segmentText,
-                  quantityMode === 'all' && styles.segmentTextActive,
-                ]}
+                style={[styles.segmentText, quantityMode === 'all' && styles.segmentTextActive]}
               >
                 All {selectedTier.count}
               </Text>
@@ -225,10 +222,7 @@ export function ShareSheetContent({ tickets, onShare }: ShareSheetContentProps) 
               style={[styles.segment, quantityMode === 'one' && styles.segmentActive]}
             >
               <Text
-                style={[
-                  styles.segmentText,
-                  quantityMode === 'one' && styles.segmentTextActive,
-                ]}
+                style={[styles.segmentText, quantityMode === 'one' && styles.segmentTextActive]}
               >
                 Just 1
               </Text>

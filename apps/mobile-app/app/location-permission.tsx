@@ -119,14 +119,16 @@ export default function LocationPermissionScreen() {
 
           <View style={styles.mapMockup}>
             <View style={styles.mapPinCluster}>
-              {([
-                { top: '25%', left: '30%', bg: '#F44A22', size: 12 },
-                { top: '45%', left: '55%', bg: '#6D5DF6', size: 16 },
-                { top: '60%', left: '25%', bg: '#E11D48', size: 10 },
-                { top: '35%', left: '70%', bg: '#F59E0B', size: 14 },
-                { top: '70%', left: '60%', bg: '#10B981', size: 11 },
-                { top: '50%', left: '40%', bg: '#F44A22', size: 18 },
-              ] as const).map((pin, i) => (
+              {(
+                [
+                  { top: '25%', left: '30%', bg: '#F44A22', size: 12 },
+                  { top: '45%', left: '55%', bg: '#6D5DF6', size: 16 },
+                  { top: '60%', left: '25%', bg: '#E11D48', size: 10 },
+                  { top: '35%', left: '70%', bg: '#F59E0B', size: 14 },
+                  { top: '70%', left: '60%', bg: '#10B981', size: 11 },
+                  { top: '50%', left: '40%', bg: '#F44A22', size: 18 },
+                ] as const
+              ).map((pin, i) => (
                 <View
                   key={i}
                   style={[

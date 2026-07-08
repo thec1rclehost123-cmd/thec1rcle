@@ -107,12 +107,8 @@ export async function checkNotificationSystemPermission(): Promise<boolean> {
 }
 
 export function showSettingsAlert(title: string, message: string) {
-  Alert.alert(
-    title,
-    message,
-    [
-      { text: 'Not Now', style: 'cancel' },
-      { text: 'Open Settings', onPress: openSystemSettings },
-    ],
-  );
+  Alert.alert(title, message, [
+    { text: 'Not Now', style: 'cancel' },
+    { text: 'Open Settings', onPress: openSystemSettings },
+  ]);
 }

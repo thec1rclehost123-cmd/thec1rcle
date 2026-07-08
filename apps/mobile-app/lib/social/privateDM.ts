@@ -283,10 +283,9 @@ export async function getUserEventConversations(
 // Get saved contacts for a user
 export async function getSavedContacts(userId: string): Promise<any[]> {
   try {
-    const response = await apiFetch<{ contacts: any[] }>(
-      '/api/v1/social/contacts',
-      { requireAuth: true },
-    );
+    const response = await apiFetch<{ contacts: any[] }>('/api/v1/social/contacts', {
+      requireAuth: true,
+    });
     return response.contacts || [];
   } catch (error) {
     return [];

@@ -1,12 +1,5 @@
 import { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  ActivityIndicator,
-  Dimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
@@ -36,13 +29,62 @@ const MOCKUP_WIDTH = width * 0.72;
 const MOCKUP_HEIGHT = 340;
 
 const FLOATING_AVATARS = [
-  { photo: require('../assets/images/attendees/riya.png'), size: 44, top: 10, leftPct: -5, delay: 0, duration: 3500 },
-  { photo: require('../assets/images/attendees/anaya.png'), size: 58, top: 40, leftPct: -10, delay: 200, duration: 4000 },
-  { photo: require('../assets/images/attendees/yash.png'), size: 50, top: 75, leftPct: -2, delay: 100, duration: 3800 },
-  { photo: require('../assets/images/attendees/arya.png'), size: 80, top: -10, leftPct: 60, delay: 300, duration: 4500 },
-  { photo: require('../assets/images/attendees/neil.png'), size: 54, top: 20, leftPct: 95, delay: 150, duration: 3200 },
-  { photo: require('../assets/images/attendees/sam.png'), size: 46, top: 60, leftPct: 100, delay: 50, duration: 3600 },
-  { photo: require('../assets/images/attendees/hira.png'), size: 50, top: 85, leftPct: 85, delay: 250, duration: 4200 },
+  {
+    photo: require('../assets/images/attendees/riya.png'),
+    size: 44,
+    top: 10,
+    leftPct: -5,
+    delay: 0,
+    duration: 3500,
+  },
+  {
+    photo: require('../assets/images/attendees/anaya.png'),
+    size: 58,
+    top: 40,
+    leftPct: -10,
+    delay: 200,
+    duration: 4000,
+  },
+  {
+    photo: require('../assets/images/attendees/yash.png'),
+    size: 50,
+    top: 75,
+    leftPct: -2,
+    delay: 100,
+    duration: 3800,
+  },
+  {
+    photo: require('../assets/images/attendees/arya.png'),
+    size: 80,
+    top: -10,
+    leftPct: 60,
+    delay: 300,
+    duration: 4500,
+  },
+  {
+    photo: require('../assets/images/attendees/neil.png'),
+    size: 54,
+    top: 20,
+    leftPct: 95,
+    delay: 150,
+    duration: 3200,
+  },
+  {
+    photo: require('../assets/images/attendees/sam.png'),
+    size: 46,
+    top: 60,
+    leftPct: 100,
+    delay: 50,
+    duration: 3600,
+  },
+  {
+    photo: require('../assets/images/attendees/hira.png'),
+    size: 50,
+    top: 85,
+    leftPct: 85,
+    delay: 250,
+    duration: 4200,
+  },
 ];
 
 function FloatingPhoto({
@@ -156,10 +198,7 @@ export default function PermissionScreen() {
   const handleSkip = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (user?.uid) {
-      await Promise.all([
-        recordNotificationPrompt(user.uid),
-        recordLocationPrompt(user.uid),
-      ]);
+      await Promise.all([recordNotificationPrompt(user.uid), recordLocationPrompt(user.uid)]);
     }
     await continueToExplore();
   };
@@ -233,9 +272,7 @@ export default function PermissionScreen() {
               </View>
               <View style={styles.mapBottomCard}>
                 <MapPin size={12} color={colors.iris} strokeWidth={2.5} />
-                <Text style={styles.mapBottomText}>
-                  8 events near you tonight
-                </Text>
+                <Text style={styles.mapBottomText}>8 events near you tonight</Text>
               </View>
             </View>
           </View>

@@ -252,10 +252,7 @@ export default function CheckoutSuccessScreen() {
     return () => backSubscription.remove();
   }, [orderId, syncOrderInBackground]);
 
-  const pageBg = normalizeHexColor(
-    order?.backgroundColor || order?.accentColor,
-    colors.iris,
-  );
+  const pageBg = normalizeHexColor(order?.backgroundColor || order?.accentColor, colors.iris);
   const foreground =
     order?.textColor && /^#[0-9A-Fa-f]{6}$/.test(order.textColor)
       ? order.textColor
@@ -327,7 +324,7 @@ export default function CheckoutSuccessScreen() {
         colors={[
           hexToRgba(order.accentColor || '#D915A8', 0.6), // Dominant color bleed
           hexToRgba(pageBg, 0.9),
-          pageBg
+          pageBg,
         ]}
         locations={[0, 0.48, 1]}
         style={StyleSheet.absoluteFill}
@@ -400,9 +397,7 @@ export default function CheckoutSuccessScreen() {
               {syncing ? (
                 <ActivityIndicator color={foreground} size="small" />
               ) : (
-                <Text style={[styles.retrySyncText, { color: foreground }]}>
-                  Retry ticket sync
-                </Text>
+                <Text style={[styles.retrySyncText, { color: foreground }]}>Retry ticket sync</Text>
               )}
             </Pressable>
           ) : null}

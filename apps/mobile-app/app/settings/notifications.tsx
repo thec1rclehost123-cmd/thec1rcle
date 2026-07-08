@@ -12,10 +12,7 @@ import {
   SettingsRow,
 } from '@/components/settings/DittoSettings';
 import { typography } from '@/lib/design/theme';
-import {
-  checkNotificationSystemPermission,
-  showSettingsAlert,
-} from '@/lib/permissions';
+import { checkNotificationSystemPermission, showSettingsAlert } from '@/lib/permissions';
 
 const font = {
   regular: typography.fontFamily.body,

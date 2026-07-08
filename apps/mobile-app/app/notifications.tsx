@@ -143,7 +143,12 @@ function DittoNotificationEmptyState() {
         <View style={styles.phoneFrame}>
           {/* Mock Row 1 */}
           <View style={styles.listRow}>
-            <View style={[styles.avatarOrb, { borderRadius: 12, backgroundColor: '#8B5CF6', overflow: 'hidden' }]}>
+            <View
+              style={[
+                styles.avatarOrb,
+                { borderRadius: 12, backgroundColor: '#8B5CF6', overflow: 'hidden' },
+              ]}
+            >
               <Image
                 source={require('../assets/images/attendees/riya.png')}
                 style={{ width: '100%', height: '100%' }}
@@ -175,7 +180,12 @@ function DittoNotificationEmptyState() {
 
           {/* Mock Row 3 */}
           <View style={styles.listRow}>
-            <View style={[styles.avatarOrb, { borderRadius: 22, backgroundColor: '#EAB308', overflow: 'hidden' }]}>
+            <View
+              style={[
+                styles.avatarOrb,
+                { borderRadius: 22, backgroundColor: '#EAB308', overflow: 'hidden' },
+              ]}
+            >
               <Image
                 source={require('../assets/images/attendees/neil.png')}
                 style={{ width: '100%', height: '100%' }}

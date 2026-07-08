@@ -126,28 +126,24 @@ export default function RootLayout() {
       if (hasValidReservation) return;
 
       resumeTimer = setTimeout(() => {
-        Alert.alert(
-          'Resume Payment?',
-          'You have an incomplete payment from a previous session.',
-          [
-            {
-              text: 'Cancel Payment',
-              style: 'destructive',
-              onPress: () => useCartStore.getState().setPendingPaymentOrderId(null),
+        Alert.alert('Resume Payment?', 'You have an incomplete payment from a previous session.', [
+          {
+            text: 'Cancel Payment',
+            style: 'destructive',
+            onPress: () => useCartStore.getState().setPendingPaymentOrderId(null),
+          },
+          {
+            text: 'Resume Payment',
+            onPress: () => {
+              const eventId = items[0]?.eventId;
+              if (eventId) {
+                router.replace(`/checkout/${eventId}`);
+              } else {
+                router.replace('/checkout');
+              }
             },
-            {
-              text: 'Resume Payment',
-              onPress: () => {
-                const eventId = items[0]?.eventId;
-                if (eventId) {
-                  router.replace(`/checkout/${eventId}`);
-                } else {
-                  router.replace('/checkout');
-                }
-              },
-            },
-          ],
-        );
+          },
+        ]);
       }, 1000);
     };
 

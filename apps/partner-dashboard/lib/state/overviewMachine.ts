@@ -16,13 +16,7 @@
  */
 
 export type OverviewStatus =
-  | 'initial'
-  | 'loading'
-  | 'partial'
-  | 'live_active'
-  | 'filter_updating'
-  | 'degraded'
-  | 'offline';
+  'initial' | 'loading' | 'partial' | 'live_active' | 'filter_updating' | 'degraded' | 'offline';
 
 export interface OverviewState {
   status: OverviewStatus;

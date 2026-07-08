@@ -66,8 +66,6 @@ function getDisplayPrice(event: Event): string {
   return Number(lowest) <= 0 ? 'Free' : `₹${Math.round(Number(lowest)).toLocaleString('en-IN')}`;
 }
 
-
-
 function SectionHeader({ title, icon, onViewAll, viewAllLabel = 'See All' }: any) {
   const words = title.trim().split(' ');
   const lastWord = words.pop() || '';
@@ -76,7 +74,6 @@ function SectionHeader({ title, icon, onViewAll, viewAllLabel = 'See All' }: any
   return (
     <View style={styles.sectionHeader}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-
         {icon && <Text style={{ fontSize: 18, marginLeft: 4 }}>{icon}</Text>}
         <Text style={styles.sectionTitle}>
           {firstPart}
@@ -141,13 +138,7 @@ function HorizontalEventRail({
       contentContainerStyle={styles.horizontalRailContent}
     >
       {visibleEvents.map((item, index) => (
-        <View
-          key={item.id}
-          style={[
-            styles.horizontalRailItem,
-            { zIndex: index + 1 },
-          ]}
-        >
+        <View key={item.id} style={[styles.horizontalRailItem, { zIndex: index + 1 }]}>
           <PremiumEventCard
             event={item}
             index={index}
@@ -197,7 +188,12 @@ export function TopVenues() {
         contentContainerStyle={{ paddingHorizontal: EXPLORE_SIDE_INSET, gap: EXPLORE_RAIL_GAP }}
       >
         {venues.slice(0, 8).map((venue, index) => {
-          const img = venue.photoURL || venue.image || venue.coverImage || venue.coverURL || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600';
+          const img =
+            venue.photoURL ||
+            venue.image ||
+            venue.coverImage ||
+            venue.coverURL ||
+            'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600';
           return (
             <AnimatedPressable
               key={venue.id}
@@ -220,7 +216,11 @@ export function TopVenues() {
                   borderColor: 'rgba(255,255,255,0.1)',
                 }}
               >
-                <Image source={{ uri: img }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                <Image
+                  source={{ uri: img }}
+                  style={StyleSheet.absoluteFillObject}
+                  contentFit="cover"
+                />
               </View>
               <Text
                 style={{
@@ -400,9 +400,9 @@ export function AllScenes({
 
   return (
     <View style={styles.section}>
-      <SectionHeader 
-        title="All Scenes" 
-        onViewAll={() => router.push({ pathname: '/events/feed' })} 
+      <SectionHeader
+        title="All Scenes"
+        onViewAll={() => router.push({ pathname: '/events/feed' })}
       />
       <View style={styles.allScenesGrid}>
         {visibleEvents.map((item, index) => (
@@ -587,7 +587,13 @@ export function PremiumEventCard({
             )}
 
             <View style={{ flex: 1, justifyContent: 'space-between' }}>
-              <View style={{ padding: variant === 'compact' ? spacing.md : spacing.base, flexDirection: 'row', justifyContent: 'space-between' }}>
+              <View
+                style={{
+                  padding: variant === 'compact' ? spacing.md : spacing.base,
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                }}
+              >
                 <View
                   style={{
                     backgroundColor: 'rgba(10, 10, 10, 0.75)',

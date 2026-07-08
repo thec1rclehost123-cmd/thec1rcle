@@ -10,11 +10,7 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import React, { useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
@@ -172,11 +168,16 @@ function CustomTabBar({ state, navigation }: any) {
 // ── Root tab layout ────────────────────────────────────────────────────────────
 export default function TabLayout() {
   return (
-    <Tabs 
-      tabBar={(props) => <CustomTabBar {...props} />} 
-      screenOptions={{ 
+    <Tabs
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{
         headerShown: false,
-        tabBarStyle: { position: 'absolute', backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0 }
+        tabBarStyle: {
+          position: 'absolute',
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          elevation: 0,
+        },
       }}
     >
       <Tabs.Screen name="explore" options={{ title: 'Explore' }} />

@@ -75,20 +75,12 @@ function FeaturedDeckCard({
     return {
       opacity,
       zIndex: Math.round(interpolate(abs, [0, 1.45], [5, 0], Extrapolation.CLAMP)),
-      transform: [
-        { translateX },
-        { translateY },
-        { scale },
-        { rotateZ: `${rotate}deg` },
-      ],
+      transform: [{ translateX }, { translateY }, { scale }, { rotateZ: `${rotate}deg` }],
     };
   });
 
   return (
-    <Animated.View
-      style={[styles.cardLayer, animatedStyle]}
-      pointerEvents={side ? 'auto' : 'auto'}
-    >
+    <Animated.View style={[styles.cardLayer, animatedStyle]} pointerEvents={side ? 'auto' : 'auto'}>
       {side ? (
         <Pressable
           onPress={onSidePress}
@@ -113,7 +105,7 @@ function FeaturedDeckCard({
 
 export function ExploreFeaturedCarousel({ events }: { events: Event[] }) {
   const visibleEvents = useMemo(() => events.slice(0, 8), [events]);
-  
+
   const position = useSharedValue(0);
   const context = useSharedValue(0);
 
@@ -146,7 +138,7 @@ export function ExploreFeaturedCarousel({ events }: { events: Event[] }) {
           position.value = context.value - event.translationX / SWIPE_DISTANCE;
         })
         .onEnd((event) => {
-          const projected = position.value - (event.velocityX / 800);
+          const projected = position.value - event.velocityX / 800;
           let target = Math.round(projected);
 
           // Force at least 1 card change if swiped fast but distance was small

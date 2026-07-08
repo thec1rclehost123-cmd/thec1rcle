@@ -91,7 +91,7 @@ export default function PhoneAuthScreen() {
         />
       </>
     ),
-    [player]
+    [player],
   );
 
   return (

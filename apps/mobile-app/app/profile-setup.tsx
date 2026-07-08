@@ -15,9 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   FadeInDown,
@@ -123,22 +121,19 @@ export default function ProfileSetupScreen() {
     genderHeight.value = withSpring(0, { damping: 18, stiffness: 200 });
   };
 
-  const handleDateChange = useCallback(
-    (_event: DateTimePickerEvent, selectedDate?: Date) => {
-      if (Platform.OS === 'android') {
-        setShowDatePicker(false);
+  const handleDateChange = useCallback((_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      const age = calculateAge(selectedDate);
+      if (age < 13) {
+        Alert.alert('Age Restriction', 'You must be at least 13 years old to use The C1rcle.');
+        return;
       }
-      if (selectedDate) {
-        const age = calculateAge(selectedDate);
-        if (age < 13) {
-          Alert.alert('Age Restriction', 'You must be at least 13 years old to use The C1rcle.');
-          return;
-        }
-        setDateOfBirth(selectedDate);
-      }
-    },
-    [],
-  );
+      setDateOfBirth(selectedDate);
+    }
+  }, []);
 
   const handleFinish = async () => {
     if (!user?.uid) return;
@@ -200,7 +195,7 @@ export default function ProfileSetupScreen() {
         >
           {/* Header */}
           <Animated.View entering={FadeIn.duration(600)} style={styles.headerSection}>
-            <Pressable 
+            <Pressable
               onPress={async () => {
                 try {
                   await logout();
@@ -251,13 +246,10 @@ export default function ProfileSetupScreen() {
             >
               <View style={styles.dropdownButtonContent}>
                 <Text
-                  style={[
-                    styles.dropdownButtonText,
-                    !gender && styles.dropdownButtonPlaceholder,
-                  ]}
+                  style={[styles.dropdownButtonText, !gender && styles.dropdownButtonPlaceholder]}
                 >
                   {gender
-                    ? GENDER_OPTIONS.find((o) => o.key === gender)?.label ?? 'Select gender'
+                    ? (GENDER_OPTIONS.find((o) => o.key === gender)?.label ?? 'Select gender')
                     : 'Select gender'}
                 </Text>
                 {genderExpanded ? (
@@ -290,9 +282,7 @@ export default function ProfileSetupScreen() {
                       >
                         {option.label}
                       </Text>
-                      {selected && (
-                        <Check size={18} color="#FFFFFF" strokeWidth={3} />
-                      )}
+                      {selected && <Check size={18} color="#FFFFFF" strokeWidth={3} />}
                     </Pressable>
                   );
                 })}
@@ -319,10 +309,7 @@ export default function ProfileSetupScreen() {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setShowDatePicker(true);
               }}
-              style={({ pressed }) => [
-                styles.dateButton,
-                pressed && { opacity: 0.8 },
-              ]}
+              style={({ pressed }) => [styles.dateButton, pressed && { opacity: 0.8 }]}
             >
               <View style={styles.dateButtonContent}>
                 <View style={styles.dateIconWrap}>
@@ -337,15 +324,9 @@ export default function ProfileSetupScreen() {
 
             {/* iOS: inline picker */}
             {showDatePicker && Platform.OS === 'ios' && (
-              <Animated.View
-                entering={FadeIn.duration(300)}
-                style={styles.iosPickerContainer}
-              >
+              <Animated.View entering={FadeIn.duration(300)} style={styles.iosPickerContainer}>
                 <View style={styles.iosPickerHeader}>
-                  <Pressable
-                    onPress={() => setShowDatePicker(false)}
-                    style={styles.iosPickerDone}
-                  >
+                  <Pressable onPress={() => setShowDatePicker(false)} style={styles.iosPickerDone}>
                     <Text style={styles.iosPickerDoneText}>Done</Text>
                   </Pressable>
                 </View>
@@ -384,10 +365,7 @@ export default function ProfileSetupScreen() {
         animationType="fade"
         onRequestClose={() => setShowDobInfo(false)}
       >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowDobInfo(false)}
-        >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowDobInfo(false)}>
           <Pressable onPress={() => {}} style={styles.infoCard}>
             <View style={styles.infoIconRow}>
               <View style={styles.infoIconCircle}>
@@ -396,20 +374,17 @@ export default function ProfileSetupScreen() {
             </View>
             <Text style={styles.infoTitle}>Why we need your age</Text>
             <Text style={styles.infoBody}>
-              Your date of birth and age are important to us because The C1rcle
-              hosts events that may be 18+ or 21+. In order to protect your
-              safety and comply with venue policies, we need to verify your age.
+              Your date of birth and age are important to us because The C1rcle hosts events that
+              may be 18+ or 21+. In order to protect your safety and comply with venue policies, we
+              need to verify your age.
             </Text>
             <Text style={styles.infoBody}>
-              Please make sure you enter your correct date of birth — you won't
-              be able to change it later.
+              Please make sure you enter your correct date of birth — you won't be able to change it
+              later.
             </Text>
             <Pressable
               onPress={() => setShowDobInfo(false)}
-              style={({ pressed }) => [
-                styles.infoGotIt,
-                pressed && { opacity: 0.8 },
-              ]}
+              style={({ pressed }) => [styles.infoGotIt, pressed && { opacity: 0.8 }]}
             >
               <LinearGradient
                 colors={gradients.primary as [string, string]}
@@ -440,9 +415,7 @@ export default function ProfileSetupScreen() {
             end={{ x: 1, y: 0 }}
             style={styles.ctaGradient}
           >
-            <Text style={styles.ctaText}>
-              {saving ? 'Saving...' : 'Continue'}
-            </Text>
+            <Text style={styles.ctaText}>{saving ? 'Saving...' : 'Continue'}</Text>
           </LinearGradient>
         </Pressable>
       </Animated.View>

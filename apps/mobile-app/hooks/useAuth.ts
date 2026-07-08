@@ -117,7 +117,8 @@ export function useAuth() {
       await resetPassword(email);
       return { success: true };
     } catch (err: any) {
-      const message = getErrorMessage(err.code) || err.message || 'Something went wrong. Please try again';
+      const message =
+        getErrorMessage(err.code) || err.message || 'Something went wrong. Please try again';
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -250,7 +251,9 @@ export function useAuth() {
   // Surface server-sync failure as a persistent error when no action-level error is set
   const displayError =
     error ||
-    (authSyncFailed && authSyncError ? 'Connection issue. Please check your network and try again.' : null);
+    (authSyncFailed && authSyncError
+      ? 'Connection issue. Please check your network and try again.'
+      : null);
 
   return {
     user,

@@ -32,17 +32,17 @@ export default function AddContactScreen() {
   const { user } = useAuthStore();
   const { sendPhoneCode, linkEmail, loading, error, setError, clearError, signOut } = useAuth();
   const insets = useSafeAreaInsets();
-  
+
   const [phone, setPhone] = useState('');
   const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
   const [email, setEmail] = useState('');
-  
+
   const inputRef = useRef<TextInput>(null);
 
   // Determine what we need to ask for
   const needsPhone = useMemo(() => {
     if (!user) return false;
-    const hasPhone = !!user.phoneNumber || user.providerData.some(p => p.providerId === 'phone');
+    const hasPhone = !!user.phoneNumber || user.providerData.some((p) => p.providerId === 'phone');
     return !hasPhone;
   }, [user]);
 
@@ -76,16 +76,27 @@ export default function AddContactScreen() {
       if (result.success && result.verificationId) {
         router.push({
           pathname: '/(auth)/otp',
-          params: { verificationId: result.verificationId, phoneNumber, isLinking: 'true', returnTo: '/profile-setup' },
+          params: {
+            verificationId: result.verificationId,
+            phoneNumber,
+            isLinking: 'true',
+            returnTo: '/profile-setup',
+          },
         });
         // We mark it complete optimistically so it won't show again. OTP handles the rest.
         if (user?.uid) await markContactLinkingComplete(user.uid);
       }
     } else {
       const trimmedEmail = email.trim();
-      if (!trimmedEmail) { setError('Please enter your email'); return; }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) { setError('Please enter a valid email address'); return; }
-      
+      if (!trimmedEmail) {
+        setError('Please enter your email');
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+        setError('Please enter a valid email address');
+        return;
+      }
+
       const result = await linkEmail(trimmedEmail);
       if (result.success) {
         if (user?.uid) await markContactLinkingComplete(user.uid);
@@ -102,19 +113,17 @@ export default function AddContactScreen() {
   };
 
   const title = needsPhone ? 'Add Your Phone' : 'Add Your Email';
-  const subtitle = needsPhone 
+  const subtitle = needsPhone
     ? 'Enter your phone number to get yourself verified and chat with friends.'
     : 'Enter your email address to receive important updates and account recovery links.';
-  const canSubmit = needsPhone 
-    ? phone.length > 0 && !loading
-    : email.trim().length > 0 && !loading;
+  const canSubmit = needsPhone ? phone.length > 0 && !loading : email.trim().length > 0 && !loading;
 
   return (
     <View style={s.container}>
       <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
         {/* Header */}
         <View style={s.header}>
-          <Pressable 
+          <Pressable
             onPress={async () => {
               try {
                 if (signOut) {
@@ -130,8 +139,8 @@ export default function AddContactScreen() {
           >
             <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
-          
-          <Pressable 
+
+          <Pressable
             onPress={handleSkip}
             style={({ pressed }) => [s.skipButton, pressed && { opacity: 0.6 }]}
           >
@@ -139,7 +148,7 @@ export default function AddContactScreen() {
           </Pressable>
         </View>
 
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={s.flex1}
         >
@@ -157,13 +166,11 @@ export default function AddContactScreen() {
                 )}
               </View>
             </View>
-            
+
             <Text style={s.title}>{title}</Text>
             <Text style={s.subtitle}>{subtitle}</Text>
 
-            {error ? (
-              <Text style={s.errorText}>{error}</Text>
-            ) : null}
+            {error ? <Text style={s.errorText}>{error}</Text> : null}
 
             <View style={s.formContainer}>
               {needsPhone ? (
@@ -207,7 +214,7 @@ export default function AddContactScreen() {
                 </View>
               )}
             </View>
-            
+
             <View style={s.spacer} />
 
             <Pressable

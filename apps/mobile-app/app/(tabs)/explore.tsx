@@ -211,8 +211,6 @@ function HeaderProfileAvatar() {
   );
 }
 
-
-
 // ── Animated filter pill ───────────────────────────────────────────────────────
 function FilterPill({
   label,
@@ -315,7 +313,6 @@ function CategoryFilterRow({
     </ScrollView>
   );
 }
-
 
 // ── Main screen ────────────────────────────────────────────────────────────────
 export default function ExploreScreen() {
@@ -444,23 +441,26 @@ export default function ExploreScreen() {
     );
   }, [ticketsStore.orders]);
 
-  const loadData = useCallback(async (city?: string) => {
-    const cached = await getCachedEvents();
-    if (cached.data?.length) setCachedEvents(cached.data);
+  const loadData = useCallback(
+    async (city?: string) => {
+      const cached = await getCachedEvents();
+      if (cached.data?.length) setCachedEvents(cached.data);
 
-    try {
-      const cityParam = city && city !== 'all' ? city : undefined;
-      await fetchEvents(cityParam);
-      const store = useEventsStore.getState();
-      if (store.events.length > 0) {
-        await cacheEvents(store.events);
-        await updateLastSyncTime();
+      try {
+        const cityParam = city && city !== 'all' ? city : undefined;
+        await fetchEvents(cityParam);
+        const store = useEventsStore.getState();
+        if (store.events.length > 0) {
+          await cacheEvents(store.events);
+          await updateLastSyncTime();
+        }
+        setIsOffline(false);
+      } catch {
+        setIsOffline(true);
       }
-      setIsOffline(false);
-    } catch {
-      setIsOffline(true);
-    }
-  }, [fetchEvents]);
+    },
+    [fetchEvents],
+  );
 
   useEffect(() => {
     trackScreen('Explore');
@@ -493,7 +493,7 @@ export default function ExploreScreen() {
   useFocusEffect(
     useCallback(() => {
       setGreeting(getGreeting());
-    }, [])
+    }, []),
   );
 
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -564,9 +564,7 @@ export default function ExploreScreen() {
           showLocationNudge ? (
             <Animated.View entering={FadeIn} style={styles.locationBanner}>
               <MapPin size={18} color="#F44A22" strokeWidth={2.5} />
-              <Text style={styles.locationBannerText}>
-                Enable location to see events near you
-              </Text>
+              <Text style={styles.locationBannerText}>Enable location to see events near you</Text>
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -648,7 +646,7 @@ export default function ExploreScreen() {
         render: () =>
           filteredEvents.length > 0 ? (
             <View onLayout={(e) => setAllScenesY(e.nativeEvent.layout.y)}>
-              <AllScenes 
+              <AllScenes
                 events={filteredEvents}
                 onPageChange={() => {
                   mainScrollRef.current?.scrollToOffset({
@@ -709,7 +707,6 @@ export default function ExploreScreen() {
   return (
     <View style={styles.container}>
       <FlashList
-
         style={styles.scrollLayer}
         ref={mainScrollRef}
         bounces={false}

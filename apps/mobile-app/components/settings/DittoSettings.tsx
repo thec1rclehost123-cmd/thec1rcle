@@ -140,7 +140,12 @@ export function SettingsSwitchRow({
   const hapticsEnabled = useHapticsEnabled();
 
   return (
-    <View style={styles.row} accessibilityRole="switch" accessibilityState={{ checked: value }} accessibilityLabel={title}>
+    <View
+      style={styles.row}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value }}
+      accessibilityLabel={title}
+    >
       <Text style={styles.rowTitle} numberOfLines={1}>
         {title}
       </Text>

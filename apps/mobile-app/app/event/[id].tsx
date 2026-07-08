@@ -118,7 +118,7 @@ function isViewerInterestedEntry(
 
   return Boolean(
     (viewerDisplayName && candidateName === normalizeIdentityString(viewerDisplayName)) ||
-      (viewerPhoto && candidatePhoto === viewerPhoto),
+    (viewerPhoto && candidatePhoto === viewerPhoto),
   );
 }
 
@@ -205,9 +205,9 @@ function TicketOriginEventView({
 
   const handleCopyLink = async () => {
     Haptics.selectionAsync();
-const eventLink = `https://thec1rcle.com/event/${encodeURIComponent(eventId)}`;
-      await Clipboard.setStringAsync(eventLink);
-      Alert.alert('Link Copied!', 'The event link has been copied to your clipboard.');
+    const eventLink = `https://thec1rcle.com/event/${encodeURIComponent(eventId)}`;
+    await Clipboard.setStringAsync(eventLink);
+    Alert.alert('Link Copied!', 'The event link has been copied to your clipboard.');
     setShowShare(false);
   };
 
@@ -229,7 +229,7 @@ const eventLink = `https://thec1rcle.com/event/${encodeURIComponent(eventId)}`;
   const handleSystemShare = async () => {
     Haptics.selectionAsync();
     const eventLink = `https://thec1rcle.com/event/${encodeURIComponent(eventId)}`;
-      await shareEventLink(
+    await shareEventLink(
       eventId,
       title,
       `I'm going to ${title} on THE C1RCLE.\n\nJoin me there:\n${eventLink}`,
@@ -444,22 +444,25 @@ const TicketTierCard = memo(function TicketTierCard({
     transform: [{ scale: scale.value }],
   }));
 
-  const handleQuantityChange = useCallback((delta: number) => {
-    if (isGenderRestricted || isGenderUnknown) {
-      Alert.alert(
-        'Restricted Ticket',
-        genderRestriction === 'female'
-          ? 'This ticket is restricted to female attendees only.'
-          : `This ticket is restricted to ${genderRestriction} attendees only.`,
-      );
-      return;
-    }
-    Haptics.selectionAsync();
-    setQuantity((prev) => {
-      const next = delta > 0 ? prev + 1 : prev - 1;
-      return Math.max(1, next);
-    });
-  }, [isGenderRestricted, isGenderUnknown, genderRestriction]);
+  const handleQuantityChange = useCallback(
+    (delta: number) => {
+      if (isGenderRestricted || isGenderUnknown) {
+        Alert.alert(
+          'Restricted Ticket',
+          genderRestriction === 'female'
+            ? 'This ticket is restricted to female attendees only.'
+            : `This ticket is restricted to ${genderRestriction} attendees only.`,
+        );
+        return;
+      }
+      Haptics.selectionAsync();
+      setQuantity((prev) => {
+        const next = delta > 0 ? prev + 1 : prev - 1;
+        return Math.max(1, next);
+      });
+    },
+    [isGenderRestricted, isGenderUnknown, genderRestriction],
+  );
 
   const handleAddToCart = useCallback(() => {
     if (isGenderRestricted || isGenderUnknown) {
@@ -500,7 +503,16 @@ const TicketTierCard = memo(function TicketTierCard({
       scale.value = withSpring(1);
       setAdded(false);
     }, 2000);
-  }, [isGenderRestricted, isGenderUnknown, genderRestriction, addItem, event, tier, quantity, promoterCode]);
+  }, [
+    isGenderRestricted,
+    isGenderUnknown,
+    genderRestriction,
+    addItem,
+    event,
+    tier,
+    quantity,
+    promoterCode,
+  ]);
 
   return (
     <Animated.View
@@ -645,7 +657,8 @@ export default function EventDetailScreen() {
   const getEventById = useEventsStore((s) => s.getEventById);
   const initialEventRef = useRef<Event | null>(null);
   const initialEvent = useEventsStore((s) => {
-    const found = s.events.find((e) => e.id === id) || s.featuredEvents.find((e) => e.id === id) || null;
+    const found =
+      s.events.find((e) => e.id === id) || s.featuredEvents.find((e) => e.id === id) || null;
     if (found && found.id === initialEventRef.current?.id) {
       return initialEventRef.current;
     }
@@ -728,12 +741,8 @@ export default function EventDetailScreen() {
           ),
         ]
       : sourceUsers;
-    const count = Math.max(
-      Number((event as any).interestedData?.count || 0),
-      users.length,
-    );
-    const leadName =
-      (users[0]?.displayName || users[0]?.name || '').split(' ')[0] || '';
+    const count = Math.max(Number((event as any).interestedData?.count || 0), users.length);
+    const leadName = (users[0]?.displayName || users[0]?.name || '').split(' ')[0] || '';
     const othersCount = Math.max(count - 1, 0);
     const summary =
       count <= 0
@@ -768,7 +777,8 @@ export default function EventDetailScreen() {
     if (!confirmedOrder || !event) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const accentColor = resolveEventAccentColor(confirmedOrder as any) || resolveEventAccentColor(event as any);
+    const accentColor =
+      resolveEventAccentColor(confirmedOrder as any) || resolveEventAccentColor(event as any);
 
     router.push({
       pathname: '/event/[id]',
@@ -1086,9 +1096,7 @@ export default function EventDetailScreen() {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <Text style={styles.errorEmoji}>{loadError ? '📡' : '😕'}</Text>
-        <Text style={styles.errorTitle}>
-          {loadError ? 'Connection Issue' : 'Event Not Found'}
-        </Text>
+        <Text style={styles.errorTitle}>{loadError ? 'Connection Issue' : 'Event Not Found'}</Text>
         <Text style={styles.errorText}>
           {loadError || 'This event may have been removed or is no longer available.'}
         </Text>
@@ -1565,7 +1573,10 @@ export default function EventDetailScreen() {
                   onPress={handleGetDirections}
                   style={[
                     styles.mapDirectionsButton,
-                    { backgroundColor: hexToRgba(accent, 0.25), borderColor: hexToRgba(accent, 0.4) },
+                    {
+                      backgroundColor: hexToRgba(accent, 0.25),
+                      borderColor: hexToRgba(accent, 0.4),
+                    },
                   ]}
                 >
                   <Ionicons name="navigate-outline" size={16} color="#fff" />
