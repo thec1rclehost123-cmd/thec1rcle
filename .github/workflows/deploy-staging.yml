@@ -18,14 +18,61 @@ jobs:
         with:
           fetch-depth: 0
       - name: SonarCloud Scan
-        uses: sonarsource/sonarcloud-github-action@master
+        uses: sonarsource/sonarcloud-github-action@v3
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
+  deploy-gateway:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      gateway_url: ${{ steps.gateway-url.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate GCP secrets
+        env:
+          GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+          GCP_SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
+          GCP_PROJECT_ID_STAGING: ${{ secrets.GCP_PROJECT_ID_STAGING }}
+        run: |
+          missing=()
+          [ -z "$GCP_WIF_PROVIDER" ] && missing+=("GCP_WIF_PROVIDER")
+          [ -z "$GCP_SA_EMAIL" ] && missing+=("GCP_SA_EMAIL")
+          [ -z "$GCP_PROJECT_ID_STAGING" ] && missing+=("GCP_PROJECT_ID_STAGING")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}. Add them in repository Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+      - name: Build & push to GCR
+        run: |
+          gcloud builds submit apps/api-gateway \
+            --tag gcr.io/${{ secrets.GCP_PROJECT_ID_STAGING }}/api-gateway:${{ github.sha }}
+      - name: Deploy to Cloud Run
+        id: deploy
+        run: |
+          gcloud run deploy api-gateway \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID_STAGING }}/api-gateway:${{ github.sha }} \
+            --region us-central1 \
+            --platform managed \
+            --allow-unauthenticated
+      - name: Capture gateway URL
+        id: gateway-url
+        run: |
+          URL=$(gcloud run services describe api-gateway --region us-central1 --format="value(status.url)")
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Gateway deployed at: $URL"
+
   deploy-web:
     runs-on: ubuntu-latest
+    needs: [sonar-analysis, deploy-gateway]
     strategy:
       fail-fast: false
       matrix:
@@ -46,9 +93,18 @@ jobs:
       - name: Set Project IDs
         id: vars
         run: |
-          if [ "${{ matrix.app }}" == "admin-console" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN }}" >> "$GITHUB_OUTPUT"; fi
-          if [ "${{ matrix.app }}" == "guest-portal" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST }}" >> "$GITHUB_OUTPUT"; fi
-          if [ "${{ matrix.app }}" == "partner-dashboard" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER }}" >> "$GITHUB_OUTPUT"; fi
+          case "${{ matrix.app }}" in
+            admin-console)      echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN }}" >> "$GITHUB_OUTPUT" ;;
+            guest-portal)       echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST }}" >> "$GITHUB_OUTPUT" ;;
+            partner-dashboard)  echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER }}" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Set Gateway URL
+        if: matrix.app == 'partner-dashboard'
+        run: |
+          GATEWAY_URL="${{ needs.deploy-gateway.outputs.gateway_url }}"
+          npx vercel env add GATEWAY_URL preview --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --environment=preview <<< "$GATEWAY_URL" || true
+          npx vercel env add GATEWAY_URL production --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --environment=production <<< "$GATEWAY_URL" || true
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25.2.0
@@ -63,8 +119,6 @@ jobs:
 
   deploy-services:
     runs-on: ubuntu-latest
-    env:
-      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -84,10 +138,3 @@ jobs:
 
       - name: Deploy Firebase Functions
         run: npx firebase-tools deploy --only functions --project staging --token ${{ secrets.FIREBASE_TOKEN }} --non-interactive --force
-
-      - name: Build and Push API Gateway Image
-        if: env.GCP_SA_KEY != ''
-        run: |
-          echo "${{ secrets.GCP_SA_KEY }}" | docker login -u _json_key --password-stdin https://gcr.io
-          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID_STAGING }}/api-gateway:latest -f apps/api-gateway/Dockerfile .
-          docker push gcr.io/${{ secrets.GCP_PROJECT_ID_STAGING }}/api-gateway:latest

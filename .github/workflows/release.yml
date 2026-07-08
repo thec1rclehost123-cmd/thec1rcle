@@ -19,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
+      - run: npm cache clean --force
       - run: npm ci
       - uses: actions/cache@v4
         with:
@@ -66,9 +67,9 @@ jobs:
         id: vars
         run: |
           case "${{ matrix.app }}" in
-            guest-portal)         echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST_PORTAL }}" >> "$GITHUB_OUTPUT" ;;
-            partner-dashboard)    echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER_DASHBOARD }}" >> "$GITHUB_OUTPUT" ;;
-            admin-console)        echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN_CONSOLE }}" >> "$GITHUB_OUTPUT" ;;
+            guest-portal)         echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST }}" >> "$GITHUB_OUTPUT" ;;
+            partner-dashboard)    echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER }}" >> "$GITHUB_OUTPUT" ;;
+            admin-console)        echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN }}" >> "$GITHUB_OUTPUT" ;;
           esac
       - name: Deploy to Vercel
         run: npx vercel --prod --token=${{ secrets.VERCEL_TOKEN }}
@@ -88,6 +89,20 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      - name: Validate GCP secrets
+        env:
+          GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+          GCP_SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          missing=()
+          [ -z "$GCP_WIF_PROVIDER" ] && missing+=("GCP_WIF_PROVIDER")
+          [ -z "$GCP_SA_EMAIL" ] && missing+=("GCP_SA_EMAIL")
+          [ -z "$GCP_PROJECT_ID" ] && missing+=("GCP_PROJECT_ID")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}. Add them in repository Settings → Secrets and variables → Actions."
+            exit 1
+          fi
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
@@ -95,11 +110,11 @@ jobs:
       - name: Build & push to GCR
         run: |
           gcloud builds submit apps/api-gateway \
-            --tag ${{ env.GCR_HOSTNAME }}/${{ vars.GCP_PROJECT }}/api-gateway:${{ github.sha }}
+            --tag ${{ env.GCR_HOSTNAME }}/${{ secrets.GCP_PROJECT_ID }}/api-gateway:${{ github.sha }}
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy api-gateway \
-            --image ${{ env.GCR_HOSTNAME }}/${{ vars.GCP_PROJECT }}/api-gateway:${{ github.sha }} \
+            --image ${{ env.GCR_HOSTNAME }}/${{ secrets.GCP_PROJECT_ID }}/api-gateway:${{ github.sha }} \
             --region ${{ env.GCP_REGION }} \
             --platform managed
 
@@ -118,4 +133,7 @@ jobs:
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         with:
           environment: production
-          sourcemaps: ./apps/guest-portal/.next
+          sourcemaps: |
+            ./apps/guest-portal/.next
+            ./apps/partner-dashboard/.next
+            ./apps/admin-console/.next

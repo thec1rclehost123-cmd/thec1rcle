@@ -38,7 +38,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
-      - run: npm ci && cd functions && npm ci
+      - run: npm ci
+      - run: cd functions && npm ci
       - run: cd functions && npx tsc --noEmit
 
   deploy:
@@ -53,11 +54,24 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
+      - name: Validate GCP secrets
+        env:
+          GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+          FIREBASE_SA_EMAIL: ${{ secrets.FIREBASE_SA_EMAIL }}
+        run: |
+          missing=()
+          [ -z "$GCP_WIF_PROVIDER" ] && missing+=("GCP_WIF_PROVIDER")
+          [ -z "$FIREBASE_SA_EMAIL" ] && missing+=("FIREBASE_SA_EMAIL")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}. Add them in repository Settings → Secrets and variables → Actions."
+            exit 1
+          fi
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.FIREBASE_SA_EMAIL }}
-      - run: npm ci && cd functions && npm ci && npm run build
+      - run: npm ci
+      - run: cd functions && npm ci && npm run build
       - name: Deploy functions + rules
         run: |
           npx firebase-tools deploy \
