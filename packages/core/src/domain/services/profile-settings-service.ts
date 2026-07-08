@@ -571,31 +571,34 @@ export async function updateUserProfileSettings(
   if (!userId) throw new Error('Missing userId');
 
   const userRef = db.collection('users').doc(userId);
-  const existing = await userRef.get();
-  const existingData = existing.exists ? existing.data() || {} : {};
-  const result = buildSafeProfileSettingsUpdate(updates, existingData);
+  
+  return await db.runTransaction(async (transaction: any) => {
+    const existing = await transaction.get(userRef);
+    const existingData = existing.exists ? existing.data() || {} : {};
+    const result = buildSafeProfileSettingsUpdate(updates, existingData);
 
-  if (result.error) {
-    const err = new Error(result.error) as any;
-    err.code = result.statusCode === 429 ? 'PROFILE_UPDATE_COOLDOWN' : 'UPDATE_FAILED';
-    err.statusCode = result.statusCode || 400;
-    throw err;
-  }
+    if (result.error) {
+      const err = new Error(result.error) as any;
+      err.code = result.statusCode === 429 ? 'PROFILE_UPDATE_COOLDOWN' : 'UPDATE_FAILED';
+      err.statusCode = result.statusCode || 400;
+      throw err;
+    }
 
-  if (!existing.exists) {
-    await userRef.set({
-      uid: userId,
-      isActive: true,
-      isDeleted: false,
-      createdAt: new Date().toISOString(),
-      ...result.safeUpdates,
-    });
-  } else {
-    await userRef.set(result.safeUpdates, { merge: true });
-  }
-
-  const updatedDoc = await userRef.get();
-  return { id: updatedDoc.id, ...updatedDoc.data() };
+    if (!existing.exists) {
+      const newData = {
+        uid: userId,
+        isActive: true,
+        isDeleted: false,
+        createdAt: new Date().toISOString(),
+        ...result.safeUpdates,
+      };
+      transaction.set(userRef, newData);
+      return { id: userRef.id, ...newData };
+    } else {
+      transaction.set(userRef, result.safeUpdates, { merge: true });
+      return { id: userRef.id, ...existingData, ...result.safeUpdates };
+    }
+  });
 }
 
 export async function getUserSettings(db: any, userId: string): Promise<UserSettings> {

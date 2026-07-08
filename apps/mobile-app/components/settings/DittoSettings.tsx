@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { ArrowLeft, ChevronRight, ExternalLink } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { colors, typography } from '@/lib/design/theme';
+import { useHapticsEnabled } from '@/store/settingsStore';
 
 const font = {
   regular: typography.fontFamily.body,
@@ -24,14 +25,23 @@ export const dittoText = {
 
 export function DittoSettingsScreen({ title, children }: { title: string; children: any }) {
   const insets = useSafeAreaInsets();
+  const hapticsEnabled = useHapticsEnabled();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.back();
+            if (hapticsEnabled) {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/profile');
+            }
           }}
           style={styles.backButton}
         >
@@ -81,12 +91,17 @@ export function SettingsRow({
   danger?: boolean;
 }) {
   const interactive = Boolean(onPress);
+  const hapticsEnabled = useHapticsEnabled();
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${title}${value ? `, current value is ${value}` : ''}`}
       disabled={!interactive}
       onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (hapticsEnabled) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
         onPress?.();
       }}
       style={styles.row}
@@ -122,8 +137,10 @@ export function SettingsSwitchRow({
   value: boolean;
   onValueChange: (value: boolean) => void;
 }) {
+  const hapticsEnabled = useHapticsEnabled();
+
   return (
-    <View style={styles.row}>
+    <View style={styles.row} accessibilityRole="switch" accessibilityState={{ checked: value }} accessibilityLabel={title}>
       <Text style={styles.rowTitle} numberOfLines={1}>
         {title}
       </Text>
@@ -131,7 +148,9 @@ export function SettingsSwitchRow({
         style={styles.switch}
         value={value}
         onValueChange={(next) => {
-          Haptics.selectionAsync();
+          if (hapticsEnabled) {
+            Haptics.selectionAsync();
+          }
           onValueChange(next);
         }}
         trackColor={{ false: '#6A6A6F', true: '#5E6B5F' }}

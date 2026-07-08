@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, deduplicateRequest } from '@/lib/api';
 import { subscribeToGroupChat } from '@/lib/social/groupChat';
 import type { GroupMessage } from '@/lib/social';
 import { subscribeToDirectMessages } from '@/lib/social/privateDM';
+import { checkEventEntitlement } from '@/lib/social/entitlements';
 import type { EventChat, DirectChat } from '@/lib/chat';
 
 interface NewMatch {
@@ -20,9 +21,12 @@ interface ChatState {
   totalUnread: number;
   loading: boolean;
   error: string | null;
+  _unsubscribe: (() => void) | null;
 
   fetchAll: (userId: string) => Promise<void>;
   subscribeToUpdates: (userId: string) => () => void;
+  clearNewMatches: () => void;
+  decrementUnread: (count: number) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -32,24 +36,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
   totalUnread: 0,
   loading: false,
   error: null,
+  _unsubscribe: null,
 
   fetchAll: async (userId: string) => {
+    if (get().loading) return;
     set({ loading: true, error: null });
     try {
       const [chatsResponse, matchesResponse] = await Promise.all([
-        apiFetch<{
+        deduplicateRequest<{
           chats: EventChat[];
           eventChats: EventChat[];
           privateChats: DirectChat[];
           totalUnread: number;
-        }>('/api/v1/social/my-chats', { requireAuth: true }),
-        apiFetch<{ matches: NewMatch[] }>('/api/v1/social/matches', {
-          requireAuth: true,
-        }).catch(() => ({ matches: [] })),
+        }>('chatStore:my-chats', () =>
+          apiFetch<{
+            chats: EventChat[];
+            eventChats: EventChat[];
+            privateChats: DirectChat[];
+            totalUnread: number;
+          }>('/api/v1/social/my-chats', { requireAuth: true }),
+        ),
+        deduplicateRequest<{ matches: NewMatch[] }>('chatStore:matches', () =>
+          apiFetch<{ matches: NewMatch[] }>('/api/v1/social/matches', {
+            requireAuth: true,
+          }).catch(() => ({ matches: [] })),
+        ),
       ]);
 
+      const allEventChats = chatsResponse.eventChats || chatsResponse.chats || [];
+
       set({
-        eventChats: chatsResponse.eventChats || chatsResponse.chats || [],
+        eventChats: allEventChats,
         privateChats: chatsResponse.privateChats || [],
         totalUnread: chatsResponse.totalUnread || 0,
         newMatches: matchesResponse.matches || [],
@@ -60,7 +77,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  clearNewMatches: () => {
+    set({ newMatches: [] });
+  },
+
+  decrementUnread: (count: number) => {
+    set((state) => ({ totalUnread: Math.max(0, state.totalUnread - count) }));
+  },
+
   subscribeToUpdates: (userId: string) => {
+    get()._unsubscribe?.();
+
     const subscriptions = new Map<string, () => void>();
 
     function syncSubscriptions() {
@@ -142,10 +169,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const unsubStore = useChatStore.subscribe((state) => {
       const eventIds = state.eventChats
         .map((c) => c.eventId)
+        .slice()
         .sort()
         .join(',');
       const privateIds = state.privateChats
         .map((c) => c.id)
+        .slice()
         .sort()
         .join(',');
       if (eventIds !== prevEventIds || privateIds !== prevPrivateIds) {
@@ -155,10 +184,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     });
 
-    return () => {
+    const unsubscribe = () => {
       for (const unsub of subscriptions.values()) unsub();
       subscriptions.clear();
       unsubStore();
     };
+
+    set({ _unsubscribe: unsubscribe });
+
+    return unsubscribe;
   },
 }));

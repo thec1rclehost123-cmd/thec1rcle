@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,24 +22,16 @@ export default function WaitlistScreen() {
   const [checking, setChecking] = useState(true);
   const [totalWaiting, setTotalWaiting] = useState(0);
   const [event, setEvent] = useState<Event | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!eventId) return;
     getEventById(eventId).then(setEvent);
   }, [eventId]);
 
-  useEffect(() => {
-    if (!eventId || !user?.email) {
-      setChecking(false);
-      return;
-    }
-    checkWaitlistStatus();
-  }, [eventId, user?.email]);
-
-  const checkWaitlistStatus = async () => {
+  const checkWaitlistStatus = useCallback(async () => {
     if (!eventId || !user?.email) return;
     try {
-      // Priority 1: API Gateway (Centralized logic)
       const data = await apiFetch(
         `/api/v1/waitlist/status?eventId=${eventId}&email=${user.email}`,
         {
@@ -56,16 +48,26 @@ export default function WaitlistScreen() {
       }
       setTotalWaiting(data.totalWaiting || 0);
     } catch (e: any) {
-      console.error('Error checking waitlist status:', e);
+      setError(e.message || 'Unable to check waitlist status');
     } finally {
       setChecking(false);
     }
-  };
+  }, [eventId, user?.email]);
+
+  useEffect(() => {
+    if (!eventId || !user?.email) {
+      setChecking(false);
+      return;
+    }
+    setChecking(true);
+    checkWaitlistStatus();
+  }, [checkWaitlistStatus, eventId, user?.email]);
 
   const handleJoin = async () => {
     if (!user?.email || !user?.uid || !eventId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setJoining(true);
+    setError(null);
     try {
       const phone = (user as any).phoneNumber;
       const payload: { eventId: string; email: string; phone?: string } = {
@@ -76,14 +78,13 @@ export default function WaitlistScreen() {
         payload.phone = phone.trim();
       }
 
-      // Try API first
       await apiFetch(`/api/v1/waitlist/join`, {
         method: 'POST',
         body: JSON.stringify(payload),
       });
       await checkWaitlistStatus();
     } catch (err: any) {
-      console.error('Error joining waitlist:', err);
+      setError(err.message || 'Failed to join waitlist');
     } finally {
       setJoining(false);
     }
@@ -106,6 +107,17 @@ export default function WaitlistScreen() {
       <View style={styles.content}>
         {checking ? (
           <ActivityIndicator color={colors.iris} size="large" />
+        ) : error ? (
+          <Animated.View entering={FadeInDown.springify()}>
+            <View style={styles.card}>
+              <Text style={styles.errorEmoji}>⚠️</Text>
+              <Text style={styles.cardTitle}>Something went wrong</Text>
+              <Text style={styles.cardSubtitle}>{error}</Text>
+              <Pressable onPress={() => { setError(null); setChecking(true); checkWaitlistStatus(); }} style={styles.retryBtn}>
+                <Text style={styles.retryText}>Try Again</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
         ) : alreadyJoined ? (
           <Animated.View entering={FadeInDown.springify()}>
             <View style={styles.card}>
@@ -142,7 +154,7 @@ export default function WaitlistScreen() {
         )}
       </View>
 
-      {!checking && !alreadyJoined && (
+      {!checking && !alreadyJoined && !error && (
         <View style={styles.footer}>
           <Pressable
             onPress={handleJoin}
@@ -244,6 +256,14 @@ const styles = StyleSheet.create({
     borderRadius: radii.xl,
   },
   infoText: { color: colors.goldMetallic, fontSize: 13 },
+  errorEmoji: { fontSize: 40, marginBottom: 16 },
+  retryBtn: {
+    backgroundColor: colors.iris,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: radii.pill,
+  },
+  retryText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   howItWorks: { width: '100%', gap: 12, marginTop: 4 },
   howTitle: {
     color: colors.gold,

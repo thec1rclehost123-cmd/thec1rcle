@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Linking } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Linking, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -291,10 +291,18 @@ export default function MapScreen() {
     eventId?: string | string[];
     venueId?: string | string[];
     mode?: string | string[];
+    lat?: string | string[];
+    lng?: string | string[];
+    latDelta?: string | string[];
+    lngDelta?: string | string[];
   }>();
   const requestedEventId = normalizeParam(params.eventId);
   const requestedVenueId = normalizeParam(params.venueId);
   const requestedMode = normalizeParam(params.mode) === 'venues' ? 'venues' : 'events';
+  const initialLat = normalizeParam(params.lat);
+  const initialLng = normalizeParam(params.lng);
+  const initialLatDelta = normalizeParam(params.latDelta);
+  const initialLngDelta = normalizeParam(params.lngDelta);
 
   const { fetchVenues } = useVenuesStore();
   const insets = useSafeAreaInsets();
@@ -310,7 +318,10 @@ export default function MapScreen() {
   const [selectedCluster, setSelectedCluster] = useState<EventCluster | null>(null);
   const [selectedVenue, setSelectedVenue] = useState<VenueWithCoords | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [currentRegion, setCurrentRegion] = useState<Region | null>(null);
+  const [suggestionsCollapsed, setSuggestionsCollapsed] = useState(false);
 
   useEffect(() => {
     setMapMode(requestedMode);
@@ -318,6 +329,7 @@ export default function MapScreen() {
 
   const loadEventPinsForRegion = useCallback(async (region: Region, showLoading = false) => {
     if (showLoading) setLoading(true);
+    setMapError(null);
     try {
       const pins = await fetchEventMapPins(region);
       const nextEvents = pins.map((pin) => {
@@ -333,6 +345,7 @@ export default function MapScreen() {
       setEventsWithCoords(nextEvents);
     } catch (error) {
       console.warn('[Map] Failed to fetch bounded event pins:', error);
+      setMapError('Could not load events. Pull down to retry.');
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -525,6 +538,31 @@ export default function MapScreen() {
       .sort((left, right) => right.events.length - left.events.length);
   }, [eventsWithCoords]);
 
+  const venueClustersWithinBounds = useMemo(() => {
+    if (mapMode !== 'venues' || !currentRegion) return venuesWithCoords;
+    const bounds = boundsFromRegion(currentRegion);
+    return venuesWithCoords.filter((venue) => {
+      const { latitude, longitude } = venue.resolvedCoords;
+      return (
+        latitude >= bounds.southWestLat &&
+        latitude <= bounds.northEastLat &&
+        longitude >= bounds.southWestLng &&
+        longitude <= bounds.northEastLng
+      );
+    });
+  }, [venuesWithCoords, currentRegion, mapMode]);
+
+  const topPopularEvents = useMemo(() => {
+    if (mapMode !== 'events' || eventClusters.length === 0) return [];
+    return [...eventClusters]
+      .sort((a, b) => {
+        const aScore = Math.max(...a.events.map((e) => e.heatScore || 0));
+        const bScore = Math.max(...b.events.map((e) => e.heatScore || 0));
+        return bScore - aScore;
+      })
+      .slice(0, 6);
+  }, [eventClusters, mapMode]);
+
   const debouncedLoadEventPins = useMemo(
     () =>
       debounce((region: Region) => {
@@ -540,9 +578,13 @@ export default function MapScreen() {
   const handleRegionChangeComplete = useCallback(
     (region: Region) => {
       currentRegionRef.current = region;
+      setCurrentRegion(region);
+      setSuggestionsCollapsed(false);
       if (mapMode === 'events') {
         setSelectedCluster(null);
         debouncedLoadEventPins(region);
+      } else {
+        setSelectedVenue(null);
       }
     },
     [debouncedLoadEventPins, mapMode],
@@ -648,6 +690,15 @@ export default function MapScreen() {
   }, [eventClusters, requestedEventId]);
 
   const initialRegion = useMemo(() => {
+    if (initialLat && initialLng && initialLatDelta && initialLngDelta) {
+      return {
+        latitude: Number(initialLat),
+        longitude: Number(initialLng),
+        latitudeDelta: Number(initialLatDelta),
+        longitudeDelta: Number(initialLngDelta),
+      };
+    }
+
     if (userLocation) {
       return { ...userLocation, latitudeDelta: 0.1, longitudeDelta: 0.1 };
     }
@@ -669,14 +720,16 @@ export default function MapScreen() {
     }
 
     return DEFAULT_REGION;
-  }, [eventClusters, mapMode, userLocation, venuesWithCoords]);
+  }, [eventClusters, initialLat, initialLatDelta, initialLng, initialLngDelta, mapMode, userLocation, venuesWithCoords]);
 
   const subtitle = useMemo(() => {
     if (mapMode === 'venues') {
-      return `${venuesWithCoords.length} venues mapped`;
+      const shown = venueClustersWithinBounds.length;
+      const total = venuesWithCoords.length;
+      return shown < total ? `${shown} of ${total} venues shown` : `${total} venues mapped`;
     }
     return `${eventClusters.length} hotspots nearby`;
-  }, [eventClusters.length, mapMode, venuesWithCoords.length]);
+  }, [eventClusters.length, mapMode, venueClustersWithinBounds.length, venuesWithCoords.length]);
 
   return (
     <View style={mapStyles.container}>
@@ -729,7 +782,7 @@ export default function MapScreen() {
               );
             })
           : mapReady
-            ? venuesWithCoords.map((venue) => {
+            ? venueClustersWithinBounds.map((venue) => {
                 const isSelected = selectedVenue?.id === venue.id;
                 const markerLabel = venue.upcomingEventsCount
                   ? `${Math.min(venue.upcomingEventsCount, 99)}`
@@ -767,7 +820,7 @@ export default function MapScreen() {
       {loading ? (
         <View style={mapStyles.loadingOverlay}>
           <BlurView
-            experimentalBlurMethod="dimezisBlurView"
+            blurMethod="dimezisBlurView"
             intensity={60}
             tint="dark"
             style={mapStyles.loadingBlur}
@@ -780,6 +833,27 @@ export default function MapScreen() {
               </View>
             </View>
             <Text style={mapStyles.loadingText}>Building the city map...</Text>
+          </BlurView>
+        </View>
+      ) : null}
+
+      {mapError && !loading ? (
+        <View style={mapStyles.loadingOverlay}>
+          <BlurView
+            blurMethod="dimezisBlurView"
+            intensity={60}
+            tint="dark"
+            style={mapStyles.loadingBlur}
+          >
+            <Text style={[mapStyles.loadingText, { textAlign: 'center' }]}>{mapError}</Text>
+            <Pressable
+              onPress={() => {
+                void loadEventPinsForRegion(currentRegionRef.current);
+              }}
+              style={{ marginTop: 12, paddingVertical: 8, paddingHorizontal: 20, backgroundColor: colors.iris, borderRadius: radii.pill }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Retry</Text>
+            </Pressable>
           </BlurView>
         </View>
       ) : null}
@@ -798,7 +872,7 @@ export default function MapScreen() {
             style={mapStyles.backButton}
           >
             <BlurView
-              experimentalBlurMethod="dimezisBlurView"
+              blurMethod="dimezisBlurView"
               intensity={40}
               tint="dark"
               style={mapStyles.backButtonBlur}
@@ -832,7 +906,7 @@ export default function MapScreen() {
             style={mapStyles.locationButton}
           >
             <BlurView
-              experimentalBlurMethod="dimezisBlurView"
+              blurMethod="dimezisBlurView"
               intensity={40}
               tint="dark"
               style={mapStyles.backButtonBlur}
@@ -867,13 +941,61 @@ export default function MapScreen() {
         </View>
       </SafeAreaView>
 
+      {mapMode === 'events' && topPopularEvents.length > 0 && !suggestionsCollapsed ? (
+        <View style={mapStyles.suggestionsContainer}>
+          <View style={mapStyles.suggestionsRow}>
+            <Text style={mapStyles.suggestionsLabel}>🔥 Popular</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={mapStyles.suggestionsScroll}
+            >
+              {topPopularEvents.map((cluster) => {
+                const event = cluster.events[0];
+                const title = event.title || 'Event';
+                return (
+                  <Pressable
+                    key={cluster.key}
+                    onPress={() => {
+                      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSuggestionsCollapsed(true);
+                      handleSelectCluster(cluster);
+                      mapRef.current?.animateToRegion(
+                        {
+                          ...cluster.coordinate,
+                          latitudeDelta: 0.012,
+                          longitudeDelta: 0.012,
+                        },
+                        600,
+                      );
+                    }}
+                    style={mapStyles.suggestionPill}
+                  >
+                    <Text style={mapStyles.suggestionPillText} numberOfLines={1}>
+                      🎉 {title}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Pressable
+              onPress={() => setSuggestionsCollapsed(true)}
+              hitSlop={8}
+              style={mapStyles.suggestionsClose}
+            >
+              <Text style={mapStyles.suggestionsCloseText}>✕</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
       {mapMode === 'events' && selectedCluster ? (
         <Animated.View
           entering={SlideInUp.duration(250)}
           style={[mapStyles.bottomCard, { paddingBottom: insets.bottom + 8 }]}
         >
           <BlurView
-            experimentalBlurMethod="dimezisBlurView"
+            blurMethod="dimezisBlurView"
             intensity={80}
             tint="dark"
             style={StyleSheet.absoluteFill}
@@ -952,7 +1074,7 @@ export default function MapScreen() {
           style={[mapStyles.bottomCard, { paddingBottom: insets.bottom + 8 }]}
         >
           <BlurView
-            experimentalBlurMethod="dimezisBlurView"
+            blurMethod="dimezisBlurView"
             intensity={80}
             tint="dark"
             style={StyleSheet.absoluteFill}
@@ -1305,5 +1427,57 @@ const mapStyles = StyleSheet.create({
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.7,
+  },
+  suggestionsContainer: {
+    position: 'absolute',
+    top: 170,
+    left: 0,
+    right: 0,
+    zIndex: 90,
+    paddingHorizontal: 12,
+  },
+  suggestionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  suggestionsLabel: {
+    color: colors.gold,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginRight: 8,
+  },
+  suggestionsScroll: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingRight: 8,
+  },
+  suggestionPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    maxWidth: 200,
+  },
+  suggestionPillText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  suggestionsClose: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+  },
+  suggestionsCloseText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

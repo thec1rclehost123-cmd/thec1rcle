@@ -234,7 +234,7 @@ export function PremiumButton({
       {variant === 'glass' && (
         <>
           <BlurView
-            experimentalBlurMethod="dimezisBlurView"
+            blurMethod="dimezisBlurView"
             intensity={40}
             tint="dark"
             style={styles.glassBlur}
@@ -347,7 +347,7 @@ export function IconButton({
     >
       {variant === 'glass' && (
         <BlurView
-          experimentalBlurMethod="dimezisBlurView"
+          blurMethod="dimezisBlurView"
           intensity={30}
           tint="dark"
           style={StyleSheet.absoluteFill}

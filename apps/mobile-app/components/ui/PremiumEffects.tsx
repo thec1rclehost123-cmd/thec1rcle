@@ -80,7 +80,7 @@ export function LiquidGlass({
     <View style={[styles.liquidGlassContainer, { borderRadius }, style]}>
       {/* Background blur */}
       <BlurView
-        experimentalBlurMethod="dimezisBlurView"
+        blurMethod="dimezisBlurView"
         intensity={intensity}
         tint="dark"
         style={[StyleSheet.absoluteFill, { borderRadius }]}
@@ -230,7 +230,7 @@ export function AuroraBackground({
     <View style={[styles.auroraContainer, { opacity }]}>
       <Animated.View style={[styles.auroraBlob, styles.auroraBlob1, blob1Style]}>
         <BlurView
-          experimentalBlurMethod="dimezisBlurView"
+          blurMethod="dimezisBlurView"
           intensity={100}
           style={StyleSheet.absoluteFill}
         >
@@ -240,7 +240,7 @@ export function AuroraBackground({
 
       <Animated.View style={[styles.auroraBlob, styles.auroraBlob2, blob2Style]}>
         <BlurView
-          experimentalBlurMethod="dimezisBlurView"
+          blurMethod="dimezisBlurView"
           intensity={100}
           style={StyleSheet.absoluteFill}
         >
@@ -250,7 +250,7 @@ export function AuroraBackground({
 
       <Animated.View style={[styles.auroraBlob, styles.auroraBlob3, blob3Style]}>
         <BlurView
-          experimentalBlurMethod="dimezisBlurView"
+          blurMethod="dimezisBlurView"
           intensity={100}
           style={StyleSheet.absoluteFill}
         >
@@ -296,7 +296,7 @@ export function HolographicCard({ children: childrenRaw, style }: HolographicCar
   return (
     <View style={[styles.holographicContainer, style]}>
       <BlurView
-        experimentalBlurMethod="dimezisBlurView"
+        blurMethod="dimezisBlurView"
         intensity={30}
         tint="dark"
         style={styles.holographicBlur}
@@ -441,7 +441,7 @@ export function FloatingOrb({
       ]}
     >
       <BlurView
-        experimentalBlurMethod="dimezisBlurView"
+        blurMethod="dimezisBlurView"
         intensity={60}
         style={StyleSheet.absoluteFill}
       />

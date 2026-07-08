@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   Pressable,
@@ -50,6 +50,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useEventsStore, type Event } from '@/store/eventsStore';
 import { useFollowStore } from '@/store/followStore';
 import { useVenuesStore, type Venue } from '@/store/venuesStore';
+import { useProfileStore } from '@/store/profileStore';
+import { SkeletonList } from '@/components/ui/Skeleton';
+import { ErrorState } from '@/components/ui/EmptyState';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -130,8 +133,7 @@ function getEventsForVenue(venue: Venue, events: Event[]): Event[] {
     const eventKeys = getEventVenueCandidates(event).filter(Boolean);
     return eventKeys.some((eventKey) =>
       venueKeys.some(
-        (venueKey) =>
-          eventKey === venueKey || eventKey.includes(venueKey) || venueKey.includes(eventKey),
+        (venueKey) => eventKey === venueKey || eventKey.startsWith(venueKey) || venueKey.startsWith(eventKey),
       ),
     );
   });
@@ -142,10 +144,10 @@ function isVenueBookable(venue: Venue): boolean {
 
 // --- Zomato-Inspired Components ---
 
-function ZomatoHeader({ search, setSearch, activeFilter, setFilter, insetsTop }: any) {
+function ZomatoHeader({ search, setSearch, activeFilter, setFilter, insetsTop, cityName, avatarUrl, initials }: any) {
   return (
     <BlurView
-      experimentalBlurMethod="dimezisBlurView"
+      blurMethod="dimezisBlurView"
       intensity={85}
       tint="dark"
       style={[styles.headerBlur, { paddingTop: Math.max(insetsTop, 16) }]}
@@ -153,14 +155,20 @@ function ZomatoHeader({ search, setSearch, activeFilter, setFilter, insetsTop }:
       <View style={styles.headerTopRow}>
         <View style={styles.locationPill}>
           <MapPin size={16} color="#F44A22" />
-          <Text style={styles.locationText}>Pune</Text>
+          <Text style={styles.locationText}>{cityName || 'Pune'}</Text>
           <ChevronDown size={14} color="rgba(255,255,255,0.6)" />
         </View>
-        <Pressable style={styles.profileBtn}>
-          <Image
-            source={{ uri: 'https://thec1rcle.com/default-avatar.png' }}
-            style={styles.profileImg}
-          />
+        <Pressable 
+          style={styles.profileBtn}
+          onPress={() => router.push('/(tabs)/profile')}
+        >
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.profileImg} />
+          ) : (
+            <View style={[styles.profileImg, { backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{initials}</Text>
+            </View>
+          )}
         </Pressable>
       </View>
 
@@ -350,7 +358,7 @@ function ZomatoVenueCard({ venue }: { venue: Venue }) {
 
           {venue.isVerified && (
             <BlurView
-              experimentalBlurMethod="dimezisBlurView"
+              blurMethod="dimezisBlurView"
               intensity={40}
               tint="dark"
               style={styles.zBadgeVerified}
@@ -362,7 +370,7 @@ function ZomatoVenueCard({ venue }: { venue: Venue }) {
           <View style={styles.zBadgesBottom}>
             {venue.upcomingEventsCount ? (
               <BlurView
-                experimentalBlurMethod="dimezisBlurView"
+                blurMethod="dimezisBlurView"
                 intensity={40}
                 tint="dark"
                 style={styles.zBadgePill}
@@ -372,7 +380,7 @@ function ZomatoVenueCard({ venue }: { venue: Venue }) {
               </BlurView>
             ) : null}
             <BlurView
-              experimentalBlurMethod="dimezisBlurView"
+              blurMethod="dimezisBlurView"
               intensity={40}
               tint="dark"
               style={styles.zBadgePill}
@@ -410,18 +418,34 @@ export default function VenuesTab() {
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<VenueFilter>('all');
+  const hasFetchedRef = useRef(false);
 
-  const { venues, loading, fetchVenues } = useVenuesStore();
+  const { venues, loading, error, fetchVenues } = useVenuesStore();
   const { events, fetchEvents } = useEventsStore();
   const { user } = useAuth();
+  const profile = useProfileStore((s) => s.profile);
   const { fetchFollows } = useFollowStore();
 
+  const cityName = profile?.city || '';
+  const avatarUrl = profile?.photoURL || user?.photoURL || '';
+  const initials = profile?.displayName
+    ? profile.displayName
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    : user?.email
+      ? user.email[0].toUpperCase()
+      : '?';
+
   useEffect(() => {
-    if (venues.length > 0) return;
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
     fetchVenues();
     fetchEvents();
     if (user?.uid) fetchFollows(user.uid);
-  }, [venues.length, fetchVenues, fetchEvents, user?.uid, fetchFollows]);
+  }, [fetchVenues, fetchEvents, user?.uid, fetchFollows]);
 
   const enrichedVenues = useMemo(() => {
     const list = venues.map((v) => {
@@ -472,52 +496,63 @@ export default function VenuesTab() {
 
   return (
     <View style={styles.container}>
-      <ZomatoHeader
-        search={search}
-        setSearch={setSearch}
-        activeFilter={activeFilter}
-        setFilter={setActiveFilter}
-        insetsTop={insets.top}
-      />
+        <ZomatoHeader
+          search={search}
+          setSearch={setSearch}
+          activeFilter={activeFilter}
+          setFilter={setActiveFilter}
+          insetsTop={insets.top}
+          cityName={cityName}
+          avatarUrl={avatarUrl}
+          initials={initials}
+        />
 
-      <FlashList
-        data={feedVenues}
-        renderItem={renderVenueCard}
-        keyExtractor={(item: Venue) => item.id}
-        // @ts-ignore
-        estimatedItemSize={340}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 180 }]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={loading}
-            onRefresh={() => {
-              fetchVenues();
-              fetchEvents();
-            }}
-            tintColor="#F44A22"
-          />
-        }
-        ListHeaderComponent={
-          search === '' && activeFilter === 'all' ? (
-            <>
-              {spotlightVenue && <EditorialHeroCard venue={spotlightVenue} />}
-              {bookableVenues.length > 0 && (
-                <CuratedRail title="Reserve a Table" venues={bookableVenues} />
-              )}
-            </>
-          ) : null
-        }
-        ListEmptyComponent={
-          !loading ? (
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyIcon}>🍽️</Text>
-              <Text style={styles.emptyTitle}>No venues found</Text>
-              <Text style={styles.emptySub}>Try adjusting your search or filters.</Text>
-            </View>
-          ) : null
-        }
-      />
+      {error && !loading && venues.length === 0 ? (
+        <View style={[styles.scrollContent, { paddingTop: insets.top + 180 }]}>
+          <ErrorState message={error} onRetry={() => { hasFetchedRef.current = false; fetchVenues(); }} />
+        </View>
+      ) : (
+        <FlashList
+          data={feedVenues}
+          renderItem={renderVenueCard}
+          keyExtractor={(item: Venue) => item.id}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 180 }]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading && venues.length > 0}
+              onRefresh={() => {
+                fetchVenues();
+                fetchEvents();
+              }}
+              tintColor="#F44A22"
+            />
+          }
+          ListHeaderComponent={
+            loading && venues.length === 0 ? (
+              <SkeletonList count={3} />
+            ) : (
+              search === '' && activeFilter === 'all' ? (
+                <>
+                  {spotlightVenue && <EditorialHeroCard venue={spotlightVenue} />}
+                  {bookableVenues.length > 0 && (
+                    <CuratedRail title="Reserve a Table" venues={bookableVenues} />
+                  )}
+                </>
+              ) : null
+            )
+          }
+          ListEmptyComponent={
+            !loading ? (
+              <View style={styles.emptyWrap}>
+                <Text style={styles.emptyIcon}>🍽️</Text>
+                <Text style={styles.emptyTitle}>No venues found</Text>
+                <Text style={styles.emptySub}>Try adjusting your search or filters.</Text>
+              </View>
+            ) : null
+          }
+        />
+      )}
     </View>
   );
 }

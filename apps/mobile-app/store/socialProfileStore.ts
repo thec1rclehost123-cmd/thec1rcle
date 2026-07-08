@@ -1,12 +1,6 @@
 import { create } from 'zustand';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { apiFetch } from '@/lib/api';
-import { uploadUserPhoto } from '@/lib/firebase/userProfile';
-
-function getStore() {
-  return getStorage(getFirebaseApp());
-}
+import { apiFetch, deduplicateRequest } from '@/lib/api';
+import { useProfileStore } from '@/store/profileStore';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -143,21 +137,16 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
   blockVisible: false,
   blockFeature: null,
 
-  // ── Load ──────────────────────────────────────────────────────────────────
+  // ── Load (deduplicated with profileStore) ─────────────────────────────────
   loadSocialProfile: async (userId: string) => {
     if (!userId) return;
     set({ loading: true });
+
     try {
-      const response = await apiFetch<{
-        data?: { profile?: any };
-        profile?: any;
-      }>('/api/v1/users/me');
-      const data = response.data?.profile ?? response.profile;
-      if (!data) {
-        set({ socialState: 'none', socialProfile: null, loading: false });
-        return;
-      }
-      const sp = data?.socialProfile as SocialProfile | undefined;
+      // Delegate to profileStore which may already have the data in-flight
+      await useProfileStore.getState().loadProfile(userId);
+      const profile = useProfileStore.getState().profile;
+      const sp = (profile as any)?.socialProfile as SocialProfile | undefined;
       const state: SocialState = sp?.state ?? 'none';
       set({ socialState: state, socialProfile: sp ?? null, loading: false });
     } catch (e: any) {
@@ -187,27 +176,41 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
       state: 'complete',
       completedAt: new Date().toISOString(),
     };
-    await apiFetch('/api/v1/users/me', {
-      method: 'PUT',
-      body: JSON.stringify({
-        photoURL: profile.photos[profile.primaryPhotoIndex] ?? profile.photos[0],
-        photos: profile.photos,
-        socialProfile: profile,
-        socialSetupComplete: true,
-      }),
-    });
-    set({ socialState: 'complete', socialProfile: profile });
+      await apiFetch('/api/v1/users/me', {
+        method: 'PUT',
+        body: JSON.stringify({
+          photoURL: profile.photos[profile.primaryPhotoIndex] ?? profile.photos[0],
+          photos: profile.photos,
+          socialProfile: profile,
+          socialSetupComplete: true,
+        }),
+      });
+      useProfileStore.getState().invalidateProfileCache();
+      set({ socialState: 'complete', socialProfile: profile });
   },
 
-  // ── Verification ──────────────────────────────────────────────────────────
+  // ── Verification (server-mediated upload) ─────────────────────────────────
   submitVerification: async (userId, selfieUri) => {
     try {
-      // 1. Upload selfie to Storage (temp path, Cloud Function cleans up)
-      const resp = await fetch(selfieUri);
-      const blob = await resp.blob();
-      const storageRef = ref(getStore(), `verifications/${userId}/selfie_${Date.now()}.jpg`);
-      await uploadBytes(storageRef, blob);
-      const selfieUrl = await getDownloadURL(storageRef);
+      // Upload selfie through API Gateway (multipart upload, server stores in Firebase Storage)
+      const formData = new FormData();
+      const filename = `verification-${userId}-${Date.now()}.jpg`;
+      formData.append('file', {
+        uri: selfieUri,
+        type: 'image/jpeg',
+        name: filename,
+      } as any);
+      formData.append('type', 'social');
+
+      const uploadResponse = await apiFetch<{ data?: { url?: string }; url?: string }>(
+        '/api/v1/guest-profiles/avatar',
+        {
+          method: 'POST',
+          body: formData,
+          headers: { 'Content-Type': 'multipart/form-data' },
+        },
+      );
+      const selfieUrl = uploadResponse.data?.url || uploadResponse.url || '';
 
       await apiFetch('/api/v1/users/me/verification', {
         method: 'POST',
@@ -223,7 +226,7 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
       const updatedProfile: SocialProfile = {
         ...(socialProfile ?? DEFAULT_PROFILE),
         state: 'complete',
-        verificationPhotoHash: selfieUrl.slice(-32), // lightweight placeholder
+        verificationPhotoHash: selfieUrl.slice(-32),
       };
       set({ socialState: 'complete', socialProfile: updatedProfile });
       return { success: true, message: 'Verification submitted.' };
@@ -255,12 +258,30 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
         socialProfile: { ...updated, verifiedAt: null, verificationPhotoHash: null },
       }),
     });
+    useProfileStore.getState().invalidateProfileCache();
     set({ socialState: 'complete', socialProfile: updated });
   },
 
-  // ── Photo upload ──────────────────────────────────────────────────────────
+  // ── Photo upload (server-mediated) ────────────────────────────────────────
   uploadPhoto: async (userId, localUri, index) => {
-    return uploadUserPhoto(userId, localUri, `social_${index}_${Date.now()}`);
+    // Upload through API Gateway instead of direct Firebase Storage
+    const formData = new FormData();
+    const filename = `social_${index}_${Date.now()}.jpg`;
+    formData.append('file', {
+      uri: localUri,
+      type: 'image/jpeg',
+      name: filename,
+    } as any);
+
+    const response = await apiFetch<{ data?: { url?: string }; url?: string }>(
+      '/api/v1/guest-profiles/avatar',
+      {
+        method: 'POST',
+        body: formData,
+        headers: { 'Content-Type': 'multipart/form-data' },
+      },
+    );
+    return response.data?.url || response.url || '';
   },
 }));
 

@@ -117,12 +117,12 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
 
   markAllAsRead: async (_userId: string) => {
     const { notifications } = get();
+    if (notifications.every((n) => n.read)) return;
 
     // Optimistic update
     set({ notifications: notifications.map((n) => ({ ...n, read: true })), unreadCount: 0 });
 
     try {
-      if (notifications.every((n) => n.read)) return;
       await apiFetch('/api/v1/guest-notifications', {
         method: 'PATCH',
         body: JSON.stringify({ markAll: true }),
@@ -152,6 +152,14 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     set({
       notifications: notifications.filter((n) => n.id !== notificationId),
     });
+
+    try {
+      await apiFetch(`/api/v1/guest-notifications/${encodeURIComponent(notificationId)}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error('Failed to clear notification on server:', error);
+    }
   },
 
   clearNotifications: () => {

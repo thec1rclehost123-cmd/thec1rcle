@@ -59,25 +59,29 @@ function getEasProjectId(): string | undefined {
   );
 }
 
+export type PushTokenResult =
+  | { token: string }
+  | { error: 'permission_denied' }
+  | { error: 'no_project_id' }
+  | { error: 'system_error'; message: string };
+
 // Get Expo push token
-export async function getExpoPushToken(): Promise<string | null> {
+export async function getExpoPushToken(): Promise<PushTokenResult | null> {
   try {
     const hasPermission = await requestNotificationPermissions();
-    if (!hasPermission) return null;
+    if (!hasPermission) return { error: 'permission_denied' };
 
     const projectId = getEasProjectId();
-    if (!projectId) {
-      throw new Error('EAS projectId is required to register Expo push tokens');
-    }
+    if (!projectId) return { error: 'no_project_id' };
 
-    const token = await Notifications.getExpoPushTokenAsync({
+    const result = await Notifications.getExpoPushTokenAsync({
       projectId,
     });
 
-    return token.data;
+    return { token: result.data };
   } catch (error) {
     if (__DEV__) console.error('Error getting push token:', error);
-    return null;
+    return { error: 'system_error', message: String(error) };
   }
 }
 
@@ -99,11 +103,16 @@ async function sendDeviceTokenToGateway(token: string): Promise<void> {
 // Register push token with user profile — via API gateway
 export async function registerPushToken(userId: string): Promise<boolean> {
   try {
-    const token = await getExpoPushToken();
-    if (!token) return false;
+    const result = await getExpoPushToken();
+    if (!result || 'error' in result) {
+      if (result && result.error === 'permission_denied') {
+        if (__DEV__) console.log('Push notification permission not granted');
+      }
+      return false;
+    }
 
-    await sendDeviceTokenToGateway(token);
-    await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+    await sendDeviceTokenToGateway(result.token);
+    await AsyncStorage.setItem(PUSH_TOKEN_KEY, result.token);
 
     return true;
   } catch (error) {
@@ -146,7 +155,7 @@ export async function scheduleEventReminder(
   }
 
   const id = await scheduleLocalNotification(
-    `🎉 ${eventTitle} starts soon!`,
+    `${eventTitle} starts soon!`,
     `Your event starts in ${hoursBeforeEvent} hour${hoursBeforeEvent > 1 ? 's' : ''}. Get ready!`,
     { eventId, type: 'event_reminder' },
     {
@@ -204,15 +213,15 @@ export async function setBadgeCount(count: number): Promise<void> {
  */
 export async function refreshPushToken(userId: string): Promise<void> {
   try {
-    const newToken = await getExpoPushToken();
-    if (!newToken) return;
+    const result = await getExpoPushToken();
+    if (!result || 'error' in result) return;
 
     const storedToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
-    if (storedToken === newToken) return; // token unchanged — skip write
+    if (storedToken === result.token) return;
 
-    await sendDeviceTokenToGateway(newToken);
+    await sendDeviceTokenToGateway(result.token);
 
-    await AsyncStorage.setItem(PUSH_TOKEN_KEY, newToken);
+    await AsyncStorage.setItem(PUSH_TOKEN_KEY, result.token);
   } catch (error) {
     if (__DEV__) console.error('Error refreshing push token:', error);
   }

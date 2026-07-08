@@ -66,7 +66,6 @@ export const useFollowStore = create<FollowState>((set, get) => ({
 
   toggleHostFollow: async (hostId, hostName, userId) => {
     if (!userId) return;
-    void hostName;
     const { followedHostIds } = get();
     const isFollowing = followedHostIds.has(hostId);
 
@@ -76,16 +75,10 @@ export const useFollowStore = create<FollowState>((set, get) => ({
     set({ followedHostIds: next });
 
     try {
-      if (isFollowing) {
-        await apiFetch(`/api/v1/follow?targetId=${encodeURIComponent(hostId)}&targetType=host`, {
-          method: 'DELETE',
-        });
-      } else {
-        await apiFetch('/api/v1/follow', {
-          method: 'POST',
-          body: JSON.stringify({ targetId: hostId, targetType: 'host' }),
-        });
-      }
+      await apiFetch(`/api/v1/hosts/${encodeURIComponent(hostId)}/follow`, {
+        method: isFollowing ? 'DELETE' : 'POST',
+        body: isFollowing ? undefined : JSON.stringify({ hostName }),
+      });
     } catch (e) {
       set({ followedHostIds });
       console.error('[FollowStore] toggleHostFollow error', e);

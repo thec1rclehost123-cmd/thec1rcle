@@ -1,9 +1,4 @@
-/**
- * Profile Setup — post-auth, first sign-in only
- * 3 steps: Name → Vibe Tags → Photo
- */
-
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,24 +9,36 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
-import { Camera } from 'lucide-react-native';
-import Animated, { FadeInRight, FadeOutLeft, FadeIn } from 'react-native-reanimated';
+import Animated, {
+  FadeInDown,
+  FadeIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
+import {
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  CalendarDays,
+  User,
+  Check,
+  Info,
+} from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
-import {
-  isBasicUserProfileComplete,
-  saveBasicUserProfile,
-  uploadUserPhoto,
-} from '@/lib/firebase/userProfile';
 import { colors, radii, gradients } from '@/lib/design/theme';
+import { logout } from '@/lib/firebase/client';
 
 export const PROFILE_SETUP_KEY = 'c1rcle_profile_setup_complete';
 
@@ -43,151 +50,135 @@ export async function hasCompletedProfileSetup(userId?: string): Promise<boolean
   if (!userId) return false;
 
   const cacheKey = getProfileSetupKey(userId);
-
-  try {
-    const complete = await isBasicUserProfileComplete(userId);
-    if (complete) {
-      await AsyncStorage.setItem(cacheKey, 'true');
-    } else {
-      await AsyncStorage.removeItem(cacheKey);
-    }
-    return complete;
-  } catch {
-    return (await AsyncStorage.getItem(cacheKey)) === 'true';
+  const profile = useProfileStore.getState().profile;
+  if (profile?.basicSetupComplete || profile?.profileSetupComplete) {
+    return true;
   }
+  return (await AsyncStorage.getItem(cacheKey)) === 'true';
 }
 
-const VIBE_TAGS = [
-  'Party Mode',
-  'Chill',
-  'Music Nerd',
-  'Foodie',
-  'Social Butterfly',
-  'Festival Head',
-  'Brunch Club',
-];
+const GENDER_OPTIONS = [
+  { key: 'male', label: 'Male' },
+  { key: 'female', label: 'Female' },
+  { key: 'other', label: 'Other' },
+  { key: 'prefer_not_to_say', label: 'Prefer not to say' },
+] as const;
 
-const TOTAL_STEPS = 3;
+function formatDate(date: Date): string {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
 
-// ─── Progress Bar ───────────────────────────────────────────────
-function ProgressDots({ step }: { step: number }) {
-  return (
-    <View style={styles.progressRow}>
-      {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-        <View
-          key={i}
-          style={[
-            styles.progressDot,
-            i < step && styles.progressDotDone,
-            i === step - 1 && styles.progressDotActive,
-          ]}
-        />
-      ))}
-    </View>
-  );
+function calculateAge(date: Date): number {
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  const monthDiff = today.getMonth() - date.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < date.getDate())) {
+    age--;
+  }
+  return age;
 }
 
 export default function ProfileSetupScreen() {
   const { user, setProfileSetupJustCompleted } = useAuthStore();
   const { profile } = useProfileStore();
 
-  const [step, setStep] = useState(1);
   const [name, setName] = useState(profile?.displayName ?? user?.displayName ?? '');
-  const [vibeTags, setVibeTags] = useState<string[]>(profile?.vibeTags ?? []);
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [photoDimensions, setPhotoDimensions] = useState<{ width?: number; height?: number }>();
+  const [gender, setGender] = useState<string | null>(profile?.gender ?? null);
+  const [dateOfBirth, setDateOfBirth] = useState<Date>(() => {
+    if (profile?.dateOfBirth) {
+      const parsed = new Date(profile.dateOfBirth);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 18);
+    return d;
+  });
+  const [genderExpanded, setGenderExpanded] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showDobInfo, setShowDobInfo] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (!profile) return;
-    if (!name && profile.displayName) setName(profile.displayName);
-    if (vibeTags.length === 0 && profile.vibeTags?.length) setVibeTags(profile.vibeTags);
-  }, [name, profile, vibeTags.length]);
+  const genderHeight = useSharedValue(0);
 
-  const toggleVibe = (tag: string) => {
+  const genderAnimStyle = useAnimatedStyle(() => ({
+    maxHeight: genderHeight.value,
+    opacity: genderHeight.value > 0 ? withSpring(1) : 0,
+    overflow: 'hidden',
+  }));
+
+  const toggleGender = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setVibeTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : prev.length < 5 ? [...prev, tag] : prev,
-    );
+    const next = !genderExpanded;
+    setGenderExpanded(next);
+    genderHeight.value = withSpring(next ? 300 : 0, { damping: 18, stiffness: 200 });
   };
 
-  const goNext = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (step < TOTAL_STEPS) {
-      setStep((s) => s + 1);
-    }
-  };
-
-  const goBack = () => {
-    if (step > 1) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setStep((s) => s - 1);
-    }
-  };
-
-  const handlePickPhoto = async () => {
+  const selectGender = (key: string) => {
     Haptics.selectionAsync();
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setPhotoUri(asset.uri);
-      setPhotoDimensions({ width: asset.width, height: asset.height });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    setGender(key);
+    setGenderExpanded(false);
+    genderHeight.value = withSpring(0, { damping: 18, stiffness: 200 });
   };
+
+  const handleDateChange = useCallback(
+    (_event: DateTimePickerEvent, selectedDate?: Date) => {
+      if (Platform.OS === 'android') {
+        setShowDatePicker(false);
+      }
+      if (selectedDate) {
+        const age = calculateAge(selectedDate);
+        if (age < 13) {
+          Alert.alert('Age Restriction', 'You must be at least 13 years old to use The C1rcle.');
+          return;
+        }
+        setDateOfBirth(selectedDate);
+      }
+    },
+    [],
+  );
 
   const handleFinish = async () => {
     if (!user?.uid) return;
+    if (!name.trim()) {
+      Alert.alert('Name required', 'Please enter your name to continue.');
+      return;
+    }
+    if (!gender) {
+      Alert.alert('Gender required', 'Please select your gender to continue.');
+      return;
+    }
+
     setSaving(true);
     try {
-      let uploadedPhotoUrl = user.photoURL || undefined;
+      const ok = await useProfileStore.getState().updateProfile(user.uid, {
+        displayName: name.trim(),
+        gender: gender as 'male' | 'female' | 'other' | 'prefer_not_to_say',
+        dateOfBirth: dateOfBirth.toISOString(),
+        basicSetupComplete: true,
+        profileSetupComplete: true,
+      });
 
-      // 1. Upload photo if changed
-      if (photoUri && photoUri !== user.photoURL) {
-        uploadedPhotoUrl = await uploadUserPhoto(user.uid, photoUri, 'profile', photoDimensions);
+      if (!ok) {
+        Alert.alert('Could not save profile', 'Please try again.');
+        return;
       }
-
-      const profileUpdates = {
-        email: user.email ?? undefined,
-        displayName: name.trim() || user.displayName || '',
-        phone: user.phoneNumber ?? undefined,
-        vibeTags: vibeTags.length > 0 ? vibeTags : undefined,
-        photoURL: uploadedPhotoUrl,
-        photos: uploadedPhotoUrl ? [uploadedPhotoUrl] : undefined,
-      };
-
-      // 2. Permanently save basic info, photo URL, and vibe tags to users/{uid}
-      await saveBasicUserProfile(user.uid, profileUpdates);
-      await useProfileStore.getState().loadProfile(user.uid);
 
       await AsyncStorage.setItem(getProfileSetupKey(user.uid), 'true');
       setProfileSetupJustCompleted(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/onboarding');
     } catch (error) {
-      console.error('[ProfileSetup] Finalize error:', error);
-      Alert.alert('Could not save profile', 'Please try again.');
+      console.error('[ProfileSetup] Save error:', error);
+      Alert.alert('Could not save profile', 'Please check your connection and try again.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleSkip = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert(
-      'Profile setup required',
-      'Finish the required profile steps once so future logins can go straight to Explore.',
-    );
-  };
-
-  const canProceed = step === 1 ? name.trim().length > 0 : true; // vibe tags and photo are optional
+  const canProceed = name.trim().length > 0 && gender !== null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -195,23 +186,6 @@ export default function ProfileSetupScreen() {
         colors={['rgba(244,74,34,0.12)', 'transparent']}
         style={StyleSheet.absoluteFill}
       />
-
-      {/* Header */}
-      <Animated.View entering={FadeIn} style={styles.header}>
-        <View style={styles.headerLeft}>
-          {step > 1 ? (
-            <Pressable onPress={goBack} style={styles.backBtn}>
-              <Text style={styles.backBtnText}>←</Text>
-            </Pressable>
-          ) : (
-            <View style={{ width: 40 }} />
-          )}
-        </View>
-        <ProgressDots step={step} />
-        <Pressable onPress={handleSkip} style={styles.skipBtn}>
-          <Text style={styles.skipText}>Skip</Text>
-        </Pressable>
-      </Animated.View>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -224,109 +198,239 @@ export default function ProfileSetupScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Step 1: Name ─────────────────────────── */}
-          {step === 1 && (
-            <Animated.View
-              key="step-1"
-              entering={FadeInRight.springify()}
-              exiting={FadeOutLeft.springify()}
-              style={styles.stepContainer}
+          {/* Header */}
+          <Animated.View entering={FadeIn.duration(600)} style={styles.headerSection}>
+            <Pressable 
+              onPress={async () => {
+                try {
+                  await logout();
+                  router.replace('/(auth)/login');
+                } catch (e) {
+                  console.warn('Logout error:', e);
+                  router.replace('/(auth)/login');
+                }
+              }}
+              style={({ pressed }) => [styles.backButton, pressed && { opacity: 0.7 }]}
             >
-              <Text style={styles.stepLabel}>STEP 1 OF 3</Text>
-              <Text style={styles.stepTitle}>What's your name?</Text>
-              <Text style={styles.stepSubtitle}>
-                This is how you'll appear to others at events.
-              </Text>
-              <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-                placeholder="Your name"
-                placeholderTextColor={colors.goldMetallic}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={() => name.trim() && goNext()}
-              />
-            </Animated.View>
-          )}
+              <ChevronLeft size={24} color={colors.goldMetallic} strokeWidth={2.5} />
+            </Pressable>
+            <View style={styles.stepBadge}>
+              <User size={14} color={colors.iris} strokeWidth={2.5} />
+              <Text style={styles.stepBadgeText}>STEP 1</Text>
+            </View>
+            <Text style={styles.title}>Complete your profile</Text>
+            <Text style={styles.subtitle}>
+              Tell us about yourself so we can personalise your experience.
+            </Text>
+          </Animated.View>
 
-          {/* ── Step 2: Vibe Tags ─────────────────────── */}
-          {step === 2 && (
-            <Animated.View
-              key="step-2"
-              entering={FadeInRight.springify()}
-              style={styles.stepContainer}
+          {/* Name */}
+          <Animated.View entering={FadeInDown.delay(100).duration(500).springify()}>
+            <Text style={styles.fieldLabel}>Your Name</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="Enter your name"
+              placeholderTextColor={colors.goldMetallic}
+              autoFocus
+              returnKeyType="done"
+            />
+          </Animated.View>
+
+          {/* Gender */}
+          <Animated.View entering={FadeInDown.delay(200).duration(500).springify()}>
+            <Text style={styles.fieldLabel}>Gender</Text>
+            <Pressable
+              onPress={toggleGender}
+              style={({ pressed }) => [
+                styles.dropdownButton,
+                genderExpanded && styles.dropdownButtonActive,
+                pressed && { opacity: 0.8 },
+              ]}
             >
-              <Text style={styles.stepLabel}>STEP 2 OF 3</Text>
-              <Text style={styles.stepTitle}>Pick your vibe</Text>
-              <Text style={styles.stepSubtitle}>
-                Choose up to 5 tags to personalise your experience.
-              </Text>
-              <View style={styles.vibeGrid}>
-                {VIBE_TAGS.map((tag) => {
-                  const selected = vibeTags.includes(tag);
+              <View style={styles.dropdownButtonContent}>
+                <Text
+                  style={[
+                    styles.dropdownButtonText,
+                    !gender && styles.dropdownButtonPlaceholder,
+                  ]}
+                >
+                  {gender
+                    ? GENDER_OPTIONS.find((o) => o.key === gender)?.label ?? 'Select gender'
+                    : 'Select gender'}
+                </Text>
+                {genderExpanded ? (
+                  <ChevronUp size={20} color={colors.iris} strokeWidth={2} />
+                ) : (
+                  <ChevronDown size={20} color={colors.goldMetallic} strokeWidth={2} />
+                )}
+              </View>
+            </Pressable>
+
+            <Animated.View style={[styles.genderOptionsContainer, genderAnimStyle]}>
+              <View style={styles.genderOptionsInner}>
+                {GENDER_OPTIONS.map((option) => {
+                  const selected = gender === option.key;
                   return (
                     <Pressable
-                      key={tag}
-                      onPress={() => toggleVibe(tag)}
-                      style={[styles.vibeChip, selected && styles.vibeChipActive]}
+                      key={option.key}
+                      onPress={() => selectGender(option.key)}
+                      style={({ pressed }) => [
+                        styles.genderOption,
+                        selected && styles.genderOptionSelected,
+                        pressed && { opacity: 0.7 },
+                      ]}
                     >
-                      <Text style={[styles.vibeChipText, selected && styles.vibeChipTextActive]}>
-                        {tag}
+                      <Text
+                        style={[
+                          styles.genderOptionText,
+                          selected && styles.genderOptionTextSelected,
+                        ]}
+                      >
+                        {option.label}
                       </Text>
+                      {selected && (
+                        <Check size={18} color="#FFFFFF" strokeWidth={3} />
+                      )}
                     </Pressable>
                   );
                 })}
               </View>
-              {vibeTags.length > 0 && (
-                <Text style={styles.vibeCount}>{vibeTags.length}/5 selected</Text>
-              )}
             </Animated.View>
-          )}
+          </Animated.View>
 
-          {/* ── Step 3: Photo ─────────────────────────── */}
-          {step === 3 && (
-            <Animated.View
-              key="step-3"
-              entering={FadeInRight.springify()}
-              style={styles.stepContainer}
-            >
-              <Text style={styles.stepLabel}>STEP 3 OF 3</Text>
-              <Text style={styles.stepTitle}>Add a photo</Text>
-              <Text style={styles.stepSubtitle}>
-                Optional — helps others recognise you at events.
-              </Text>
-
-              <Pressable onPress={handlePickPhoto} style={styles.photoPickerBtn}>
-                {photoUri ? (
-                  <Image
-                    source={{ uri: photoUri }}
-                    style={styles.photoPreview}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <View style={styles.photoPlaceholderOuter}>
-                    <LinearGradient
-                      colors={['rgba(244,74,34,0.2)', 'rgba(244,74,34,0.02)']}
-                      style={styles.photoPlaceholder}
-                    >
-                      <View style={styles.cameraIconWrap}>
-                        <Camera size={40} color={colors.iris} strokeWidth={1.5} />
-                      </View>
-                      <Text style={styles.photoPlaceholderText}>Upload Photo</Text>
-                    </LinearGradient>
-                  </View>
-                )}
+          {/* Date of Birth */}
+          <Animated.View entering={FadeInDown.delay(300).duration(500).springify()}>
+            <View style={styles.fieldLabelRow}>
+              <Text style={styles.fieldLabel}>Date of Birth</Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowDobInfo(true);
+                }}
+                hitSlop={8}
+              >
+                <Info size={16} color={colors.goldMetallic} strokeWidth={2} />
               </Pressable>
-            </Animated.View>
-          )}
+            </View>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowDatePicker(true);
+              }}
+              style={({ pressed }) => [
+                styles.dateButton,
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <View style={styles.dateButtonContent}>
+                <View style={styles.dateIconWrap}>
+                  <CalendarDays size={20} color={colors.iris} strokeWidth={1.5} />
+                </View>
+                <Text style={styles.dateText}>{formatDate(dateOfBirth)}</Text>
+                <View style={styles.ageBadge}>
+                  <Text style={styles.ageBadgeText}>{calculateAge(dateOfBirth)} years</Text>
+                </View>
+              </View>
+            </Pressable>
+
+            {/* iOS: inline picker */}
+            {showDatePicker && Platform.OS === 'ios' && (
+              <Animated.View
+                entering={FadeIn.duration(300)}
+                style={styles.iosPickerContainer}
+              >
+                <View style={styles.iosPickerHeader}>
+                  <Pressable
+                    onPress={() => setShowDatePicker(false)}
+                    style={styles.iosPickerDone}
+                  >
+                    <Text style={styles.iosPickerDoneText}>Done</Text>
+                  </Pressable>
+                </View>
+                <DateTimePicker
+                  value={dateOfBirth}
+                  mode="date"
+                  display="spinner"
+                  maximumDate={new Date()}
+                  minimumDate={new Date(1900, 0, 1)}
+                  onChange={handleDateChange}
+                  themeVariant="dark"
+                  style={styles.iosPicker}
+                />
+              </Animated.View>
+            )}
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* CTA */}
-      <View style={styles.footer}>
+      {/* Android: dialog picker */}
+      {showDatePicker && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={dateOfBirth}
+          mode="date"
+          display="default"
+          maximumDate={new Date()}
+          minimumDate={new Date(1900, 0, 1)}
+          onChange={handleDateChange}
+        />
+      )}
+
+      {/* DOB Info Modal */}
+      <Modal
+        visible={showDobInfo}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDobInfo(false)}
+      >
         <Pressable
-          onPress={step < TOTAL_STEPS ? goNext : handleFinish}
+          style={styles.modalOverlay}
+          onPress={() => setShowDobInfo(false)}
+        >
+          <Pressable onPress={() => {}} style={styles.infoCard}>
+            <View style={styles.infoIconRow}>
+              <View style={styles.infoIconCircle}>
+                <Info size={24} color={colors.iris} strokeWidth={2} />
+              </View>
+            </View>
+            <Text style={styles.infoTitle}>Why we need your age</Text>
+            <Text style={styles.infoBody}>
+              Your date of birth and age are important to us because The C1rcle
+              hosts events that may be 18+ or 21+. In order to protect your
+              safety and comply with venue policies, we need to verify your age.
+            </Text>
+            <Text style={styles.infoBody}>
+              Please make sure you enter your correct date of birth — you won't
+              be able to change it later.
+            </Text>
+            <Pressable
+              onPress={() => setShowDobInfo(false)}
+              style={({ pressed }) => [
+                styles.infoGotIt,
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <LinearGradient
+                colors={gradients.primary as [string, string]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.infoGotItGradient}
+              >
+                <Text style={styles.infoGotItText}>Got it</Text>
+              </LinearGradient>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* CTA */}
+      <Animated.View
+        entering={FadeInDown.delay(400).duration(500).springify()}
+        style={styles.footer}
+      >
+        <Pressable
+          onPress={handleFinish}
           disabled={!canProceed || saving}
           style={[styles.ctaBtn, (!canProceed || saving) && styles.ctaBtnDisabled]}
         >
@@ -337,11 +441,11 @@ export default function ProfileSetupScreen() {
             style={styles.ctaGradient}
           >
             <Text style={styles.ctaText}>
-              {step < TOTAL_STEPS ? 'Continue' : saving ? 'Saving...' : "Let's Go"}
+              {saving ? 'Saving...' : 'Continue'}
             </Text>
           </LinearGradient>
         </Pressable>
-      </View>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -351,83 +455,54 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.base.DEFAULT,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  headerLeft: {
-    width: 40,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.base[50],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backBtnText: {
-    color: colors.gold,
-    fontSize: 20,
-  },
-  skipBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  skipText: {
-    color: colors.goldMetallic,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  progressRow: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
-  },
-  progressDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
-  progressDotActive: {
-    width: 24,
-    backgroundColor: colors.iris,
-  },
-  progressDotDone: {
-    backgroundColor: 'rgba(244,74,34,0.4)',
-  },
   content: {
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 32,
   },
-  stepContainer: {
-    flex: 1,
+  headerSection: {
+    marginBottom: 36,
+    gap: 8,
   },
-  stepLabel: {
+  backButton: {
+    marginBottom: 16,
+    marginLeft: -4,
+  },
+  stepBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  stepBadgeText: {
     color: colors.iris,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.5,
-    marginBottom: 12,
   },
-  stepTitle: {
+  title: {
     color: colors.gold,
     fontSize: 32,
     fontWeight: '900',
-    letterSpacing: 0,
-    marginBottom: 10,
     lineHeight: 38,
   },
-  stepSubtitle: {
+  subtitle: {
     color: colors.goldMetallic,
     fontSize: 16,
     lineHeight: 24,
-    marginBottom: 32,
+  },
+  fieldLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+    marginTop: 8,
+  },
+  fieldLabel: {
+    color: colors.goldMetallic,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   input: {
     backgroundColor: colors.base[50],
@@ -440,81 +515,131 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
   },
-  vibeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  vibeChip: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: radii.pill,
+  dropdownButton: {
     backgroundColor: colors.base[50],
+    borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
   },
-  vibeChipActive: {
-    backgroundColor: 'rgba(244,74,34,0.15)',
+  dropdownButtonActive: {
     borderColor: colors.iris,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
-  vibeChipText: {
+  dropdownButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  dropdownButtonText: {
+    color: colors.gold,
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  dropdownButtonPlaceholder: {
     color: colors.goldMetallic,
-    fontSize: 14,
+    fontWeight: '400',
+  },
+  genderOptionsContainer: {},
+  genderOptionsInner: {
+    backgroundColor: colors.base[100],
+    borderBottomLeftRadius: radii.xl,
+    borderBottomRightRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderTopWidth: 0,
+    overflow: 'hidden',
+  },
+  genderOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+  genderOptionSelected: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  genderOptionText: {
+    color: colors.goldMetallic,
+    fontSize: 16,
     fontWeight: '500',
   },
-  vibeChipTextActive: {
-    color: colors.iris,
+  genderOptionTextSelected: {
+    color: colors.gold,
     fontWeight: '700',
   },
-  vibeCount: {
-    color: colors.iris,
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  photoPickerBtn: {
-    alignSelf: 'center',
-    marginTop: 20,
-  },
-  photoPreview: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    borderWidth: 3,
-    borderColor: colors.iris,
-  },
-  photoPlaceholderOuter: {
-    shadowColor: colors.iris,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  photoPlaceholder: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
+  dateButton: {
+    backgroundColor: colors.base[50],
+    borderRadius: radii.xl,
     borderWidth: 1,
-    borderColor: 'rgba(244,74,34,0.4)',
-    backgroundColor: 'rgba(244,74,34,0.05)',
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
   },
-  cameraIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  dateButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 12,
+  },
+  dateIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: 'rgba(244,74,34,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
   },
-  photoPlaceholderText: {
-    color: colors.iris,
-    fontSize: 14,
+  dateText: {
+    color: colors.gold,
+    fontSize: 20,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
+    flex: 1,
+  },
+  ageBadge: {
+    backgroundColor: 'rgba(244,74,34,0.1)',
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  ageBadgeText: {
+    color: colors.iris,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  iosPickerContainer: {
+    marginTop: 12,
+    backgroundColor: colors.base[50],
+    borderRadius: radii.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  iosPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  iosPickerDone: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  iosPickerDoneText: {
+    color: colors.iris,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  iosPicker: {
+    height: 220,
+    marginBottom: -8,
   },
   footer: {
     paddingHorizontal: 24,
@@ -533,9 +658,65 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   ctaText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '800',
     letterSpacing: 0.3,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  infoCard: {
+    backgroundColor: colors.base[50],
+    borderRadius: radii['2xl'],
+    padding: 28,
+    width: '100%',
+    maxWidth: 360,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  infoIconRow: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  infoIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(244,74,34,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoTitle: {
+    color: colors.gold,
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  infoBody: {
+    color: colors.goldMetallic,
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  infoGotIt: {
+    borderRadius: radii.pill,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  infoGotItGradient: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  infoGotItText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

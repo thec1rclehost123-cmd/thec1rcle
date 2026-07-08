@@ -15,6 +15,12 @@ const mockNotificationsState = {
 const mockTicketsState = {
   clearOrders: jest.fn(),
 };
+const mockSubscriptionState = {
+  hydrateFromProfile: jest.fn(),
+  fetchSubscription: jest.fn(),
+  fetchRevenueCatSubscription: jest.fn(),
+  clearSubscription: jest.fn(),
+};
 
 jest.mock('react-native', () => ({
   AppState: {
@@ -30,8 +36,6 @@ jest.mock('../../lib/firebase', () => ({
 }));
 
 jest.mock('../../lib/api', () => ({
-  clearAuthSessionSync: jest.fn(),
-  markAuthSessionPending: jest.fn(),
   syncAuthSession: jest.fn(),
 }));
 
@@ -56,6 +60,10 @@ jest.mock('../../store/notificationsStore', () => ({
 
 jest.mock('../../store/ticketsStore', () => ({
   useTicketsStore: { getState: () => mockTicketsState },
+}));
+
+jest.mock('../../store/subscriptionStore', () => ({
+  useSubscriptionStore: { getState: () => mockSubscriptionState },
 }));
 
 import { initAuthListener, useAuthStore } from '../../store/authStore';

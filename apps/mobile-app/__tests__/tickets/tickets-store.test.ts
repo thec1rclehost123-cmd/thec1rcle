@@ -41,7 +41,7 @@ describe('ticketsStore wallet sync', () => {
       ],
     } as any);
 
-    await useTicketsStore.getState().fetchUserOrders('user_1');
+    await useTicketsStore.getState().fetchUserOrders();
     expect(useTicketsStore.getState().orders).toHaveLength(1);
     expect(useTicketsStore.getState().orders[0].status).toBe('pending_payment');
     expect(useTicketsStore.getState().orders[0].bookingCode).toBe('AX9B21');
@@ -49,7 +49,7 @@ describe('ticketsStore wallet sync', () => {
     expect(useTicketsStore.getState().orders[0].qrCodes?.[0].bookingCode).toBe('AX9B21');
 
     mockedApiFetch.mockRejectedValueOnce(new Error('wallet backend down'));
-    await useTicketsStore.getState().fetchUserOrders('user_1');
+    await useTicketsStore.getState().fetchUserOrders();
 
     expect(useTicketsStore.getState().orders).toHaveLength(1);
     expect(useTicketsStore.getState().error).toBe('wallet backend down');

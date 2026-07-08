@@ -11,12 +11,13 @@ import {
   Platform,
   RefreshControl,
   ActivityIndicator,
+  ToastAndroid,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Settings, Ticket } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
@@ -34,12 +35,11 @@ import { colors, gradients } from '@/lib/design/theme';
 import { safeDate } from '@/lib/utils/date';
 import { trackScreen } from '@/lib/analytics';
 import { PremiumBadge } from '@/components/ui/PremiumBadge';
-import { GuestAuthPrompt } from '@/components/ui/GuestAuthPrompt';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PROFILE_AVATAR_SIZE = 136;
-const PROFILE_AVATAR_TOP = Math.max(160, SCREEN_HEIGHT * 0.3 - PROFILE_AVATAR_SIZE / 2);
+const PROFILE_AVATAR_TOP = SCREEN_HEIGHT * 0.42 - PROFILE_AVATAR_SIZE;
 
 function HistoryTimelineItem({
   order,
@@ -143,7 +143,7 @@ function HistoryTimelineItem({
 }
 
 function formatEventDate(order?: Order) {
-  const d = safeDate(order?.eventDate);
+  const d = safeDate(order?.eventDate || order?.eventStartDate);
   if (!d) return order?.eventTime || 'Date TBA';
   const date = d.toLocaleDateString('en-US', {
     weekday: 'short',
@@ -151,6 +151,14 @@ function formatEventDate(order?: Order) {
     day: 'numeric',
   });
   return order?.eventTime ? `${date} at ${order.eventTime}` : date;
+}
+
+function getOrderEventTime(order: Order) {
+  return safeDate(order.eventDate || order.eventStartDate)?.getTime() ?? null;
+}
+
+function isProfileVisibleOrder(order: Order) {
+  return order.status === 'confirmed' || order.status === 'checked_in';
 }
 
 function formatJoinedDate(value: unknown) {
@@ -168,10 +176,78 @@ function openInstagramProfile(handle: string) {
   Linking.openURL(instagramUrl).catch(() => Linking.openURL(webUrl));
 }
 
+function UpcomingOrderCard({ order, index }: { order: Order; index: number }) {
+  return (
+    <AnimatedPressable
+      entering={FadeInDown.delay(140 + index * 35).springify()}
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (order.eventId) {
+          router.push({
+            pathname: '/event/[id]',
+            params: { id: order.eventId },
+          });
+        }
+      }}
+      style={styles.upcomingCard}
+    >
+      {Platform.select({
+        android: (
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: 'rgba(15, 15, 15, 0.85)', borderRadius: 12 },
+            ]}
+          />
+        ),
+        default: (
+          <BlurView
+            blurMethod="dimezisBlurView"
+            intensity={28}
+            tint="dark"
+            style={[StyleSheet.absoluteFill, { borderRadius: 12, overflow: 'hidden' }]}
+          />
+        ),
+      })}
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: 'rgba(15, 15, 15, 0.45)', borderRadius: 12 },
+        ]}
+      />
+
+      {order.eventCoverImage ? (
+        <Image
+          source={{ uri: order.eventCoverImage }}
+          style={styles.upcomingPoster}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+        />
+      ) : (
+        <LinearGradient colors={['#2a1a0e', '#161616']} style={styles.upcomingPoster} />
+      )}
+
+      <View style={styles.upcomingInfo}>
+        <Text style={styles.upcomingEyebrow}>
+          {index === 0 ? 'Your Next Event' : 'Upcoming Event'}
+        </Text>
+        <Text style={styles.upcomingTitle} numberOfLines={2}>
+          {order.eventTitle || 'Upcoming Event'}
+        </Text>
+        <Text style={styles.upcomingDate} numberOfLines={1}>
+          {formatEventDate(order)}
+        </Text>
+        <Text style={styles.upcomingAction}>View Ticket</Text>
+      </View>
+    </AnimatedPressable>
+  );
+}
+
 export default function ProfileScreen() {
-  const { user, isGuest } = useAuthStore();
+  const { user } = useAuthStore();
   const { orders, fetchUserOrders, loading: ticketsLoading } = useTicketsStore();
   const profile = useProfileStore((state) => state.profile);
+  const profileError = useProfileStore((state) => state.error);
   const loadProfile = useProfileStore((state) => state.loadProfile);
   const profileLoading = useProfileStore((state) => state.loading);
   const nightlifePromptDismissed = useProfileStore((state) => state.nightlifePromptDismissed);
@@ -182,6 +258,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const userId = user?.uid;
   const [refreshing, setRefreshing] = useState(false);
+  const [errorDismissed, setErrorDismissed] = useState(false);
 
   // Avatar animation
   const avatarScale = useSharedValue(1);
@@ -196,23 +273,25 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (!userId) return;
-    if (orders.length > 0 && profile) return;
 
     const syncScreenState = async () => {
-      await Promise.allSettled(
-        (orders.length === 0 ? [fetchUserOrders(userId)] : []).concat(
-          !profile ? [loadProfile(userId)] : [],
-        ),
-      );
+      const tasks: Promise<any>[] = [];
+      if (orders.length === 0) tasks.push(fetchUserOrders());
+      if (!profile) tasks.push(loadProfile(userId));
+      if (tasks.length > 0) await Promise.allSettled(tasks);
     };
 
     void syncScreenState();
-  }, [userId, fetchUserOrders, loadProfile, orders.length, profile]);
+  }, [userId, fetchUserOrders, loadProfile]);
 
   const onRefresh = useCallback(() => {
     if (!userId) return;
     setRefreshing(true);
-    Promise.allSettled([fetchUserOrders(userId), loadProfile(userId)]).finally(() => {
+    setErrorDismissed(false);
+    Promise.allSettled([
+      fetchUserOrders(),
+      loadProfile(userId),
+    ]).finally(() => {
       setRefreshing(false);
     });
   }, [userId, fetchUserOrders, loadProfile]);
@@ -222,21 +301,26 @@ export default function ProfileScreen() {
   }));
 
   const nowMs = Date.now();
-  const pastOrders = [...orders]
-    .filter(
-      (o) =>
-        o.eventDate &&
-        (safeDate(o.eventDate)?.getTime() ?? 0) < nowMs &&
-        (o.status === 'confirmed' || o.status === 'checked_in'),
-    )
+  const profileOrders = orders.filter(isProfileVisibleOrder);
+  const upcomingOrders = [...profileOrders]
+    .filter((order) => {
+      const eventTime = getOrderEventTime(order);
+      return eventTime === null || eventTime >= nowMs;
+    })
     .sort(
-      (a, b) => (safeDate(b.eventDate)?.getTime() ?? 0) - (safeDate(a.eventDate)?.getTime() ?? 0),
+      (a, b) =>
+        (getOrderEventTime(a) ?? Number.MAX_SAFE_INTEGER) -
+        (getOrderEventTime(b) ?? Number.MAX_SAFE_INTEGER),
     );
-  const nextUpcomingOrder = [...orders]
-    .filter((o) => o.eventDate && (safeDate(o.eventDate)?.getTime() ?? 0) > nowMs)
+  const pastOrders = [...profileOrders]
+    .filter((order) => {
+      const eventTime = getOrderEventTime(order);
+      return eventTime !== null && eventTime < nowMs;
+    })
     .sort(
-      (a, b) => (safeDate(a.eventDate)?.getTime() ?? 0) - (safeDate(b.eventDate)?.getTime() ?? 0),
-    )[0];
+      (a, b) => (getOrderEventTime(b) ?? 0) - (getOrderEventTime(a) ?? 0),
+    );
+  const hasProfileEvents = upcomingOrders.length > 0 || pastOrders.length > 0;
 
   const profilePhotos = Array.from(
     new Set([profile?.photoURL, ...(profile?.photos ?? []), ...(profile?.datingPhotos ?? [])]),
@@ -261,11 +345,36 @@ export default function ProfileScreen() {
     });
   };
 
-  // if (isGuest) {
-  //   return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
-  // }
+  if (!userId) {
+    return (
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
+        <View style={{ marginBottom: 32, alignItems: 'center' }}>
+          <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="person" size={60} color="rgba(255,255,255,0.2)" />
+          </View>
+          <Text style={[styles.userName, { fontSize: 28, marginTop: 16 }]}>Welcome Guest</Text>
+        </View>
 
-  if (profileLoading && ticketsLoading && !profile && orders.length === 0) {
+        <View style={[styles.emptyStateContainer, { backgroundColor: 'transparent', padding: 0 }]}>
+          <Text style={styles.emptyStateTitle}>Login Required</Text>
+          <Text style={[styles.emptyStateText, { textAlign: 'center', marginBottom: 32 }]}>
+            Login or sign up to view your profile, manage your tickets, and join the party.
+          </Text>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/(auth)/login');
+            }}
+            style={styles.emptyStateButton}
+          >
+            <Text style={styles.emptyStateButtonText}>Login / Sign Up</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  if ((!profile && profileLoading) || (orders.length === 0 && ticketsLoading)) {
     return (
       <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
         <ActivityIndicator color="#fff" size="large" />
@@ -277,16 +386,18 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       {/* Top Actions */}
       <Animated.View entering={FadeIn} style={[styles.topActions, { top: insets.top - 2 }]}>
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.back();
-          }}
-          style={styles.topActionButton}
-          hitSlop={8}
-        >
-          <Ionicons name="chevron-back" size={26} color="#fff" />
-        </Pressable>
+        {router.canGoBack() ? (
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.back();
+            }}
+            style={styles.topActionButton}
+            hitSlop={8}
+          >
+            <Ionicons name="chevron-back" size={26} color="#fff" />
+          </Pressable>
+        ) : <View style={{ width: 44 }} />}
 
         <View style={styles.topRightActions}>
           <Pressable
@@ -322,11 +433,11 @@ export default function ProfileScreen() {
             style={styles.profileHeroImage}
             contentFit="cover"
             contentPosition="top center"
-            blurRadius={14}
+            blurRadius={6}
             cachePolicy="memory-disk"
           />
           <LinearGradient
-            colors={['rgba(0, 0, 0, 0.22)', 'rgba(0, 0, 0, 0.5)', colors.base.DEFAULT]}
+            colors={['rgba(0, 0, 0, 0.12)', 'rgba(0, 0, 0, 0.2)', colors.base.DEFAULT]}
             locations={[0, 0.56, 1]}
             style={StyleSheet.absoluteFill}
           />
@@ -377,21 +488,34 @@ export default function ProfileScreen() {
             </View>
           ) : null}
 
-          <Pressable
-            onPress={() => {
-              if (instagramHandle) {
-                openInstagramProfile(instagramHandle);
-                return;
-              }
+          <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center', marginTop: 12 }}>
+            <Pressable
+              onPress={() => {
+                if (instagramHandle) {
+                  openInstagramProfile(instagramHandle);
+                  return;
+                }
 
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/profile/edit');
-            }}
-            style={styles.instagramProfileButton}
-            hitSlop={10}
-          >
-            <Ionicons name="logo-instagram" size={19} color="#fff" />
-          </Pressable>
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/profile/edit');
+              }}
+              style={styles.socialProfileButton}
+              hitSlop={10}
+            >
+              <Ionicons name="logo-instagram" size={22} color="#E1306C" />
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/profile/edit');
+              }}
+              style={styles.socialProfileButton}
+              hitSlop={10}
+            >
+              <FontAwesome5 name="spotify" size={22} color="#1DB954" />
+            </Pressable>
+          </View>
 
           {shouldShowNightlifePrompt ? (
             <Animated.View
@@ -437,68 +561,41 @@ export default function ProfileScreen() {
           ) : null}
         </Animated.View>
 
-        <View style={styles.nightsContent}>
-          {nextUpcomingOrder ? (
-            <AnimatedPressable
-              entering={FadeInDown.delay(140).springify()}
-              onPress={() => {
-                if (nextUpcomingOrder.eventId) {
-                  router.push({
-                    pathname: '/event/[id]',
-                    params: { id: nextUpcomingOrder.eventId },
-                  });
-                }
-              }}
-              style={styles.upcomingCard}
-            >
-              {Platform.select({
-                android: (
-                  <View
-                    style={[
-                      StyleSheet.absoluteFill,
-                      { backgroundColor: 'rgba(15, 15, 15, 0.85)', borderRadius: 12 },
-                    ]}
-                  />
-                ),
-                default: (
-                  <BlurView
-                    experimentalBlurMethod="dimezisBlurView"
-                    intensity={28}
-                    tint="dark"
-                    style={[StyleSheet.absoluteFill, { borderRadius: 12, overflow: 'hidden' }]}
-                  />
-                ),
-              })}
-              <View
-                style={[
-                  StyleSheet.absoluteFill,
-                  { backgroundColor: 'rgba(15, 15, 15, 0.45)', borderRadius: 12 },
-                ]}
-              />
-
-              {nextUpcomingOrder.eventCoverImage ? (
-                <Image
-                  source={{ uri: nextUpcomingOrder.eventCoverImage }}
-                  style={styles.upcomingPoster}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                />
-              ) : (
-                <LinearGradient colors={['#2a1a0e', '#161616']} style={styles.upcomingPoster} />
-              )}
-
-              <View style={styles.upcomingInfo}>
-                <Text style={styles.upcomingEyebrow}>Your Next Event</Text>
-                <Text style={styles.upcomingTitle} numberOfLines={2}>
-                  {nextUpcomingOrder.eventTitle || 'Upcoming Event'}
-                </Text>
-                <Text style={styles.upcomingDate} numberOfLines={1}>
-                  {formatEventDate(nextUpcomingOrder)}
-                </Text>
-                <Text style={styles.upcomingAction}>View Ticket</Text>
+        {/* Error banner */}
+        {profileError && !errorDismissed ? (
+          <Animated.View entering={FadeInDown.delay(120).springify()} style={styles.nightsContent}>
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorBannerText}>{profileError}</Text>
+              <View style={styles.errorBannerActions}>
+                <Pressable
+                  onPress={() => {
+                    setErrorDismissed(true);
+                  }}
+                  style={styles.errorBannerBtn}
+                >
+                  <Text style={styles.errorBannerBtnText}>Dismiss</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    if (userId) loadProfile(userId);
+                  }}
+                  style={[styles.errorBannerBtn, { backgroundColor: colors.iris }]}
+                >
+                  <Text style={[styles.errorBannerBtnText, { color: '#fff' }]}>Retry</Text>
+                </Pressable>
               </View>
-            </AnimatedPressable>
-          ) : null}
+            </View>
+          </Animated.View>
+        ) : null}
+
+        <View style={styles.nightsContent}>
+          {upcomingOrders.map((order, index) => (
+            <UpcomingOrderCard
+              key={order.id || `${order.eventId}-${index}`}
+              order={order}
+              index={index}
+            />
+          ))}
 
           {pastOrders.length > 0 ? (
             <View style={styles.timelineContainer}>
@@ -512,6 +609,20 @@ export default function ProfileScreen() {
                   isLast={i === pastOrders.length - 1}
                 />
               ))}
+            </View>
+          ) : null}
+
+          {!hasProfileEvents ? (
+            <View style={styles.emptyStateContainer}>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/');
+                }}
+                style={styles.emptyStateButton}
+              >
+                <Text style={styles.emptyStateButtonText}>Discover Events</Text>
+              </Pressable>
             </View>
           ) : null}
         </View>
@@ -569,7 +680,7 @@ const styles = StyleSheet.create({
   },
   profileHeroImage: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.42,
+    opacity: 0.8,
   },
   avatarContainer: {
     width: 136,
@@ -663,13 +774,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
-  instagramProfileButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  socialProfileButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 9,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
@@ -793,6 +903,74 @@ const styles = StyleSheet.create({
   // Event History Timeline Layout
   nightsContent: {
     paddingHorizontal: 20,
+  },
+  sectionTitle: {
+    color: colors.gold,
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  errorBanner: {
+    backgroundColor: 'rgba(244, 74, 34, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 74, 34, 0.3)',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 16,
+  },
+  errorBannerText: {
+    color: '#F44A22',
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  errorBannerActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  errorBannerBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  errorBannerBtnText: {
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  emptyStateContainer: {
+    paddingTop: 16,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  emptyStateTitle: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+    paddingHorizontal: 40,
+  },
+  emptyStateButton: {
+    backgroundColor: '#F44A22',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 999,
+  },
+  emptyStateButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
   },
   profilePhotoStrip: {
     marginBottom: 20,

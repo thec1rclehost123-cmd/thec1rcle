@@ -47,7 +47,7 @@ export async function shareEventLink(
   customMessage?: string,
 ): Promise<boolean> {
   try {
-    const link = buildDeepLink('event', { id: eventId });
+    const link = `https://${WEB_DOMAIN}/event/${encodeURIComponent(eventId)}`;
     const message = customMessage || `🎉 Check out ${eventTitle} on THE C1RCLE!\n\n${link}`;
 
     const result = await Share.share({

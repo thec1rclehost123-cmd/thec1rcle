@@ -86,7 +86,15 @@ export function ExploreMapPreview({ events }: { events: Event[] }) {
         title="Explore on Map"
         onViewAll={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          router.push('/map');
+          router.push({
+            pathname: '/map',
+            params: {
+              lat: initialRegion.latitude.toFixed(6),
+              lng: initialRegion.longitude.toFixed(6),
+              latDelta: initialRegion.latitudeDelta.toFixed(6),
+              lngDelta: initialRegion.longitudeDelta.toFixed(6),
+            },
+          });
         }}
         viewAllLabel="View Map →"
       />
@@ -94,7 +102,15 @@ export function ExploreMapPreview({ events }: { events: Event[] }) {
         style={styles.mapCard}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          router.push('/map');
+          router.push({
+            pathname: '/map',
+            params: {
+              lat: initialRegion.latitude.toFixed(6),
+              lng: initialRegion.longitude.toFixed(6),
+              latDelta: initialRegion.latitudeDelta.toFixed(6),
+              lngDelta: initialRegion.longitudeDelta.toFixed(6),
+            },
+          });
         }}
       >
         <MapView

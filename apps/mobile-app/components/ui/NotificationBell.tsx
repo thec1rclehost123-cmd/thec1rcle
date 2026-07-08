@@ -102,7 +102,7 @@ export function NotificationBell({
         style={[animatedStyle, styles.container]}
       >
         <BlurView
-          experimentalBlurMethod="dimezisBlurView"
+          blurMethod="dimezisBlurView"
           intensity={40}
           tint="dark"
           style={styles.blurContainer}
@@ -159,8 +159,10 @@ const styles = StyleSheet.create({
   solidContainer: {
     width: 44,
     height: 44,
-    backgroundColor: colors.base[50],
+    backgroundColor: 'rgba(7,7,9,0.94)',
     borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center',
     justifyContent: 'center',
   },

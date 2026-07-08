@@ -42,7 +42,7 @@ export function Header({
     >
       {!transparent && (
         <BlurView
-          experimentalBlurMethod="dimezisBlurView"
+          blurMethod="dimezisBlurView"
           intensity={80}
           tint="dark"
           style={StyleSheet.absoluteFill}

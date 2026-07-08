@@ -7,6 +7,8 @@ import { CancellationService } from './cancellation-service.js';
 // @ts-ignore
 import { calculatePricing } from '@c1rcle/core/pricing-engine';
 // @ts-ignore
+import { validatePromoCode } from '@c1rcle/core/promo-service';
+// @ts-ignore
 import { PUBLIC_LIFECYCLE_STATES } from '@c1rcle/core/events';
 // @ts-ignore
 import {
@@ -155,6 +157,8 @@ export class CheckoutService {
         userId: user.id,
         subscriptionTier: subscriptionContext.subscription.tier,
         waiveBookingFees: subscriptionContext.subscription.isPremium,
+        promoValidator: async (eventId: string, code: string, uid: string | null, pricingItems: any[]) =>
+          validatePromoCode(eventId, code, uid || '', pricingItems),
       });
 
       if (!pricingResult.success) {
@@ -348,6 +352,8 @@ export class CheckoutService {
         userId,
         subscriptionTier: subscriptionContext.subscription.tier,
         waiveBookingFees: subscriptionContext.subscription.isPremium,
+        promoValidator: async (eventId: string, code: string, uid: string | null, pricingItems: any[]) =>
+          validatePromoCode(eventId, code, uid || '', pricingItems),
       });
 
       if (!pricingResult.success) throw new Error(pricingResult.error);

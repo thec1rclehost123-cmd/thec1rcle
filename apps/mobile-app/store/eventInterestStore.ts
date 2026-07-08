@@ -11,6 +11,48 @@
 import { create } from 'zustand';
 import { apiFetch } from '@/lib/api';
 
+const RECENT_INTEREST_TOGGLE_MS = 15_000;
+const recentInterestToggles = new Map<string, { included: boolean; at: number }>();
+
+export function __resetRecentInterestTogglesForTests() {
+  recentInterestToggles.clear();
+}
+
+type InterestOverrides = Record<string, boolean>;
+
+function isFreshInterestToggle(toggle: { included: boolean; at: number } | undefined) {
+  return Boolean(toggle && Date.now() - toggle.at < RECENT_INTEREST_TOGGLE_MS);
+}
+
+function applyInterestOverrides(eventIds: Set<string>, overrides: InterestOverrides) {
+  const next = new Set(eventIds);
+  for (const [eventId, included] of Object.entries(overrides)) {
+    if (included) next.add(eventId);
+    else next.delete(eventId);
+  }
+  return next;
+}
+
+function applyRecentInterestToggles(eventIds: Set<string>) {
+  const recentOverrides: InterestOverrides = {};
+  for (const [eventId, toggle] of recentInterestToggles.entries()) {
+    if (!isFreshInterestToggle(toggle)) {
+      recentInterestToggles.delete(eventId);
+      continue;
+    }
+    recentOverrides[eventId] = toggle.included;
+  }
+  return applyInterestOverrides(eventIds, recentOverrides);
+}
+
+function shouldRollbackInterestToggle(error: unknown) {
+  const status =
+    typeof error === 'object' && error !== null && 'status' in error
+      ? Number((error as { status?: unknown }).status)
+      : 0;
+  return status === 401 || status === 403 || status === 404;
+}
+
 export interface InterestedUser {
   userId: string;
   displayName: string;
@@ -29,6 +71,8 @@ export interface GroupChatMember {
 interface EventInterestState {
   /** Set of event IDs the current user has liked */
   likedEventIds: Set<string>;
+  /** Session-local truth for fresh user taps; prevents stale reads from visually clearing hearts */
+  interestOverrides: InterestOverrides;
   /** Interested users per eventId */
   interestedUsers: Record<string, InterestedUser[]>;
   /** Group chat members per eventId */
@@ -56,13 +100,24 @@ interface EventInterestState {
   ) => Promise<void>;
   /** Fetch group chat members for an event */
   fetchGroupChatMembers: (eventId: string) => Promise<void>;
+  /** Check if an event is liked by the current user */
+  isInterested: (eventId: string) => boolean;
 }
 
 export const useEventInterestStore = create<EventInterestState>((set, get) => ({
   likedEventIds: new Set(),
+  interestOverrides: {},
   interestedUsers: {},
   groupChatMembers: {},
   loadingInterested: {},
+
+  isInterested: (eventId: string) => {
+    const overrides = get().interestOverrides;
+    if (Object.prototype.hasOwnProperty.call(overrides, eventId)) {
+      return overrides[eventId];
+    }
+    return get().likedEventIds.has(eventId);
+  },
 
   loadUserInterests: async (userId: string) => {
     try {
@@ -77,21 +132,39 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
           ? extractIds(profile.interestedEventIds)
           : []),
         ...(Array.isArray(profile.interestedEvents) ? extractIds(profile.interestedEvents) : []),
+        ...(Array.isArray(profile.attendedEvents) ? extractIds(profile.attendedEvents) : []),
       ]);
-      set({ likedEventIds: ids });
+      set((state) => ({
+        likedEventIds: applyInterestOverrides(
+          applyRecentInterestToggles(ids),
+          state.interestOverrides,
+        ),
+      }));
     } catch (e) {
       console.warn('[EventInterestStore] loadUserInterests:', e);
     }
   },
 
   fetchEventInterestState: async (eventId: string) => {
+    const likedBeforeRequest = get().isInterested(eventId);
     try {
       const response = await apiFetch<any>(
         `/api/v1/events/${encodeURIComponent(eventId)}/viewer-state`,
         { requireAuth: true },
       );
+      if (get().isInterested(eventId) !== likedBeforeRequest) return;
       const viewerState = response.data || response;
       const isInterested = Boolean(viewerState.hasRsvped || viewerState.isInterested);
+      const overrides = get().interestOverrides;
+      if (
+        Object.prototype.hasOwnProperty.call(overrides, eventId) &&
+        overrides[eventId] !== isInterested
+      ) {
+        return;
+      }
+      const recentToggle = recentInterestToggles.get(eventId);
+      if (isFreshInterestToggle(recentToggle) && recentToggle?.included !== isInterested) return;
+
       const next = new Set(get().likedEventIds);
       if (isInterested) next.add(eventId);
       else next.delete(eventId);
@@ -102,17 +175,55 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
   },
 
   toggleInterest: async (eventId, userId, userInfo) => {
-    const { likedEventIds } = get();
-    const isLiked = likedEventIds.has(eventId);
+    const previous = get().likedEventIds;
+    const previousInterestOverrides = get().interestOverrides;
+    const isLiked = get().isInterested(eventId);
+    const previousInterestedUsers = get().interestedUsers;
+    const nextIncluded = !isLiked;
+    recentInterestToggles.set(eventId, { included: nextIncluded, at: Date.now() });
 
-    // Optimistic update
-    const next = new Set(likedEventIds);
+    // Optimistic update — use functional updater to avoid stale closure
+    set((state) => {
+      const next = new Set(state.likedEventIds);
+      if (!nextIncluded) {
+        next.delete(eventId);
+      } else {
+        next.add(eventId);
+      }
+      return {
+        likedEventIds: next,
+        interestOverrides: { ...state.interestOverrides, [eventId]: nextIncluded },
+      };
+    });
+
+    // Optimistically update interestedUsers
     if (isLiked) {
-      next.delete(eventId);
+      set((state) => ({
+        interestedUsers: {
+          ...state.interestedUsers,
+          [eventId]: (state.interestedUsers[eventId] ?? []).filter(
+            (u) => u.userId !== userId,
+          ),
+        },
+      }));
     } else {
-      next.add(eventId);
+      const payload = {
+        userId,
+        displayName: userInfo.displayName || 'C1rcle User',
+        photoURL: userInfo.photoURL ?? null,
+        likedAt: new Date().toISOString(),
+      };
+      set((state) => {
+        const current = state.interestedUsers[eventId] ?? [];
+        if (current.find((u) => u.userId === userId)) return state;
+        return {
+          interestedUsers: {
+            ...state.interestedUsers,
+            [eventId]: [payload, ...current],
+          },
+        };
+      });
     }
-    set({ likedEventIds: next });
 
     try {
       await apiFetch(`/api/v1/events/${encodeURIComponent(eventId)}/rsvp`, {
@@ -120,36 +231,17 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
         body: JSON.stringify({ shouldInclude: !isLiked }),
         requireAuth: true,
       });
-
-      if (isLiked) {
-        const current = get().interestedUsers[eventId] ?? [];
-        set({
-          interestedUsers: {
-            ...get().interestedUsers,
-            [eventId]: current.filter((u) => u.userId !== userId),
-          },
-        });
-      } else {
-        const payload = {
-          userId,
-          displayName: userInfo.displayName || 'C1rcle User',
-          photoURL: userInfo.photoURL ?? null,
-          likedAt: new Date().toISOString(),
-        };
-        const current = get().interestedUsers[eventId] ?? [];
-        if (!current.find((u) => u.userId === userId)) {
-          set({
-            interestedUsers: {
-              ...get().interestedUsers,
-              [eventId]: [payload, ...current],
-            },
-          });
-        }
-      }
     } catch (e) {
       console.warn('[EventInterestStore] toggleInterest failed:', e);
-      // Rollback
-      set({ likedEventIds });
+      if (shouldRollbackInterestToggle(e)) {
+        recentInterestToggles.delete(eventId);
+        // Full rollback — revert both likedEventIds AND interestedUsers
+        set({
+          likedEventIds: previous,
+          interestOverrides: previousInterestOverrides,
+          interestedUsers: previousInterestedUsers,
+        });
+      }
     }
   },
 
@@ -168,7 +260,18 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
         photoURL: user.photoURL || user.avatar || null,
         likedAt: user.likedAt || user.createdAt || '',
       }));
-      set({ interestedUsers: { ...get().interestedUsers, [eventId]: users } });
+      const previousUsers = get().interestedUsers[eventId] ?? [];
+      const shouldPreserveOptimisticViewer = get().likedEventIds.has(eventId);
+      const mergedUsers = shouldPreserveOptimisticViewer
+        ? [
+            ...previousUsers.filter(
+              (previousUser) => !users.some((user) => user.userId === previousUser.userId),
+            ),
+            ...users,
+          ]
+        : users;
+
+      set({ interestedUsers: { ...get().interestedUsers, [eventId]: mergedUsers } });
     } catch (e) {
       console.warn('[EventInterestStore] fetchInterestedUsers:', e);
     } finally {

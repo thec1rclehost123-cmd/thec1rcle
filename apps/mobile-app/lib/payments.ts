@@ -37,6 +37,7 @@ export interface CheckoutParams {
   userPhone?: string;
   promoCode?: string | null;
   promoterCode?: string | null;
+  hostUpdatesOptIn?: boolean;
   onStatusChange?: (status: CheckoutStatus) => void;
 }
 
@@ -63,6 +64,12 @@ function premiumFeatureFromError(error: any): PremiumFeature {
   return 'premiumOnlyEvent';
 }
 
+function sortItems(
+  items: { tierId: string; quantity: number }[],
+): { tierId: string; quantity: number }[] {
+  return [...items].sort((a, b) => a.tierId.localeCompare(b.tierId));
+}
+
 function matchesReservationSelection(
   reservation: { eventId: string; items: { tierId: string; quantity: number }[] } | null,
   params: CheckoutParams,
@@ -71,7 +78,7 @@ function matchesReservationSelection(
     return false;
   }
 
-  return JSON.stringify(reservation.items) === JSON.stringify(params.items);
+  return JSON.stringify(sortItems(reservation.items)) === JSON.stringify(sortItems(params.items));
 }
 
 function createCheckoutActionId(): string {
@@ -82,7 +89,7 @@ function createCheckoutActionId(): string {
 }
 
 function buildPhaseIdempotencyKey(actionId: string, phase: string): string {
-  return `${actionId}:${phase}`;
+  return `${actionId}::${phase}`;
 }
 
 function buildVerifyIdempotencyKey(paymentId: string): string {
@@ -91,10 +98,22 @@ function buildVerifyIdempotencyKey(paymentId: string): string {
 
 async function refreshTicketWallet(): Promise<void> {
   try {
-    await useTicketsStore.getState().fetchUserOrders('');
+    const uid = getFirebaseAuth().currentUser?.uid;
+    if (uid) {
+      await useTicketsStore.getState().fetchUserOrders();
+    }
   } catch (error) {
     if (__DEV__) console.warn('[Checkout] Wallet refresh after checkout failed:', error);
   }
+}
+
+function refreshPostCheckoutState(): void {
+  void refreshTicketWallet();
+  void getFirebaseAuth()
+    .currentUser?.getIdToken(true)
+    .catch((error) => {
+      if (__DEV__) console.warn('[Checkout] Token refresh after checkout failed:', error);
+    });
 }
 
 // ─── Main Checkout Flow ──────────────────────────────────────────
@@ -111,6 +130,16 @@ async function refreshTicketWallet(): Promise<void> {
 export async function processFullCheckout(params: CheckoutParams): Promise<CheckoutResult> {
   const { onStatusChange } = params;
   const checkoutActionId = createCheckoutActionId();
+
+  // Verify auth before making any API calls
+  const currentUser = getFirebaseAuth().currentUser;
+  if (!currentUser?.uid) {
+    onStatusChange?.('failed');
+    return {
+      success: false,
+      error: 'You must be signed in to complete checkout.',
+    };
+  }
 
   try {
     // ── Step 1: Reserve Inventory ──
@@ -174,6 +203,7 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
         userPhone: params.userPhone,
         promoCode: params.promoCode,
         promoterCode: params.promoterCode,
+        hostUpdatesOptIn: params.hostUpdatesOptIn ?? true,
       },
       {
         headers: {
@@ -199,9 +229,7 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
       useCartStore.getState().clearPendingReservation();
       useCartStore.getState().setPendingPaymentOrderId(null);
       useCartStore.getState().clearCart();
-      await refreshTicketWallet();
-      // Force token refresh so Custom Claims (event_xxx) are available immediately
-      await getFirebaseAuth().currentUser?.getIdToken(true);
+      refreshPostCheckoutState();
       onStatusChange?.('confirmed');
       return {
         success: true,
@@ -264,9 +292,7 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
     useCartStore.getState().clearPendingReservation();
     useCartStore.getState().setPendingPaymentOrderId(null);
     useCartStore.getState().clearCart();
-    await refreshTicketWallet();
-    // Force token refresh so Custom Claims (event_xxx) are available immediately
-    await getFirebaseAuth().currentUser?.getIdToken(true);
+    refreshPostCheckoutState();
 
     onStatusChange?.('confirmed');
     return {

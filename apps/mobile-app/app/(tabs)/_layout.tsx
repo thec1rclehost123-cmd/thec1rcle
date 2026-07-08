@@ -13,25 +13,21 @@ import {
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import React, { useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
-import Svg, { Polygon, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
-import { colors, gradients } from '@/lib/design/theme';
-import { LinearGradient } from 'expo-linear-gradient';
+import { colors } from '@/lib/design/theme';
 
 // Spotlight Cone removed.
 
 // ── Tab routes shown in the bar ───────────────────────────────────────────────
-const VISIBLE_ROUTES = ['explore', 'wallet', 'inbox', 'social', 'tickets', 'venues'] as const;
+const VISIBLE_ROUTES = ['explore', 'inbox', 'social', 'tickets', 'venues'] as const;
 type VisibleRoute = (typeof VISIBLE_ROUTES)[number];
 
 const TAB_ICONS: Record<VisibleRoute, LucideIcon> = {
   explore: Compass,
-  wallet: Wallet,
   inbox: MessageCircle,
   social: Heart,
   tickets: Ticket,
@@ -40,23 +36,22 @@ const TAB_ICONS: Record<VisibleRoute, LucideIcon> = {
 
 const TAB_LABELS: Record<VisibleRoute, string> = {
   explore: 'Explore',
-  wallet: 'Wallet',
   inbox: 'Chat',
-  social: 'Dating',
+  social: 'Nightlife',
   tickets: 'Tickets',
   venues: 'Venues',
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TAB_BAR_WIDTH = SCREEN_WIDTH - 40;
-const TAB_COUNT = 6;
+const TAB_COUNT = 5;
 const TAB_ITEM_WIDTH = (TAB_BAR_WIDTH - 8) / TAB_COUNT;
 
 function CustomTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();
   const activeRouteName = state.routes[state.index]?.name;
 
-  // Only show the 5 visible routes
+  // Only show the 6 visible routes
   const visibleRoutes = state.routes.filter((r: any) =>
     (VISIBLE_ROUTES as readonly string[]).includes(r.name),
   );
@@ -96,6 +91,12 @@ function CustomTabBar({ state, navigation }: any) {
     return () => sub.remove();
   }, []);
 
+  // Reset tab bar expansion when switching tabs
+  useEffect(() => {
+    isScrollingDown.value = false;
+    lastScrollY.value = 0;
+  }, [activeRouteName]);
+
   const tabBarStyle = useAnimatedStyle(() => {
     const scale = withTiming(isScrollingDown.value ? 0.88 : 1, { duration: 250 });
     const translateY = withTiming(isScrollingDown.value ? 15 : 0, { duration: 250 });
@@ -120,65 +121,73 @@ function CustomTabBar({ state, navigation }: any) {
   };
 
   return (
-    <Animated.View
-      style={[
-        styles.tabBarContainer,
-        { bottom: insets.bottom > 0 ? insets.bottom : 16 },
-        tabBarStyle,
-      ]}
-    >
-      <BlurView
-        experimentalBlurMethod="dimezisBlurView"
-        intensity={35}
-        tint="dark"
-        style={StyleSheet.absoluteFill}
-      />
+    <>
+      <Animated.View
+        style={[
+          styles.tabBarContainer,
+          { bottom: insets.bottom > 0 ? insets.bottom : 16 },
+          tabBarStyle,
+        ]}
+      >
+        <BlurView
+          blurMethod="dimezisBlurView"
+          intensity={35}
+          tint="dark"
+          style={StyleSheet.absoluteFill}
+        />
 
-      <View style={styles.tabBarContent}>
-        <Animated.View style={[styles.highlightWrapper, highlightStyle]}>
-          <View style={styles.activeHighlight} />
-        </Animated.View>
-        {visibleRoutes.map((route: any) => {
-          const isFocused = activeRouteName === route.name;
-          const Icon = TAB_ICONS[route.name as VisibleRoute];
-          if (!Icon) return null;
-          const IconComp = Icon as any;
+        <View style={styles.tabBarContent}>
+          <Animated.View style={[styles.highlightWrapper, highlightStyle]}>
+            <View style={styles.activeHighlight} />
+          </Animated.View>
+          {visibleRoutes.map((route: any) => {
+            const isFocused = activeRouteName === route.name;
+            const Icon = TAB_ICONS[route.name as VisibleRoute];
+            if (!Icon) return null;
+            const IconComp = Icon as any;
 
-          return (
-            <Pressable
-              key={route.key}
-              onPress={() => handlePress(route)}
-              style={styles.tabItem}
-              accessibilityLabel={TAB_LABELS[route.name as VisibleRoute]}
-              accessibilityRole="tab"
-            >
-              <View style={styles.iconWrap}>
-                <IconComp size={22} color="#fff" strokeWidth={isFocused ? 2.5 : 2.0} />
-                <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
-                  {TAB_LABELS[route.name as VisibleRoute]}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-    </Animated.View>
+            return (
+              <Pressable
+                key={route.key}
+                onPress={() => handlePress(route)}
+                style={styles.tabItem}
+                accessibilityLabel={TAB_LABELS[route.name as VisibleRoute]}
+                accessibilityRole="tab"
+              >
+                <View style={styles.iconWrap}>
+                  <IconComp size={22} color="#fff" strokeWidth={isFocused ? 2.5 : 2.0} />
+                  <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
+                    {TAB_LABELS[route.name as VisibleRoute]}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Animated.View>
+    </>
   );
 }
 
 // ── Root tab layout ────────────────────────────────────────────────────────────
 export default function TabLayout() {
   return (
-    <Tabs tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
+    <Tabs 
+      tabBar={(props) => <CustomTabBar {...props} />} 
+      screenOptions={{ 
+        headerShown: false,
+        tabBarStyle: { position: 'absolute', backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0 }
+      }}
+    >
       <Tabs.Screen name="explore" options={{ title: 'Explore' }} />
-      <Tabs.Screen name="wallet" options={{ title: 'Wallet' }} />
       <Tabs.Screen name="inbox" options={{ title: 'Inbox' }} />
-      <Tabs.Screen name="social" options={{ title: 'Social' }} />
+      <Tabs.Screen name="social" options={{ title: 'Nightlife' }} />
       <Tabs.Screen name="tickets" options={{ title: 'Tickets' }} />
       <Tabs.Screen name="venues" options={{ title: 'Venues' }} />
+      {/* Hidden — accessed via deep link or internal navigation */}
+      <Tabs.Screen name="feed" options={{ href: null }} />
       {/* Hidden — accessed via header avatar */}
       <Tabs.Screen name="profile" options={{ href: null }} />
-      <Tabs.Screen name="dating" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -192,7 +201,7 @@ const styles = StyleSheet.create({
     height: 72,
     borderRadius: 36,
     overflow: 'hidden',
-    backgroundColor: 'rgba(10, 10, 10, 0.25)', // Dark base for glass
+    backgroundColor: colors.base.DEFAULT,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.2)',
   },
@@ -209,20 +218,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-  },
-  // Bright bar at the very top — the "light source"
-  spotlightBar: {
-    position: 'absolute',
-    top: 0,
-    alignSelf: 'center',
-    width: 28,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: colors.iris,
-    shadowColor: colors.iris,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
   },
   highlightWrapper: {
     position: 'absolute',

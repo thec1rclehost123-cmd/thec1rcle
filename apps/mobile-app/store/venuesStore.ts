@@ -67,6 +67,7 @@ export const useVenuesStore = create<VenuesState>((set, get) => ({
   error: null,
 
   fetchVenues: async (filters = {}) => {
+    if (get().loading) return;
     set({ loading: true, error: null });
     try {
       const response = await fetchPublicVenues({ ...filters, limit: 100 });

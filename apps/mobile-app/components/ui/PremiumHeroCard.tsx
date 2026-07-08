@@ -177,7 +177,7 @@ export function PremiumHeroCard({
         {category && (
           <Animated.View entering={FadeIn.delay(300)} style={styles.categoryBadge}>
             <BlurView
-              experimentalBlurMethod="dimezisBlurView"
+              blurMethod="dimezisBlurView"
               intensity={40}
               tint="dark"
               style={styles.categoryBlur}
@@ -208,7 +208,7 @@ export function PremiumHeroCard({
         {/* Date chip with frosted glass */}
         <View style={styles.dateChip}>
           <BlurView
-            experimentalBlurMethod="dimezisBlurView"
+            blurMethod="dimezisBlurView"
             intensity={50}
             tint="dark"
             style={styles.dateBlur}

@@ -63,7 +63,7 @@ export const VenueCard = React.memo(function VenueCard({
         <View style={styles.badgeContainer}>
           {venue.isVerified && (
             <BlurView
-              experimentalBlurMethod="dimezisBlurView"
+              blurMethod="dimezisBlurView"
               intensity={30}
               tint="dark"
               style={[styles.badge, { backgroundColor: `${colors.iris}40` }]}
@@ -73,7 +73,7 @@ export const VenueCard = React.memo(function VenueCard({
           )}
           {venue.venueType ? (
             <BlurView
-              experimentalBlurMethod="dimezisBlurView"
+              blurMethod="dimezisBlurView"
               intensity={30}
               tint="dark"
               style={styles.badge}
@@ -83,7 +83,7 @@ export const VenueCard = React.memo(function VenueCard({
           ) : null}
           {venue.tablesAvailable && (
             <BlurView
-              experimentalBlurMethod="dimezisBlurView"
+              blurMethod="dimezisBlurView"
               intensity={30}
               tint="dark"
               style={[styles.badge, styles.specialBadge]}
@@ -105,7 +105,7 @@ export const VenueCard = React.memo(function VenueCard({
             <View style={styles.tagContainer}>
               {tags.map((tag, idx) => (
                 <BlurView
-                  experimentalBlurMethod="dimezisBlurView"
+                  blurMethod="dimezisBlurView"
                   key={`${tag}-${idx}`}
                   intensity={20}
                   tint="dark"

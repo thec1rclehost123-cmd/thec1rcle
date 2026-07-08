@@ -12,6 +12,7 @@ import {
 } from 'lucide-react-native';
 import { colors } from '@/lib/design/theme';
 import { apiFetch } from '@/lib/api';
+import { BlurView } from 'expo-blur';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
 
@@ -94,6 +95,8 @@ export default function VerificationScreen() {
         }),
       });
 
+      // Force refresh local cache so UI reflects pending status instantly
+      await useProfileStore.getState().loadProfile(user.uid);
       router.back();
     } catch (err) {
       console.error('[Verification] submit error:', err);
@@ -138,7 +141,7 @@ export default function VerificationScreen() {
         </View>
 
         {/* Benefits */}
-        <View style={styles.benefitsCard}>
+        <BlurView intensity={40} tint="dark" style={styles.benefitsCard}>
           <Text style={styles.sectionLabel}>WHY VERIFY?</Text>
           {[
             { icon: '💙', text: 'Blue verified badge on your profile' },
@@ -151,13 +154,13 @@ export default function VerificationScreen() {
               <Text style={styles.benefitText}>{b.text}</Text>
             </View>
           ))}
-        </View>
+        </BlurView>
 
         {/* Steps */}
         {status === 'unverified' || status === 'rejected' ? (
           <>
             <Text style={styles.sectionLabel}>HOW IT WORKS</Text>
-            <View style={styles.stepsCard}>
+            <BlurView intensity={40} tint="dark" style={styles.stepsCard}>
               {STEPS.map((step, i) => (
                 <View key={i} style={styles.stepRow}>
                   <View style={styles.stepNumber}>
@@ -172,7 +175,7 @@ export default function VerificationScreen() {
                   {i < STEPS.length - 1 && <View style={styles.stepLine} />}
                 </View>
               ))}
-            </View>
+            </BlurView>
 
             {/* CTA */}
             <Pressable
@@ -203,7 +206,7 @@ export default function VerificationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0B',
+    backgroundColor: colors.base.DEFAULT,
   },
   header: {
     flexDirection: 'row',
@@ -289,12 +292,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   benefitsCard: {
-    backgroundColor: '#1C1C1E',
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: 16,
     padding: 16,
     gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
   },
   benefitRow: {
     flexDirection: 'row',
@@ -312,11 +316,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   stepsCard: {
-    backgroundColor: '#1C1C1E',
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
   },
   stepRow: {
     flexDirection: 'row',

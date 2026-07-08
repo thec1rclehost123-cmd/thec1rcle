@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -8,24 +8,26 @@ import {
   Text,
   TextInput,
   View,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/hooks/useAuth';
-import { firebaseConfig } from '@/lib/firebase';
-
-function normalizePhone(value: string) {
-  const trimmed = value.trim().replace(/\s/g, '');
-  if (trimmed.startsWith('+')) return trimmed;
-  const digits = trimmed.replace(/\D/g, '');
-  return `+91${digits}`;
-}
+import { colors } from '@/lib/design/theme';
+import { CountryCodePicker } from '@/components/ui/CountryCodePicker';
+import {
+  DEFAULT_PHONE_COUNTRY,
+  getLocalPhoneDigits,
+  getPhoneNumberInputError,
+  normalizePhoneNumber,
+  type PhoneCountry,
+} from '@/lib/phone';
 
 export default function PhoneAuthScreen() {
-  const recaptchaVerifier = useRef<any>(null);
   const [phone, setPhone] = useState('');
+  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
   const [localError, setLocalError] = useState<string | null>(null);
   const { sendPhoneCode, loading, error, clearError } = useAuth();
 
@@ -46,59 +48,91 @@ export default function PhoneAuthScreen() {
   const submit = async () => {
     setLocalError(null);
     clearError();
+    Keyboard.dismiss();
 
-    const phoneNumber = normalizePhone(phone);
-    if (phoneNumber.length < 8) {
-      setLocalError('Enter a valid phone number.');
+    const inputError = getPhoneNumberInputError(phone, phoneCountry);
+    if (inputError) {
+      setLocalError(inputError);
       return;
     }
 
-    const result = await sendPhoneCode(phoneNumber, recaptchaVerifier.current);
+    const phoneNumber = normalizePhoneNumber(phone, phoneCountry);
+    const result = await sendPhoneCode(phoneNumber);
     if (result.success && result.verificationId) {
       router.push({
-        pathname: '/(auth)/otp' as any,
+        pathname: '/(auth)/otp',
         params: { verificationId: result.verificationId, phoneNumber },
       });
     }
   };
 
+  const handleCountrySelect = (country: PhoneCountry) => {
+    setPhoneCountry(country);
+    setPhone((current) => getLocalPhoneDigits(current, country).slice(0, country.localDigits));
+    setLocalError(null);
+    clearError();
+  };
+
+  const phoneDigits = getLocalPhoneDigits(phone, phoneCountry);
+
+  const backgroundElement = React.useMemo(
+    () => (
+      <>
+        <VideoView
+          player={player}
+          style={StyleSheet.absoluteFillObject}
+          contentFit="cover"
+          nativeControls={false}
+        />
+        <LinearGradient
+          colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.8)', colors.base.DEFAULT]}
+          locations={[0, 0.4, 1]}
+          style={StyleSheet.absoluteFillObject}
+        />
+      </>
+    ),
+    [player]
+  );
+
   return (
     <View style={styles.container}>
-      <VideoView
-        player={player}
-        style={StyleSheet.absoluteFillObject}
-        contentFit="cover"
-        nativeControls={false}
-      />
-      <LinearGradient
-        colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.8)', '#000000']}
-        locations={[0, 0.4, 1]}
-        style={StyleSheet.absoluteFillObject}
-      />
+      {backgroundElement}
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.content}
         >
           <Text style={styles.title}>PHONE LOGIN</Text>
+
           <Text style={styles.label}>Phone number</Text>
-          <TextInput
-            value={phone}
-            onChangeText={(value) => {
-              setPhone(value);
-              setLocalError(null);
-              clearError();
-            }}
-            placeholder="+91 98765 43210"
-            placeholderTextColor="rgba(255,255,255,0.35)"
-            keyboardType="phone-pad"
-            autoComplete="tel"
-            style={styles.input}
-          />
+          <View style={styles.phoneInputRow}>
+            <CountryCodePicker selectedCountry={phoneCountry} onSelect={handleCountrySelect} />
+            <TextInput
+              value={phone}
+              onChangeText={(value) => {
+                setPhone(value.replace(/\D/g, '').slice(0, phoneCountry.localDigits));
+                setLocalError(null);
+                clearError();
+              }}
+              placeholder={phoneCountry.example}
+              placeholderTextColor="rgba(255,255,255,0.35)"
+              keyboardType="number-pad"
+              autoComplete="tel"
+              maxLength={phoneCountry.localDigits}
+              style={[styles.input, styles.phoneNumberInput]}
+            />
+          </View>
 
           {localError || error ? <Text style={styles.error}>{localError || error}</Text> : null}
 
-          <Pressable style={styles.button} onPress={submit} disabled={loading}>
+          <Pressable
+            style={[
+              styles.button,
+              (loading || phoneDigits.length < phoneCountry.localDigits) && styles.buttonDisabled,
+            ]}
+            onPress={submit}
+            disabled={loading || phoneDigits.length < phoneCountry.localDigits}
+          >
             {loading ? (
               <ActivityIndicator color="#000" />
             ) : (
@@ -116,7 +150,7 @@ export default function PhoneAuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: colors.base.DEFAULT },
   safeArea: { flex: 1 },
   content: { flex: 1, justifyContent: 'center', padding: 24, gap: 12 },
   title: {
@@ -140,6 +174,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 16,
   },
+  phoneInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+  },
+  phoneNumberInput: {
+    flex: 1,
+  },
   error: { color: '#FCA5A5', fontSize: 13, marginTop: 4 },
   button: {
     height: 52,
@@ -149,7 +192,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 8,
   },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
   buttonText: { color: '#000', fontSize: 16, fontWeight: '800' },
   secondary: { alignSelf: 'center', padding: 12 },
   secondaryText: { color: 'rgba(255,255,255,0.65)', fontSize: 14, fontWeight: '700' },
+  recaptchaContainer: { height: 0, overflow: 'hidden' },
 });

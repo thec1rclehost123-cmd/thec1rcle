@@ -1,9 +1,9 @@
 // Ticket transfer service (server-authoritative via API Gateway)
 import {
-  apiFetch,
   initiateFormalTransfer,
   acceptFormalTransfer,
   cancelFormalTransfer,
+  getPendingFormalTransfers,
 } from './api';
 
 export interface Transfer {
@@ -25,10 +25,10 @@ export interface Transfer {
 
 /**
  * Initiate ticket transfer via API Gateway.
- * Replaces the direct Cloud Function call.
+ * This is the canonical entry point for all transfers.
  */
 export async function initiateTransfer(
-  orderId: string,
+  ticketId: string,
   fromUserId: string,
   ticketDetails: { tierName: string; quantity: number } | { name: string; quantity: number },
   recipientEmail?: string,
@@ -37,17 +37,25 @@ export async function initiateTransfer(
   success: boolean;
   transferId?: string;
   transferCode?: string;
+  expiresAt?: string;
   error?: string;
   premiumRequired?: boolean;
 }> {
   try {
-    // We use the Gateway's initiateFormalTransfer wrapper in api.ts
     const result = await initiateFormalTransfer({
-      ticketId: orderId, // The Gateway currently expects ticketId which we map to orderId or specific ID
+      ticketId,
       recipientEmail,
     });
 
-    return result;
+    if (!result.success) {
+      return { success: false, error: result.error || 'Transfer failed' };
+    }
+    return {
+      success: true,
+      transferId: result.transfer?.id,
+      transferCode: result.transfer?.token,
+      expiresAt: result.transfer?.expiresAt,
+    };
   } catch (error: any) {
     return {
       success: false,
@@ -88,12 +96,17 @@ export async function cancelTransfer(
 }
 
 /**
- * Fetch pending transfers via Gateway.
+ * Fetch pending transfers via Gateway, filtered to valid (non-expired) entries.
  */
 export async function getPendingTransfers(userId: string): Promise<Transfer[]> {
   try {
-    const response = await apiFetch<{ transfers: Transfer[] }>('/api/v1/tickets/transfer/pending');
-    return response.transfers || [];
+    const response = await getPendingFormalTransfers();
+    const transfers: Transfer[] = response?.transfers || [];
+    const now = Date.now();
+    return transfers.filter((t: Transfer) => {
+      if (!t.expiresAt) return true;
+      return new Date(t.expiresAt).getTime() > now;
+    });
   } catch (error) {
     return [];
   }

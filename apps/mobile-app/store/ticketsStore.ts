@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { apiFetch } from '@/lib/api';
+import { DEMO_EVENTS } from '@/lib/demo';
+import { getEventImage } from '@/lib/utils/event';
 
 // Order/Ticket type matching Firestore schema
 export interface Order {
@@ -9,13 +11,28 @@ export interface Order {
   userName?: string;
   eventId: string;
   eventTitle?: string;
+  eventCategory?: string;
+  category?: string;
   eventDate?: string;
   eventStartDate?: string;
   eventTime?: string;
   eventCoverImage?: string;
+  coverImage?: string;
+  coverPhoto?: string;
+  posterUrl?: string;
+  poster?: string;
+  image?: string;
+  images?: string[];
+  gallery?: string[];
+  flyer?: string;
+  banner?: string;
+  thumbnail?: string;
   venueLocation?: string;
   hostName?: string;
   accentColor?: string;
+  eventAccentColor?: string;
+  posterAccentColor?: string;
+  dominantColor?: string;
   status:
     | 'payment_pending'
     | 'pending_payment'
@@ -86,69 +103,135 @@ interface TicketsState {
   orders: Order[];
   loading: boolean;
   error: string | null;
-
-  fetchUserOrders: (userId: string) => Promise<void>;
+  fetchUserOrders: () => Promise<void>;
   getOrderById: (orderId: string) => Promise<Order | null>;
   clearOrders: () => void;
 }
 
-let pendingFetchPromise: Promise<void> | null = null;
+function getCanonicalDemoEvent(eventId?: string) {
+  if (!eventId) return null;
+  return (DEMO_EVENTS as any[]).find((event) => event.id === eventId) || null;
+}
 
-export const useTicketsStore = create<TicketsState>((set, get) => ({
-  orders: [],
-  loading: false,
-  error: null,
+function getCanonicalDemoPoster(eventId?: string): string | undefined {
+  const demoEvent = getCanonicalDemoEvent(eventId);
+  return (
+    demoEvent?.poster ||
+    demoEvent?.coverImage ||
+    demoEvent?.image ||
+    demoEvent?.posterUrl ||
+    demoEvent?.images?.[0]
+  );
+}
 
-  fetchUserOrders: async (_userId: string) => {
-    if (get().loading) return pendingFetchPromise || Promise.resolve();
-    if (pendingFetchPromise) return pendingFetchPromise;
+function getCanonicalDemoAccent(eventId?: string): string | undefined {
+  const demoEvent = getCanonicalDemoEvent(eventId);
+  return (
+    demoEvent?.posterAccentColor ||
+    demoEvent?.dominantColor ||
+    demoEvent?.eventAccentColor ||
+    demoEvent?.accentColor
+  );
+}
 
-    set({ loading: true, error: null });
-    pendingFetchPromise = (async () => {
+function normalizeOrder(raw: Order): Order {
+  const canonicalDemoPoster = getCanonicalDemoPoster(raw.eventId);
+  const canonicalPoster =
+    canonicalDemoPoster ||
+    getEventImage({
+      ...raw,
+      coverImage: raw.coverImage || raw.eventCoverImage,
+    }) ||
+    raw.eventCoverImage;
+  const canonicalAccent =
+    getCanonicalDemoAccent(raw.eventId) ||
+    raw.posterAccentColor ||
+    raw.dominantColor ||
+    raw.eventAccentColor ||
+    raw.accentColor;
+
+  return {
+    ...raw,
+    eventCoverImage: canonicalPoster,
+    coverImage: canonicalPoster || raw.coverImage,
+    coverPhoto: canonicalPoster || raw.coverPhoto,
+    posterUrl: canonicalPoster || raw.posterUrl || raw.poster,
+    poster: canonicalPoster || raw.poster || raw.posterUrl,
+    image: canonicalPoster || raw.image,
+    images: canonicalPoster ? [canonicalPoster] : raw.images,
+    gallery: canonicalPoster ? [canonicalPoster] : raw.gallery,
+    flyer: canonicalPoster || raw.flyer,
+    banner: canonicalPoster || raw.banner,
+    thumbnail: canonicalPoster || raw.thumbnail,
+    accentColor: canonicalAccent || raw.accentColor,
+    eventAccentColor: canonicalAccent || raw.eventAccentColor,
+    posterAccentColor: canonicalAccent || raw.posterAccentColor,
+    dominantColor: canonicalAccent || raw.dominantColor,
+  };
+}
+
+export const useTicketsStore = create<TicketsState>((set, get) => {
+  let pendingFetchPromise: Promise<void> | null = null;
+
+  return {
+    orders: [],
+    loading: false,
+    error: null,
+
+    fetchUserOrders: async () => {
+      if (get().loading && pendingFetchPromise) return pendingFetchPromise;
+
+      set({ loading: true, error: null });
+      pendingFetchPromise = (async () => {
+        try {
+          const response = await apiFetch<{
+            success: boolean;
+            data?: { orders?: Order[] };
+            orders?: Order[];
+          }>('/api/v1/tickets/my-wallet');
+          const walletOrders: Order[] = (response.data?.orders || response.orders || []).map(
+            normalizeOrder,
+          );
+
+          set({ orders: walletOrders, loading: false, error: null });
+        } catch (error: any) {
+          console.warn('Unable to fetch wallet orders; keeping existing ticket wallet.', error);
+          set({
+            error: error?.message || 'Unable to sync ticket wallet. Pull to retry.',
+            loading: false,
+          });
+          throw error;
+        }
+      })();
+
       try {
-        const response = await apiFetch<{
-          success: boolean;
-          data?: { orders?: Order[] };
-          orders?: Order[];
-        }>('/api/v1/tickets/my-wallet');
-        const walletOrders: Order[] = response.data?.orders || response.orders || [];
-
-        set({ orders: walletOrders, loading: false, error: null });
-      } catch (error: any) {
-        console.warn('Unable to fetch wallet orders; keeping existing ticket wallet.', error);
-        set({
-          error: error?.message || 'Unable to sync ticket wallet. Pull to retry.',
-          loading: false,
-        });
-      }
-    })();
-
-    try {
-      await pendingFetchPromise;
-    } finally {
-      pendingFetchPromise = null;
-    }
-  },
-
-  getOrderById: async (orderId: string): Promise<Order | null> => {
-    try {
-      const cached = get().orders.find((order) => order.id === orderId);
-      if (cached) return cached;
-
-      if (get().loading && pendingFetchPromise) {
         await pendingFetchPromise;
-        return get().orders.find((order) => order.id === orderId) || null;
+      } finally {
+        pendingFetchPromise = null;
       }
+    },
 
-      await get().fetchUserOrders('');
-      return get().orders.find((order) => order.id === orderId) || null;
-    } catch (error: any) {
-      console.warn('Unable to fetch order by ID:', error);
-      return null;
-    }
-  },
+    getOrderById: async (orderId: string): Promise<Order | null> => {
+      try {
+        const cached = get().orders.find((order) => order.id === orderId);
+        if (cached) return cached;
 
-  clearOrders: () => {
-    set({ orders: [], loading: false, error: null });
-  },
-}));
+        if (get().loading && pendingFetchPromise) {
+          await pendingFetchPromise;
+          return get().orders.find((order) => order.id === orderId) || null;
+        }
+
+        await get().fetchUserOrders();
+        return get().orders.find((order) => order.id === orderId) || null;
+      } catch (error: any) {
+        console.warn('Unable to fetch order by ID:', error);
+        return null;
+      }
+    },
+
+    clearOrders: () => {
+      pendingFetchPromise = null;
+      set({ orders: [], loading: false, error: null });
+    },
+  };
+});

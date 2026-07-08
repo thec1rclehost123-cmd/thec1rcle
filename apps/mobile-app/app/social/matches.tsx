@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
@@ -52,14 +52,14 @@ function WhoLikedMeCard({
     <Pressable style={styles.likesCard} onPress={handlePress}>
       <View style={styles.likesTopRow}>
         <View style={styles.likesIconWrap}>
-          {visibleLike?.profile?.photoURL ? (
+          {visibleLike?.profile?.photoURL && !locked ? (
             <Image source={{ uri: visibleLike.profile.photoURL }} style={styles.likesAvatar} />
           ) : (
             <Heart size={22} color="#F6C55B" fill="#F6C55B" />
           )}
           {locked ? (
             <BlurView
-              experimentalBlurMethod="dimezisBlurView"
+              blurMethod="dimezisBlurView"
               intensity={34}
               tint="dark"
               style={StyleSheet.absoluteFill}
@@ -73,7 +73,7 @@ function WhoLikedMeCard({
           </View>
           <Text style={styles.likesBody}>
             {locked
-              ? `${lockedCount || total || 'New'} hidden ${lockedCount === 1 ? 'like' : 'likes'}`
+              ? `${(lockedCount ?? 0) > 0 ? lockedCount : (total ?? 0) > 0 ? total : 'New'} hidden ${lockedCount === 1 ? 'like' : 'likes'}`
               : total > 0
                 ? `${total} ${total === 1 ? 'person likes' : 'people like'} you`
                 : 'No incoming likes yet'}
@@ -101,7 +101,8 @@ function WhoLikedMeCard({
                 {like.profile?.displayName || 'C1RCLE member'}
               </Text>
               <Pressable style={styles.matchNowButton} onPress={() => onAcceptLike(like)}>
-                <Text style={styles.matchNowText}>Match</Text>
+                <Heart size={14} color="#fff" fill="#fff" />
+                <Text style={styles.matchNowText}>Accept</Text>
               </Pressable>
             </View>
           ))}
@@ -171,6 +172,8 @@ export default function MatchesScreen() {
   const { matches, matchesLoading, fetchMatches } = useDatingStore();
   const openPaywall = useSubscriptionStore((state) => state.openPaywall);
   const [likesSummary, setLikesSummary] = useState<LikesSummary | null>(null);
+  const fetchMatchesRef = useRef(fetchMatches);
+  fetchMatchesRef.current = fetchMatches;
   const renderMatch = useCallback(({ item }: { item: Match }) => <MatchCard match={item} />, []);
 
   const handleAcceptLike = useCallback(
@@ -204,8 +207,12 @@ export default function MatchesScreen() {
   );
 
   useEffect(() => {
-    if (user?.uid) fetchMatches(user.uid);
-  }, [fetchMatches, user?.uid]);
+    if (user?.uid) {
+      fetchMatchesRef.current(user.uid).catch((e: any) => {
+        console.error('[MatchesScreen] fetchMatches failed:', e);
+      });
+    }
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -262,12 +269,12 @@ export default function MatchesScreen() {
               <View style={styles.emptyIconWrap}>
                 <Heart size={36} color={colors.iris} />
               </View>
-              <Text style={styles.emptyTitle}>No matches yet</Text>
+              <Text style={styles.emptyTitle}>No nightlife matches yet</Text>
               <Text style={styles.emptyBody}>
                 When you and someone both like each other, you'll see them here.
               </Text>
               <Pressable style={styles.discoverBtn} onPress={() => router.back()}>
-                <Text style={styles.discoverBtnText}>Start Swiping</Text>
+                <Text style={styles.discoverBtnText}>Start Exploring</Text>
               </Pressable>
             </View>
           }
@@ -513,8 +520,11 @@ const styles = StyleSheet.create({
   },
   matchNowButton: {
     borderRadius: 999,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: colors.iris,
   },
   matchNowText: {

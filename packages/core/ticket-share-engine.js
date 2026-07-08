@@ -4,9 +4,15 @@ import { transferEntitlement } from '@c1rcle/core/entitlement-engine';
 import { deductInventory } from '@c1rcle/core/inventory-engine';
 import { getTicketSecret } from './secret-registry.js';
 import { getUserSubscriptionContext, PremiumRequiredError } from './subscription-service.js';
+import { createNotification } from './guest-notification-engine.js';
 
 function isFirebaseConfigured() {
-  return true; // assumed to be configured in core environment
+  try {
+    const db = getAdminDb();
+    return !!db && typeof db.collection === 'function';
+  } catch {
+    return false;
+  }
 }
 
 async function getOrderById(id) {
@@ -101,8 +107,8 @@ function deriveDirectTransferMetadata(ticketId, order, event = null) {
   const parsed = parseDirectTicketId(ticketId);
   const sourceTicket = order?.tickets?.find((ticket) => ticket.ticketId === parsed.tierId);
   if (!sourceTicket) throw new Error('Ticket not found in order');
-  if (isCoupleTicket(sourceTicket))
-    throw new Error('Couple entries must be managed through the couple ticket flow.');
+  // if (isCoupleTicket(sourceTicket))
+  //   throw new Error('Couple entries must be managed through the couple ticket flow.');
   const eventTicket = event?.tickets?.find((ticket) => ticket.id === parsed.tierId) || null;
   return {
     orderId: parsed.orderId,
@@ -467,16 +473,26 @@ export async function createShareBundle(
   }
 
   // Check if bundle already exists for this order+tier
-  const query = db
-    .collection(SHARE_BUNDLES_COLLECTION)
-    .where('orderId', '==', orderId)
-    .where('tierId', '==', actualTierId);
+  // Use a transaction to prevent concurrent duplicate creation (TOCTOU race)
+  const existing = await db.runTransaction(async (tx) => {
+    const existingSnapshot = await tx.get(
+      db
+        .collection(SHARE_BUNDLES_COLLECTION)
+        .where('orderId', '==', orderId)
+        .where('tierId', '==', actualTierId)
+        .limit(1),
+    );
 
-  const existingSnapshot = await query.get();
-  if (!existingSnapshot.empty) {
-    const bundle = { id: existingSnapshot.docs[0].id, ...existingSnapshot.docs[0].data() };
-    if (bundle.status !== 'cancelled') return bundle;
-  }
+    if (!existingSnapshot.empty) {
+      const bundleData = existingSnapshot.docs[0].data();
+      if (bundleData.status !== 'cancelled') {
+        return { id: existingSnapshot.docs[0].id, ...bundleData };
+      }
+    }
+    return null;
+  });
+
+  if (existing) return existing;
 
   const token = generateToken();
   const now = new Date();
@@ -613,7 +629,13 @@ export async function claimTicketSlot(token, redeemerId) {
 
   const db = getAdminDb();
 
-  return await db.runTransaction(async (transaction) => {
+  // Fetch user gender BEFORE the transaction to avoid TOCTOU race
+  const userGender = await getUserGender(redeemerId);
+
+  let bundleOwnerId = null;
+  let claimBundleId = null;
+
+  const transactionResult = await db.runTransaction(async (transaction) => {
     const bundleSnapshot = await transaction.get(
       db.collection(SHARE_BUNDLES_COLLECTION).where('token', '==', token).limit(1),
     );
@@ -625,6 +647,8 @@ export async function claimTicketSlot(token, redeemerId) {
     const bundleDoc = bundleSnapshot.docs[0];
     const bundle = bundleDoc.data();
     const bundleId = bundleDoc.id;
+    bundleOwnerId = bundle.userId;
+    claimBundleId = bundleId;
 
     if (bundle.status !== 'active' || bundle.remainingSlots <= 0) {
       throw new Error('All tickets have been claimed');
@@ -641,8 +665,6 @@ export async function claimTicketSlot(token, redeemerId) {
     if (await isUserBlocked(redeemerId, db)) {
       throw new Error('Your account has been restricted from claiming tickets.');
     }
-
-    const userGender = await getUserGender(redeemerId);
 
     // Block claim if the ticket is gender-restricted and the user hasn't set their gender
     const bundleGenderRestricted = (bundle.slots || []).some(
@@ -787,6 +809,18 @@ export async function claimTicketSlot(token, redeemerId) {
 
     return { alreadyClaimed: false, assignment };
   });
+
+  if (!transactionResult.alreadyClaimed && bundleOwnerId) {
+    createNotification({
+      userId: bundleOwnerId,
+      type: 'ticket_claimed',
+      title: 'Ticket Claimed',
+      body: 'Someone claimed a ticket from your share link',
+      data: { bundleId: claimBundleId, redeemerId },
+    }).catch(() => {});
+  }
+
+  return transactionResult;
 }
 
 /**
@@ -1190,7 +1224,11 @@ export async function claimPartnerSlot(token, userId) {
   if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
   const db = getAdminDb();
 
-  return await db.runTransaction(async (transaction) => {
+  let claimOwnerId = null;
+  let claimTicketId = null;
+  let claimEventId = null;
+
+  const partnerResult = await db.runTransaction(async (transaction) => {
     const claimSnapshot = await transaction.get(
       db
         .collection('couple_claims')
@@ -1220,6 +1258,10 @@ export async function claimPartnerSlot(token, userId) {
       throw new Error(`Restricted: This couple partner slot is for ${label}s only.`);
     }
 
+    claimOwnerId = claim.ownerId;
+    claimTicketId = claim.ticketId;
+    claimEventId = claim.eventId;
+
     const assignmentRef = db.collection('couple_assignments').doc(claim.ticketId);
 
     transaction.set(
@@ -1237,6 +1279,18 @@ export async function claimPartnerSlot(token, userId) {
     transaction.update(claimDoc.ref, { status: 'claimed', claimedBy: userId });
     return { ticketId: claim.ticketId, eventId: claim.eventId };
   });
+
+  if (claimOwnerId) {
+    createNotification({
+      userId: claimOwnerId,
+      type: 'couple_partner_claimed',
+      title: 'Partner Slot Claimed',
+      body: 'Someone claimed your couple partner slot',
+      data: { ticketId: claimTicketId, eventId: claimEventId, partnerId: userId },
+    }).catch(() => {});
+  }
+
+  return partnerResult;
 }
 
 /**
@@ -1517,6 +1571,24 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
     db,
   );
 
+  if (transfer.recipientEmail) {
+    const recipientSnapshot = await db
+      .collection('users')
+      .where('email', '==', transfer.recipientEmail)
+      .limit(1)
+      .get();
+    if (!recipientSnapshot.empty) {
+      const recipientId = recipientSnapshot.docs[0].id;
+      createNotification({
+        userId: recipientId,
+        type: 'transfer_received',
+        title: 'Ticket Transfer Received',
+        body: `${transfer.senderName || 'Someone'} sent you a ticket`,
+        data: { transferId: docRef.id, ticketId, senderId },
+      }).catch(() => {});
+    }
+  }
+
   return { id: docRef.id, ...transfer };
 }
 
@@ -1527,7 +1599,10 @@ export async function acceptTransfer(tokenOrId, recipientId) {
   if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
   const db = getAdminDb();
 
-  return await db.runTransaction(async (transaction) => {
+  // Fetch user gender BEFORE the transaction to avoid TOCTOU race
+  const recipientGender = await getUserGender(recipientId);
+
+  const transferResult = await db.runTransaction(async (transaction) => {
     // Lookup by ID first, then by token
     let transferRef = db.collection(TRANSFERS_COLLECTION).doc(tokenOrId);
     let transferDoc = await transaction.get(transferRef);
@@ -1569,13 +1644,33 @@ export async function acceptTransfer(tokenOrId, recipientId) {
       throw new Error('Your account is restricted from accepting ticket transfers.');
     }
 
+    // SECURITY: Verify recipient email matches if transfer was email-bound
+    if (transfer.recipientEmail) {
+      const recipientProfile = await db.collection('users').doc(recipientId).get();
+      const recipientProfileEmail = recipientProfile.exists
+        ? (recipientProfile.data().email || '').toLowerCase()
+        : '';
+      const recipientAuthEmail = recipientProfileEmail;
+      if (recipientAuthEmail !== transfer.recipientEmail) {
+        throw new Error(
+          'This transfer was sent to a specific email address. Please sign in with the email address that received the transfer invitation.',
+        );
+      }
+    }
+
     const ticketId = transfer.ticketId;
-    const recipientGender = await getUserGender(recipientId);
     const transferGenderRequirement = transfer.requiredGender || 'any';
-    if (transferGenderRequirement !== 'any' && recipientGender !== transferGenderRequirement) {
-      throw new Error(
-        `Restricted: This ticket is for ${transferGenderRequirement === 'female' ? 'Females' : 'Males'} only.`,
-      );
+    if (transferGenderRequirement !== 'any') {
+      if (recipientGender === null) {
+        throw new Error(
+          'Please complete your profile and set your gender before accepting this ticket transfer.',
+        );
+      }
+      if (recipientGender !== transferGenderRequirement) {
+        throw new Error(
+          `Restricted: This ticket is for ${transferGenderRequirement === 'female' ? 'Females' : 'Males'} only.`,
+        );
+      }
     }
     const parts = ticketId.split('-');
 
@@ -1687,11 +1782,24 @@ export async function acceptTransfer(tokenOrId, recipientId) {
 
     return { success: true, ticketId };
   });
+
+  if (transferResult.success && transfer?.senderId) {
+    createNotification({
+      userId: transfer.senderId,
+      type: 'transfer_accepted',
+      title: 'Transfer Accepted',
+      body: 'Your ticket transfer has been accepted',
+      data: { transferId, ticketId: transfer.ticketId, recipientId },
+    }).catch(() => {});
+  }
+
+  return transferResult;
 }
 
 export async function getPendingTransfers(userId, email = null) {
   if (!isFirebaseConfigured()) return [];
   const db = getAdminDb();
+  const now = new Date();
 
   // Fetch transfers where user is sender
   const sentSnapshot = await db
@@ -1721,7 +1829,21 @@ export async function getPendingTransfers(userId, email = null) {
     }));
   }
 
-  return [...sent, ...received];
+  // Filter out expired transfers and batch-update them as expired
+  const valid = [];
+  for (const transfer of [...sent, ...received]) {
+    if (new Date(transfer.expiresAt) < now) {
+      await db
+        .collection(TRANSFERS_COLLECTION)
+        .doc(transfer.id)
+        .update({ status: 'expired', updatedAt: now.toISOString() })
+        .catch(() => {});
+    } else {
+      valid.push(transfer);
+    }
+  }
+
+  return valid;
 }
 
 export async function transferCoupleTicket(ticketId, currentOwnerId, newOwnerId) {

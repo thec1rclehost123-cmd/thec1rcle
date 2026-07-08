@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Animated from 'react-native-reanimated';
 import { typography } from '@/lib/design/theme';
+import { useProfileStore } from '@/store/profileStore';
 
 const eventFont = {
   regular: typography.fontFamily.body,
@@ -22,6 +23,7 @@ interface GuestlistUser {
   name?: string;
   photoURL?: string | null;
   photoSource?: ImageSourcePropType;
+  isCurrentUser?: boolean;
 }
 
 interface GuestlistSheetProps {
@@ -29,6 +31,7 @@ interface GuestlistSheetProps {
   onClose: () => void;
   users: GuestlistUser[];
   eventId?: string;
+  currentUserId?: string;
   title?: string;
 }
 
@@ -41,11 +44,14 @@ export function GuestlistSheet({
   onClose,
   users,
   eventId,
+  currentUserId,
   title = 'Interested List',
 }: GuestlistSheetProps) {
   const insets = useSafeAreaInsets();
 
-  const canOpenProfile = (user: GuestlistUser) => Boolean(user.userId);
+  const isCurrentUser = (user: GuestlistUser) =>
+    user.isCurrentUser || Boolean(currentUserId && user.userId === currentUserId);
+  const canOpenProfile = (user: GuestlistUser) => Boolean(user.userId || isCurrentUser(user));
 
   const handleClose = () => {
     Haptics.selectionAsync();
@@ -55,13 +61,19 @@ export function GuestlistSheet({
   const handleProfilePress = (user: GuestlistUser) => {
     if (!canOpenProfile(user)) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (isCurrentUser(user)) {
+      router.push('/(tabs)/profile');
+      setTimeout(onClose, 120);
+      return;
+    }
+
     router.push({
       pathname: '/social/profile/[id]',
       params: {
-        id: user.userId,
+        id: user.userId || '',
         ...(eventId ? { eventId } : {}),
       },
-    } as any);
+    });
     setTimeout(onClose, 120);
   };
 
@@ -140,8 +152,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.68)',
   },
   sheet: {
-    maxHeight: '74%',
-    minHeight: 430,
+    maxHeight: '67%',
+    minHeight: 388,
     backgroundColor: '#101010',
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,

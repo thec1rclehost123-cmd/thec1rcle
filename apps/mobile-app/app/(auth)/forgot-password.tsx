@@ -8,6 +8,7 @@ import {
   Platform,
   ActivityIndicator,
   StyleSheet,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,6 +17,7 @@ import { Mail } from 'lucide-react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { BlurView } from 'expo-blur';
 import { useAuth } from '@/hooks/useAuth';
+import { colors } from '@/lib/design/theme';
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
@@ -37,9 +39,12 @@ export default function ForgotPasswordScreen() {
   }, [player]);
 
   const handleSendReset = async () => {
-    if (!email.trim()) return;
+    Keyboard.dismiss();
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) return;
 
-    const result = await sendResetEmail(email.trim());
+    const result = await sendResetEmail(trimmedEmail);
     if (result.success) {
       setSent(true);
     }
@@ -54,7 +59,7 @@ export default function ForgotPasswordScreen() {
         nativeControls={false}
       />
       <LinearGradient
-        colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.8)', '#000000']}
+        colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.8)', colors.base.DEFAULT]}
         locations={[0, 0.4, 1]}
         style={StyleSheet.absoluteFillObject}
       />
@@ -70,7 +75,7 @@ export default function ForgotPasswordScreen() {
               We've sent a password reset link to{'\n'}
               <Text style={styles.successEmail}>{email}</Text>
             </Text>
-            <Pressable onPress={() => router.push('/(auth)/login')} style={styles.primaryBtn}>
+            <Pressable onPress={() => router.back()} style={styles.primaryBtn}>
               <Text style={styles.primaryBtnText}>BACK TO LOGIN</Text>
             </Pressable>
           </View>
@@ -105,7 +110,7 @@ export default function ForgotPasswordScreen() {
               <View style={styles.fieldWrap}>
                 <Text style={styles.fieldLabel}>EMAIL</Text>
                 <BlurView
-                  experimentalBlurMethod="dimezisBlurView"
+                  blurMethod="dimezisBlurView"
                   intensity={40}
                   tint="dark"
                   style={styles.fieldBox}
@@ -159,7 +164,7 @@ export default function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.base.DEFAULT,
   },
   safeArea: {
     flex: 1,

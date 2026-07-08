@@ -4,6 +4,7 @@ export const ONBOARDING_VIEWED_KEY = 'c1rcle_onboarding_viewed';
 export const ONBOARDING_COMPLETE_KEY = 'c1rcle_onboarding_complete';
 export const PERMISSIONS_REQUESTED_KEY = 'c1rcle_permissions_requested';
 export const SOCIAL_SETUP_SKIPPED_KEY = 'c1rcle_social_setup_skipped';
+export const CONTACT_LINKING_COMPLETE_KEY = 'c1rcle_contact_linking_complete';
 
 function scopedKey(baseKey: string, userId?: string) {
   return userId ? `${baseKey}:${userId}` : baseKey;
@@ -53,6 +54,14 @@ export function hasRequestedPermissions(userId?: string) {
 
 export function markPermissionsRequested(userId?: string) {
   return writeFlag(PERMISSIONS_REQUESTED_KEY, userId);
+}
+
+export function hasCompletedContactLinking(userId?: string) {
+  return readFlag(CONTACT_LINKING_COMPLETE_KEY, userId);
+}
+
+export function markContactLinkingComplete(userId?: string) {
+  return writeFlag(CONTACT_LINKING_COMPLETE_KEY, userId);
 }
 
 export function hasSkippedSocialSetup(userId?: string) {

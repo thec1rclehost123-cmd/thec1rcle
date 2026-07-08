@@ -62,7 +62,7 @@ interface DatingState {
   nextCursor: string | null;
   hasMore: boolean;
 
-  fetchProfiles: (userId: string, options?: { append?: boolean }) => Promise<void>;
+  fetchProfiles: (userId: string, options?: { append?: boolean; filters?: DatingFilters }) => Promise<void>;
   fetchMatches: (userId: string) => Promise<void>;
   likeUser: (
     fromUserId: string,
@@ -96,6 +96,20 @@ function firstNonEmptyString(...values: any[]): string | undefined {
   return value?.trim();
 }
 
+function getDatingErrorMessage(error: any, fallback = 'Unable to load dating right now.'): string {
+  if (error?.isTimeout) return 'Dating took too long to load. Please try again.';
+  if (typeof error?.message === 'string' && error.message.trim()) return error.message;
+  return fallback;
+}
+
+function warnDatingStore(scope: string, error: any) {
+  if (!__DEV__) return;
+  console.warn(`[DatingStore] ${scope}:`, getDatingErrorMessage(error), {
+    code: error?.code,
+    status: error?.status,
+  });
+}
+
 function normalizePhotos(profile: any): DatingPhoto[] {
   const rawPhotos = Array.isArray(profile.photos)
     ? profile.photos
@@ -124,12 +138,23 @@ function normalizePhotos(profile: any): DatingPhoto[] {
   return photos;
 }
 
+const NIGHTLIFE_PROMPTS = [
+  'My favorite concert was',
+  'My favorite brand is',
+  'My go-to song is',
+  'My favorite spot to go out is',
+  'Best night out memory',
+  'My ultimate pregame ritual',
+  'The DJ I would love to see',
+  'My spirit animal at a party is',
+];
+
 function normalizePrompts(profile: any): Prompt[] {
   const rawPrompts = Array.isArray(profile.prompts) ? profile.prompts : [];
   const prompts = rawPrompts
     .map((prompt: any, index: number) => ({
       id: String(prompt?.id || `${profile.userId || profile.id || 'prompt'}-${index}`),
-      title: String(prompt?.title || prompt?.question || 'My night out vibe is'),
+      title: String(prompt?.title || prompt?.question || NIGHTLIFE_PROMPTS[index % NIGHTLIFE_PROMPTS.length]),
       answer: String(prompt?.answer || prompt?.response || ''),
     }))
     .filter((prompt: Prompt) => prompt.answer.trim().length > 0);
@@ -141,7 +166,7 @@ function normalizePrompts(profile: any): Prompt[] {
     return [
       {
         id: `${profile.userId || profile.id || 'profile'}-bio`,
-        title: 'My night out vibe is',
+        title: "My nightlife vibe",
         answer: bio,
       },
     ];
@@ -283,10 +308,12 @@ export const useDatingStore = create<DatingState>((set, get) => ({
         };
       });
     } catch (error: any) {
-      console.error('[DatingStore] fetchProfiles:', error);
+      const message = getDatingErrorMessage(error, 'Unable to load people right now.');
+      warnDatingStore('fetchProfiles', error);
       set((state) => ({
         profiles: append ? state.profiles : [],
-        error: error.message,
+        error: message,
+        hasMore: false,
         loading: false,
         prefetching: false,
       }));
@@ -318,7 +345,11 @@ export const useDatingStore = create<DatingState>((set, get) => ({
       matches.sort((a, b) => new Date(b.matchedAt).getTime() - new Date(a.matchedAt).getTime());
       set({ matches, matchesLoading: false });
     } catch (error: any) {
-      console.error('[DatingStore] fetchMatches:', error);
+      if (error.status === 401) {
+        const { router } = await import('expo-router');
+        router.push('/(auth)/login');
+      }
+      warnDatingStore('fetchMatches', error);
       set({ matchesLoading: false });
     }
   },
@@ -326,6 +357,7 @@ export const useDatingStore = create<DatingState>((set, get) => ({
   likeUser: async (fromUserId: string, profile: DatingProfile) => {
     get().removeTopProfile();
 
+    const idempotencyKey = `like_${fromUserId}_${profile.userId}_${Date.now()}`;
     let lastError: any;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -342,6 +374,7 @@ export const useDatingStore = create<DatingState>((set, get) => ({
         }>('/api/v1/social/swipe', {
           method: 'POST',
           body: JSON.stringify({ targetUserId: profile.userId, action: 'like' }),
+          headers: { 'X-Idempotency-Key': idempotencyKey },
         });
         useSubscriptionStore.getState().applyServerContext(response.data || response);
 
@@ -376,11 +409,12 @@ export const useDatingStore = create<DatingState>((set, get) => ({
     }
 
     set((s) => ({ profiles: [profile, ...s.profiles] }));
-    console.error('[DatingStore] likeUser failed after 3 retries:', lastError);
+    warnDatingStore('likeUser failed after 3 retries', lastError);
     return { isMatch: false };
   },
 
   sendAskOut: async (fromUserId: string, profile: DatingProfile, message?: string) => {
+    get().removeTopProfile();
     try {
       const response = await apiFetch<{
         match?: boolean;
@@ -427,7 +461,7 @@ export const useDatingStore = create<DatingState>((set, get) => ({
         useSubscriptionStore.getState().openPaywall('askOuts', error.message);
         return { sent: false, isMatch: false, paywalled: true };
       }
-      console.error('[DatingStore] sendAskOut:', error);
+      warnDatingStore('sendAskOut', error);
       return { sent: false, isMatch: false };
     }
   },
@@ -454,7 +488,7 @@ export const useDatingStore = create<DatingState>((set, get) => ({
     if (removedProfile) {
       set((s) => ({ profiles: [removedProfile, ...s.profiles] }));
     }
-    console.error('[DatingStore] passUser failed after 3 retries:', lastError);
+    warnDatingStore('passUser failed after 3 retries', lastError);
   },
 
   removeTopProfile: () => {

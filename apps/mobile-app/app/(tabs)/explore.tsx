@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
-import Svg, { Path } from 'react-native-svg';
+
 import { ExploreFeaturedCarousel } from '@/components/ui/ExploreFeaturedCarousel';
 import { ExploreChooseScene } from '@/components/ui/ExploreChooseScene';
 import { ExploreMapPreview } from '@/components/ui/ExploreMapPreview';
@@ -38,6 +38,7 @@ import Animated, {
   withSpring,
   withTiming,
   withRepeat,
+  withSequence,
   Easing,
   interpolateColor,
   FadeInDown,
@@ -50,13 +51,13 @@ import Animated, {
   useAnimatedReaction,
   scrollTo,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+
 import { colors, spacing, typography } from '@/lib/design/theme';
 import { NotificationBell } from '@/components/ui/NotificationBell';
 import { EventCardSkeletonList } from '@/components/ui/Skeleton';
 import { trackScreen } from '@/lib/analytics';
 import { formatEventDate, safeDate } from '@/lib/utils/date';
-import { Search, MapPin, Compass } from 'lucide-react-native';
+import { Search, MapPin, Compass, User, X } from 'lucide-react-native';
 import {
   ScenesWorthIt,
   TopVenues,
@@ -64,12 +65,14 @@ import {
   TrendingRightNow,
   ComingUpThisWeek,
   AllScenes,
-  PremiumEventCard,
 } from '@/components/ui/PremiumExploreSections';
+import {
+  shouldPromptForLocation,
+  recordLocationPrompt,
+  showSettingsAlert,
+} from '@/lib/permissions';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const PURE_BLACK = '#000000';
-
 // ── Date filter pills ─────────────────────────────────────────────────────────
 const DATE_FILTERS = [
   { id: 'all', label: 'All Dates' },
@@ -174,10 +177,6 @@ function applyCategoryFilter(events: Event[], category: CategoryFilter): Event[]
   return events.filter((e) => matchCategory(e, cat.keywords));
 }
 
-// ── AnimatedPressable ──────────────────────────────────────────────────────────
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-// ── Profile Avatar (header) ────────────────────────────────────────────────────
 function HeaderProfileAvatar() {
   const profile = useProfileStore((s) => s.profile);
   const initials = profile?.displayName
@@ -187,7 +186,7 @@ function HeaderProfileAvatar() {
         .join('')
         .slice(0, 2)
         .toUpperCase()
-    : 'ME';
+    : null;
 
   return (
     <Pressable
@@ -201,44 +200,63 @@ function HeaderProfileAvatar() {
         <Image source={{ uri: profile.photoURL }} style={styles.avatarImage} contentFit="cover" />
       ) : (
         <View style={styles.avatarFallback}>
-          <Text style={styles.avatarInitials}>{initials}</Text>
+          {initials ? (
+            <Text style={styles.avatarInitials}>{initials}</Text>
+          ) : (
+            <User size={20} color="#FFFFFF" strokeWidth={2.5} />
+          )}
         </View>
       )}
     </Pressable>
   );
 }
 
-// ── Category filter pills ─────────────────────────────────────────────────────
-function CategoryFilterRow({
-  active,
-  onChange,
+
+
+// ── Animated filter pill ───────────────────────────────────────────────────────
+function FilterPill({
+  label,
+  isActive,
+  onPress,
 }: {
-  active: CategoryFilter;
-  onChange: (v: CategoryFilter) => void;
+  label: string;
+  isActive: boolean;
+  onPress: () => void;
 }) {
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    scale.value = withSpring(isActive ? 1 : 0.96, { damping: 14, stiffness: 200 });
+  }, [isActive]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
-    <ScrollView
-      bounces={false}
-      overScrollMode="never"
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.filterRowContent}
-    >
-      {CATEGORY_FILTERS.map((f) => (
-        <Pressable
-          key={f.id}
-          onPress={() => {
-            Haptics.selectionAsync();
-            onChange(f.id);
-          }}
-          style={[styles.filterPill, active === f.id && styles.filterPillActive]}
+    <Animated.View style={animStyle}>
+      <Pressable
+        onPress={() => {
+          Haptics.selectionAsync();
+          scale.value = withSequence(
+            withSpring(0.93, { damping: 10, stiffness: 300 }),
+            withSpring(isActive ? 1 : 0.96, { damping: 14, stiffness: 200 }),
+          );
+          onPress();
+        }}
+      >
+        <LinearGradient
+          colors={isActive ? [colors.iris, '#FF6B4A'] : ['transparent', 'transparent']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[styles.filterPill, isActive && styles.filterPillActive]}
         >
-          <Text style={[styles.filterPillText, active === f.id && styles.filterPillTextActive]}>
-            {f.label}
+          <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
+            {label}
           </Text>
-        </Pressable>
-      ))}
-    </ScrollView>
+        </LinearGradient>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -259,79 +277,51 @@ function QuickFilterRow({
       contentContainerStyle={styles.filterRowContent}
     >
       {QUICK_FILTERS.map((f) => (
-        <Pressable
+        <FilterPill
           key={f.id}
-          onPress={() => {
-            Haptics.selectionAsync();
-            onChange(f.id);
-          }}
-          style={[styles.filterPill, active === f.id && styles.filterPillActive]}
-        >
-          <Text style={[styles.filterPillText, active === f.id && styles.filterPillTextActive]}>
-            {f.label}
-          </Text>
-        </Pressable>
+          label={f.label}
+          isActive={active === f.id}
+          onPress={() => onChange(f.id)}
+        />
       ))}
     </ScrollView>
   );
 }
 
-// LargeEventCard replaced by standard PremiumEventCard
-
-// ── Section header ─────────────────────────────────────────────────────────────
-function SectionHeader({
-  title,
-  icon,
-  onViewAll,
-  viewAllLabel = 'See All',
+// ── Category filter pills ──────────────────────────────────────────────────────
+function CategoryFilterRow({
+  active,
+  onChange,
 }: {
-  title: string;
-  icon?: string;
-  onViewAll?: () => void;
-  viewAllLabel?: string;
+  active: CategoryFilter;
+  onChange: (v: CategoryFilter) => void;
 }) {
-  const words = title.trim().split(' ');
-  const lastWord = words.pop() || '';
-  const firstPart = words.join(' ');
-
   return (
-    <View style={styles.sectionHeader}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        {/* Vertical Glow Bar */}
-        <View
-          style={{
-            width: 4,
-            height: 18,
-            borderRadius: 2,
-            backgroundColor: colors.iris,
-            shadowColor: colors.iris,
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.8,
-            shadowRadius: 4,
-          }}
+    <ScrollView
+      bounces={false}
+      overScrollMode="never"
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.catFilterRowContent}
+    >
+      {CATEGORY_FILTERS.map((f) => (
+        <FilterPill
+          key={f.id}
+          label={f.label}
+          isActive={active === f.id}
+          onPress={() => onChange(f.id)}
         />
-
-        {icon && <Text style={{ fontSize: 18, marginLeft: 4 }}>{icon}</Text>}
-        <Text style={styles.sectionTitle}>
-          {firstPart}
-          {firstPart ? ' ' : ''}
-          <Text style={styles.sectionTitleAccent}>{lastWord}</Text>
-        </Text>
-      </View>
-      {onViewAll && (
-        <Pressable onPress={onViewAll} hitSlop={8}>
-          <Text style={styles.viewAll}>{viewAllLabel}</Text>
-        </Pressable>
-      )}
-    </View>
+      ))}
+    </ScrollView>
   );
 }
+
 
 // ── Main screen ────────────────────────────────────────────────────────────────
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
 
-  const { events, featuredEvents, loading, fetchEvents, fetchFeaturedEvents } = useEventsStore();
+  const { events, loading, fetchEvents } = useEventsStore();
   const { recommendations, score, loadBrowsed } = useRecommendationsStore();
   const ticketsStore = useTicketsStore();
   const { user } = useAuth();
@@ -346,6 +336,7 @@ export default function ExploreScreen() {
   const [isOffline, setIsOffline] = useState(false);
   const [cachedEvents, setCachedEvents] = useState<Event[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [showLocationNudge, setShowLocationNudge] = useState(false);
   const mainScrollRef = useRef<FlashListRef<ExploreSection>>(null);
   const [allScenesY, setAllScenesY] = useState(0);
   const lastTabBarScrollY = useRef(0);
@@ -361,27 +352,34 @@ export default function ExploreScreen() {
       if (city) seen.set(city.toLowerCase(), city);
     });
     return [
-      { value: 'all', label: 'Mumbai' },
+      { value: 'all', label: 'Pune' },
       ...Array.from(seen.entries()).map(([, label]) => ({ value: label.toLowerCase(), label })),
     ];
   }, [allEvents]);
 
-  const activeCityLabel = cityOptions.find((o) => o.value === cityFilter)?.label ?? 'Mumbai';
+  const activeCityLabel = cityOptions.find((o) => o.value === cityFilter)?.label ?? 'Pune';
+
+  // Derived featured events — eliminates separate API call
+  const featuredSlides = useMemo(() => {
+    return [...allEvents]
+      .filter((e) => e.isFeatured)
+      .sort((a, b) => getHeatScore(b) - getHeatScore(a))
+      .slice(0, 6);
+  }, [allEvents]);
 
   const heroSlides = useMemo(() => {
-    const src = featuredEvents.length > 0 ? featuredEvents : allEvents;
+    const src = featuredSlides.length > 0 ? featuredSlides : allEvents;
     return [...src].sort((a, b) => getHeatScore(b) - getHeatScore(a)).slice(0, 6);
-  }, [featuredEvents, allEvents]);
+  }, [featuredSlides, allEvents]);
 
   const filteredEvents = useMemo(() => {
     let result = allEvents;
-    if (cityFilter !== 'all') {
-      result = result.filter((e) => {
-        const c = (e.city ?? e.location ?? '').toLowerCase();
-        return c.includes(cityFilter);
-      });
-    }
 
+    // Apply strict filtering BEFORE sorting/slicing
+    result = applyDateFilter(result, dateFilter);
+    result = applyCategoryFilter(result, categoryFilter);
+
+    // Apply quick filters (including trending sort) on the accurately filtered data
     if (quickFilter !== 'all') {
       if (quickFilter === 'free') {
         result = result.filter((e) => getLowestPrice(e) === 0);
@@ -401,8 +399,6 @@ export default function ExploreScreen() {
       }
     }
 
-    result = applyDateFilter(result, dateFilter);
-    result = applyCategoryFilter(result, categoryFilter);
     return result;
   }, [allEvents, cityFilter, dateFilter, categoryFilter, quickFilter]);
 
@@ -437,56 +433,68 @@ export default function ExploreScreen() {
   }, [allEvents]);
 
   const pastOrderCategories = useMemo(() => {
-    const orders = (ticketsStore as any).orders ?? [];
+    const orders = ticketsStore.orders;
     return Array.from(
       new Set(
-        orders.flatMap((o: any) => {
+        orders.flatMap((o) => {
           const cat = o.eventCategory ?? o.category ?? '';
           return cat ? [cat.toLowerCase()] : [];
         }),
       ),
-    ) as string[];
-  }, [(ticketsStore as any).orders]);
+    );
+  }, [ticketsStore.orders]);
 
-  useEffect(() => {
-    trackScreen('Explore');
-    void loadBrowsed();
-    void loadData();
-    if (user?.uid) void loadUserInterests(user.uid);
-  }, [user?.uid]);
-
-  useEffect(() => {
-    if (allEvents.length > 0) score(allEvents, pastOrderCategories);
-  }, [allEvents, pastOrderCategories]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async (city?: string) => {
     const cached = await getCachedEvents();
     if (cached.data?.length) setCachedEvents(cached.data);
 
-    const [eventsResult] = await Promise.allSettled([fetchEvents(), fetchFeaturedEvents()]);
-
-    if (eventsResult.status === 'fulfilled') {
+    try {
+      const cityParam = city && city !== 'all' ? city : undefined;
+      await fetchEvents(cityParam);
       const store = useEventsStore.getState();
       if (store.events.length > 0) {
         await cacheEvents(store.events);
         await updateLastSyncTime();
       }
       setIsOffline(false);
-    } else {
+    } catch {
       setIsOffline(true);
     }
-  };
+  }, [fetchEvents]);
+
+  useEffect(() => {
+    trackScreen('Explore');
+    void loadBrowsed();
+    void loadData(cityFilter);
+    if (user?.uid) void loadUserInterests(user.uid);
+  }, [user?.uid, cityFilter, loadData]);
+
+  useEffect(() => {
+    if (allEvents.length > 0) score(allEvents, pastOrderCategories);
+  }, [allEvents, pastOrderCategories]);
+
+  useEffect(() => {
+    shouldPromptForLocation(user?.uid).then((show) => {
+      setShowLocationNudge(show);
+    });
+  }, [user?.uid]);
 
   const onRefresh = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRefreshing(true);
-    await loadData();
+    await loadData(cityFilter);
     setRefreshing(false);
-  }, []);
+  }, [loadData, cityFilter]);
 
   const isInitialLoading = loading && allEvents.length === 0;
 
-  const greeting = getGreeting();
+  const [greeting, setGreeting] = useState(getGreeting());
+
+  useFocusEffect(
+    useCallback(() => {
+      setGreeting(getGreeting());
+    }, [])
+  );
 
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
@@ -501,28 +509,6 @@ export default function ExploreScreen() {
 
   const exploreSections = useMemo<ExploreSection[]>(
     () => [
-      {
-        key: 'hero-gradient',
-        render: () => (
-          <View
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 400 + insets.top,
-              zIndex: 0,
-              pointerEvents: 'none',
-            }}
-          >
-            <LinearGradient
-              colors={['rgba(244, 74, 34, 0.33)', 'rgba(5,5,6,0)']}
-              locations={[0, 0.85]}
-              style={StyleSheet.absoluteFill}
-            />
-          </View>
-        ),
-      },
       {
         key: 'header',
         render: () => (
@@ -569,6 +555,41 @@ export default function ExploreScreen() {
           isOffline ? (
             <Animated.View entering={FadeIn} style={styles.offlineBanner}>
               <Text style={styles.offlineText}>📡 Offline — showing cached content</Text>
+            </Animated.View>
+          ) : null,
+      },
+      {
+        key: 'location-nudge',
+        render: () =>
+          showLocationNudge ? (
+            <Animated.View entering={FadeIn} style={styles.locationBanner}>
+              <MapPin size={18} color="#F44A22" strokeWidth={2.5} />
+              <Text style={styles.locationBannerText}>
+                Enable location to see events near you
+              </Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowLocationNudge(false);
+                  recordLocationPrompt(user?.uid);
+                  showSettingsAlert(
+                    'Location Access',
+                    'Turn on location access in Settings to discover events near you.',
+                  );
+                }}
+                style={styles.locationBannerAction}
+              >
+                <Text style={styles.locationBannerActionText}>Enable</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setShowLocationNudge(false);
+                  recordLocationPrompt(user?.uid);
+                }}
+                hitSlop={8}
+              >
+                <X size={16} color="rgba(255,255,255,0.4)" strokeWidth={2} />
+              </Pressable>
             </Animated.View>
           ) : null,
       },
@@ -627,7 +648,7 @@ export default function ExploreScreen() {
         render: () =>
           filteredEvents.length > 0 ? (
             <View onLayout={(e) => setAllScenesY(e.nativeEvent.layout.y)}>
-              <AllScenes
+              <AllScenes 
                 events={filteredEvents}
                 onPageChange={() => {
                   mainScrollRef.current?.scrollToOffset({
@@ -637,7 +658,7 @@ export default function ExploreScreen() {
                 }}
               />
             </View>
-          ) : !loading ? (
+          ) : !loading && quickFilter !== 'all' ? (
             <View style={styles.emptyState}>
               <Search size={48} color="rgba(255,255,255,0.15)" strokeWidth={2} />
               <Text style={styles.emptyText}>No events found</Text>
@@ -668,6 +689,8 @@ export default function ExploreScreen() {
       activeCityLabel,
       allEvents,
       allScenesY,
+      categoryFilter,
+      dateFilter,
       filteredEvents,
       freeEvents,
       greeting,
@@ -686,6 +709,7 @@ export default function ExploreScreen() {
   return (
     <View style={styles.container}>
       <FlashList
+
         style={styles.scrollLayer}
         ref={mainScrollRef}
         bounces={false}
@@ -693,8 +717,9 @@ export default function ExploreScreen() {
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 76 }}
         data={exploreSections}
+        getItemType={(section) => section.key}
         keyExtractor={(section) => section.key}
         renderItem={useCallback(({ item }: any) => item.render(), [])}
         extraData={useMemo(
@@ -769,7 +794,7 @@ export default function ExploreScreen() {
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: PURE_BLACK },
+  container: { flex: 1, backgroundColor: colors.base.DEFAULT },
   scrollLayer: { flex: 1, zIndex: 1 },
 
   // ── Header ──────────────────────────────────────────────────────────────────
@@ -784,10 +809,13 @@ const styles = StyleSheet.create({
   cityRow: { flexDirection: 'row', alignItems: 'center' },
   locationPin: { fontSize: 16, marginRight: 4 },
   cityName: {
-    color: colors.goldLight,
+    color: '#FFFFFF',
     fontSize: typography.fontSize['3xl'],
     fontWeight: '800',
     letterSpacing: 0,
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   cityChevron: { color: 'rgba(255,255,255,0.55)', fontSize: 18, fontWeight: '600', marginTop: 2 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -797,17 +825,20 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
+    backgroundColor: 'rgba(7,7,9,0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
     overflow: 'hidden',
   },
   avatarImage: { width: '100%', height: '100%' },
   avatarFallback: {
     width: '100%',
     height: '100%',
-    backgroundColor: colors.base[100],
+    backgroundColor: 'rgba(7,7,9,0.94)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarInitials: { color: colors.gold, fontSize: 11, fontWeight: '700' },
+  avatarInitials: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
 
   // ── Search bar ───────────────────────────────────────────────────────────────
   searchBar: {
@@ -831,26 +862,30 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterPill: {
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   filterPillActive: {
-    backgroundColor: '#FFF',
-    borderColor: '#FFF',
+    borderColor: 'rgba(255,255,255,0)',
   },
   filterPillText: {
-    color: 'rgba(255,255,255,0.7)',
+    color: colors.goldMetallic,
     fontSize: typography.fontSize.sm,
     fontWeight: '600',
     letterSpacing: 0,
   },
   filterPillTextActive: {
-    color: '#000',
+    color: '#FFFFFF',
     fontWeight: '800',
+  },
+  catFilterRowContent: {
+    paddingTop: 8,
+    paddingBottom: 4,
+    paddingHorizontal: 16,
+    gap: 8,
   },
 
   // ── Offline / loading ────────────────────────────────────────────────────────
@@ -865,6 +900,34 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,170,0,0.25)',
   },
   offlineText: { color: '#FFAA00', fontSize: typography.fontSize.sm, fontWeight: '500' },
+  locationBanner: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(244, 74, 34, 0.1)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  locationBannerText: {
+    flex: 1,
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: typography.fontSize.sm,
+    fontWeight: '500',
+  },
+  locationBannerAction: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(244, 74, 34, 0.2)',
+  },
+  locationBannerActionText: {
+    color: '#F44A22',
+    fontSize: typography.fontSize.sm,
+    fontWeight: '700',
+  },
   loadingSkeletons: { paddingTop: 8, paddingBottom: 18 },
 
   // ── Load more ─────────────────────────────────────────────────────────────────

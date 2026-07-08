@@ -8,9 +8,9 @@ import {
   Dimensions,
   Image as RNImage,
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   FadeInRight,
@@ -22,11 +22,23 @@ import Animated, {
 import { router } from 'expo-router';
 import { colors, radii, spacing, typography } from '@/lib/design/theme';
 import type { Event } from '@/store/eventsStore';
+import { useVenuesStore } from '@/store/venuesStore';
 import { formatEventDate } from '@/lib/utils/date';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const FOR_YOU_CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
+export const EXPLORE_SIDE_INSET = 16;
+export const EXPLORE_RAIL_GAP = 12;
+export const EXPLORE_CARD_OVERLAP = 18;
+export const EXPLORE_FEATURED_CARD_OVERLAP = 24;
+export const EXPLORE_GRID_CARD_WIDTH = Math.floor(
+  (SCREEN_WIDTH - EXPLORE_SIDE_INSET * 2 - EXPLORE_RAIL_GAP) / 2,
+);
+export const EXPLORE_FEATURED_CARD_WIDTH = Math.min(
+  (SCREEN_WIDTH - EXPLORE_SIDE_INSET * 2 - 24) * 0.9,
+  270,
+);
+const FOR_YOU_CARD_WIDTH = EXPLORE_GRID_CARD_WIDTH;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -54,43 +66,7 @@ function getDisplayPrice(event: Event): string {
   return Number(lowest) <= 0 ? 'Free' : `₹${Math.round(Number(lowest)).toLocaleString('en-IN')}`;
 }
 
-export const MOCK_VENUES = [
-  {
-    id: '1',
-    name: 'Kiki',
-    area: 'Koregaon Park',
-    type: 'Premium Lounge',
-    logo: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=200',
-  },
-  {
-    id: '2',
-    name: 'Cobbler & Crew',
-    area: 'Baner',
-    type: 'Cocktail Bar',
-    logo: 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?w=200',
-  },
-  {
-    id: '3',
-    name: 'Pune 14',
-    area: 'Viman Nagar',
-    type: 'Club',
-    logo: 'https://images.unsplash.com/photo-1541086095944-f4b5412d3666?w=200',
-  },
-  {
-    id: '4',
-    name: 'House of Medici',
-    area: 'Mundhwa',
-    type: 'Luxury Club',
-    logo: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200',
-  },
-  {
-    id: '5',
-    name: 'Toit',
-    area: 'Kalyani Nagar',
-    type: 'Brewery',
-    logo: 'https://images.unsplash.com/photo-1532635224-cf024e66d122?w=200',
-  },
-];
+
 
 function SectionHeader({ title, icon, onViewAll, viewAllLabel = 'See All' }: any) {
   const words = title.trim().split(' ');
@@ -100,19 +76,6 @@ function SectionHeader({ title, icon, onViewAll, viewAllLabel = 'See All' }: any
   return (
     <View style={styles.sectionHeader}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        {/* Vertical Glow Bar */}
-        <View
-          style={{
-            width: 4,
-            height: 18,
-            borderRadius: 2,
-            backgroundColor: colors.iris,
-            shadowColor: colors.iris,
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.8,
-            shadowRadius: 4,
-          }}
-        />
 
         {icon && <Text style={{ fontSize: 18, marginLeft: 4 }}>{icon}</Text>}
         <Text style={styles.sectionTitle}>
@@ -155,6 +118,48 @@ function HypeCashPill() {
   );
 }
 
+function HorizontalEventRail({
+  events,
+  limit = 5,
+  variant = 'compact',
+  hideGradient = false,
+}: {
+  events: Event[];
+  limit?: number;
+  variant?: 'compact' | 'standard';
+  hideGradient?: boolean;
+}) {
+  const visibleEvents = events.slice(0, limit);
+  return (
+    <ScrollView
+      horizontal
+      bounces={false}
+      overScrollMode="never"
+      showsHorizontalScrollIndicator={false}
+      snapToInterval={FOR_YOU_CARD_WIDTH + EXPLORE_RAIL_GAP}
+      decelerationRate="fast"
+      contentContainerStyle={styles.horizontalRailContent}
+    >
+      {visibleEvents.map((item, index) => (
+        <View
+          key={item.id}
+          style={[
+            styles.horizontalRailItem,
+            { zIndex: index + 1 },
+          ]}
+        >
+          <PremiumEventCard
+            event={item}
+            index={index}
+            variant={variant}
+            hideGradient={hideGradient}
+          />
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
 // ── 3. Scenes Worth It ──
 export function ScenesWorthIt({ events }: { events: Event[] }) {
   if (!events.length) return null;
@@ -165,77 +170,85 @@ export function ScenesWorthIt({ events }: { events: Event[] }) {
         onViewAll={() => router.push({ pathname: '/events/feed', params: { type: 'free' } })}
       />
       <HypeCashPill />
-      <FlashList
-        bounces={false}
-        data={events.slice(0, 5)}
-        keyExtractor={(e) => e.id}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        snapToInterval={FOR_YOU_CARD_WIDTH + 12}
-        decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: 16 }}
-        renderItem={({ item, index }: any) => (
-          <View style={{ marginRight: 12 }}>
-            <PremiumEventCard event={item} index={index} variant="compact" />
-          </View>
-        )}
-      />
+      <HorizontalEventRail events={events} />
     </View>
   );
 }
 
 // ── 4. Top Venues ──
 export function TopVenues() {
+  const { venues, fetchVenues } = useVenuesStore();
+
+  React.useEffect(() => {
+    if (venues.length === 0) {
+      fetchVenues();
+    }
+  }, []);
+
+  if (!venues.length) return null;
+
   return (
     <View style={styles.section}>
       <SectionHeader title="Top Venues" onViewAll={() => router.push('/(tabs)/venues')} />
       <ScrollView
         horizontal
+        bounces={false}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 24 }}
+        contentContainerStyle={{ paddingHorizontal: EXPLORE_SIDE_INSET, gap: EXPLORE_RAIL_GAP }}
       >
-        {MOCK_VENUES.map((v) => (
-          <Pressable
-            key={v.id}
-            style={{ alignItems: 'center', width: 120 }}
-            onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-          >
-            <Image
-              source={{ uri: v.logo }}
-              style={{
-                width: 110,
-                height: 110,
-                borderRadius: 55,
-                borderWidth: 2,
-                borderColor: colors.surfaceActive,
+        {venues.slice(0, 8).map((venue, index) => {
+          const img = venue.photoURL || venue.image || venue.coverImage || venue.coverURL || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600';
+          return (
+            <AnimatedPressable
+              key={venue.id}
+              entering={FadeInRight.delay(index * 50).duration(400)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push(`/venue/${venue.id}`);
               }}
-              contentFit="cover"
-            />
-            <Text
-              style={{
-                color: '#FFF',
-                fontWeight: '700',
-                marginTop: spacing.md,
-                textAlign: 'center',
-                fontSize: typography.fontSize.md,
-              }}
-              numberOfLines={1}
+              style={{ alignItems: 'center', width: 116 }}
             >
-              {v.name}
-            </Text>
-            <Text
-              style={{
-                color: 'rgba(255,255,255,0.5)',
-                fontSize: typography.fontSize.sm,
-                textAlign: 'center',
-                marginTop: spacing.xs,
-              }}
-              numberOfLines={1}
-            >
-              {v.area}
-            </Text>
-          </Pressable>
-        ))}
+              <View
+                style={{
+                  width: 116,
+                  height: 116,
+                  borderRadius: 58,
+                  overflow: 'hidden',
+                  marginBottom: 10,
+                  backgroundColor: 'rgba(255,255,255,0.05)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.1)',
+                }}
+              >
+                <Image source={{ uri: img }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+              </View>
+              <Text
+                style={{
+                  color: '#FFF',
+                  fontSize: typography.fontSize.sm + 1,
+                  fontWeight: '800',
+                  textAlign: 'center',
+                  letterSpacing: 0,
+                }}
+                numberOfLines={1}
+              >
+                {venue.name || venue.displayName}
+              </Text>
+              <Text
+                style={{
+                  color: 'rgba(255,255,255,0.55)',
+                  fontSize: typography.fontSize.xs,
+                  fontWeight: '600',
+                  textAlign: 'center',
+                  marginTop: 3,
+                }}
+                numberOfLines={1}
+              >
+                {venue.area || venue.neighborhood || venue.city}
+              </Text>
+            </AnimatedPressable>
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -247,21 +260,7 @@ export function EditorsPicks({ events }: { events: Event[] }) {
   return (
     <View style={styles.section}>
       <SectionHeader title="Handpicked Curations" />
-      <FlashList
-        bounces={false}
-        data={events.slice(0, 5)}
-        keyExtractor={(e) => e.id}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        snapToInterval={FOR_YOU_CARD_WIDTH + 12}
-        decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: 16 }}
-        renderItem={({ item, index }: any) => (
-          <View style={{ marginRight: 12 }}>
-            <PremiumEventCard event={item} index={index} variant="compact" />
-          </View>
-        )}
-      />
+      <HorizontalEventRail events={events} />
     </View>
   );
 }
@@ -278,7 +277,7 @@ export function TrendingRightNow({ events }: { events: Event[] }) {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 24 }}
+        contentContainerStyle={{ paddingHorizontal: EXPLORE_SIDE_INSET, gap: EXPLORE_RAIL_GAP }}
       >
         {events.slice(0, 6).map((item, index) => (
           <View key={item.id} style={{ width: FOR_YOU_CARD_WIDTH }}>
@@ -300,21 +299,7 @@ export function ComingUpThisWeek({ events }: { events: Event[] }) {
         title="The Weekly Lineup"
         onViewAll={() => router.push({ pathname: '/events/feed', params: { type: 'this-week' } })}
       />
-      <FlashList
-        bounces={false}
-        data={events.slice(0, 5)}
-        keyExtractor={(e) => e.id}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        snapToInterval={FOR_YOU_CARD_WIDTH + 12}
-        decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: 16 }}
-        renderItem={({ item, index }: any) => (
-          <View style={{ marginRight: 12 }}>
-            <PremiumEventCard event={item} index={index} variant="compact" />
-          </View>
-        )}
-      />
+      <HorizontalEventRail events={events} />
     </View>
   );
 }
@@ -394,7 +379,7 @@ export function AllScenes({
   onPageChange?: () => void;
 }) {
   const [currentPage, setCurrentPage] = React.useState(1);
-  const eventsPerPage = 10;
+  const eventsPerPage = 8;
 
   React.useEffect(() => {
     setCurrentPage(1);
@@ -415,16 +400,11 @@ export function AllScenes({
 
   return (
     <View style={styles.section}>
-      <SectionHeader title="All Scenes" />
-      <View
-        style={{
-          paddingHorizontal: 16,
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          justifyContent: 'space-between',
-          rowGap: 24,
-        }}
-      >
+      <SectionHeader 
+        title="All Scenes" 
+        onViewAll={() => router.push({ pathname: '/events/feed' })} 
+      />
+      <View style={styles.allScenesGrid}>
         {visibleEvents.map((item, index) => (
           <PremiumEventCard key={item.id} event={item} index={index} variant="standard" />
         ))}
@@ -504,13 +484,16 @@ export function PremiumEventCard({
   hideGradient = false,
 }: any) {
   const scale = useSharedValue(1);
+  const cardAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
   const img =
     event.coverImage ||
     event.images?.[0] ||
     'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600';
   const price = getDisplayPrice(event);
-  const posterTransitionTag = `poster-${event.id}-${variant}-${index}`;
+  const posterTransitionTag = `poster-${event.id}-${variant}`;
 
   let cardStyle: any = {
     width: FOR_YOU_CARD_WIDTH,
@@ -520,8 +503,8 @@ export function PremiumEventCard({
   };
   if (variant === 'featured')
     cardStyle = {
-      width: SCREEN_WIDTH * 0.75,
-      height: SCREEN_WIDTH * 0.75 * 1.35,
+      width: EXPLORE_FEATURED_CARD_WIDTH,
+      height: EXPLORE_FEATURED_CARD_WIDTH * 1.32,
       borderRadius: 20,
       overflow: 'hidden',
     };
@@ -534,17 +517,10 @@ export function PremiumEventCard({
       flexDirection: 'row',
     };
 
-  const glowScale = variant === 'featured' ? 1.05 : 1.08;
-  const glowOpacity = variant === 'featured' ? 0.45 : 0.55;
-  const blurVal = 40;
-
   return (
     <Animated.View
       entering={FadeInRight.delay(index * 50).duration(400)}
-      style={[
-        useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] })),
-        { position: 'relative' },
-      ]}
+      style={[cardAnimatedStyle, { position: 'relative' }]}
     >
       {/* Dual-Gradient Border Glass Wrapper (Light Reflection) */}
       <View style={[cardStyle, { position: 'relative', backgroundColor: 'transparent' }]}>
@@ -604,20 +580,14 @@ export function PremiumEventCard({
 
             {!hideGradient && (
               <LinearGradient
-                colors={['transparent', 'rgba(22,22,22,0.6)', 'rgba(22,22,22,0.98)']}
-                locations={[0.3, 0.7, 1]}
+                colors={['transparent', 'rgba(0,0,0,0.75)', 'rgba(0,0,0,1)']}
+                locations={[0.2, 0.65, 1]}
                 style={StyleSheet.absoluteFillObject}
               />
             )}
 
-            <View
-              style={{
-                flex: 1,
-                padding: variant === 'compact' ? spacing.md : spacing.base,
-                justifyContent: 'space-between',
-              }}
-            >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, justifyContent: 'space-between' }}>
+              <View style={{ padding: variant === 'compact' ? spacing.md : spacing.base, flexDirection: 'row', justifyContent: 'space-between' }}>
                 <View
                   style={{
                     backgroundColor: 'rgba(10, 10, 10, 0.75)',
@@ -640,19 +610,31 @@ export function PremiumEventCard({
                   </Text>
                 </View>
               </View>
-              <View>
+
+              <BlurView
+                blurMethod="dimezisBlurView"
+                intensity={80}
+                tint="dark"
+                style={{
+                  padding: variant === 'compact' ? spacing.md : spacing.base,
+                  paddingTop: spacing.md,
+                  backgroundColor: 'rgba(0,0,0,0.5)',
+                  borderTopWidth: StyleSheet.hairlineWidth,
+                  borderTopColor: 'rgba(255,255,255,0.1)',
+                }}
+              >
                 <Text
                   style={{
                     color: '#FFF',
                     fontSize:
-                      variant === 'large' ? typography.fontSize['2xl'] : typography.fontSize.lg,
+                      variant === 'large' ? typography.fontSize['2xl'] : typography.fontSize.base,
                     fontWeight: '900',
                     letterSpacing: 0,
                     textShadowColor: 'rgba(0,0,0,0.8)',
                     textShadowOffset: { width: 0, height: 2 },
                     textShadowRadius: 4,
                   }}
-                  numberOfLines={1}
+                  numberOfLines={2}
                 >
                   {event.title}
                 </Text>
@@ -660,7 +642,7 @@ export function PremiumEventCard({
                   style={{
                     color: 'rgba(255,255,255,0.8)',
                     fontSize: typography.fontSize.sm,
-                    marginTop: spacing.xs,
+                    marginTop: 2,
                     fontWeight: '600',
                   }}
                   numberOfLines={1}
@@ -672,7 +654,7 @@ export function PremiumEventCard({
                     flexDirection: 'row',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    marginTop: spacing.md,
+                    marginTop: spacing.sm,
                   }}
                 >
                   <Text
@@ -707,7 +689,7 @@ export function PremiumEventCard({
                     </View>
                   )}
                 </View>
-              </View>
+              </BlurView>
             </View>
           </AnimatedPressable>
         </View>
@@ -718,6 +700,21 @@ export function PremiumEventCard({
 
 const styles = StyleSheet.create({
   section: { marginBottom: 48 },
+  horizontalRailContent: {
+    paddingLeft: EXPLORE_SIDE_INSET,
+    paddingRight: EXPLORE_SIDE_INSET,
+    gap: EXPLORE_RAIL_GAP,
+  },
+  horizontalRailItem: {
+    width: FOR_YOU_CARD_WIDTH,
+  },
+  allScenesGrid: {
+    paddingHorizontal: EXPLORE_SIDE_INSET,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 22,
+  },
   sectionHeader: {
     paddingHorizontal: 16,
     marginBottom: 16,

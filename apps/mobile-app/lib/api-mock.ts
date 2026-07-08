@@ -14,6 +14,8 @@ import {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const inMemoryMessages: Record<string, any[]> = {};
+
 /** Map of URL patterns to mock response generators. */
 const routes: Record<string, (params: Record<string, string>, body?: any) => any> = {
   // ── Events ──
@@ -28,6 +30,11 @@ const routes: Record<string, (params: Record<string, string>, body?: any) => any
     return event || { error: 'Event not found' };
   },
 
+  // ── Entitlement ──
+  'GET /api/v1/social/entitlement/': () => ({
+    entitlement: { status: 'active' },
+  }),
+
   // ── Chats ──
   'GET /api/v1/social/my-chats': () => ({
     chats: DEMO_EVENT_CHATS,
@@ -35,9 +42,30 @@ const routes: Record<string, (params: Record<string, string>, body?: any) => any
     privateChats: DEMO_PRIVATE_CHATS,
     totalUnread: 3,
   }),
-  'GET /api/v1/social/chat/': (params) => ({
-    messages: (DEMO_CHAT_MESSAGES as any)[params.eventId] ?? [],
-  }),
+  'GET /api/v1/social/chat/': (params) => {
+    const defaultMsgs = (DEMO_CHAT_MESSAGES as any)[params.eventId] ?? [];
+    const appendedMsgs = inMemoryMessages[params.eventId] ?? [];
+    return { messages: [...defaultMsgs, ...appendedMsgs] };
+  },
+  'POST /api/v1/social/chat': (params, body) => {
+    const eventId = body?.eventId;
+    if (eventId) {
+      if (!inMemoryMessages[eventId]) inMemoryMessages[eventId] = [];
+      const newMsg = {
+        id: `mock-${Date.now()}`,
+        eventId,
+        senderId: 'mock-user-1',
+        senderName: 'Demo User', // You
+        content: body.text || body.imageUrl || '',
+        type: body.imageUrl ? 'image' : 'text',
+        createdAt: new Date().toISOString(),
+        ...body.metadata,
+      };
+      inMemoryMessages[eventId].push(newMsg);
+      return { success: true, id: newMsg.id, message: newMsg };
+    }
+    return { success: true };
+  },
   'GET /api/v1/social/dm/': (params) => ({
     messages: (DEMO_DM_MESSAGES as any)[params.id] ?? [],
   }),
@@ -95,11 +123,18 @@ export async function apiFetchMock<T = any>(
   const method = (options.method || 'GET').toUpperCase();
   const path = extractPath(url);
 
+  let parsedBody;
+  try {
+    parsedBody = options.body ? JSON.parse(options.body as string) : undefined;
+  } catch {
+    parsedBody = options.body;
+  }
+
   // Exact match first
   const exactKey = `${method} /api/v1${path}`;
   if (routes[exactKey]) {
     const params = extractParams(path);
-    return routes[exactKey](params) as T;
+    return routes[exactKey](params, parsedBody) as T;
   }
 
   // Prefix match (for /api/v1/social/chat/{eventId} style)
@@ -109,7 +144,7 @@ export async function apiFetchMock<T = any>(
   });
   if (prefixKey) {
     const params = extractParams(path);
-    return routes[prefixKey](params) as T;
+    return routes[prefixKey](params, parsedBody) as T;
   }
 
   // Generic success for unhandled POST/PATCH/DELETE

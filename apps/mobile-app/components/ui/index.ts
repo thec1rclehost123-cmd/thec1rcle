@@ -25,6 +25,8 @@ export { NotificationBell } from './NotificationBell';
 export { GlobalHeader, CompactHeader, SearchHeader as GlobalSearchHeader } from './GlobalHeader';
 export { OfflineBanner, useNetworkStatus } from './OfflineBanner';
 
+export { default as AnthemPlayer } from './AnthemPlayer';
+
 // Premium UI Components ✨
 export { PremiumHeroCard } from './PremiumHeroCard';
 export {

@@ -224,6 +224,86 @@ describe('ticket checkout wallet service', () => {
     });
   });
 
+  it('provisions a pending cover wallet when a confirmed order includes a cover tier', async () => {
+    const db = new FakeDb({
+      orders: {
+        ord_cover: buildOrder({
+          id: 'ord_cover',
+          venueId: 'venue_1',
+          userName: 'Arjun Mehta',
+          tickets: [
+            {
+              ticketId: 'cover',
+              name: 'Cover Charge Entry',
+              quantity: 1,
+              price: 1500,
+              total: 1500,
+            },
+          ],
+          totalAmount: 1500,
+        }),
+      },
+      events: {
+        event_1: {
+          title: 'After Dark',
+          startDate: '2099-01-01T20:00:00.000Z',
+          venueId: 'venue_1',
+          ticketCatalog: {
+            tiers: [
+              {
+                id: 'cover',
+                name: 'Cover Charge Entry',
+                coverChargeConfig: {
+                  enabled: true,
+                  walletAmountPaise: 100000,
+                  minChargeAmountPaise: 1000,
+                  maxChargeAmountPaise: 100000,
+                  presetItems: [
+                    {
+                      id: 'beer',
+                      name: 'Beer',
+                      amountPaise: 40000,
+                      isAvailable: true,
+                      sortOrder: 1,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    const result = await generateTicketsForOrder({ db, orderId: 'ord_cover' });
+    const wallets = [...db.getCollection('cover_wallets').values()];
+
+    expect(result.tickets).toHaveLength(1);
+    expect(result.coverWallets).toHaveLength(1);
+    expect(wallets).toHaveLength(1);
+    expect(wallets[0]).toMatchObject({
+      orderId: 'ord_cover',
+      eventId: 'event_1',
+      venueId: 'venue_1',
+      userId: 'user_1',
+      guestFirstName: 'Arjun',
+      state: 'PENDING',
+      openingBalancePaise: 100000,
+      currentBalancePaise: 100000,
+      rules: expect.objectContaining({
+        minChargeAmountPaise: 1000,
+        maxChargeAmountPaise: 100000,
+        allowedPresetItems: [
+          expect.objectContaining({
+            id: 'beer',
+            amountPaise: 40000,
+            isAvailable: true,
+          }),
+        ],
+      }),
+    });
+  });
+
   it('creates wallet ticket docs for confirmed RSVP orders in rsvp_orders', async () => {
     const db = new FakeDb({
       rsvp_orders: {

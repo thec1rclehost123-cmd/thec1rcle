@@ -3,8 +3,8 @@
  * Ditto-style settings hub. Detail rows open dedicated settings pages.
  */
 
-import { useEffect } from 'react';
-import { Alert, View, Text, ScrollView, Pressable, StyleSheet, Linking } from 'react-native';
+import { useState, useEffect } from 'react';
+import { Alert, View, Text, ScrollView, Pressable, StyleSheet, Linking, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -18,11 +18,13 @@ import {
   ExternalLink,
   Eye,
   Mail,
+  Music,
   ShieldCheck,
   Trash2,
   Wallet,
   X,
 } from 'lucide-react-native';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, typography } from '@/lib/design/theme';
@@ -31,6 +33,7 @@ import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
 import { getFirebaseAuth } from '@/lib/firebase';
+import { startSpotifyOAuth, disconnectSpotify } from '@/lib/spotify-auth';
 
 type IconTone =
   | 'account'
@@ -42,7 +45,11 @@ type IconTone =
   | 'store'
   | 'instagram'
   | 'x'
-  | 'danger';
+  | 'danger'
+  | 'nightlife'
+  | 'spotify';
+
+const PRIVACY_POLICY_URL = 'https://thec1rcle.com/privacy';
 
 const font = {
   regular: typography.fontFamily.body,
@@ -152,6 +159,7 @@ function SettingsRow({
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const insets = useSafeAreaInsets();
   const profile = useProfileStore((state) => state.profile);
   const displayName =
@@ -166,48 +174,48 @@ export default function SettingsScreen() {
   }, []);
 
   const openLink = (url: string) => {
-    Linking.openURL(url);
+    Linking.openURL(url).catch(() => {});
   };
 
   const handleLogout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await signOut();
-    router.replace('/(auth)/login');
+    setIsLoggingOut(true);
+    try {
+      await signOut();
+      router.replace('/(auth)/login');
+    } catch {
+      setIsLoggingOut(false);
+      Alert.alert('Logout Failed', 'Please try again.');
+    }
   };
 
-  const handleDeleteAccount = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Alert.alert(
-      'Delete My Account',
-      'This permanently deletes your profile, photos, likes, passes, and account access. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await apiFetch('/api/v1/users/me', { method: 'DELETE' });
-              // Also delete the Firebase Auth account so it is fully removed
-              const auth = getFirebaseAuth();
-              if (auth.currentUser) {
-                await auth.currentUser.delete().catch(() => undefined);
-              }
-              await AsyncStorage.clear();
-              useProfileStore.getState().clearProfile();
-              useAuthStore.getState().setUser(null);
-              await signOut().catch(() => undefined);
-              router.replace('/(auth)/login');
-            } catch (error: any) {
-              Alert.alert('Could not delete account', error?.message || 'Please try again.');
-            }
-          },
-        },
-      ],
-    );
+  const [spotifyLoading, setSpotifyLoading] = useState(false);
+  const spotifyConnected = profile?.spotifyConnected === true;
+  const spotifyProfile = profile?.spotifyProfile;
+
+  const handleConnectSpotify = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSpotifyLoading(true);
+    const result = await startSpotifyOAuth();
+    setSpotifyLoading(false);
+    if (!result.connected) {
+      Alert.alert('Spotify Connection', result.error || 'Failed to connect. Please try again.');
+    }
+    // Profile will auto-refresh from Firestore listener
+  };
+
+  const handleDisconnectSpotify = () => {
+    Alert.alert('Disconnect Spotify?', 'Your Spotify profile will be removed from your C1RCLE profile.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Disconnect', style: 'destructive', onPress: async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        await disconnectSpotify();
+      }},
+    ]);
   };
 
   return (
+    <>
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Animated.View entering={FadeIn} style={styles.header}>
         <Pressable
@@ -233,52 +241,59 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Group delay={80}>
-          <SettingsRow
-            icon={
-              <LinearGradient
-                colors={['#E8E0FF', '#C7FFE1']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.avatar}
-              >
-                <Text style={styles.avatarFace}>••{'\n'}⌣</Text>
-              </LinearGradient>
-            }
-            title={displayName}
-            subtitle="View Profile"
-            onPress={() => router.push('/(tabs)/profile')}
-          />
-          <Divider />
-          <SettingsRow title="Edit Profile" onPress={() => router.push('/profile/edit')} />
-        </Group>
+        {user ? (
+          <>
+            <Group delay={80}>
+              <SettingsRow
+                icon={
+                  <LinearGradient
+                    colors={['#E8E0FF', '#C7FFE1']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.avatar}
+                  >
+                    <Text style={styles.avatarFace}>••{'\n'}⌣</Text>
+                  </LinearGradient>
+                }
+                title={displayName}
+                subtitle="View Profile"
+                onPress={() => router.push('/(tabs)/profile')}
+              />
+              <Divider />
+              <SettingsRow title="Edit Profile" onPress={() => router.push('/profile/edit')} />
+            </Group>
 
-        <Group delay={140}>
-          <SettingsRow
-            icon={
-              <SettingIcon tone="account">
-                <CircleUser
-                  size={17}
-                  color="#fff"
-                  fill="rgba(255,255,255,0.45)"
-                  strokeWidth={2.2}
-                />
-              </SettingIcon>
-            }
-            title="Account Settings"
-            onPress={() => router.push('/settings/account' as any)}
-          />
-          <Divider />
-          <SettingsRow
-            icon={
-              <SettingIcon tone="payment">
-                <Wallet size={17} color="#fff" fill="rgba(255,255,255,0.25)" strokeWidth={2.2} />
-              </SettingIcon>
-            }
-            title="Payment"
-            onPress={() => router.push('/settings/payment' as any)}
-          />
-        </Group>
+            <Group delay={140}>
+              <SettingsRow
+                icon={
+                  <SettingIcon tone="account">
+                    <CircleUser
+                      size={17}
+                      color="#fff"
+                      fill="rgba(255,255,255,0.45)"
+                      strokeWidth={2.2}
+                    />
+                  </SettingIcon>
+                }
+                title="Account Settings"
+                onPress={() => router.push('/settings/account' as any)}
+              />
+            </Group>
+          </>
+        ) : (
+          <Group delay={80}>
+            <SettingsRow
+              icon={
+                <SettingIcon tone="account">
+                  <CircleUser size={17} color="#fff" strokeWidth={2.2} />
+                </SettingIcon>
+              }
+              title="Login / Sign Up"
+              subtitle="Access your profile and tickets"
+              onPress={() => router.push('/(auth)/login')}
+            />
+          </Group>
+        )}
 
         <SectionLabel title="Preferences" delay={200} />
         <Group delay={240}>
@@ -290,6 +305,16 @@ export default function SettingsScreen() {
             }
             title="Notifications"
             onPress={() => router.push('/settings/notifications' as any)}
+          />
+          <Divider />
+          <SettingsRow
+            icon={
+              <SettingIcon tone="nightlife">
+                <Music size={17} color="#fff" strokeWidth={2.2} />
+              </SettingIcon>
+            }
+            title="Nightlife Profile"
+            onPress={() => router.push('/profile-creation')}
           />
           <Divider />
           <SettingsRow
@@ -318,7 +343,43 @@ export default function SettingsScreen() {
           />
         </Group>
 
-        <SectionLabel title="Resources" delay={300} />
+        <SectionLabel title="Connected Accounts" delay={280} />
+        <Group delay={300}>
+          <Pressable
+            disabled={spotifyLoading}
+            onPress={spotifyConnected ? handleDisconnectSpotify : handleConnectSpotify}
+            style={styles.row}
+          >
+            <SettingIcon tone="spotify">
+              {spotifyLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <FontAwesome5 name="spotify" size={17} color="#fff" />
+              )}
+            </SettingIcon>
+            <View style={styles.rowText}>
+              <Text style={styles.rowTitle}>Spotify</Text>
+              {spotifyConnected && spotifyProfile ? (
+                <Text style={[styles.rowSubtitle, { color: '#1DB954' }]} numberOfLines={1}>
+                  Connected as {spotifyProfile.displayName}
+                </Text>
+              ) : (
+                <Text style={styles.rowSubtitle} numberOfLines={1}>
+                  {spotifyLoading ? 'Connecting…' : 'Show your music taste on your profile'}
+                </Text>
+              )}
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {spotifyConnected ? (
+                <Text style={{ color: '#F44A22', fontSize: 12, fontWeight: '600' }}>Disconnect</Text>
+              ) : (
+                <ChevronRight size={17} color="rgba(255,255,255,0.45)" strokeWidth={2.2} />
+              )}
+            </View>
+          </Pressable>
+        </Group>
+
+        <SectionLabel title="Resources" delay={360} />
         <Group delay={340}>
           <SettingsRow
             icon={
@@ -337,7 +398,7 @@ export default function SettingsScreen() {
               </SettingIcon>
             }
             title="Rate in App Store"
-            onPress={() => openLink('https://thec1rcle.com')}
+            onPress={() => openLink('https://apps.apple.com/app/id6475739329')}
             external
           />
           <Divider />
@@ -372,32 +433,39 @@ export default function SettingsScreen() {
           <Divider />
           <SettingsRow
             title="Legal"
-            value="Privacy & Terms"
-            onPress={() => router.push('/legal/privacy' as any)}
+            value="Privacy Policy"
+            onPress={() => openLink(PRIVACY_POLICY_URL)}
+            external
           />
         </Group>
 
-        <SectionLabel title="Danger Zone" delay={400} />
-        <Group delay={420}>
-          <SettingsRow
-            icon={
-              <SettingIcon tone="danger">
-                <Trash2 size={16} color="#F44A22" strokeWidth={2.3} />
-              </SettingIcon>
-            }
-            title="Delete My Account"
-            onPress={handleDeleteAccount}
-            danger
-          />
-          <Divider />
-          <SettingsRow title="Logout" onPress={handleLogout} danger />
-        </Group>
+        {user ? (
+          <>
+            <SectionLabel title="Danger Zone" delay={400} />
+            <Group delay={420}>
+              <SettingsRow title="Logout" onPress={handleLogout} danger />
+            </Group>
+          </>
+        ) : null}
       </ScrollView>
     </View>
+    {isLoggingOut && (
+      <View style={styles.loadingOverlay}>
+        <ActivityIndicator size="large" color="#fff" />
+      </View>
+    )}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.base.DEFAULT,
@@ -514,6 +582,12 @@ const styles = StyleSheet.create({
   dangerIcon: {
     backgroundColor: 'rgba(244,74,34,0.15)',
   },
+  nightlifeIcon: {
+    backgroundColor: colors.iris,
+  },
+  spotifyIcon: {
+    backgroundColor: '#1DB954',
+  },
   brandIcon: {
     color: '#fff',
     fontSize: 20,
@@ -580,4 +654,6 @@ const iconToneStyles = {
   instagram: styles.instagramIcon,
   x: styles.xIcon,
   danger: styles.dangerIcon,
+  nightlife: styles.nightlifeIcon,
+  spotify: styles.spotifyIcon,
 };

@@ -168,7 +168,7 @@ export function PremiumPaywallModal() {
         <Pressable style={styles.scrim} onPress={closePaywall} />
         <Animated.View style={[styles.sheetWrapper, sheetAnimatedStyle]}>
           <BlurView
-            experimentalBlurMethod="dimezisBlurView"
+            blurMethod="dimezisBlurView"
             intensity={44}
             tint="dark"
             style={styles.sheetBlur}

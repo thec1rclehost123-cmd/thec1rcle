@@ -69,7 +69,7 @@ describe('deeplinks', () => {
       expect(result).toBe(true);
       expect(Share.share).toHaveBeenCalledWith({
         message: 'Custom msg',
-        url: 'https://thec1rcle.com/app/event?id=evt_1',
+        url: 'https://thec1rcle.com/event/evt_1',
         title: 'Cool Event',
       });
     });

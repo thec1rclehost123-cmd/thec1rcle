@@ -280,6 +280,19 @@ export async function getUserEventConversations(
   }
 }
 
+// Get saved contacts for a user
+export async function getSavedContacts(userId: string): Promise<any[]> {
+  try {
+    const response = await apiFetch<{ contacts: any[] }>(
+      '/api/v1/social/contacts',
+      { requireAuth: true },
+    );
+    return response.contacts || [];
+  } catch (error) {
+    return [];
+  }
+}
+
 // Get pending DM requests
 export async function getPendingDMRequests(userId: string): Promise<PrivateConversation[]> {
   try {
@@ -288,38 +301,6 @@ export async function getPendingDMRequests(userId: string): Promise<PrivateConve
       { requireAuth: true },
     );
     return response.requests || [];
-  } catch (error) {
-    return [];
-  }
-}
-
-// Save contact
-export async function saveContact(
-  userId: string,
-  contactUserId: string,
-  contactName: string,
-  eventId: string,
-  eventTitle: string,
-  contactAvatar?: string,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    return await apiFetch('/api/v1/social/contacts', {
-      method: 'POST',
-      body: JSON.stringify({ contactUserId, contactName, eventId, eventTitle, contactAvatar }),
-      requireAuth: true,
-    });
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
-
-// Get saved contacts
-export async function getSavedContacts(userId: string): Promise<any[]> {
-  try {
-    const response = await apiFetch<{ contacts: any[] }>('/api/v1/social/contacts', {
-      requireAuth: true,
-    });
-    return response.contacts || [];
   } catch (error) {
     return [];
   }

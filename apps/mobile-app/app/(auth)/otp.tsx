@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -8,35 +8,51 @@ import {
   Text,
   TextInput,
   View,
+  ScrollView,
+  Keyboard,
+  Dimensions,
 } from 'react-native';
+import type { View as ViewType } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  interpolate,
+  Extrapolation,
+  FadeIn,
+} from 'react-native-reanimated';
+import { Check, ChevronLeft } from 'lucide-react-native';
+
 import { useAuth } from '@/hooks/useAuth';
-import { useVideoPlayer, VideoView } from 'expo-video';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
+import { colors } from '@/lib/design/theme';
+
+const { width } = Dimensions.get('window');
+const OTP_LENGTH = 6;
+const BOX_SIZE = (width - 48 - (OTP_LENGTH - 1) * 8) / OTP_LENGTH; // calculate box size dynamically
 
 export default function OtpScreen() {
-  const params = useLocalSearchParams<{ verificationId?: string; phoneNumber?: string }>();
-  const [code, setCode] = useState(['', '', '', '', '', '']);
+  const params = useLocalSearchParams<{
+    verificationId?: string;
+    phoneNumber?: string;
+    returnTo?: string;
+    isLinking?: string;
+  }>();
+  const [code, setCode] = useState('');
   const [timer, setTimer] = useState(30);
   const [localError, setLocalError] = useState<string | null>(null);
-  const inputRefs = useRef<Array<TextInput | null>>([]);
-  const { confirmPhoneCode, sendPhoneCode, loading, error, clearError } = useAuth();
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  const player = useVideoPlayer(require('../../assets/review-video.mp4'), (player) => {
-    player.loop = true;
-    player.muted = true;
-    player.play();
-  });
+  const inputRef = useRef<TextInput>(null);
+  const { confirmPhoneCode, linkPhoneCode, sendPhoneCode, loading, error, clearError } = useAuth();
+  const returnTo = typeof params.returnTo === 'string' && params.returnTo.startsWith('/')
+    ? params.returnTo
+    : '/';
 
-  useEffect(() => {
-    return () => {
-      try {
-        player.pause();
-      } catch (e) {}
-    };
-  }, [player]);
+  // Animation values
+  const successAnim = useSharedValue(0);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -50,7 +66,7 @@ export default function OtpScreen() {
     if (timer > 0 || !params.phoneNumber) return;
     setLocalError(null);
     clearError();
-    const result = await sendPhoneCode(params.phoneNumber, null);
+    const result = await sendPhoneCode(params.phoneNumber);
     if (result.success) {
       setTimer(30);
     } else {
@@ -58,35 +74,19 @@ export default function OtpScreen() {
     }
   };
 
-  const handleCodeChange = (text: string, index: number) => {
+  const handleCodeChange = (text: string) => {
     setLocalError(null);
     clearError();
+    const digits = text.replace(/[^0-9]/g, '');
+    setCode(digits);
 
-    const newCode = [...code];
-    newCode[index] = text.replace(/[^0-9]/g, '').slice(-1);
-    setCode(newCode);
-
-    // Auto-advance
-    if (text && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-
-    // Auto-submit if all 6 are filled
-    if (text && index === 5 && newCode.every((d) => d !== '')) {
-      submit(newCode.join(''));
+    if (digits.length === OTP_LENGTH) {
+      submit(digits);
     }
   };
 
-  const handleKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === 'Backspace' && !code[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-      const newCode = [...code];
-      newCode[index - 1] = '';
-      setCode(newCode);
-    }
-  };
-
-  const submit = async (otpString?: string) => {
+  const submit = async (otpString: string) => {
+    Keyboard.dismiss();
     setLocalError(null);
     clearError();
 
@@ -95,93 +95,166 @@ export default function OtpScreen() {
       return;
     }
 
-    const otp = typeof otpString === 'string' ? otpString : code.join('');
-    if (otp.length < 6) {
-      setLocalError('Enter the 6-digit OTP.');
-      return;
-    }
+    const isLinking = params.isLinking === 'true';
+    const result = isLinking 
+      ? await linkPhoneCode(params.verificationId, otpString)
+      : await confirmPhoneCode(params.verificationId, otpString);
 
-    const result = await confirmPhoneCode(params.verificationId, otp);
     if (result.success) {
-      if (router.canDismiss()) router.dismissAll();
-      router.replace('/');
+      setIsSuccess(true);
+      successAnim.value = withTiming(1, { duration: 600 });
+
+      setTimeout(() => {
+        if (router.canDismiss()) router.dismissAll();
+        router.replace(returnTo as any);
+      }, 1500);
     }
   };
 
   return (
     <View style={styles.container}>
-      <VideoView
-        player={player}
-        style={StyleSheet.absoluteFillObject}
-        contentFit="cover"
-        nativeControls={false}
-      />
-      <LinearGradient
-        colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.8)', '#000000']}
-        locations={[0, 0.4, 1]}
-        style={StyleSheet.absoluteFillObject}
-      />
       <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <Pressable 
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(auth)/login');
+              }
+            }}
+            style={({ pressed }) => [styles.backButton, pressed && { opacity: 0.7 }]}
+          >
+            <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+          </Pressable>
+        </View>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.content}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          style={{ flex: 1 }}
         >
-          <Text style={styles.title}>ENTER OTP</Text>
-          {params.phoneNumber ? (
-            <Text style={styles.subtitle}>Sent to {params.phoneNumber}</Text>
-          ) : null}
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+          {/* Header Texts */}
+          {useMemo(() => (
+            <Animated.View style={[{ alignItems: 'center', marginBottom: 20 }]}>
+              <View style={styles.topDash} />
+              <Text style={styles.title}>
+                {isSuccess ? 'Verified successfully' : "Let's verify your number"}
+              </Text>
 
-          <View style={styles.otpRow}>
-            {code.map((digit, index) => (
-              <BlurView
-                key={index}
-                experimentalBlurMethod="dimezisBlurView"
-                intensity={40}
-                tint="dark"
-                style={styles.boxWrap}
+              {!isSuccess && (
+                <Text style={styles.subtitle}>
+                  We've sent a 6-digit code to your phone.{'\n'}It'll auto-verify once entered.
+                </Text>
+              )}
+            </Animated.View>
+          ), [isSuccess])}
+
+          {/* OTP Boxes Area wrapped in dynamic spacer */}
+          <View style={{ flex: 1, justifyContent: 'center' }}>
+            <View style={styles.otpContainer}>
+              {/* The actual hidden input */}
+              <TextInput
+              ref={inputRef}
+              value={code}
+              onChangeText={handleCodeChange}
+              keyboardType="number-pad"
+              textContentType="oneTimeCode"
+              maxLength={OTP_LENGTH}
+              autoFocus
+              caretHidden
+              style={styles.hiddenInput}
+              editable={!loading && !isSuccess}
+            />
+
+            {/* Render 6 Animated Boxes */}
+            <View style={styles.boxesRow}>
+              {Array.from({ length: OTP_LENGTH }).map((_, index) => {
+                const digit = code[index] || '';
+                const isFocused = code.length === index;
+
+                // Calculate distance from center for merge animation
+                const centerIndex = (OTP_LENGTH - 1) / 2;
+                const offsetFromCenter = index - centerIndex;
+                const distanceToMove = -(offsetFromCenter * (BOX_SIZE + 8));
+
+                const animatedBoxStyle = useAnimatedStyle(() => {
+                  const translateX = interpolate(
+                    successAnim.value,
+                    [0, 1],
+                    [0, distanceToMove],
+                    Extrapolation.CLAMP
+                  );
+                  const opacity = interpolate(
+                    successAnim.value,
+                    [0, 0.8, 1],
+                    [1, 0, 0],
+                    Extrapolation.CLAMP
+                  );
+                  return {
+                    transform: [{ translateX }],
+                    opacity,
+                  };
+                });
+
+                return (
+                  <Animated.View
+                    key={index}
+                    style={[
+                      styles.boxWrap,
+                      { width: BOX_SIZE },
+                      isFocused && styles.boxFocused,
+                      digit && !isFocused && styles.boxFilled,
+                      animatedBoxStyle,
+                    ]}
+                  >
+                    <Text style={styles.inputBoxText}>{digit}</Text>
+                  </Animated.View>
+                );
+              })}
+
+              {/* The Success Checkmark Box (appears in center) */}
+              <Animated.View
+                style={[
+                  styles.successBox,
+                  { width: BOX_SIZE },
+                  useAnimatedStyle(() => {
+                    const scale = interpolate(successAnim.value, [0, 0.6, 1], [0.5, 0.5, 1]);
+                    const opacity = interpolate(successAnim.value, [0, 0.8, 1], [0, 1, 1]);
+                    return { transform: [{ scale }], opacity };
+                  })
+                ]}
               >
-                <TextInput
-                  ref={(ref) => {
-                    inputRefs.current[index] = ref;
-                  }}
-                  value={digit}
-                  onChangeText={(t) => handleCodeChange(t, index)}
-                  onKeyPress={(e) => handleKeyPress(e, index)}
-                  keyboardType="number-pad"
-                  textContentType="oneTimeCode"
-                  style={styles.inputBox}
-                  maxLength={1}
-                  autoFocus={index === 0}
-                />
-              </BlurView>
-            ))}
+                <Check color="#FFFFFF" strokeWidth={3} size={28} />
+              </Animated.View>
+            </View>
           </View>
 
           {localError || error ? <Text style={styles.error}>{localError || error}</Text> : null}
 
-          <Pressable
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={() => submit()}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#000" />
-            ) : (
-              <Text style={styles.buttonText}>VERIFY</Text>
-            )}
-          </Pressable>
+          {/* Loading Indicator */}
+          {loading && !isSuccess && (
+            <ActivityIndicator color={colors.iris} style={{ marginTop: 20 }} />
+          )}
+        </View>
 
-          <View style={styles.footerLinks}>
-            <Pressable onPress={handleResend} disabled={timer > 0 || loading}>
-              <Text style={[styles.secondaryText, timer === 0 && styles.resendActive]}>
-                {timer > 0 ? `Resend code in ${timer}s` : 'Resend Code'}
-              </Text>
-            </Pressable>
-            <Text style={styles.dotSeparator}>•</Text>
-            <Pressable onPress={() => router.back()}>
-              <Text style={styles.secondaryText}>Change Number</Text>
-            </Pressable>
-          </View>
+          {/* Footer Resend */}
+          {!isSuccess && (
+            <View style={styles.footerLinks}>
+              <Pressable onPress={handleResend} disabled={timer > 0 || loading}>
+                <Text style={styles.resendText}>
+                  Didn't receive the code?{' '}
+                  <Text style={timer === 0 ? styles.resendActive : styles.resendDisabled}>
+                    Resend {timer > 0 ? `(${timer}s)` : ''}
+                  </Text>
+                </Text>
+              </Pressable>
+            </View>
+          )}
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
@@ -189,76 +262,125 @@ export default function OtpScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: '#161616' },
   safeArea: { flex: 1 },
-  content: { flex: 1, justifyContent: 'center', padding: 24, gap: 12 },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: '900',
-    letterSpacing: 2,
-    marginBottom: 4,
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
-  },
-  subtitle: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 14,
-    fontWeight: '600',
-    letterSpacing: 1,
+  content: { flexGrow: 1, padding: 24, paddingTop: 40, paddingBottom: 20 },
+  topDash: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.3)',
     marginBottom: 24,
   },
-  otpRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 16 },
-  boxWrap: {
-    flex: 1,
-    aspectRatio: 0.85,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    overflow: 'hidden',
-  },
-  inputBox: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 28,
-    fontWeight: '800',
+  title: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    fontWeight: '700',
+    marginBottom: 12,
     textAlign: 'center',
   },
-  error: {
-    backgroundColor: 'rgba(239,68,68,0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.5)',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    color: '#FFF',
-    fontSize: 13,
-    fontWeight: '600',
+  subtitle: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
+    fontWeight: '400',
     textAlign: 'center',
+    lineHeight: 22,
   },
-  button: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingVertical: 18,
-    alignItems: 'center',
-    marginTop: 12,
-    shadowColor: '#FFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
+  otpContainer: {
+    position: 'relative',
+    height: 70,
+    marginBottom: 32,
+    justifyContent: 'center',
   },
-  buttonDisabled: { opacity: 0.5, shadowOpacity: 0 },
-  buttonText: { color: '#000000', fontSize: 16, fontWeight: '800', letterSpacing: 1 },
-  footerLinks: {
+  hiddenInput: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0,
+    zIndex: 999,
+  },
+  boxesRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    pointerEvents: 'none',
+  },
+  boxWrap: {
+    aspectRatio: 1,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
-    marginTop: 24,
   },
-  secondaryText: { color: 'rgba(255,255,255,0.5)', fontSize: 14, fontWeight: '600' },
-  resendActive: { color: '#FFF', fontWeight: '800', textDecorationLine: 'underline' },
-  dotSeparator: { color: 'rgba(255,255,255,0.3)', fontSize: 14 },
+  boxFocused: {
+    borderColor: '#F44A22',
+    backgroundColor: 'rgba(244,74,34,0.15)',
+    shadowColor: '#F44A22',
+    shadowOpacity: 0.8,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+  },
+  boxFilled: {
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  inputBoxText: {
+    color: '#ffffff',
+    fontSize: 26,
+    fontWeight: '600',
+  },
+  successBox: {
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -((width - 48 - 5 * 8) / 12), // dynamically half of BOX_SIZE to perfect center
+    aspectRatio: 1,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#F44A22',
+    backgroundColor: 'rgba(244,74,34,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    shadowColor: '#F44A22',
+    shadowOpacity: 1,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 12,
+  },
+  error: {
+    color: '#F44A22',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  footerLinks: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  resendText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  resendActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  resendDisabled: {
+    color: 'rgba(255,255,255,0.3)',
+  },
+  header: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  backButton: {
+    padding: 8,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });

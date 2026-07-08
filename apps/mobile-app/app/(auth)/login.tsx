@@ -9,17 +9,30 @@ import {
   ActivityIndicator,
   StyleSheet,
   Animated,
+  Keyboard,
+  AppState,
+  ScrollView,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Eye, EyeOff, Mail, Phone } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/store/authStore';
 import Svg, { Path } from 'react-native-svg';
+import { colors } from '@/lib/design/theme';
+import { CountryCodePicker } from '@/components/ui/CountryCodePicker';
+import {
+  DEFAULT_PHONE_COUNTRY,
+  getLocalPhoneDigits,
+  getPhoneNumberInputError,
+  normalizePhoneNumber,
+  type PhoneCountry,
+} from '@/lib/phone';
 
 function GoogleSvg({ size = 18 }: { size?: number }) {
   return (
@@ -45,12 +58,18 @@ function GoogleSvg({ size = 18 }: { size?: number }) {
 }
 
 export default function LoginScreen() {
+  const params = useLocalSearchParams<{ returnTo?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
+  const [showPhoneForm, setShowPhoneForm] = useState(false);
+  const emailInputRef = useRef<TextInput>(null);
+  const phoneInputRef = useRef<TextInput>(null);
 
-  const { login, loginApple, loginGoogle, loading, error, clearError } = useAuth();
+  const { login, loginApple, loginGoogle, sendPhoneCode, loading, error, setError, clearError } = useAuth();
   const insets = useSafeAreaInsets();
 
   // Animated values for staggered layout slide & fade-in
@@ -69,9 +88,9 @@ export default function LoginScreen() {
   const fadeFooter = useRef(new Animated.Value(1)).current;
   const slideFooter = useRef(new Animated.Value(0)).current;
 
-  // Transition animation for when email form reveals
-  const fadeForm = useRef(new Animated.Value(0)).current;
-  const slideForm = useRef(new Animated.Value(15)).current;
+  // Keep auth forms mounted visibly; Android can delay opacity animations over video surfaces.
+  const fadeForm = useRef(new Animated.Value(1)).current;
+  const slideForm = useRef(new Animated.Value(0)).current;
 
   const player = useVideoPlayer(require('../../assets/background-video.mp4'), (player) => {
     player.loop = true;
@@ -80,10 +99,24 @@ export default function LoginScreen() {
   });
 
   useEffect(() => {
+    const resumeVideo = () => {
+      try {
+        player.play();
+      } catch {
+        // Ignore native player state races while auth sheets are closing.
+      }
+    };
+
+    resumeVideo();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') resumeVideo();
+    });
+
     return () => {
+      subscription.remove();
       try {
         player.pause();
-      } catch (e) {
+      } catch {
         // Ignore native crash during Fast Refresh when player is already released
       }
     };
@@ -116,31 +149,76 @@ export default function LoginScreen() {
   }, []);
 
   useEffect(() => {
-    if (showEmailForm) {
-      fadeForm.setValue(0);
-      slideForm.setValue(15);
-      Animated.parallel([
-        Animated.timing(fadeForm, { toValue: 1, duration: 450, useNativeDriver: true }),
-        Animated.timing(slideForm, { toValue: 0, duration: 450, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [showEmailForm]);
+    if (!showEmailForm && !showPhoneForm) return;
+
+    const focusTask = InteractionManager.runAfterInteractions(() => {
+      const input = showPhoneForm ? phoneInputRef.current : emailInputRef.current;
+      input?.focus();
+    });
+
+    return () => focusTask.cancel();
+  }, [showEmailForm, showPhoneForm]);
+
+  const [verificationSent, setVerificationSent] = useState(false);
+  const isAuthFormOpen = showEmailForm || showPhoneForm;
+  const returnTo = typeof params.returnTo === 'string' && params.returnTo.startsWith('/')
+    ? params.returnTo
+    : '/';
+
+  const finishAuthNavigation = () => {
+    if (router.canDismiss()) router.dismissAll();
+    router.replace(returnTo as any);
+  };
 
   const handleLogin = async () => {
-    if (!email.trim() || !password) return;
+    Keyboard.dismiss();
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) { setError('Please enter your email'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) { setError('Please enter a valid email address'); return; }
+    if (!password) { setError('Please enter your password'); return; }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const result = await login(email.trim(), password);
+    const result = await login(trimmedEmail, password);
     if (result.success) {
-      if (router.canDismiss()) router.dismissAll();
-      router.replace('/');
+      if ((result as any).action === 'signup_verification_sent') {
+        setVerificationSent(true);
+      } else {
+        finishAuthNavigation();
+      }
     }
+  };
+
+  const handlePhoneSubmit = async () => {
+    Keyboard.dismiss();
+    setError(null);
+    clearError();
+
+    const inputError = getPhoneNumberInputError(phone, phoneCountry);
+    if (inputError) {
+      setError(inputError);
+      return;
+    }
+
+    const phoneNumber = normalizePhoneNumber(phone, phoneCountry);
+    const result = await sendPhoneCode(phoneNumber);
+    if (result.success && result.verificationId) {
+      router.push({
+        pathname: '/(auth)/otp',
+        params: { verificationId: result.verificationId, phoneNumber, returnTo },
+      });
+    }
+  };
+
+  const handleCountrySelect = (country: PhoneCountry) => {
+    setPhoneCountry(country);
+    setPhone((current) => getLocalPhoneDigits(current, country).slice(0, country.localDigits));
+    setError(null);
+    clearError();
   };
 
   const handleApple = async () => {
     const result = await loginApple();
     if (result.success) {
-      if (router.canDismiss()) router.dismissAll();
-      router.replace('/');
+      finishAuthNavigation();
     }
     if ((result as any).requiresPasswordLink && (result as any).email) {
       setEmail((result as any).email);
@@ -152,8 +230,7 @@ export default function LoginScreen() {
   const handleGoogle = async () => {
     const result = await loginGoogle();
     if (result.success) {
-      if (router.canDismiss()) router.dismissAll();
-      router.replace('/');
+      finishAuthNavigation();
     }
     if ((result as any).requiresPasswordLink && (result as any).email) {
       setEmail((result as any).email);
@@ -163,6 +240,7 @@ export default function LoginScreen() {
   };
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !loading;
+  const phoneDigits = getLocalPhoneDigits(phone, phoneCountry);
 
   return (
     <View style={s.container}>
@@ -172,14 +250,16 @@ export default function LoginScreen() {
           style={[StyleSheet.absoluteFillObject, { top: -140 }]}
           contentFit="cover"
           nativeControls={false}
+          pointerEvents="none"
         />
       )}
 
       {/* Heavy Vignette Gradient with nightlife energy visibility */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.9)', '#000000']}
+        colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.9)', colors.base.DEFAULT]}
         locations={[0, 0.35, 0.7, 1]}
         style={StyleSheet.absoluteFillObject}
+        pointerEvents="none"
       />
 
       <SafeAreaView style={s.safeArea}>
@@ -193,11 +273,21 @@ export default function LoginScreen() {
             <Text style={s.skipText}>Skip</Text>
           </Pressable>
         </View>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.kav}>
-          <View style={s.content}>
-            {/* Header Section */}
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} style={s.kav}>
+          <ScrollView
+            contentContainerStyle={s.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <View style={s.content}>
+              {/* Header Section */}
             <Animated.View
-              style={[s.header, { opacity: fadeLogo, transform: [{ translateY: slideLogo }] }]}
+              style={[
+                s.header,
+                isAuthFormOpen && s.headerCompact,
+                { opacity: fadeLogo, transform: [{ translateY: slideLogo }] },
+              ]}
             >
               <Text style={s.title}>THEC1RCLE</Text>
               <Text style={s.tagline}>Nightlife, sorted.</Text>
@@ -211,7 +301,26 @@ export default function LoginScreen() {
             ) : null}
 
             {/* Buttons / Form */}
-            {!showEmailForm ? (
+            {verificationSent ? (
+              <View style={s.form}>
+                <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                  <Mail size={48} color="#ffffff" style={{ opacity: 0.8, marginBottom: 16 }} />
+                  <Text style={{ color: '#fff', fontSize: 24, fontWeight: '700', marginBottom: 8 }}>Check your email</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, textAlign: 'center', lineHeight: 22 }}>
+                    We couldn't find an account for <Text style={{ fontWeight: '600', color: '#fff' }}>{email}</Text>, so we're creating one for you!
+                  </Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, textAlign: 'center', marginTop: 12, lineHeight: 22 }}>
+                    Click the secure link we just sent you to verify your email and finish setting up your account.
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => setVerificationSent(false)}
+                  style={s.backBtn}
+                >
+                  <Text style={s.backText}>Back to Login</Text>
+                </Pressable>
+              </View>
+            ) : (!showEmailForm && !showPhoneForm) ? (
               <View style={s.buttonGroup}>
                 {Platform.OS === 'ios' && (
                   <Animated.View
@@ -244,7 +353,10 @@ export default function LoginScreen() {
                 >
                   <Pressable
                     style={s.emailBtn}
-                    onPress={() => router.push('/(auth)/phone' as any)}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowPhoneForm(true);
+                    }}
                     disabled={loading}
                   >
                     <View style={s.btnIcon}>
@@ -272,15 +384,67 @@ export default function LoginScreen() {
                   </Pressable>
                 </Animated.View>
               </View>
-            ) : (
-              <View style={s.form}>
+            ) : showPhoneForm ? (
+              <Animated.View style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}>
+                <View style={s.phoneInputRow}>
+                  <CountryCodePicker
+                    selectedCountry={phoneCountry}
+                    onSelect={handleCountrySelect}
+                  />
+                  <TextInput
+                    ref={phoneInputRef}
+                    style={[s.input, s.phoneNumberInput]}
+                    placeholder={phoneCountry.example}
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    keyboardType="number-pad"
+                    autoComplete="tel"
+                    autoFocus
+                    maxLength={phoneCountry.localDigits}
+                    value={phone}
+                    onChangeText={(t) => {
+                      setPhone(t.replace(/\D/g, '').slice(0, phoneCountry.localDigits));
+                      clearError();
+                    }}
+                  />
+                </View>
+
+                <Pressable
+                  onPress={handlePhoneSubmit}
+                  disabled={loading || phoneDigits.length < phoneCountry.localDigits}
+                  style={[
+                    s.submitBtn,
+                    (loading || phoneDigits.length < phoneCountry.localDigits) &&
+                      s.submitBtnDisabled,
+                  ]}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#000" />
+                  ) : (
+                    <Text style={s.submitBtnText}>Send OTP</Text>
+                  )}
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowPhoneForm(false);
+                  }}
+                  style={s.backBtn}
+                >
+                  <Text style={s.backText}>Use another method</Text>
+                </Pressable>
+              </Animated.View>
+            ) : showEmailForm ? (
+              <Animated.View style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}>
                 <TextInput
+                  ref={emailInputRef}
                   style={s.input}
                   placeholder="Email"
                   placeholderTextColor="rgba(255,255,255,0.4)"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoFocus
                   value={email}
                   onChangeText={(t) => {
                     setEmail(t);
@@ -337,8 +501,8 @@ export default function LoginScreen() {
                 >
                   <Text style={s.backText}>Use another method</Text>
                 </Pressable>
-              </View>
-            )}
+              </Animated.View>
+            ) : null}
 
             {/* Staggered Footer & Request Access / Legal text */}
             <Animated.View
@@ -347,25 +511,12 @@ export default function LoginScreen() {
                 { opacity: fadeFooter, transform: [{ translateY: slideFooter }] },
               ]}
             >
-              {!showEmailForm ? (
-                <View style={s.footerSubContainer}>
-                  <View style={s.signupRow}>
-                    <Text style={s.signupText}>New here? </Text>
-                    <Pressable onPress={() => router.push('/(auth)/signup')}>
-                      <Text style={s.signupLink}>Sign Up</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : (
-                <View style={s.signupRow}>
-                  <Text style={s.signupText}>Don't have an account? </Text>
-                  <Pressable onPress={() => router.push('/(auth)/signup')}>
-                    <Text style={s.signupLink}>Sign Up</Text>
-                  </Pressable>
-                </View>
-              )}
+              <View style={s.footerSubContainer}>
+                {/* Removed Signup link since auth is now unified */}
+              </View>
             </Animated.View>
           </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
@@ -375,7 +526,7 @@ export default function LoginScreen() {
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.base.DEFAULT,
   },
   safeArea: {
     flex: 1,
@@ -401,17 +552,27 @@ const s = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   content: {
     paddingHorizontal: 24,
-    paddingBottom: 10,
-    justifyContent: 'flex-end',
+    paddingBottom: 20,
+    paddingTop: 50, // Space for the absolute Skip button
     flex: 1,
   },
   header: {
+    flex: 1,
     alignItems: 'center',
-    marginBottom: 64,
-    position: 'relative',
+    justifyContent: 'center',
     width: '100%',
+    minHeight: 120, // Prevents logo from being completely crushed
+  },
+  headerCompact: {
+    flex: 0,
+    minHeight: 128,
+    justifyContent: 'flex-end',
+    marginBottom: 28,
   },
   inviteCue: {
     color: 'rgba(255,255,255,0.45)',
@@ -458,28 +619,25 @@ const s = StyleSheet.create({
   buttonGroup: {
     width: '100%',
     gap: 12,
-    minHeight: 280,
-    justifyContent: 'flex-end',
+    marginBottom: 10,
   },
   appleAuthButton: {
     width: '100%',
     height: 52,
   },
   googleBtn: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#FFFFFF',
     height: 52,
     borderRadius: 18,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     position: 'relative',
   },
   googleBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: '700',
     letterSpacing: 0,
   },
   emailBtn: {
@@ -506,8 +664,7 @@ const s = StyleSheet.create({
   form: {
     width: '100%',
     gap: 12,
-    minHeight: 280,
-    justifyContent: 'flex-end',
+    marginBottom: 10,
   },
   input: {
     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -519,6 +676,15 @@ const s = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  phoneInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+  },
+  phoneNumberInput: {
+    flex: 1,
   },
   passwordContainer: {
     position: 'relative',

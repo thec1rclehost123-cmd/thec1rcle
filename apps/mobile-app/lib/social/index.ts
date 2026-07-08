@@ -12,7 +12,6 @@ export {
   subscribeToDirectMessages,
   getUserEventConversations,
   getPendingDMRequests,
-  saveContact,
   getSavedContacts,
 } from './privateDM';
 export * from './moderation';

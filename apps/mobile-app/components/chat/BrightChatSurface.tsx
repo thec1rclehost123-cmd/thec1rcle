@@ -1,4 +1,4 @@
-import { memo, ReactNode, useEffect } from 'react';
+import { memo, ReactNode, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -10,7 +10,6 @@ import {
   TextInputProps,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import Animated, {
   FadeIn,
@@ -21,8 +20,10 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+  Easing,
 } from 'react-native-reanimated';
-import { ArrowLeft, Send } from 'lucide-react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { ArrowLeft, Send, Heart, Search, Flag, Ban } from 'lucide-react-native';
 import { colors, radii, spacing, typography } from '@/lib/design/theme';
 
 const fonts = typography.fontFamily;
@@ -37,6 +38,7 @@ export type ChatSurfaceTheme = {
   heroImage?: string;
   avatarUrls?: string[];
   accentColor?: string;
+  moodColor?: string;
 };
 
 type BrightChatSurfaceProps = {
@@ -45,9 +47,49 @@ type BrightChatSurfaceProps = {
 };
 
 export function BrightChatSurface({ theme, children }: BrightChatSurfaceProps) {
-  const accent = theme.accentColor || colors.iris;
+  const glowOpacity = useSharedValue(0.06);
 
-  return <View style={[brightChatStyles.screen, { backgroundColor: '#000000' }]}>{children}</View>;
+  useEffect(() => {
+    if (!theme.moodColor) return;
+    const interval = setInterval(() => {
+      glowOpacity.value = withTiming(glowOpacity.value > 0.04 ? 0.02 : 0.06, {
+        duration: 2500,
+        easing: Easing.inOut(Easing.sin),
+      });
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [theme.moodColor, glowOpacity]);
+
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+  }));
+
+  return (
+    <View style={brightChatStyles.screen}>
+      {theme.backgroundImage ? (
+        <>
+          <Image
+            source={{ uri: theme.backgroundImage }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            blurRadius={90}
+          />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.7)' }]} pointerEvents="none" />
+        </>
+      ) : null}
+      {theme.moodColor ? (
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFill,
+            glowStyle,
+            { backgroundColor: theme.moodColor },
+          ]}
+          pointerEvents="none"
+        />
+      ) : null}
+      {children}
+    </View>
+  );
 }
 
 type BrightChatHeaderProps = {
@@ -65,113 +107,78 @@ export function BrightChatHeader({
   rightAccessory,
   compact,
 }: BrightChatHeaderProps) {
-  if (compact) {
-    return (
-      <View style={[brightChatStyles.header, { paddingBottom: 12 }]}>
-        <View style={[brightChatStyles.headerTopRow, { paddingHorizontal: 16, marginBottom: 0 }]}>
-          <Pressable style={brightChatStyles.headerIconButton} onPress={onBack}>
-            <ArrowLeft size={22} color="#FFFFFF" strokeWidth={2.6} />
-          </Pressable>
-          <View
-            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', marginHorizontal: 12 }}
-          >
-            {theme.heroImage ? (
-              <Image
-                source={
-                  typeof theme.heroImage === 'string' ? { uri: theme.heroImage } : theme.heroImage
-                }
-                style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12 }}
-                contentFit="cover"
-                cachePolicy="memory-disk"
-              />
-            ) : (
-              <View
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  backgroundColor: 'rgba(255,255,255,0.1)',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginRight: 12,
-                }}
-              >
-                <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '600' }}>
-                  {theme.title.slice(0, 1).toUpperCase()}
-                </Text>
-              </View>
-            )}
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }} numberOfLines={1}>
-                {theme.title}
-              </Text>
-              {theme.subtitle && (
-                <Text
-                  style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 2 }}
-                  numberOfLines={1}
-                >
-                  {theme.subtitle}
-                </Text>
-              )}
-            </View>
-          </View>
-          {rightAccessory}
-        </View>
-      </View>
-    );
-  }
-
   const content = (
     <>
-      <View style={brightChatStyles.heroCluster}>
-        <View style={brightChatStyles.heroImageWrap}>
-          {theme.heroImage ? (
-            <Image
-              source={
-                typeof theme.heroImage === 'string' ? { uri: theme.heroImage } : theme.heroImage
-              }
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-            />
-          ) : (
-            <Text style={brightChatStyles.heroInitial}>
-              {theme.title.slice(0, 1).toUpperCase()}
-            </Text>
-          )}
-        </View>
-        <AvatarStack avatarUrls={theme.avatarUrls || []} />
-      </View>
+      <HeaderAvatarCluster theme={theme} />
       <View style={brightChatStyles.headerCopy}>
-        <Text style={brightChatStyles.headerTitle} numberOfLines={2}>
+        <Text style={brightChatStyles.headerTitle} numberOfLines={1}>
           {theme.title}
         </Text>
-        <Text style={brightChatStyles.headerSubtitle} numberOfLines={1}>
-          {theme.subtitle}
-        </Text>
+        {theme.subtitle ? (
+          <Text style={brightChatStyles.headerSubtitle} numberOfLines={1}>
+            {theme.subtitle}
+          </Text>
+        ) : null}
       </View>
     </>
   );
 
   return (
-    <View style={brightChatStyles.header}>
+    <View style={[brightChatStyles.header, compact && brightChatStyles.headerCompact]}>
       <View style={brightChatStyles.headerTopRow}>
         <Pressable style={brightChatStyles.headerIconButton} onPress={onBack}>
-          <ArrowLeft size={22} color="#FFFFFF" strokeWidth={2.6} />
+          <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.4} />
         </Pressable>
-        {rightAccessory}
+        {onDetails ? (
+          <Pressable style={brightChatStyles.headerPill} onPress={onDetails}>
+            {content}
+          </Pressable>
+        ) : (
+          <View style={brightChatStyles.headerPill}>{content}</View>
+        )}
+        {rightAccessory ? (
+          <View style={brightChatStyles.headerRightButton}>
+            {rightAccessory}
+          </View>
+        ) : (
+          <View style={{ width: 38 }} />
+        )}
       </View>
-      {onDetails ? (
-        <Pressable style={brightChatStyles.headerMain} onPress={onDetails}>
-          {content}
-        </Pressable>
-      ) : (
-        <View style={brightChatStyles.headerMain}>{content}</View>
-      )}
     </View>
   );
 }
 
+function HeaderAvatarCluster({ theme }: { theme: ChatSurfaceTheme }) {
+  const avatars = theme.avatarUrls?.length
+    ? theme.avatarUrls
+    : theme.heroImage
+      ? [theme.heroImage]
+      : [];
+
+  return (
+    <View style={brightChatStyles.headerAvatarCluster}>
+      {avatars.slice(0, 3).map((avatar, index) => (
+        <Image
+          key={`${avatar}-${index}`}
+          source={typeof avatar === 'string' ? { uri: avatar } : avatar}
+          style={[
+            brightChatStyles.headerAvatar,
+            { marginLeft: index === 0 ? 0 : -9, zIndex: 3 - index },
+          ]}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+        />
+      ))}
+      {avatars.length === 0 ? (
+        <View style={brightChatStyles.headerAvatar}>
+          <Text style={brightChatStyles.headerAvatarInitial}>
+            {theme.title.slice(0, 1).toUpperCase()}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
 export function AvatarStack({ avatarUrls }: { avatarUrls: string[] }) {
   if (avatarUrls.length === 0) return null;
 
@@ -199,7 +206,10 @@ type BrightMessageProps = {
   type?: 'text' | 'image' | 'announcement' | 'system';
   index?: number;
   animate?: boolean;
+  isLiked?: boolean;
   onLongPress?: () => void;
+  onDoubleTap?: () => void;
+  badgeLabel?: string;
 };
 
 export const BrightMessage = memo(function BrightMessage({
@@ -211,8 +221,23 @@ export const BrightMessage = memo(function BrightMessage({
   type = 'text',
   index = 0,
   animate = false,
+  isLiked = false,
   onLongPress,
+  onDoubleTap,
+  badgeLabel,
 }: BrightMessageProps) {
+  const lastTapRef = useRef(0);
+
+  const handlePress = () => {
+    if (!onDoubleTap) return;
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      onDoubleTap();
+      lastTapRef.current = 0; // reset
+    } else {
+      lastTapRef.current = now;
+    }
+  };
   if (type === 'system') {
     return (
       <View style={brightChatStyles.systemWrap}>
@@ -243,7 +268,14 @@ export const BrightMessage = memo(function BrightMessage({
       ]}
     >
       {!isOwnMessage && senderName ? (
-        <Text style={brightChatStyles.senderName}>{senderName}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 34, marginBottom: 4 }}>
+          <Text style={brightChatStyles.senderName}>{senderName}</Text>
+          {badgeLabel ? (
+            <View style={brightChatStyles.hostBadge}>
+              <Text style={brightChatStyles.hostBadgeText}>{badgeLabel}</Text>
+            </View>
+          ) : null}
+        </View>
       ) : null}
       <View
         style={!isOwnMessage ? brightChatStyles.messageRowOther : brightChatStyles.messageRowOwn}
@@ -286,12 +318,17 @@ export const BrightMessage = memo(function BrightMessage({
           </View>
         )}
       </View>
+      {isLiked && (
+        <View style={[brightChatStyles.heartBadge, isOwnMessage ? brightChatStyles.heartBadgeOwn : brightChatStyles.heartBadgeOther]}>
+          <Heart size={12} color="#F44A22" fill="#F44A22" />
+        </View>
+      )}
     </Animated.View>
   );
 
-  if (!onLongPress) return bubble;
+  if (!onLongPress && !onDoubleTap) return bubble;
 
-  return <Pressable onLongPress={onLongPress}>{bubble}</Pressable>;
+  return <Pressable onPress={handlePress} onLongPress={onLongPress}>{bubble}</Pressable>;
 });
 
 function MessageAvatar({
@@ -322,17 +359,22 @@ function MessageAvatar({
 type BrightTypingIndicatorProps = {
   name: string;
   avatarUrl?: string;
+  energy?: number; // 0 (gentle) to 1 (intense), default 0.5
 };
 
-export function BrightTypingIndicator({ name, avatarUrl }: BrightTypingIndicatorProps) {
+export function BrightTypingIndicator({ name, avatarUrl, energy = 0.5 }: BrightTypingIndicatorProps) {
+  const bounceHeight = 2 + energy * 4;
+  const bounceDuration = 280 - energy * 120;
+  const restDuration = 320 - energy * 80;
+
   return (
     <Animated.View entering={FadeIn} style={brightChatStyles.typingRow}>
       <MessageAvatar senderAvatar={avatarUrl} senderName={name} />
       <View style={brightChatStyles.typingBubble}>
         <View style={brightChatStyles.typingDots}>
-          <TypingDot delay={0} />
-          <TypingDot delay={120} />
-          <TypingDot delay={240} />
+          <TypingDot delay={0} bounceHeight={bounceHeight} bounceDuration={bounceDuration} restDuration={restDuration} />
+          <TypingDot delay={bounceDuration * 0.5} bounceHeight={bounceHeight} bounceDuration={bounceDuration} restDuration={restDuration} />
+          <TypingDot delay={bounceDuration} bounceHeight={bounceHeight} bounceDuration={bounceDuration} restDuration={restDuration} />
         </View>
         <Text style={brightChatStyles.typingText}>{name} is typing</Text>
       </View>
@@ -340,7 +382,12 @@ export function BrightTypingIndicator({ name, avatarUrl }: BrightTypingIndicator
   );
 }
 
-function TypingDot({ delay }: { delay: number }) {
+function TypingDot({ delay, bounceHeight, bounceDuration, restDuration }: {
+  delay: number;
+  bounceHeight: number;
+  bounceDuration: number;
+  restDuration: number;
+}) {
   const lift = useSharedValue(0);
 
   useEffect(() => {
@@ -348,14 +395,14 @@ function TypingDot({ delay }: { delay: number }) {
       delay,
       withRepeat(
         withSequence(
-          withTiming(-3, { duration: 220 }),
-          withTiming(0, { duration: 220 }),
-          withTiming(0, { duration: 280 }),
+          withTiming(-bounceHeight, { duration: bounceDuration }),
+          withTiming(0, { duration: bounceDuration }),
+          withTiming(0, { duration: restDuration }),
         ),
         -1,
       ),
     );
-  }, [delay, lift]);
+  }, [delay, bounceHeight, bounceDuration, restDuration, lift]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: lift.value }],
@@ -416,7 +463,7 @@ export function BrightSendButton({
       ) : typeof cooldownSeconds === 'number' && cooldownSeconds > 0 ? (
         <Text style={brightChatStyles.cooldown}>{cooldownSeconds}s</Text>
       ) : (
-        <Send size={18} color="#FFFFFF" fill="#FFFFFF" />
+        <Send size={18} color={colors.iris} fill={colors.iris} />
       )}
     </Pressable>
   );
@@ -458,74 +505,170 @@ export function formatChatTime(value: any, locale: string = 'en-US') {
   return date.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
 }
 
+type SwipeAction = {
+  label: string;
+  icon: ReactNode;
+  color: string;
+  onPress: () => void;
+};
+
+export function SwipeableMessage({
+  children,
+  actions,
+}: {
+  children: ReactNode;
+  actions: SwipeAction[];
+}) {
+  const translateX = useSharedValue(0);
+  const ACTION_WIDTH = 70;
+  const totalActionWidth = actions.length * ACTION_WIDTH;
+
+  const panGesture = Gesture.Pan()
+    .activeOffsetX([-10, 10])
+    .onUpdate((event) => {
+      translateX.value = Math.max(-totalActionWidth, Math.min(0, event.translationX));
+    })
+    .onEnd((event) => {
+      if (event.translationX < -totalActionWidth / 2) {
+        translateX.value = withTiming(-totalActionWidth, { duration: 200 });
+      } else {
+        translateX.value = withTiming(0, { duration: 200 });
+      }
+    });
+
+  const tapToClose = Gesture.Tap().onEnd(() => {
+    translateX.value = withTiming(0, { duration: 200 });
+  });
+
+  const composed = Gesture.Simultaneous(panGesture, tapToClose);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const actionsStyle = useAnimatedStyle(() => ({
+    opacity: translateX.value < -10 ? 1 : 0,
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  return (
+    <View style={{ overflow: 'hidden' }}>
+      <View style={[swipeStyles.actionsContainer, { width: totalActionWidth }]}>
+        {actions.map((action, index) => (
+          <Pressable
+            key={action.label}
+            onPress={() => {
+              translateX.value = withTiming(0, { duration: 150 });
+              action.onPress();
+            }}
+            style={[swipeStyles.action, { backgroundColor: action.color, width: ACTION_WIDTH }]}
+          >
+            {action.icon}
+            <Text style={swipeStyles.actionLabel}>{action.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <GestureDetector gesture={composed}>
+        <Animated.View style={animatedStyle}>{children}</Animated.View>
+      </GestureDetector>
+    </View>
+  );
+}
+
+const swipeStyles = StyleSheet.create({
+  actionsContainer: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  action: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    paddingHorizontal: 4,
+  },
+  actionLabel: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+});
+
 export const brightChatStyles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#48C7FF',
-  },
-  sunWash: {
-    position: 'absolute',
-    top: 128,
-    right: -92,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    opacity: 0.18,
-  },
-  cloudWash: {
-    position: 'absolute',
-    left: -72,
-    bottom: -32,
-    width: 280,
-    height: 160,
-    borderTopRightRadius: 120,
-    borderBottomRightRadius: 120,
-    backgroundColor: 'rgba(255,255,255,0.38)',
+    backgroundColor: '#000000',
   },
   header: {
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
+    backgroundColor: 'transparent',
+  },
+  headerCompact: {
+    paddingBottom: 8,
   },
   headerTopRow: {
-    minHeight: 42,
+    minHeight: 46,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: 8,
   },
   headerIconButton: {
-    width: 42,
-    height: 42,
+    width: 38,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  headerMain: {
-    alignItems: 'center',
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-  },
-  heroCluster: {
-    minHeight: 104,
+  headerRightButton: {
+    minWidth: 38,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 8,
   },
-  heroImageWrap: {
-    width: 104,
-    height: 104,
+  headerPill: {
+    flex: 1,
+    maxWidth: 260,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    backgroundColor: '#101012',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  headerAvatarCluster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  headerAvatar: {
+    width: 26,
+    height: 26,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 52,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.92)',
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: '#101012',
+    backgroundColor: '#1E1E1E',
   },
-  heroInitial: {
+  headerAvatarInitial: {
     color: '#FFFFFF',
-    fontFamily: fonts.display,
-    fontSize: 38,
+    fontFamily: fonts.heading,
+    fontSize: 12,
+    fontWeight: '700',
   },
   avatarStack: {
     position: 'absolute',
@@ -542,26 +685,22 @@ export const brightChatStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   headerCopy: {
-    alignItems: 'center',
-    marginTop: spacing.md,
+    flexShrink: 1,
+    alignItems: 'flex-start',
   },
   headerTitle: {
     color: '#FFFFFF',
-    fontFamily: fonts.display,
-    fontSize: 31,
-    lineHeight: 34,
-    textAlign: 'center',
+    fontFamily: fonts.heading,
+    fontSize: 14,
+    lineHeight: 17,
+    fontWeight: '800',
     letterSpacing: 0,
-    textShadowColor: 'rgba(5,20,38,0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
   },
   headerSubtitle: {
-    color: 'rgba(255,255,255,0.86)',
-    fontFamily: fonts.heading,
-    fontSize: typography.fontSize.base,
-    marginTop: spacing.xs,
-    textAlign: 'center',
+    color: 'rgba(255,255,255,0.46)',
+    fontFamily: fonts.body,
+    fontSize: 11,
+    marginTop: 1,
   },
   messageWrap: {
     maxWidth: '86%',
@@ -574,11 +713,10 @@ export const brightChatStyles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   senderName: {
-    color: 'rgba(255,255,255,0.72)',
+    color: '#F44A22',
     fontFamily: fonts.heading,
     fontSize: typography.fontSize.xs,
-    marginLeft: 34,
-    marginBottom: spacing.xs,
+    fontWeight: '600',
   },
   messageRowOther: {
     flexDirection: 'row',
@@ -589,50 +727,51 @@ export const brightChatStyles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   messageAvatarPeep: {
-    width: 30,
-    height: 30,
+    width: 26,
+    height: 26,
     marginRight: -8,
-    marginBottom: -4,
+    marginBottom: 0,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.pill,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#000000',
+    backgroundColor: '#1E1E1E',
     zIndex: 2,
   },
   messageAvatarInitial: {
-    color: colors.iris,
-    fontFamily: fonts.display,
+    color: '#FFFFFF',
+    fontFamily: fonts.heading,
     fontSize: typography.fontSize.sm,
   },
   messageBubble: {
-    minHeight: 52,
+    minHeight: 40,
     flexDirection: 'row',
     alignItems: 'flex-end',
     flexWrap: 'wrap',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-    borderRadius: 24,
-    shadowColor: '#07324A',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    elevation: 8,
+    gap: 8,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    borderRadius: 18,
   },
   otherBubble: {
-    borderBottomLeftRadius: radii.sm,
-    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    borderLeftWidth: 2,
+    borderLeftColor: 'rgba(244,74,34,0.5)',
   },
   ownBubble: {
-    borderBottomRightRadius: radii.sm,
-    backgroundColor: colors.iris,
+    borderBottomRightRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   messageText: {
     flexShrink: 1,
-    color: '#121212',
+    color: '#FFFFFF',
     fontFamily: fonts.medium,
     fontSize: typography.fontSize.md,
     lineHeight: 21,
@@ -641,32 +780,49 @@ export const brightChatStyles = StyleSheet.create({
     color: '#FFFFFF',
   },
   messageTime: {
-    color: 'rgba(18,18,18,0.46)',
+    color: 'rgba(255,255,255,0.3)',
     fontFamily: fonts.heading,
     fontSize: 9,
     marginBottom: 1,
   },
   ownMessageTime: {
-    color: 'rgba(255,255,255,0.72)',
+    color: 'rgba(255,255,255,0.3)',
   },
   messageImage: {
     width: 224,
     height: 168,
     overflow: 'hidden',
-    borderRadius: 24,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: '#111111',
+  },
+  heartBadge: {
+    position: 'absolute',
+    bottom: -6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#1A1A1A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(244,74,34,0.18)',
+  },
+  heartBadgeOwn: {
+    left: 12,
+  },
+  heartBadgeOther: {
+    right: 12,
   },
   announcement: {
     alignSelf: 'stretch',
     marginBottom: spacing.md,
     marginHorizontal: spacing.sm,
-    padding: spacing.base,
-    borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.86)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.94)',
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   announcementLabel: {
     color: colors.iris,
@@ -675,14 +831,14 @@ export const brightChatStyles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   announcementText: {
-    color: '#141414',
+    color: '#FFFFFF',
     fontFamily: fonts.heading,
     fontSize: typography.fontSize.md,
     lineHeight: 21,
     marginTop: spacing.xs,
   },
   announcementTime: {
-    color: 'rgba(20,20,20,0.5)',
+    color: 'rgba(255,255,255,0.38)',
     fontFamily: fonts.heading,
     fontSize: typography.fontSize.xs,
     marginTop: spacing.sm,
@@ -690,13 +846,12 @@ export const brightChatStyles = StyleSheet.create({
   systemWrap: {
     alignSelf: 'center',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.md,
+    paddingVertical: 4,
+    marginBottom: spacing.sm,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(255,255,255,0.15)',
   },
   systemText: {
-    color: 'rgba(255,255,255,0.72)',
+    color: 'rgba(255,255,255,0.36)',
     fontFamily: fonts.heading,
     fontSize: typography.fontSize.xs,
   },
@@ -708,15 +863,14 @@ export const brightChatStyles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   typingBubble: {
-    minHeight: 42,
+    minHeight: 34,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 22,
-    borderBottomLeftRadius: radii.sm,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    gap: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   typingDots: {
     flexDirection: 'row',
@@ -729,31 +883,27 @@ export const brightChatStyles = StyleSheet.create({
     backgroundColor: colors.iris,
   },
   typingText: {
-    color: 'rgba(255,255,255,0.72)',
+    color: 'rgba(255,255,255,0.42)',
     fontFamily: fonts.heading,
     fontSize: typography.fontSize.xs,
   },
   composerDock: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
-    backgroundColor: 'rgba(20,20,22,0.95)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
+    backgroundColor: '#000000',
   },
   composerRow: {
-    minHeight: 54,
+    minHeight: 56,
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: spacing.sm,
-    padding: spacing.xs,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    shadowColor: '#07324A',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    elevation: 8,
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 6,
+    borderRadius: 30,
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   input: {
     flex: 1,
@@ -762,24 +912,24 @@ export const brightChatStyles = StyleSheet.create({
     color: '#FFFFFF',
     fontFamily: fonts.body,
     fontSize: typography.fontSize.md,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 4,
     paddingVertical: spacing.sm,
   },
   sendButton: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.pill,
-    backgroundColor: colors.iris,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   toolButton: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(244,74,34,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   sendButtonDisabled: {
     opacity: 0.48,
@@ -801,9 +951,6 @@ export const brightChatStyles = StyleSheet.create({
     fontFamily: fonts.display,
     fontSize: typography.fontSize['2xl'],
     textAlign: 'center',
-    textShadowColor: 'rgba(5,20,38,0.18)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
   },
   centerBody: {
     color: 'rgba(255,255,255,0.86)',
@@ -818,5 +965,17 @@ export const brightChatStyles = StyleSheet.create({
     fontSize: typography.fontSize.xs,
     textAlign: 'center',
     marginBottom: spacing.sm,
+  },
+  hostBadge: {
+    backgroundColor: 'rgba(244,74,34,0.2)',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  hostBadgeText: {
+    color: '#F44A22',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
@@ -12,6 +12,7 @@ import {
 import { apiFetch } from '@/lib/api';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { colors, radii, spacing, typography } from '@/lib/design/theme';
 
 // Request card
 function RequestCard({
@@ -38,40 +39,48 @@ function RequestCard({
 
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
-      <View className="bg-midnight-100 rounded-bubble p-4 mb-3 border border-white/10">
-        <View className="flex-row items-center mb-3">
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
           {/* Avatar */}
-          <View className="w-12 h-12 rounded-full bg-surface items-center justify-center mr-4">
-            <Text className="text-2xl">👤</Text>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarEmoji}>👤</Text>
           </View>
 
           {/* Info */}
-          <View className="flex-1">
-            <Text className="text-gold font-semibold">{senderName}</Text>
-            <Text className="text-gold-stone text-sm">
+          <View style={styles.infoContainer}>
+            <Text style={styles.senderName}>{senderName}</Text>
+            <Text style={styles.metaText}>
               from {eventTitle} • {timeAgo}
             </Text>
           </View>
         </View>
 
         {/* Action buttons */}
-        <View className="flex-row gap-3">
+        <View style={styles.actionsContainer}>
           <Pressable
             onPress={onDecline}
             disabled={isLoading}
-            className="flex-1 bg-surface border border-white/20 py-3 rounded-pill items-center"
+            style={({ pressed }) => [
+              styles.declineButton,
+              pressed && styles.buttonPressed,
+              isLoading && styles.buttonDisabled
+            ]}
           >
-            <Text className="text-gold-stone">Decline</Text>
+            <Text style={styles.declineText}>Decline</Text>
           </Pressable>
           <Pressable
             onPress={onAccept}
             disabled={isLoading}
-            className="flex-1 bg-iris py-3 rounded-pill items-center"
+            style={({ pressed }) => [
+              styles.acceptButton,
+              pressed && styles.buttonPressed,
+              isLoading && styles.buttonDisabled
+            ]}
           >
             {isLoading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text className="text-white font-semibold">Accept</Text>
+              <Text style={styles.acceptText}>Accept</Text>
             )}
           </Pressable>
         </View>
@@ -100,6 +109,7 @@ export default function DMRequestsScreen() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadRequests();
@@ -116,12 +126,12 @@ export default function DMRequestsScreen() {
         pendingRequests.map(async (request) => {
           const senderId = request.initiatedBy;
           try {
-            const sender = await apiFetch<any>(`/api/v1/profiles/${senderId}`, {
-              requireAuth: false,
-            });
-            const event = await apiFetch<any>(`/api/v1/events/${request.eventId}`, {
-              requireAuth: false,
-            });
+            const [sender, event] = await Promise.all([
+              apiFetch<any>(`/api/v1/profiles/${senderId}`, { requireAuth: false }),
+              request.eventId
+                ? apiFetch<any>(`/api/v1/events/${request.eventId}`, { requireAuth: false })
+                : Promise.resolve({ title: 'Event' }),
+            ]);
             return {
               request,
               senderName: sender?.displayName || 'Guest',
@@ -135,6 +145,7 @@ export default function DMRequestsScreen() {
       setRequests(enrichedRequests);
     } catch (error) {
       console.error('Error loading requests:', error);
+      setError('Failed to load requests');
     } finally {
       setLoading(false);
     }
@@ -176,42 +187,59 @@ export default function DMRequestsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-midnight">
-      <View className="flex-row items-center px-4 py-4 border-b border-white/10">
-        <Pressable onPress={() => router.back()} className="mr-4">
-          <Text className="text-gold text-lg">← Back</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Text style={styles.backButtonText}>← Back</Text>
         </Pressable>
         <View>
-          <Text className="text-gold font-satoshi-bold text-xl">Message Requests</Text>
-          <Text className="text-gold-stone text-sm">{requests.length} pending</Text>
+          <Text style={styles.headerTitle}>Message Requests</Text>
+          <Text style={styles.headerSubtitle}>{requests.length} pending</Text>
         </View>
       </View>
 
       <ScrollView
         bounces={false}
         overScrollMode="never"
-        className="flex-1 px-4"
-        contentContainerStyle={{ paddingVertical: 16 }}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {loading && (
-          <View className="items-center py-20">
-            <ActivityIndicator size="large" color="#F44A22" />
-            <Text className="text-gold-stone mt-4">Loading requests...</Text>
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={colors.iris} />
+            <Text style={styles.loadingText}>Loading requests...</Text>
           </View>
         )}
 
-        {!loading && requests.length === 0 && (
-          <View className="items-center py-20">
-            <Text className="text-6xl mb-4">📭</Text>
-            <Text className="text-gold font-semibold text-lg mb-2">No Requests</Text>
-            <Text className="text-gold-stone text-center">
+        {error && (
+          <View style={styles.centerContainer}>
+            <Text style={styles.emptyEmoji}>⚠️</Text>
+            <Text style={styles.emptyTitle}>Couldn't load requests</Text>
+            <Text style={styles.emptyText}>{error}</Text>
+            <Pressable
+              onPress={() => {
+                setError(null);
+                loadRequests();
+              }}
+              style={{ backgroundColor: colors.iris, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, marginTop: 16 }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {!loading && !error && requests.length === 0 && (
+          <View style={styles.centerContainer}>
+            <Text style={styles.emptyEmoji}>📭</Text>
+            <Text style={styles.emptyTitle}>No Requests</Text>
+            <Text style={styles.emptyText}>
               You don't have any pending message requests
             </Text>
           </View>
         )}
 
-        {!loading &&
+        {!loading && !error &&
           requests.map(({ request, senderName, eventTitle }, index) => (
             <RequestCard
               key={request.id}
@@ -228,3 +256,134 @@ export default function DMRequestsScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.base.DEFAULT,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.base,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  backButton: {
+    marginRight: spacing.base,
+  },
+  backButtonText: {
+    color: colors.gold,
+    fontSize: typography.fontSize.lg,
+  },
+  headerTitle: {
+    color: colors.gold,
+    fontFamily: typography.fontFamily.display,
+    fontSize: typography.fontSize.xl,
+    fontWeight: '700',
+  },
+  headerSubtitle: {
+    color: colors.goldStone,
+    fontSize: typography.fontSize.sm,
+  },
+  scrollView: {
+    flex: 1,
+    paddingHorizontal: spacing.base,
+  },
+  scrollContent: {
+    paddingVertical: spacing.base,
+  },
+  centerContainer: {
+    alignItems: 'center',
+    paddingVertical: 80,
+  },
+  loadingText: {
+    color: colors.goldStone,
+    marginTop: spacing.base,
+  },
+  emptyEmoji: {
+    fontSize: 60,
+    marginBottom: spacing.base,
+  },
+  emptyTitle: {
+    color: colors.gold,
+    fontWeight: '600',
+    fontSize: typography.fontSize.lg,
+    marginBottom: spacing.xs,
+  },
+  emptyText: {
+    color: colors.goldStone,
+    textAlign: 'center',
+  },
+  card: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: radii.xl,
+    padding: spacing.base,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.base,
+  },
+  avatarEmoji: {
+    fontSize: 24,
+  },
+  infoContainer: {
+    flex: 1,
+  },
+  senderName: {
+    color: colors.gold,
+    fontWeight: '600',
+    fontSize: typography.fontSize.base,
+  },
+  metaText: {
+    color: colors.goldStone,
+    fontSize: typography.fontSize.sm,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  buttonPressed: {
+    opacity: 0.8,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  declineButton: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+  },
+  declineText: {
+    color: colors.goldStone,
+  },
+  acceptButton: {
+    flex: 1,
+    backgroundColor: colors.iris,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+  },
+  acceptText: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+});

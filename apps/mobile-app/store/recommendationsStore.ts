@@ -48,8 +48,8 @@ function scoreEvent(
     const pastBoost    = pastOrderCategories.includes(cat) ? 3 : 0;
     const browsedBoost = browsedCategories.includes(cat)   ? 2 : 0;
     const todBoost     = (TIME_OF_DAY_BOOSTS[cat] ?? []).includes(hour) ? 3 : 0;
-    const heatBoost    = (event.heatScore ?? 0) * 0.001;
-    const recencyPenalty = daysUntil * 0.1;
+    const heatBoost    = Math.min((event.heatScore ?? 0) * 0.03, 3);
+    const recencyPenalty = Math.min(daysUntil * 0.1, 5);
 
     return pastBoost + browsedBoost + todBoost + heatBoost - recencyPenalty;
 }

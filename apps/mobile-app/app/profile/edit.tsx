@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -32,11 +33,78 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
-import { apiFetch } from '@/lib/api';
+import { uploadUserPhoto } from '@/lib/firebase/userProfile';
 import { colors, radii, gradients } from '@/lib/design/theme';
 import { trackScreen, track } from '@/lib/analytics';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// Prompt Modal for cross-platform text input
+function PromptModal({
+  visible,
+  title,
+  message,
+  value,
+  onSave,
+  onCancel,
+  onRemove,
+  placeholder,
+}: {
+  visible: boolean;
+  title: string;
+  message: string;
+  value: string;
+  onSave: (val: string) => void;
+  onCancel: () => void;
+  onRemove?: () => void;
+  placeholder?: string;
+}) {
+  const [text, setText] = useState(value);
+
+  useEffect(() => {
+    if (visible) setText(value);
+  }, [visible, value]);
+
+  if (!visible) return null;
+
+  return (
+    <Modal transparent animationType="fade" visible={visible} onRequestClose={onCancel}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <Text style={styles.modalMessage}>{message}</Text>
+          <TextInput
+            style={styles.modalInput}
+            value={text}
+            onChangeText={setText}
+            placeholder={placeholder}
+            placeholderTextColor="rgba(255,255,255,0.3)"
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <View style={styles.modalActions}>
+            {onRemove && (
+              <Pressable onPress={onRemove} style={styles.modalBtn}>
+                <Text style={styles.modalBtnDanger}>Remove</Text>
+              </Pressable>
+            )}
+            <View style={{ flex: 1 }} />
+            <Pressable onPress={onCancel} style={styles.modalBtn}>
+              <Text style={styles.modalBtnCancel}>Cancel</Text>
+            </Pressable>
+            <Pressable onPress={() => onSave(text)} style={styles.modalBtn}>
+              <Text style={styles.modalBtnSave}>Save</Text>
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
 
 // Form field component
 function FormField({
@@ -110,7 +178,7 @@ function CitySelector({
 }
 
 export default function EditProfileScreen() {
-  const { user, setUser } = useAuthStore();
+  const { user } = useAuthStore();
   const profile = useProfileStore((state) => state.profile);
   const profileLoading = useProfileStore((state) => state.loading);
   const loadProfile = useProfileStore((state) => state.loadProfile);
@@ -129,6 +197,13 @@ export default function EditProfileScreen() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [promptConfig, setPromptConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    value: string;
+    type: 'instagram' | 'spotify';
+  }>({ visible: false, title: '', message: '', value: '', type: 'instagram' });
 
   const genderOptions: { key: string; label: string }[] = [
     { key: 'male', label: 'Male' },
@@ -221,7 +296,7 @@ export default function EditProfileScreen() {
   const handlePickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -229,7 +304,8 @@ export default function EditProfileScreen() {
 
       if (!result.canceled && result.assets[0]) {
         setUploading(true);
-        await uploadProfilePhoto(result.assets[0].uri);
+        const asset = result.assets[0];
+        await uploadProfilePhoto(asset.uri, { width: asset.width, height: asset.height });
         setUploading(false);
       }
     } catch (error) {
@@ -255,7 +331,8 @@ export default function EditProfileScreen() {
 
       if (!result.canceled && result.assets[0]) {
         setUploading(true);
-        await uploadProfilePhoto(result.assets[0].uri);
+        const asset = result.assets[0];
+        await uploadProfilePhoto(asset.uri, { width: asset.width, height: asset.height });
         setUploading(false);
       }
     } catch (error) {
@@ -265,27 +342,16 @@ export default function EditProfileScreen() {
     }
   };
 
-  const uploadProfilePhoto = async (uri: string) => {
+  const uploadProfilePhoto = async (
+    uri: string,
+    dimensions?: { width?: number; height?: number },
+  ) => {
     if (!user?.uid) return;
 
     try {
-      const formData = new FormData();
-      const filename = `profile_${user.uid}_${Date.now()}.jpg`;
-
-      // @ts-ignore
-      formData.append('file', {
-        uri,
-        name: filename,
-        type: 'image/jpeg',
-      });
-
-      const response = await apiFetch<{ url: string }>('/api/v1/social/upload', {
-        method: 'POST',
-        body: formData,
-        requireAuth: true,
-      });
-
-      setPhotoURL(response.url);
+      const uploadedUrl = await uploadUserPhoto(user.uid, uri, `profile-${Date.now()}`, dimensions);
+      setPhotoURL(uploadedUrl);
+      markDirty();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error('Error uploading photo:', error);
@@ -337,6 +403,9 @@ export default function EditProfileScreen() {
         bio: bio.trim(),
         city: city.trim(),
         photoURL,
+        photos: photoURL
+          ? [photoURL, ...(profile?.photos ?? []).filter((photo) => photo && photo !== photoURL)]
+          : [],
         instagram: instagram.trim().replace(/^@+/, ''),
         spotify: spotify.trim(),
       };
@@ -348,7 +417,7 @@ export default function EditProfileScreen() {
       const success = await updateProfile(user.uid, updates);
 
       if (!success) {
-        throw new Error('Profile update failed');
+        throw new Error(useProfileStore.getState().error || 'Profile update failed');
       }
 
       track('profile_updated', { hasPhoto: !!photoURL, hasCity: !!city });
@@ -579,24 +648,13 @@ export default function EditProfileScreen() {
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  Alert.prompt(
-                    'Link Instagram',
-                    'Enter your Instagram username (without @):',
-                    [
-                      {
-                        text: 'Remove',
-                        style: 'destructive',
-                        onPress: () => handleInstagramChange(''),
-                      },
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Save',
-                        onPress: (text?: string) => handleInstagramChange(text?.trim() || ''),
-                      },
-                    ],
-                    'plain-text',
-                    instagram,
-                  );
+                  setPromptConfig({
+                    visible: true,
+                    title: 'Link Instagram',
+                    message: 'Enter your Instagram username (without @):',
+                    value: instagram,
+                    type: 'instagram',
+                  });
                 }}
                 style={styles.socialButton}
               >
@@ -618,24 +676,13 @@ export default function EditProfileScreen() {
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  Alert.prompt(
-                    'Link Spotify',
-                    'Enter your Spotify username or profile ID:',
-                    [
-                      {
-                        text: 'Remove',
-                        style: 'destructive',
-                        onPress: () => handleSpotifyChange(''),
-                      },
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Save',
-                        onPress: (text?: string) => handleSpotifyChange(text?.trim() || ''),
-                      },
-                    ],
-                    'plain-text',
-                    spotify,
-                  );
+                  setPromptConfig({
+                    visible: true,
+                    title: 'Link Spotify',
+                    message: 'Enter your Spotify username or profile ID:',
+                    value: spotify,
+                    type: 'spotify',
+                  });
                 }}
                 style={styles.socialButton}
               >
@@ -674,6 +721,23 @@ export default function EditProfileScreen() {
             </Text>
           </Animated.View>
         </ScrollView>
+        <PromptModal
+          visible={promptConfig.visible}
+          title={promptConfig.title}
+          message={promptConfig.message}
+          value={promptConfig.value}
+          onCancel={() => setPromptConfig((prev) => ({ ...prev, visible: false }))}
+          onRemove={() => {
+            if (promptConfig.type === 'instagram') handleInstagramChange('');
+            if (promptConfig.type === 'spotify') handleSpotifyChange('');
+            setPromptConfig((prev) => ({ ...prev, visible: false }));
+          }}
+          onSave={(val) => {
+            if (promptConfig.type === 'instagram') handleInstagramChange(val.trim());
+            if (promptConfig.type === 'spotify') handleSpotifyChange(val.trim());
+            setPromptConfig((prev) => ({ ...prev, visible: false }));
+          }}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -945,9 +1009,72 @@ const styles = StyleSheet.create({
   },
   privacyText: {
     flex: 1,
-    color: colors.goldMetallic,
+    color: 'rgba(255, 255, 255, 0.45)',
     fontSize: 13,
     lineHeight: 18,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  modalMessage: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  modalInput: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    color: '#fff',
+    fontSize: 16,
+    padding: 14,
+    marginBottom: 24,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 16,
+  },
+  modalBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  modalBtnCancel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalBtnSave: {
+    color: colors.iris,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalBtnDanger: {
+    color: '#F44A22',
+    fontSize: 16,
+    fontWeight: '600',
   },
   genderReadonlyContainer: {
     backgroundColor: colors.base[50],

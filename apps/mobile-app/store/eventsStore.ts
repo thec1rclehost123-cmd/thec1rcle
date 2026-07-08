@@ -51,6 +51,11 @@ export interface Event {
   };
   premiumOnly?: boolean;
   isEarlyAccess?: boolean;
+  accentColor?: string;
+  dominantColor?: string;
+  posterAccentColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
 }
 
 export interface TicketTier {
@@ -191,6 +196,27 @@ function calculateMinPrice(source: any, tickets: TicketTier[]): number | undefin
   return undefined;
 }
 
+function revalidateEventInBackground(id: string): void {
+  apiFetch<any>(`/api/v1/events/${encodeURIComponent(id)}`, { requireAuth: false })
+    .then((detail) => {
+      const event = normalizeEvent(detail?.event || detail?.data?.event || detail);
+      if (event) {
+        const enriched = {
+          ...event,
+          tickets: event.tickets,
+          ticketTiers: event.tickets,
+          tiers: event.tickets,
+          minPrice: calculateMinPrice(event, event.tickets || []),
+          interestedData: detail?.interestedData || detail?.data?.interestedData,
+        };
+        useEventsStore.setState((s: EventsState) => ({
+          events: s.events.map((e) => (e.id === id ? enriched : e)),
+        }));
+      }
+    })
+    .catch(() => {});
+}
+
 function toFiniteNumber(value: any): number | null {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
@@ -209,7 +235,19 @@ function normalizeCoordinates(source: any): Event['coordinates'] | undefined {
   return { latitude, longitude };
 }
 
+function getCanonicalDemoPoster(id: string): string | undefined {
+  const demoEvent = (DEMO_EVENTS as any[]).find((event) => event.id === id);
+  return (
+    demoEvent?.poster ||
+    demoEvent?.coverImage ||
+    demoEvent?.image ||
+    demoEvent?.posterUrl ||
+    demoEvent?.images?.[0]
+  );
+}
+
 function normalizeEvent(raw: any): Event {
+  const id = String(raw?.id || raw?.eventId || raw?.slug || '');
   const tickets = extractTicketTiers(raw);
   const startDate =
     toIsoString(raw?.startDate) ||
@@ -217,7 +255,9 @@ function normalizeEvent(raw: any): Event {
     toIsoString(raw?.startsAt) ||
     toIsoString(raw?.date);
   const endDate = toIsoString(raw?.endDate) || toIsoString(raw?.endAt) || toIsoString(raw?.endsAt);
+  const canonicalDemoPoster = getCanonicalDemoPoster(id);
   const coverImage =
+    canonicalDemoPoster ||
     raw?.coverImage ||
     raw?.coverPhoto ||
     raw?.posterUrl ||
@@ -228,7 +268,7 @@ function normalizeEvent(raw: any): Event {
 
   return {
     ...raw,
-    id: String(raw?.id || raw?.eventId || raw?.slug || ''),
+    id,
     title: String(raw?.title || raw?.name || 'Untitled event'),
     description: raw?.description,
     startDate,
@@ -239,15 +279,27 @@ function normalizeEvent(raw: any): Event {
     hostId: raw?.hostId || raw?.hostData?.id,
     hostName: raw?.hostName || raw?.hostData?.name || raw?.host,
     coverImage,
+    coverPhoto: canonicalDemoPoster || raw?.coverPhoto,
+    posterUrl: canonicalDemoPoster || raw?.posterUrl || raw?.poster || coverImage,
     category: raw?.category || raw?.eventType || raw?.curatedCategory,
     type: raw?.type || raw?.eventType || raw?.category,
-    poster: raw?.poster || raw?.posterUrl || coverImage,
-    image: raw?.image || coverImage,
+    poster: canonicalDemoPoster || raw?.poster || raw?.posterUrl || coverImage,
+    image: canonicalDemoPoster || raw?.image || coverImage,
+    images: canonicalDemoPoster ? [canonicalDemoPoster] : raw?.images,
+    gallery: canonicalDemoPoster ? [canonicalDemoPoster] : raw?.gallery,
+    flyer: canonicalDemoPoster || raw?.flyer,
+    banner: canonicalDemoPoster || raw?.banner,
+    thumbnail: canonicalDemoPoster || raw?.thumbnail,
     tickets,
     ticketTiers: tickets,
     tiers: tickets,
     minPrice: calculateMinPrice(raw, tickets),
     coordinates: normalizeCoordinates(raw),
+    accentColor: raw?.accentColor || raw?.dominantColor || undefined,
+    dominantColor: raw?.dominantColor || raw?.accentColor || undefined,
+    posterAccentColor: raw?.posterAccentColor || raw?.dominantColor || undefined,
+    backgroundColor: raw?.backgroundColor || undefined,
+    textColor: raw?.textColor || undefined,
   };
 }
 
@@ -259,6 +311,10 @@ function extractEvents(response: EventListResponse | any): Event[] {
 
 function getDemoEvents(): Event[] {
   return (DEMO_EVENTS as any).map(normalizeEvent).filter((event: Event) => event.id);
+}
+
+function getDemoEventById(id: string): Event | null {
+  return getDemoEvents().find((event) => event.id === id) || null;
 }
 
 function appendPublicDemoEvents(events: Event[]): Event[] {
@@ -374,7 +430,7 @@ export const useEventsStore = create<EventsState>((set, get) => ({
 
       set({ events, loading: false, lastId: nextCursor, hasMore });
     } catch (error: any) {
-      console.error('Error fetching events:', error);
+      console.warn('Error fetching events:', error);
       if (PUBLIC_DEMO_MODE) {
         const events = filterByCity(getDemoEvents(), city).sort(
           (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
@@ -407,7 +463,7 @@ export const useEventsStore = create<EventsState>((set, get) => ({
       const featuredEvents = (featured.length >= 3 ? featured : byHeat).slice(0, 6);
       set({ featuredEvents, featuredLoading: false });
     } catch (error: any) {
-      console.error('Error fetching featured events:', error);
+      console.warn('Error fetching featured events:', error);
       if (PUBLIC_DEMO_MODE) {
         const all = getDemoEvents();
         const featured = all
@@ -437,7 +493,7 @@ export const useEventsStore = create<EventsState>((set, get) => ({
       const events = appendPublicDemoEvents(extractEvents(response));
       set({ events, loading: false });
     } catch (error: any) {
-      console.error('Error fetching public events:', error);
+      console.warn('Error fetching public events:', error);
       if (PUBLIC_DEMO_MODE) {
         set({ events: getDemoEvents(), error: null, loading: false });
         return;
@@ -465,7 +521,7 @@ export const useEventsStore = create<EventsState>((set, get) => ({
 
       set({ searchResults: results, searching: false });
     } catch (error: any) {
-      console.error('Error searching events:', error);
+      console.warn('Error searching events:', error);
       if (PUBLIC_DEMO_MODE) {
         set({ searchResults: applySearchFilters(getDemoEvents(), filters), searching: false });
         return;
@@ -482,6 +538,18 @@ export const useEventsStore = create<EventsState>((set, get) => ({
 
   getEventById: async (id: string): Promise<Event | null> => {
     if (!id || typeof id !== 'string') return null;
+
+    if (PUBLIC_DEMO_MODE) {
+      const demoEvent = getDemoEventById(id);
+      if (demoEvent) return demoEvent;
+    }
+
+    const state = get();
+    const cached = state.events.find((e) => e.id === id) || state.featuredEvents.find((e) => e.id === id);
+    if (cached) {
+      revalidateEventInBackground(id);
+      return cached;
+    }
 
     const existing = pendingEventRequests.get(id);
     if (existing) return existing;
@@ -503,7 +571,7 @@ export const useEventsStore = create<EventsState>((set, get) => ({
       } catch (error: any) {
         console.warn('Error fetching event by id:', error);
         if (PUBLIC_DEMO_MODE) {
-          const demoEvent = getDemoEvents().find((demoEvent) => demoEvent.id === id);
+          const demoEvent = getDemoEventById(id);
           return demoEvent || null;
         }
         return null;
@@ -534,18 +602,21 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         filterByCategory(appendPublicDemoEvents(extractEvents(response)), category),
         city,
       );
+      const nextCursor = response.nextCursor || response.lastId || null;
 
       set((s) => ({
         categoryEvents: { ...s.categoryEvents, [category]: events },
-        categoryHasMore: { ...s.categoryHasMore, [category]: false },
+        categoryLastId: { ...s.categoryLastId, [category]: nextCursor },
+        categoryHasMore: { ...s.categoryHasMore, [category]: !!nextCursor },
         categoryLoading: { ...s.categoryLoading, [category]: false },
       }));
     } catch (error: any) {
-      if (!error.isAbort && __DEV__) console.error(`Error fetching category ${category}:`, error);
+      if (!error.isAbort && __DEV__) console.warn(`Error fetching category ${category}:`, error);
       if (PUBLIC_DEMO_MODE) {
         const events = filterByCity(filterByCategory(getDemoEvents(), category), city);
         set((s) => ({
           categoryEvents: { ...s.categoryEvents, [category]: events },
+          categoryLastId: { ...s.categoryLastId, [category]: null },
           categoryHasMore: { ...s.categoryHasMore, [category]: false },
           categoryLoading: { ...s.categoryLoading, [category]: false },
         }));
@@ -555,7 +626,36 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     }
   },
 
-  loadMoreByCategory: async (_category: string, _city?: string) => {
-    // fetchByCategory loads all matching events at once; nothing more to page through
+  loadMoreByCategory: async (category: string, city?: string) => {
+    const { categoryLoading, categoryLastId, categoryHasMore } = get();
+    const lastId = categoryLastId[category];
+    if (categoryLoading[category] || !categoryHasMore[category] || !lastId) return;
+
+    set((s) => ({ categoryLoading: { ...s.categoryLoading, [category]: true } }));
+
+    try {
+      const response = await apiFetch<EventListResponse>(
+        `/api/v1/events${buildQuery({ category, city, limit: 24, sort: 'soonest', cursor: lastId })}`,
+        { requireAuth: false },
+      );
+      const incoming = filterByCity(
+        filterByCategory(appendPublicDemoEvents(extractEvents(response)), category),
+        city,
+      );
+      const nextCursor = response.nextCursor || response.lastId || null;
+
+      set((s) => ({
+        categoryEvents: {
+          ...s.categoryEvents,
+          [category]: [...(s.categoryEvents[category] || []), ...incoming],
+        },
+        categoryLastId: { ...s.categoryLastId, [category]: nextCursor },
+        categoryHasMore: { ...s.categoryHasMore, [category]: !!nextCursor },
+        categoryLoading: { ...s.categoryLoading, [category]: false },
+      }));
+    } catch (error: any) {
+      if (!error.isAbort && __DEV__) console.warn(`Error loading more category ${category}:`, error);
+      set((s) => ({ categoryLoading: { ...s.categoryLoading, [category]: false } }));
+    }
   },
 }));

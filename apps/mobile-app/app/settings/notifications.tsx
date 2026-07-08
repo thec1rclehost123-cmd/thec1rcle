@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Bell } from 'lucide-react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -11,6 +12,10 @@ import {
   SettingsRow,
 } from '@/components/settings/DittoSettings';
 import { typography } from '@/lib/design/theme';
+import {
+  checkNotificationSystemPermission,
+  showSettingsAlert,
+} from '@/lib/permissions';
 
 const font = {
   regular: typography.fontFamily.body,
@@ -20,6 +25,16 @@ const font = {
 
 export default function NotificationSettingsScreen() {
   const { notifications, setNotificationSetting } = useSettings();
+  const [systemGranted, setSystemGranted] = useState(true);
+
+  useEffect(() => {
+    checkNotificationSystemPermission().then((granted) => {
+      setSystemGranted(granted);
+      if (granted && !notifications.allowAlerts) {
+        setNotificationSetting('allowAlerts', true);
+      }
+    });
+  }, []);
 
   const toggleNotification = (key: keyof typeof notifications) => {
     setNotificationSetting(key, !notifications[key]);
@@ -37,15 +52,21 @@ export default function NotificationSettingsScreen() {
           <Text style={styles.heroBody}>
             Turn on push notification to keep up with event updates and chats.
           </Text>
-          <Text
-            style={styles.heroAction}
-            onPress={() => {
-              Haptics.selectionAsync();
-              setNotificationSetting('allowAlerts', true);
-            }}
-          >
-            {notifications.allowAlerts ? 'Notifications Enabled' : 'Enable Notifications'}
-          </Text>
+          {systemGranted ? (
+            <Text style={styles.heroActionEnabled}>Notifications Enabled</Text>
+          ) : (
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync();
+                showSettingsAlert(
+                  'Push Notifications',
+                  'Push notification permission was denied. Open system settings to enable it.',
+                );
+              }}
+            >
+              <Text style={styles.heroActionDisabled}>Enable in Settings →</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -150,7 +171,13 @@ const styles = StyleSheet.create({
     fontFamily: font.regular,
     marginBottom: 10,
   },
-  heroAction: {
+  heroActionEnabled: {
+    color: '#34C759',
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: font.medium,
+  },
+  heroActionDisabled: {
     color: '#3C91FF',
     fontSize: 14,
     lineHeight: 18,

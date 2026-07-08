@@ -1,5 +1,6 @@
 jest.mock('../../lib/api', () => ({
   apiFetch: jest.fn(),
+  deduplicateRequest: jest.fn((_key: string, fetcher: () => Promise<any>) => fetcher()),
 }));
 
 jest.mock('@react-native-async-storage/async-storage', () => {
@@ -28,6 +29,7 @@ describe('profileStore', () => {
       loading: false,
       error: null,
       _unsubscribe: null,
+      _loadedUserId: null,
       nightlifePromptDismissed: false,
     });
   });
@@ -46,7 +48,7 @@ describe('profileStore', () => {
 
       await useProfileStore.getState().loadProfile('user_1');
 
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/v1/users/me');
+      expect(mockApiFetch).toHaveBeenCalledWith('/api/v1/users/me', { requireAuth: true });
       const profile = useProfileStore.getState().profile;
       expect(profile?.uid).toBe('user_1');
       expect(profile?.displayName).toBe('Test User');
@@ -197,7 +199,7 @@ describe('profileStore', () => {
 
       const unsub = useProfileStore.getState().subscribeToProfile('user_1');
 
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/v1/users/me');
+      expect(mockApiFetch).toHaveBeenCalledWith('/api/v1/users/me', { requireAuth: true });
       expect(typeof unsub).toBe('function');
     });
   });

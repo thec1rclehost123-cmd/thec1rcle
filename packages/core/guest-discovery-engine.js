@@ -500,6 +500,14 @@ export function buildEventCardReadModel(rawEvent = {}, { readModelVersion = 2 } 
     stats: event.stats || {},
     readModelVersion,
     sourceUpdatedAt: toIso(event.updatedAt || event.createdAt) || null,
+    accentColor:
+      event.dominantColor ||
+      (event.accentColor && event.accentColor !== '#ffffff' && event.accentColor !== '#FFFFFF'
+        ? event.accentColor
+        : undefined),
+    dominantColor: event.dominantColor || undefined,
+    backgroundColor: event.backgroundColor || undefined,
+    textColor: event.textColor || undefined,
   };
 }
 

@@ -1,5 +1,6 @@
 import { createHmac, randomInt } from 'node:crypto';
 import { getAdminDb } from './admin.js';
+import { issueWallet } from './cover-charge-engine.js';
 import { releaseReservation } from './inventory-engine.js';
 
 const PAYMENT_PENDING_STATUSES = new Set(['payment_pending', 'pending_payment']);
@@ -34,6 +35,121 @@ function normalizeDate(value) {
 
 function normalizeOrderTickets(order) {
   return Array.isArray(order?.tickets) ? order.tickets : [];
+}
+
+function eventTiers(event) {
+  if (Array.isArray(event?.ticketCatalog?.tiers)) return event.ticketCatalog.tiers;
+  if (Array.isArray(event?.tickets)) return event.tickets;
+  return [];
+}
+
+function tierIdForOrderTicket(ticket) {
+  return String(ticket?.ticketId || ticket?.tierId || ticket?.id || '');
+}
+
+function findEventTierForOrderTicket(event, ticket) {
+  const id = tierIdForOrderTicket(ticket);
+  return eventTiers(event).find((tier) => {
+    const tierId = String(tier?.id || tier?.ticketId || tier?.tierId || '');
+    return tierId && tierId === id;
+  });
+}
+
+function resolveCoverChargeConfig(orderTicket, eventTier) {
+  const addonConfig = Array.isArray(eventTier?.addOns)
+    ? eventTier.addOns.find((addon) => addon?.type === 'cover_charge' || addon?.kind === 'cover_charge')
+    : null;
+  const candidates = [
+    orderTicket?.coverChargeConfig,
+    orderTicket?.coverWalletConfig,
+    orderTicket?.coverCharge,
+    eventTier?.coverChargeConfig,
+    eventTier?.coverWalletConfig,
+    eventTier?.coverCharge,
+    addonConfig?.coverChargeConfig,
+    addonConfig?.walletConfig,
+    addonConfig,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const walletAmountPaise = Number(candidate.walletAmountPaise);
+    if (candidate.enabled === false) continue;
+    if (!Number.isInteger(walletAmountPaise) || walletAmountPaise <= 0) continue;
+    return {
+      ...candidate,
+      walletAmountPaise,
+      presetItems: Array.isArray(candidate.presetItems) ? candidate.presetItems : [],
+    };
+  }
+
+  return null;
+}
+
+async function getEventForOrder(db, transaction, order) {
+  if (!order?.eventId) return null;
+  const ref = db.collection('events').doc(order.eventId);
+  const doc = transaction ? await transaction.get(ref) : await ref.get();
+  if (!doc.exists) return null;
+  return { id: doc.id, ...doc.data() };
+}
+
+async function issueCoverWalletForOrderInTransaction({ db, transaction, order, issuedAt }) {
+  const tickets = normalizeOrderTickets(order);
+  if (!tickets.length || !order?.id || !order?.userId || !order?.eventId) return [];
+
+  const event = await getEventForOrder(db, transaction, order);
+  const coverTicket = tickets
+    .map((ticket) => ({
+      ticket,
+      eventTier: findEventTierForOrderTicket(event, ticket),
+    }))
+    .map(({ ticket, eventTier }) => ({
+      ticket,
+      eventTier,
+      tierConfig: resolveCoverChargeConfig(ticket, eventTier),
+    }))
+    .find((entry) => entry.tierConfig);
+
+  if (!coverTicket) return [];
+
+  const venueId =
+    order.venueId ||
+    order.eventVenueId ||
+    event?.venueId ||
+    event?.venue?.id ||
+    coverTicket.eventTier?.venueId ||
+    null;
+  if (!venueId) {
+    throw codedError('Cover wallet venue is missing', 'CONFLICT');
+  }
+
+  const eventStartIso =
+    normalizeDate(event?.startDate || event?.eventDate || event?.date || event?.startAt) ||
+    normalizeDate(order.eventStartDate || order.eventDate || order.startDate) ||
+    issuedAt;
+  const guestFirstName = String(order.userName || order.customerName || 'Guest')
+    .trim()
+    .split(/\s+/)[0];
+
+  const wallet = await issueWallet(
+    {
+      db,
+      orderId: order.id,
+      eventId: order.eventId,
+      venueId,
+      userId: order.userId,
+      guestFirstName: guestFirstName || 'Guest',
+      tierConfig: coverTicket.tierConfig,
+      eventStartIso,
+      tzOffset: event?.tzOffset || event?.timezoneOffset || '+05:30',
+      termsAcceptedAt: order.termsAcceptedAt || issuedAt,
+      initialState: 'PENDING',
+    },
+    transaction,
+  );
+
+  return [wallet];
 }
 
 function normalizeBookingCode(value) {
@@ -227,6 +343,12 @@ export async function issueTicketsForOrderInTransaction({
   const refs = ticketDocs.map((ticket) => db.collection('tickets').doc(ticket.id));
   const snapshots = await Promise.all(refs.map((ref) => transaction.get(ref)));
   const missingTicketCount = snapshots.filter((doc) => !doc.exists).length;
+  const coverWallets = await issueCoverWalletForOrderInTransaction({
+    db,
+    transaction,
+    order,
+    issuedAt,
+  });
 
   const finalTickets = ticketDocs.map((ticket, index) => {
     const existing = snapshots[index].exists
@@ -331,6 +453,7 @@ export async function issueTicketsForOrderInTransaction({
       source: lookup.collection === 'rsvp_orders' ? 'rsvp' : order.source,
     },
     tickets: finalTickets,
+    coverWallets,
     orderUpdates: nextOrderUpdates,
     missingTicketCount,
     createdTicketCount: missingTicketCount,
@@ -408,6 +531,7 @@ export async function finalizeRazorpayTicketPurchase({
       qrPayload: ticket.qrPayload || ticket.id,
       qrExpiresAt: null,
     })),
+    coverWallets: ticketResult.coverWallets || [],
     ticketsCount: ticketResult.tickets.length,
     razorpayOrderId,
     razorpayPaymentId,
@@ -425,7 +549,10 @@ function eventFromDoc(doc) {
     time: event.time || null,
     venue: event.venueName || event.venue || event.location || null,
     hostName: event.hostName || event.host?.name || null,
-    accentColor: event.accentColor || event.posterAccentColor || null,
+    accentColor: event.accentColor || event.dominantColor || event.posterAccentColor || null,
+    dominantColor: event.dominantColor || event.accentColor || null,
+    backgroundColor: event.backgroundColor || null,
+    textColor: event.textColor || null,
   };
 }
 
@@ -482,7 +609,10 @@ function mapOrderForWallet(order, tickets, event) {
     venueLocation:
       order.venueLocation || order.eventLocation || order.venue || event?.venue || undefined,
     hostName: order.hostName || event?.hostName || undefined,
-    accentColor: order.accentColor || event?.accentColor || undefined,
+    accentColor: order.accentColor || event?.accentColor || event?.dominantColor || undefined,
+    dominantColor: order.dominantColor || event?.dominantColor || event?.accentColor || undefined,
+    backgroundColor: order.backgroundColor || event?.backgroundColor || undefined,
+    textColor: order.textColor || event?.textColor || undefined,
     status: order.status,
     bookingCode,
     bookingCodes,

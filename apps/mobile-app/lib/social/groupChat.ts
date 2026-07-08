@@ -29,6 +29,26 @@ function toTime(value: any): number {
   return Number.isFinite(time) ? time : 0;
 }
 
+function toDate(value: any): Date | null {
+  const time = toTime(value);
+  return time > 0 ? new Date(time) : null;
+}
+
+function unwrapEventDetail(payload: any): any {
+  return payload?.event || payload?.data?.event || payload?.data || payload;
+}
+
+function getEventStartDate(event: any): Date | null {
+  return (
+    toDate(event?.startDate) ||
+    toDate(event?.startAt) ||
+    toDate(event?.startsAt) ||
+    toDate(event?.startDateTime) ||
+    toDate(event?.eventDate) ||
+    toDate(event?.date)
+  );
+}
+
 function normalizeGroupMessage(raw: any, eventId: string): GroupMessage | null {
   const id = raw?.id || raw?.messageId;
   if (!id) return null;
@@ -85,20 +105,21 @@ export async function getEventGroupChat(eventId: string): Promise<{
     return { enabled: false, phase: 'expired', participantCount: 0 };
   }
   try {
-    const event = await apiFetch<any>(`/api/v1/events/${eventId}`, { requireAuth: false });
-    if (!event) return { enabled: false, phase: 'expired', participantCount: 0 };
+    const eventDetail = await apiFetch<any>(`/api/v1/events/${eventId}`, { requireAuth: false });
+    const event = unwrapEventDetail(eventDetail);
+    if (!event) return { enabled: true, phase: 'pre-event', participantCount: 0 };
 
-    const eventDate = new Date(event.startDate);
-    const phase = getEventPhase(eventDate);
+    const eventDate = getEventStartDate(event);
+    const phase = getEventPhase(eventDate || new Date(Number.NaN));
 
     return {
-      enabled: phase !== 'expired',
+      enabled: phase !== 'not-open',
       phase,
-      participantCount: event.stats?.rsvps || 0,
+      participantCount: event.stats?.rsvps || event.stats?.interested || event.attendeeCount || 0,
     };
   } catch (error) {
     if (__DEV__) console.error('Error getting group chat status:', error);
-    return { enabled: false, phase: 'expired', participantCount: 0 };
+    return { enabled: true, phase: 'pre-event', participantCount: 0 };
   }
 }
 

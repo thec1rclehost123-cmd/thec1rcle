@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
-import { hasRequestedPermissions, hasViewedOnboarding } from '@/lib/onboardingFlow';
-import { DiscoLoader } from '@/components/ui/DiscoLoader';
+import { hasRequestedPermissions, hasViewedOnboarding, hasCompletedContactLinking } from '@/lib/onboardingFlow';
 import { hasCompletedProfileSetup } from './profile-setup';
+import { colors } from '@/lib/design/theme';
 
 type FlowState = {
   checked: boolean;
   basicProfileComplete: boolean;
   hasViewedOnboarding: boolean;
+  hasCompletedContactLinking: boolean;
   permissionsRequested: boolean;
 };
 
@@ -18,6 +19,7 @@ const INITIAL_FLOW_STATE: FlowState = {
   checked: false,
   basicProfileComplete: false,
   hasViewedOnboarding: false,
+  hasCompletedContactLinking: false,
   permissionsRequested: false,
 };
 
@@ -28,27 +30,38 @@ export default function Index() {
 
   useEffect(() => {
     let cancelled = false;
+    console.log('[Index] useEffect triggered. initialized:', initialized, 'user.uid:', user?.uid);
 
     if (!initialized || !user?.uid) {
+      console.log('[Index] Not initialized or no user, setting checked to initialized');
       setFlowState({ ...INITIAL_FLOW_STATE, checked: initialized });
       return;
     }
 
+    console.log('[Index] User initialized. Starting async checks...');
     setFlowState((current) => ({ ...current, checked: false }));
 
     Promise.all([
       hasCompletedProfileSetup(user.uid),
       hasViewedOnboarding(user.uid),
       hasRequestedPermissions(user.uid),
-      loadProfile(user.uid).catch(() => undefined),
-    ]).then(([basicProfileComplete, onboardingViewed, permissionsRequested]) => {
+      hasCompletedContactLinking(user.uid),
+      loadProfile(user.uid).catch((err) => {
+        console.log('[Index] loadProfile error:', err);
+        return undefined;
+      }),
+    ]).then(([basicProfileComplete, onboardingViewed, permissionsRequested, contactLinkingComplete]) => {
+      console.log('[Index] Async checks complete! Cancelled:', cancelled);
       if (cancelled) return;
       setFlowState({
         checked: true,
         basicProfileComplete,
         hasViewedOnboarding: onboardingViewed,
+        hasCompletedContactLinking: contactLinkingComplete,
         permissionsRequested,
       });
+    }).catch(err => {
+      console.error('[Index] Promise.all failed:', err);
     });
 
     return () => {
@@ -62,6 +75,7 @@ export default function Index() {
     profile?.profileComplete ||
     flowState.basicProfileComplete,
   );
+  
   const waitingForAuthSync = authSyncInProgress || Boolean(user && !serverSynced);
 
   if (!initialized || waitingForAuthSync || !flowState.checked) {
@@ -71,10 +85,10 @@ export default function Index() {
           flex: 1,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: '#161616',
+          backgroundColor: colors.base.DEFAULT,
         }}
       >
-        <DiscoLoader />
+        <ActivityIndicator size="large" color="#8B5CF6" />
       </View>
     );
   }
@@ -83,8 +97,9 @@ export default function Index() {
     if (isGuest) return <Redirect href="/(tabs)/explore" />;
     return <Redirect href="/(auth)/login" />;
   }
+  if (!flowState.hasCompletedContactLinking) return <Redirect href="/add-contact" />;
   if (!basicSetupComplete) return <Redirect href="/profile-setup" />;
   if (!flowState.hasViewedOnboarding) return <Redirect href="/onboarding" />;
-  if (!flowState.permissionsRequested) return <Redirect href="/notification-permission" />;
+  if (!flowState.permissionsRequested) return <Redirect href="/permission" />;
   return <Redirect href="/(tabs)/explore" />;
 }

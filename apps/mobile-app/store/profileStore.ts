@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // @c1rcle/types provides the canonical Profile shape. The local UserProfile interface below
 // extends it with mobile-specific fields (gender, vibeTags, isPremium, etc.).
 // When harmonizing: import type { Profile as BaseProfile } from '@c1rcle/types';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, deduplicateRequest } from '@/lib/api';
 
 const NIGHTLIFE_PROFILE_PROMPT_DISMISSED_KEY = 'c1rcle_nightlife_profile_prompt_dismissed';
 
@@ -26,6 +26,13 @@ export interface ProfileAnthem {
   previewUrl?: string | null;
   source?: 'itunes' | 'spotify';
   externalUrl?: string | null;
+}
+
+export interface SpotifyProfile {
+  id: string;
+  displayName: string;
+  avatarUrl: string;
+  profileUrl: string;
 }
 
 export interface UserSubscription {
@@ -52,6 +59,8 @@ export interface UserProfile {
   connections?: number;
   instagram?: string;
   spotify?: string;
+  spotifyConnected?: boolean;
+  spotifyProfile?: SpotifyProfile | null;
   datingActive?: boolean;
   datingPhotos?: string[];
   datingVitals?: DatingVitals;
@@ -64,6 +73,7 @@ export interface UserProfile {
 
   // Personalisation
   vibeTags?: string[];
+  prompts?: any[];
 
   // Onboarding funnel
   basicSetupComplete?: boolean;
@@ -84,7 +94,10 @@ interface ProfileState {
   loading: boolean;
   error: string | null;
   _unsubscribe: (() => void) | null;
+  _loadPromise: Promise<void> | null;
   nightlifePromptDismissed: boolean;
+  /** Tracks loaded userId to prevent redundant re-fetches */
+  _loadedUserId: string | null;
 
   // Actions
   loadProfile: (userId: string) => Promise<void>;
@@ -94,6 +107,8 @@ interface ProfileState {
   setProfileFromGateway: (userId: string, profile: Partial<UserProfile>) => void;
   subscribeToProfile: (userId: string) => () => void;
   clearProfile: () => void;
+  /** Called by socialProfileStore after mutations to invalidate cached profile */
+  invalidateProfileCache: () => void;
 }
 
 function omitUndefined<T extends Record<string, any>>(value: T): T {
@@ -185,6 +200,8 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
         : 'standard',
     instagram: data?.instagram ?? '',
     spotify: data?.spotify ?? '',
+    spotifyConnected: rawData.spotify?.connected === true,
+    spotifyProfile: rawData.spotify?.profile ?? null,
     datingActive: rawData.datingActive === true,
     datingVitals: normalizeDatingVitals(rawData.datingVitals),
     anthem: normalizeAnthem(rawData.anthem),
@@ -221,23 +238,44 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   loading: false,
   error: null,
   _unsubscribe: null,
+  _loadPromise: null,
   nightlifePromptDismissed: false,
+  _loadedUserId: null,
 
   loadProfile: async (userId: string) => {
-    set({ loading: true, error: null });
+    // If already loaded for this user, return without re-fetching
+    if (get()._loadedUserId === userId && get().profile) return;
 
-    try {
-      const response = await apiFetch<{
-        profile?: Partial<UserProfile>;
-        data?: { profile?: Partial<UserProfile> };
-      }>('/api/v1/users/me');
-      const data = response.profile || response.data?.profile;
-      const profile = normalizeProfile(userId, data);
-      set({ profile, loading: false });
-    } catch (error: any) {
-      console.warn('Unable to load profile through gateway.', error);
-      set({ profile: get().profile, error: error.message, loading: false });
-    }
+    const existing = get()._loadPromise;
+    if (existing) return existing;
+
+    const promise = (async () => {
+      set({ loading: true, error: null });
+
+      try {
+        const key = `/api/v1/users/me:GET`;
+        const response = await deduplicateRequest<{
+          profile?: Partial<UserProfile>;
+          data?: { profile?: Partial<UserProfile> };
+        }>(key, () =>
+          apiFetch<{ profile?: Partial<UserProfile>; data?: { profile?: Partial<UserProfile> } }>(
+            '/api/v1/users/me',
+            { requireAuth: true },
+          ),
+        );
+        const data = response.profile || response.data?.profile;
+        const profile = normalizeProfile(userId, data);
+        set({ profile, loading: false, _loadedUserId: userId });
+      } catch (error: any) {
+        console.warn('Unable to load profile through gateway.', error);
+        set({ profile: get().profile, error: error.message, loading: false });
+      } finally {
+        set({ _loadPromise: null });
+      }
+    })();
+
+    set({ _loadPromise: promise });
+    return promise;
   },
 
   updateProfile: async (userId: string, updates: Partial<UserProfile>) => {
@@ -268,9 +306,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       return true;
     } catch (error: any) {
       console.warn('Error updating profile:', error);
-      set({ error: error.message });
-      // Re-fetch authoritative profile from server instead of reverting to stale snapshot
-      get().loadProfile(userId);
+      // Revert on failure
+      set({ profile: prevProfile, error: error.message });
       return false;
     }
   },
@@ -311,10 +348,13 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     return unsubscribe;
   },
 
+  invalidateProfileCache: () => {
+    set({ _loadedUserId: null, _loadPromise: null });
+  },
+
   clearProfile: () => {
-    // Unsubscribe from Firestore before clearing state
     get()._unsubscribe?.();
-    set({ profile: null, loading: false, error: null, _unsubscribe: null });
+    set({ profile: null, loading: false, error: null, _unsubscribe: null, _loadPromise: null, _loadedUserId: null });
   },
 }));
 

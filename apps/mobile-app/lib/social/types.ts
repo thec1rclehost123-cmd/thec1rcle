@@ -1,7 +1,7 @@
 // Event Social Layer - Core Types and Utilities
 
 // Event Lifecycle Phases
-export type EventPhase = 'pre-event' | 'during' | 'post-event' | 'expired';
+export type EventPhase = 'not-open' | 'pre-event' | 'during' | 'post-event' | 'expired';
 
 // Entitlement types that grant chat access
 export type EntitlementType =
@@ -67,6 +67,7 @@ export interface GroupMessage {
   isDeleted?: boolean;
   deletedBy?: string;
   replyTo?: string;
+  isLiked?: boolean;
 }
 
 // Private DM conversation
@@ -99,6 +100,7 @@ export interface DirectMessage {
   createdAt: any;
   readAt?: any;
   isDeleted?: boolean;
+  isLiked?: boolean;
 }
 
 // Block record
@@ -159,15 +161,14 @@ export function getEventPhase(eventDate: Date): EventPhase {
   const eventTime = eventDate.getTime();
   const nowTime = now.getTime();
 
-  const dayInMs = 24 * 60 * 60 * 1000;
-  const preEventStart = eventTime - 7 * dayInMs;
-  const postEventEnd = eventTime + 7 * dayInMs;
-
-  if (nowTime < preEventStart) {
-    return 'expired'; // Too early, chat not active yet
+  if (!Number.isFinite(eventTime)) {
+    return 'pre-event';
   }
 
-  if (nowTime >= preEventStart && nowTime < eventTime) {
+  const dayInMs = 24 * 60 * 60 * 1000;
+  const postEventEnd = eventTime + 7 * dayInMs;
+
+  if (nowTime < eventTime) {
     return 'pre-event';
   }
 
@@ -192,6 +193,13 @@ export function getPhaseInfo(phase: EventPhase): {
   icon: string;
 } {
   switch (phase) {
+    case 'not-open':
+      return {
+        label: 'Opening Soon',
+        description: 'Event chat opens 7 days before the event.',
+        color: '#6B7280', // Gray
+        icon: '🔒',
+      };
     case 'pre-event':
       return {
         label: 'Pre-Party',
@@ -216,7 +224,7 @@ export function getPhaseInfo(phase: EventPhase): {
     case 'expired':
       return {
         label: 'Archived',
-        description: 'This chat has ended. Saved contacts remain in your profile.',
+        description: 'This chat has ended. You can still read the history.',
         color: '#6B7280', // Gray
         icon: '📁',
       };
@@ -236,8 +244,8 @@ export function canAccessEventChat(
     return { allowed: false, reason: 'Your ticket is no longer valid' };
   }
 
-  if (phase === 'expired') {
-    return { allowed: false, reason: 'This event chat has ended' };
+  if (phase === 'not-open') {
+    return { allowed: false, reason: 'Event chat opens 7 days before the event' };
   }
 
   return { allowed: true };

@@ -12,7 +12,7 @@ import { Alert, Linking, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
-import { API_BASE } from '@/lib/api';
+import { API_BASE, getAuthToken, apiFetch } from '@/lib/api';
 
 export interface PassData {
   orderId: string;
@@ -63,19 +63,25 @@ function isWalletUnavailable(
  * Download a PDF ticket from the backend and save it to the device.
  * Returns the local file URI on success, null on failure.
  */
+async function getAuthHeaders(): Promise<Record<string, string> | undefined> {
+  const token = await getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
+}
+
 export async function downloadTicketPDF(orderId: string): Promise<string | null> {
   try {
     const fileUri = `${FileSystem.cacheDirectory}ticket-${orderId.substring(0, 8)}.pdf`;
 
-    // Check if already downloaded
     const existing = await FileSystem.getInfoAsync(fileUri);
     if (existing.exists) {
       return fileUri;
     }
 
+    const headers = await getAuthHeaders();
     const downloadResult = await FileSystem.downloadAsync(
       `${API_BASE}/api/v1/tickets/download?orderId=${encodeURIComponent(orderId)}`,
       fileUri,
+      headers ? { headers } : undefined,
     );
 
     if (downloadResult.status !== 200) {
@@ -178,9 +184,11 @@ async function requestAppleWalletPass(passData: PassData): Promise<NativeWalletR
   try {
     const fileUri = `${FileSystem.cacheDirectory}pass-${passData.orderId.substring(0, 8)}.pkpass`;
 
+    const headers = await getAuthHeaders();
     const downloadResult = await FileSystem.downloadAsync(
       `${API_BASE}/api/v1/passes/apple?orderId=${encodeURIComponent(passData.orderId)}`,
       fileUri,
+      headers ? { headers } : undefined,
     );
 
     if (downloadResult.status === 200) {
@@ -215,23 +223,20 @@ async function requestGoogleWalletPass(passData: PassData): Promise<NativeWallet
     return { status: 'error', message: 'Google Wallet is only available on Android.' };
 
   try {
-    const response = await fetch(
-      `${API_BASE}/api/v1/passes/google?orderId=${encodeURIComponent(passData.orderId)}`,
+    const data: any = await apiFetch(
+      `/api/v1/passes/google?orderId=${encodeURIComponent(passData.orderId)}`,
     );
 
-    if (response.ok) {
-      const { saveUrl } = await response.json();
-      return saveUrl
-        ? { status: 'ready', saveUrl }
-        : { status: 'error', message: 'Google Wallet save URL was missing.' };
+    const saveUrl = data?.saveUrl;
+    if (saveUrl) {
+      return { status: 'ready', saveUrl };
     }
 
-    const body = await readResponseJson(response);
-    if (isWalletUnavailable(body)) {
-      return { status: 'unavailable', code: body.code, message: body.message };
+    return { status: 'error', message: 'Google Wallet save URL was missing.' };
+  } catch (error: any) {
+    if (error?.code === 'not_configured' || error?.code === 'not_implemented') {
+      return { status: 'unavailable', code: error.code, message: error.message };
     }
-    return { status: 'error', message: `Google Wallet failed with status ${response.status}.` };
-  } catch (error) {
     if (__DEV__) console.error('[Wallet] Google pass error:', error);
     return { status: 'error', message: 'Google Wallet pass request failed.' };
   }
@@ -336,6 +341,7 @@ export function generatePassPreview(passData: PassData): {
           weekday: 'short',
           month: 'short',
           day: 'numeric',
+          timeZone: 'Asia/Kolkata',
         }),
       },
       { label: 'TIME', value: passData.eventTime },

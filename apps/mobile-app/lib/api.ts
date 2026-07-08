@@ -11,32 +11,57 @@ import Constants from 'expo-constants';
 import { getFirebaseAuth } from './firebase';
 import { DEMO_MODE } from './demo';
 import { apiFetchMock } from './api-mock';
+import { Platform } from 'react-native';
+// In-flight request deduplication cache
+// Deduplicates concurrent requests to the same path+method across stores/components.
+const inFlightRequests = new Map<string, Promise<any>>();
 
-// Fastify API Gateway base URL
-// In development, dynamically derive the gateway URL from the Expo dev server host.
-// This means it works on any machine/IP without needing to hardcode the env var.
-// The API Gateway runs on port 4000, same machine as the Metro bundler.
+export function deduplicateRequest<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  const inFlight = inFlightRequests.get(key);
+  if (inFlight) return inFlight as Promise<T>;
+
+  const promise = fetcher().finally(() => {
+    inFlightRequests.delete(key);
+  });
+  inFlightRequests.set(key, promise);
+  return promise;
+}
+
+function hostFromUri(value?: string | null): string | null {
+  if (!value) return null;
+  const hostMatch = value.match(/^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?\[?([^:/\]\s]+)\]?/i);
+  return hostMatch?.[1] ?? null;
+}
+
+function isLoopbackHost(host: string): boolean {
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+}
+
+// Fastify API Gateway base URL.
+// In development, derive the gateway host from Expo's dev server. Prefer a LAN host
+// when Expo exposes one; Android cannot reach a Mac through 127.0.0.1 unless adb reverse is set.
 function getApiBase(): string {
-  // Explicit override via env var always wins
-  if (process.env.EXPO_PUBLIC_API_BASE_URL) {
-    return process.env.EXPO_PUBLIC_API_BASE_URL;
-  }
+  const explicitBase = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_GATEWAY_URL;
+  if (explicitBase) return explicitBase;
 
-  // In development, derive host from Expo's manifest
   if (__DEV__) {
-    const debuggerHost =
-      Constants.expoConfig?.hostUri ||
-      (Constants.manifest2 as any)?.extra?.expoClient?.hostUri ||
-      (Constants.manifest as any)?.debuggerHost;
+    const hostCandidates = [
+      Constants.expoConfig?.hostUri,
+      (Constants as any).linkingUri,
+      (Constants as any).expoGoConfig?.debuggerHost,
+      (Constants.manifest2 as any)?.extra?.expoClient?.hostUri,
+      (Constants.manifest as any)?.debuggerHost,
+    ]
+      .map(hostFromUri)
+      .filter((host): host is string => Boolean(host));
 
-    if (debuggerHost) {
-      // debuggerHost is "10.x.x.x:8081" — strip the port
-      const host = debuggerHost.split(':')[0];
+    const host =
+      hostCandidates.find((candidate) => !isLoopbackHost(candidate)) ??
+      (Platform.OS === 'android' ? '10.0.2.2' : hostCandidates[0]);
 
-      // 🛡️ ENHANCEMENT: If we have an explicit base URL from ENV, use it.
-      // Otherwise default to the host machine on the standard dev port (4000).
-      const devUrl = process.env.EXPO_PUBLIC_API_BASE_URL || `http://${host}:4000`;
-      if (__DEV__) console.log(`[API] Dev mode — using gateway: ${devUrl}`);
+    if (host) {
+      const devUrl = `http://${host}:4000`;
+      if (__DEV__) console.log(`[API] Dev mode - using gateway: ${devUrl}`);
       return devUrl;
     }
   }
@@ -59,23 +84,6 @@ type AuthSyncResponse = {
   claims?: Record<string, any>;
   requiresTokenRefresh?: boolean;
 };
-
-let syncedAuthUserId: string | null = null;
-let authSyncInFlight: { uid: string; promise: Promise<AuthSyncResponse> } | null = null;
-
-export function markAuthSessionPending(userId?: string | null) {
-  if (!userId || syncedAuthUserId !== userId) {
-    syncedAuthUserId = null;
-  }
-  if (authSyncInFlight && authSyncInFlight.uid !== userId) {
-    authSyncInFlight = null;
-  }
-}
-
-export function clearAuthSessionSync() {
-  syncedAuthUserId = null;
-  authSyncInFlight = null;
-}
 
 /**
  * Get the current user's Firebase ID token for authenticated requests.
@@ -109,21 +117,17 @@ async function apiFetch<T = any>(
     ...(fetchOptions.headers as Record<string, string>),
   };
 
-  if (requireAuth) {
-    // Pass forceRefresh=true if this is a retry
-    const auth = getFirebaseAuth();
-    const user = auth.currentUser;
-    if (!user) {
-      throw new Error('Authentication required. Please sign in.');
-    }
-    if (path !== `${API_PREFIX}/auth/sync` && syncedAuthUserId !== user.uid) {
-      throw new Error('Completing secure sign-in. Please wait.');
-    }
+    if (requireAuth) {
+      const auth = getFirebaseAuth();
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('Authentication required. Please sign in.');
+      }
 
-    let token;
-    try {
-      token = await user.getIdToken(_retry);
-    } catch (error: any) {
+      let token;
+      try {
+        token = await user.getIdToken(_retry);
+      } catch (error: any) {
       const isDisabled =
         error.code === 'auth/user-disabled' ||
         error.code === 'auth/user-not-found' ||
@@ -149,11 +153,13 @@ async function apiFetch<T = any>(
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
+    console.log(`[API] Fetching ${url}...`);
     const response = await fetch(url, {
       ...fetchOptions,
       headers,
       signal: controller.signal,
     });
+    console.log(`[API] Fetch complete for ${url}. Status:`, response.status);
     clearTimeout(timeoutId);
 
     // Handle 429 Too Many Requests — rate limited
@@ -308,6 +314,7 @@ export interface InitiateCheckoutRequest {
   userPhone?: string;
   promoCode?: string | null;
   promoterCode?: string | null;
+  hostUpdatesOptIn?: boolean;
 }
 
 export interface InitiateCheckoutResponse {
@@ -497,28 +504,12 @@ export async function syncAuthSession(): Promise<AuthSyncResponse> {
   if (!uid) {
     throw new Error('Authentication required. Please sign in.');
   }
-  if (authSyncInFlight?.uid === uid) {
-    return authSyncInFlight.promise;
-  }
 
-  markAuthSessionPending(uid);
-  const promise = apiFetch<AuthSyncResponse>(`${API_PREFIX}/auth/sync`, {
+  return apiFetch<AuthSyncResponse>(`${API_PREFIX}/auth/sync`, {
     method: 'POST',
     requireAuth: true,
     body: JSON.stringify({}),
-  })
-    .then((response) => {
-      syncedAuthUserId = uid;
-      return response;
-    })
-    .finally(() => {
-      if (authSyncInFlight?.uid === uid) {
-        authSyncInFlight = null;
-      }
-    });
-
-  authSyncInFlight = { uid, promise };
-  return promise;
+  });
 }
 
 /**

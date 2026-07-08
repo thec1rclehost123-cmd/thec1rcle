@@ -177,6 +177,9 @@ interface SettingsState {
   syncToBackend: (userId?: string) => Promise<void>;
 }
 
+let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+const SYNC_DEBOUNCE_MS = 500;
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   loading: false,
@@ -218,13 +221,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   updateSettings: async (userId: string | undefined, partial: SettingsPatch) => {
-    const previousSettings = get().settings;
-    const newSettings = mergeSettings(previousSettings, partial);
+    // Merge only the new partial into current state
+    const currentSettings = get().settings;
+    const newSettings = mergeSettings(currentSettings, partial);
 
     // Optimistic update
     set({ settings: newSettings, syncing: Boolean(userId) });
-
-    // Save locally
     await cacheSettings(newSettings);
 
     if (!userId) return;
@@ -233,15 +235,42 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const response = await apiFetch<SettingsApiResponse>('/api/v1/users/me/settings', {
         method: 'PATCH',
         body: JSON.stringify(partial),
+        headers: { 'Idempotency-Key': `settings_${userId}_${Date.now()}_${Math.random()}` }
       });
       const savedSettings = extractSettings(response);
-      const confirmedSettings = savedSettings ? normalizeSettings(savedSettings) : newSettings;
+      const confirmedSettings = savedSettings ? normalizeSettings(savedSettings) : get().settings;
       set({ settings: confirmedSettings, lastSyncedAt: new Date() });
       await cacheSettings(confirmedSettings);
     } catch (error) {
       console.error('Failed to sync settings to backend:', error);
-      set({ settings: previousSettings });
-      await cacheSettings(previousSettings);
+      // Revert ONLY the fields in partial back to their state before this call
+      // to avoid wiping out concurrent optimistic updates.
+      set((state) => {
+        const revertedSettings = mergeSettings(state.settings, null); // Clone
+        if (partial.notifications) {
+          for (const k in partial.notifications) {
+            // @ts-ignore
+            revertedSettings.notifications[k] = currentSettings.notifications[k];
+          }
+        }
+        if (partial.privacy) {
+          for (const k in partial.privacy) {
+            // @ts-ignore
+            revertedSettings.privacy[k] = currentSettings.privacy[k];
+          }
+        }
+        if (partial.appearance) {
+          for (const k in partial.appearance) {
+            // @ts-ignore
+            revertedSettings.appearance[k] = currentSettings.appearance[k];
+          }
+        }
+        cacheSettings(revertedSettings).catch(() => {});
+        return { settings: revertedSettings };
+      });
+      
+      const { Alert } = require('react-native');
+      Alert.alert('Sync Error', 'Failed to save settings. Your changes were reverted.');
     } finally {
       set({ syncing: false });
     }
@@ -272,27 +301,33 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   syncToBackend: async (userId?: string) => {
-    const { settings, syncing } = get();
-
-    if (syncing) return; // Debounce
-
-    set({ syncing: true });
-
-    try {
-      if (!userId) return;
-      const response = await apiFetch<SettingsApiResponse>('/api/v1/users/me/settings', {
-        method: 'PATCH',
-        body: JSON.stringify(settings),
-      });
-      const savedSettings = extractSettings(response);
-      const confirmedSettings = savedSettings ? normalizeSettings(savedSettings) : settings;
-      set({ settings: confirmedSettings, lastSyncedAt: new Date() });
-      await cacheSettings(confirmedSettings);
-    } catch (error) {
-      console.error('Failed to sync settings to backend:', error);
-    } finally {
-      set({ syncing: false });
+    if (syncDebounceTimer) {
+      clearTimeout(syncDebounceTimer);
     }
+    
+    return new Promise((resolve) => {
+      syncDebounceTimer = setTimeout(async () => {
+        set({ syncing: true });
+        try {
+          if (!userId) return;
+          const { settings } = get();
+          const response = await apiFetch<SettingsApiResponse>('/api/v1/users/me/settings', {
+            method: 'PATCH',
+            body: JSON.stringify(settings),
+            headers: { 'Idempotency-Key': `settings_sync_${userId}_${Date.now()}` }
+          });
+          const savedSettings = extractSettings(response);
+          const confirmedSettings = savedSettings ? normalizeSettings(savedSettings) : settings;
+          set({ settings: confirmedSettings, lastSyncedAt: new Date() });
+          await cacheSettings(confirmedSettings);
+        } catch (error) {
+          console.error('Failed to sync settings to backend:', error);
+        } finally {
+          set({ syncing: false });
+          resolve();
+        }
+      }, SYNC_DEBOUNCE_MS);
+    });
   },
 }));
 

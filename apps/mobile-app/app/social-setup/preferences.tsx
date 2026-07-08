@@ -122,7 +122,7 @@ function AgeRangePicker({
               style={ageStyles.counterBtn}
               onPress={() => {
                 Haptics.selectionAsync();
-                onChangeMin(Math.min(max - 1, min + 1));
+                onChangeMin(Math.min(max, min + 1));
               }}
             >
               <Text style={ageStyles.counterBtnText}>+</Text>
@@ -139,7 +139,7 @@ function AgeRangePicker({
               style={ageStyles.counterBtn}
               onPress={() => {
                 Haptics.selectionAsync();
-                onChangeMax(Math.max(min + 1, max - 1));
+                onChangeMax(Math.max(min, max - 1));
               }}
             >
               <Text style={ageStyles.counterBtnText}>−</Text>

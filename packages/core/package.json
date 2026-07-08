@@ -28,14 +28,16 @@
         "./rate-limiter": "./rate-limiter.js",
         "./lock-service": "./lock-service.js",
         "./analytics-service": "./analytics-service.js",
-        "./inngest": "./inngest-client.js",
-        "./inngest-client": "./inngest-client.js",
+    "./image-utils": "./image-utils.js",
+    "./inngest": "./inngest-client.js",
+    "./inngest-client": "./inngest-client.js",
         "./workflows/ticketing": "./workflows/ticketing.js",
         "./workflows/search-sync": "./workflows/search-sync.js",
         "./workflows/maintenance": "./workflows/maintenance.js",
         "./workflows/cancellation": "./workflows/cancellation.js",
         "./workflows/heat-sorting": "./workflows/heat-sorting.js",
         "./workflows/host-analytics": "./workflows/host-analytics.js",
+        "./workflows/poster-dominant-color": "./workflows/poster-dominant-color.js",
         "./search": "./search.js",
         "./pricing-engine": "./pricing-engine.js",
         "./inventory-engine": "./inventory-engine.js",
@@ -100,7 +102,8 @@
         "inngest": "^3.52.0",
         "ioredis": "^5.9.2",
         "meilisearch": "^0.55.0",
-        "razorpay": "^2.9.6"
+        "razorpay": "^2.9.6",
+        "sharp": "^0.35.3"
     },
     "devDependencies": {
         "@types/bcryptjs": "^2.4.6",

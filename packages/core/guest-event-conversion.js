@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { trackEventView } from './analytics-service.js';
 import * as surgeCore from './surge.js';
@@ -416,6 +416,8 @@ export async function joinEventWaitlist(db, { eventId, ticketId, tierId, userId,
   if (!eventId || !email) throw new Error('Event ID and Email are required');
 
   const normalizedTierId = tierId || ticketId || 'any';
+
+  // Check for existing entry (backward compatible with legacy random-ID entries)
   const existingSnapshot = await db
     .collection(WAITLIST_COLLECTION)
     .where('eventId', '==', eventId)
@@ -430,9 +432,13 @@ export async function joinEventWaitlist(db, { eventId, ticketId, tierId, userId,
 
   await assertEventSoldOutForWaitlist(db, eventId, normalizedTierId);
 
-  const id = `wl_${randomUUID().substring(0, 8)}`;
+  // Use deterministic document ID based on email+eventId to prevent duplicate entries on race
+  const idHash = createHash('sha256').update(`${email}_${eventId}`).digest('hex').slice(0, 16);
+  const entryId = `wl_${idHash}`;
+
+  const now = new Date().toISOString();
   const entry = {
-    id,
+    id: entryId,
     eventId,
     ticketId: normalizedTierId,
     tierId: normalizedTierId,
@@ -440,11 +446,12 @@ export async function joinEventWaitlist(db, { eventId, ticketId, tierId, userId,
     email,
     phone: phone || null,
     status: 'waiting',
-    createdAt: new Date().toISOString(),
+    createdAt: now,
     notifiedAt: null,
+    expiresAt: null,
   };
 
-  await db.collection(WAITLIST_COLLECTION).doc(id).set(entry);
+  await db.collection(WAITLIST_COLLECTION).doc(entryId).set(entry);
   return entry;
 }
 

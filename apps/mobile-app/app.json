@@ -7,6 +7,12 @@
     "icon": "./assets/icon.png",
     "scheme": "c1rcle",
     "userInterfaceStyle": "dark",
+    "backgroundColor": "#000000",
+    "androidNavigationBar": {
+      "backgroundColor": "#161616",
+      "barStyle": "light-content",
+      "enforceContrast": false
+    },
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -38,17 +44,27 @@
         "NSUserTrackingUsageDescription": "This identifier helps us deliver relevant event recommendations and measure ad performance.",
         "CFBundleURLTypes": [
           {
-            "CFBundleURLSchemes": ["c1rcle", "com.googleusercontent.apps.GOOGLE_IOS_CLIENT_ID"]
+            "CFBundleURLSchemes": [
+              "c1rcle",
+              "com.googleusercontent.apps.281421756463-6kqvsvkl2sbdu2ls4c0q9sp8mroij0dh"
+            ]
           }
         ]
-      }
+      },
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyADFMItwBKtGePter6SzsnrYcYWzRMktmk"
+        }
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#161616"
       },
       "package": "com.c1rcle.app",
+      "backgroundColor": "#000000",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -58,7 +74,8 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -70,10 +87,12 @@
       "expo-font",
       "expo-secure-store",
       "expo-apple-authentication",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
       [
         "@react-native-google-signin/google-signin",
         {
-          "iosUrlScheme": "com.googleusercontent.apps.GOOGLE_IOS_CLIENT_ID"
+          "iosUrlScheme": "com.googleusercontent.apps.281421756463-6kqvsvkl2sbdu2ls4c0q9sp8mroij0dh"
         }
       ],
       [
@@ -105,33 +124,44 @@
                   "NSPrivacyCollectedDataType": "Name",
                   "NSPrivacyCollectedDataTypeLinked": true,
                   "NSPrivacyCollectedDataTypeTracking": false,
-                  "NSPrivacyCollectedDataTypePurposes": ["AppFunctionality"]
+                  "NSPrivacyCollectedDataTypePurposes": [
+                    "AppFunctionality"
+                  ]
                 },
                 {
                   "NSPrivacyCollectedDataType": "EmailAddress",
                   "NSPrivacyCollectedDataTypeLinked": true,
                   "NSPrivacyCollectedDataTypeTracking": false,
-                  "NSPrivacyCollectedDataTypePurposes": ["AppFunctionality"]
+                  "NSPrivacyCollectedDataTypePurposes": [
+                    "AppFunctionality"
+                  ]
                 },
                 {
                   "NSPrivacyCollectedDataType": "CoarseLocation",
                   "NSPrivacyCollectedDataTypeLinked": true,
                   "NSPrivacyCollectedDataTypeTracking": false,
-                  "NSPrivacyCollectedDataTypePurposes": ["AppFunctionality"]
+                  "NSPrivacyCollectedDataTypePurposes": [
+                    "AppFunctionality"
+                  ]
                 }
               ],
               "NSPrivacyAccessedApiTypes": [
                 {
                   "NSPrivacyAccessedApiType": "NSPrivacyAccessedApiTypeUserDefaults",
-                  "NSPrivacyAccessedApiPurposes": ["AppFunctionality"],
-                  "NSPrivacyAccessedApiReasons": ["CA92.1"]
+                  "NSPrivacyAccessedApiPurposes": [
+                    "AppFunctionality"
+                  ],
+                  "NSPrivacyAccessedApiReasons": [
+                    "CA92.1"
+                  ]
                 }
               ]
             }
           }
         }
       ],
-      "expo-image"
+      "expo-image",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

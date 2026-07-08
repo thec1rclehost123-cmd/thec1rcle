@@ -58,11 +58,11 @@ export async function getEventAttendees(
 ): Promise<Array<{ userId: string; name: string; avatar?: string; badge?: string }>> {
   try {
     // Fallback or implementation of attendee list via Gateway
-    const response = await apiFetch<{ attendees: any[] }>(
+    const response = await apiFetch<{ data: { attendees: any[] }; attendees: any[] }>(
       `/api/v1/events/${eventId}/attendees?limit=${limit}`,
-      { requireAuth: false },
+      { requireAuth: true },
     );
-    return response.attendees || [];
+    return response.attendees || response.data?.attendees || [];
   } catch (error) {
     if (__DEV__) console.error('Error fetching attendees:', error);
     return [];

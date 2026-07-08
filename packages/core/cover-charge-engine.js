@@ -161,10 +161,12 @@ export function computeTerminationTime(eventStartIso, terminationHour = 5, tzOff
  */
 export async function issueWallet(
   {
+    db = null,
     orderId,
     eventId,
     venueId,
     userId,
+    guestFirstName = null,
     tierConfig,
     eventStartIso,
     tzOffset = '+05:30',
@@ -180,15 +182,17 @@ export async function issueWallet(
     );
   }
 
-  const db = getAdminDb();
+  const dbClient = db || getAdminDb();
 
   // Idempotency: check for existing wallet for this order
-  const existingQuery = await db
+  const existingQueryRef = dbClient
     .collection(WALLET_COLLECTION)
     .where('orderId', '==', orderId)
     .where('userId', '==', userId)
-    .limit(1)
-    .get();
+    .limit(1);
+  const existingQuery = transaction
+    ? await transaction.get(existingQueryRef)
+    : await existingQueryRef.get();
 
   if (!existingQuery.empty) {
     return { id: existingQuery.docs[0].id, ...existingQuery.docs[0].data() };
@@ -209,6 +213,7 @@ export async function issueWallet(
     eventId,
     venueId,
     userId,
+    guestFirstName: guestFirstName || null,
     state: initialState,
     openingBalancePaise: tierConfig.walletAmountPaise,
     currentBalancePaise: tierConfig.walletAmountPaise,
@@ -240,7 +245,7 @@ export async function issueWallet(
     createdBy: 'checkout_service',
   };
 
-  const ref = db.collection(WALLET_COLLECTION).doc(walletId);
+  const ref = dbClient.collection(WALLET_COLLECTION).doc(walletId);
 
   if (transaction) {
     transaction.set(ref, wallet);

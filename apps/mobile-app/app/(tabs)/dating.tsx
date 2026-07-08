@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,15 +12,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-  runOnJS,
-} from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -35,9 +27,11 @@ import {
   SlidersHorizontal,
   X,
 } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, spacing } from '@/lib/design/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
+import AnthemPlayer from '@/components/ui/AnthemPlayer';
 import {
   useDatingStore,
   type DatingProfile,
@@ -46,117 +40,11 @@ import {
 } from '@/store/datingStore';
 import { useSubscriptionStore } from '@/store/subscriptionStore';
 import { PremiumBadgeDot } from '@/components/ui/PremiumBadge';
-import { GuestAuthPrompt } from '@/components/ui/GuestAuthPrompt';
 
 type ReplyTarget = {
   profile: DatingProfile;
   prompt: Prompt;
 } | null;
-
-function ProfileHeader({
-  profile,
-  liked,
-  onPass,
-  onLike,
-  onReply,
-  onRequireSocial,
-  stageHeight,
-  animatedCardStyle,
-  animatedBackFarStyle,
-  animatedBackNearStyle,
-  likeOverlayStyle,
-  passOverlayStyle,
-}: {
-  profile: DatingProfile;
-  liked: boolean;
-  onPass: () => void;
-  onLike: () => void;
-  onReply: () => void;
-  onRequireSocial: () => boolean;
-  stageHeight: number;
-  animatedCardStyle?: any;
-  animatedBackFarStyle?: any;
-  animatedBackNearStyle?: any;
-  likeOverlayStyle?: any;
-  passOverlayStyle?: any;
-}) {
-  return (
-    <View style={[styles.heroStage, { height: stageHeight }]}>
-      <Animated.View style={[styles.backCardFar, animatedBackFarStyle]} />
-      <Animated.View style={[styles.backCardNear, animatedBackNearStyle]} />
-      <Animated.View style={[styles.hero, animatedCardStyle]}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={() => {
-            if (!onRequireSocial()) return;
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push({
-              pathname: '/dating/[id]',
-              params: { id: profile.id },
-            });
-          }}
-        >
-          <Image
-            source={profile.photos[0].source}
-            style={styles.heroImage}
-            contentFit="cover"
-            contentPosition="center"
-          />
-          <LinearGradient
-            colors={['rgba(95,0,12,0.02)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0.88)']}
-            locations={[0, 0.45, 1]}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={styles.heroActionRail}>
-            <Pressable accessibilityLabel="Pass profile" style={styles.railButton} onPress={onPass}>
-              <X size={25} color="#fff" strokeWidth={2.5} />
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Like profile"
-              style={[styles.railButton, liked && styles.railButtonActive]}
-              onPress={onLike}
-            >
-              <Heart size={26} color="#fff" fill="#fff" />
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Reply to prompt"
-              style={styles.railButton}
-              onPress={onReply}
-            >
-              <MessageCircle size={25} color="#fff" fill="#fff" />
-            </Pressable>
-          </View>
-          <View style={styles.heroCopy}>
-            <View style={styles.locationRow}>
-              <MapPin size={15} color="rgba(255,255,255,0.86)" fill="rgba(255,255,255,0.86)" />
-              <Text style={styles.locationText}>{profile.venue}</Text>
-            </View>
-            <View style={styles.nameRow}>
-              <Text style={styles.nameText}>
-                {profile.name}, {profile.age}
-              </Text>
-              <PremiumBadgeDot visible={profile.isPremium === true} />
-              <BadgeCheck size={23} color="#3CA4FF" fill="#3CA4FF" />
-            </View>
-            <View style={styles.cardTags}>
-              {profile.tags.slice(0, 3).map((tag) => (
-                <View key={tag} style={styles.cardTag}>
-                  <Text style={styles.cardTagText}>{tag}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </Pressable>
-        <Animated.View style={[styles.overlay, styles.likeOverlay, likeOverlayStyle]}>
-          <Text style={styles.overlayText}>LIKE</Text>
-        </Animated.View>
-        <Animated.View style={[styles.overlay, styles.passOverlay, passOverlayStyle]}>
-          <Text style={styles.overlayText}>NOPE</Text>
-        </Animated.View>
-      </Animated.View>
-    </View>
-  );
-}
 
 function ReplySheet({
   target,
@@ -212,12 +100,55 @@ function ReplySheet({
   );
 }
 
+function PromptBlock({ prompt, onReply }: { prompt: Prompt; onReply: () => void }) {
+  return (
+    <Pressable onPress={onReply} style={styles.promptBlock}>
+      <Text style={styles.promptTitle}>{prompt.title}</Text>
+      <Text style={styles.promptAnswer}>{prompt.answer}</Text>
+      <View style={styles.promptReplyHint}>
+        <MessageCircle size={14} color={colors.iris} />
+        <Text style={styles.promptReplyHintText}>Tap to reply</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function PhotoBlock({
+  photo,
+  onReply,
+}: {
+  photo: { id: string; source: number | string | { uri: string }; caption?: string };
+  onReply: () => void;
+}) {
+  return (
+    <Pressable onPress={onReply} style={styles.photoBlock}>
+      <Image source={photo.source} style={styles.photoBlockImage} contentFit="cover" />
+      {photo.caption ? (
+        <LinearGradient
+          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.72)']}
+          style={styles.photoCaptionGradient}
+        >
+          <Text style={styles.photoCaptionText}>{photo.caption}</Text>
+        </LinearGradient>
+      ) : (
+        <LinearGradient
+          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.4)']}
+          style={styles.photoTapHint}
+        >
+          <MessageCircle size={14} color={colors.iris} />
+          <Text style={styles.photoTapHintText}>Tap photo to reply</Text>
+        </LinearGradient>
+      )}
+    </Pressable>
+  );
+}
+
 export default function DatingScreen() {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
-  const { user, isGuest } = useAuthStore();
+  const { user } = useAuthStore();
   const { profile: currentUserProfile } = useProfileStore();
-  const { profiles, loading, prefetching, hasMore, fetchProfiles, likeUser, passUser, sendAskOut } =
+  const { profiles, loading, prefetching, error, hasMore, fetchProfiles, likeUser, passUser, sendAskOut } =
     useDatingStore();
   const isPremium = useSubscriptionStore((state) => state.isPremium);
   const openPaywall = useSubscriptionStore((state) => state.openPaywall);
@@ -230,22 +161,15 @@ export default function DatingScreen() {
   const [filterHeightMin, setFilterHeightMin] = useState<number>(0);
   const [filterHeightMax, setFilterHeightMax] = useState<number>(0);
   const [filterVerifiedOnly, setFilterVerifiedOnly] = useState(false);
+  const [matchProfile, setMatchProfile] = useState<DatingProfile | null>(null);
+
+  const handleDismissMatch = useCallback(() => setMatchProfile(null), []);
 
   const VIBE_TAG_OPTIONS = [
-    'Music',
-    'Dancing',
-    'Casual',
-    'Vibing',
-    'Party',
-    'Chill',
-    'Luxury',
-    'Networking',
+    'Music', 'Dancing', 'Casual', 'Vibing', 'Party', 'Chill', 'Luxury', 'Networking',
   ];
   const INTENT_OPTIONS = [
-    'Casual Dating',
-    'Something Serious',
-    'Friends',
-    'Looking for Connections',
+    'Casual Dating', 'Something Serious', 'Friends', 'Looking for Connections',
   ];
   const HEIGHT_OPTIONS = [0, 150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200];
 
@@ -290,6 +214,7 @@ export default function DatingScreen() {
     if (user?.uid) {
       const result = await likeUser(user.uid, targetProfile);
       if (result.paywalled) return;
+      if (result.isMatch) setMatchProfile(targetProfile);
     }
     setLikesSent((current) =>
       current.includes(targetProfile.id) ? current : [...current, targetProfile.id],
@@ -301,6 +226,19 @@ export default function DatingScreen() {
     if (!requireSocialProfile()) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setReplyTarget({ profile, prompt });
+    setReplyText('');
+  };
+
+  const handleOpenPhotoReply = () => {
+    if (!profile) return;
+    if (!requireSocialProfile()) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const photoPrompt: Prompt = {
+      id: `photo-${Date.now()}`,
+      title: profile.name + "'s photo",
+      answer: '',
+    };
+    setReplyTarget({ profile, prompt: photoPrompt });
     setReplyText('');
   };
 
@@ -336,7 +274,7 @@ export default function DatingScreen() {
     if (filterHeightMin > 0) filters.heightMin = filterHeightMin;
     if (filterHeightMax > 0) filters.heightMax = filterHeightMax;
     if (filterVerifiedOnly) filters.verifiedOnly = true;
-    void fetchProfiles(user!.uid, { append: false });
+    if (user?.uid) void fetchProfiles(user.uid, { append: false, filters });
     setShowFilters(false);
   };
 
@@ -346,7 +284,7 @@ export default function DatingScreen() {
     setFilterHeightMin(0);
     setFilterHeightMax(0);
     setFilterVerifiedOnly(false);
-    void fetchProfiles(user!.uid, { append: false });
+    if (user?.uid) void fetchProfiles(user.uid, { append: false });
     setShowFilters(false);
   };
 
@@ -372,63 +310,6 @@ export default function DatingScreen() {
     [profile],
   );
 
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const backCardScale = useSharedValue(1);
-
-  const animatedCardStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { rotate: `${translateX.value * 0.07}deg` },
-    ],
-  }));
-
-  const animatedBackStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: backCardScale.value }],
-  }));
-
-  const likeOverlayStyle = useAnimatedStyle(() => ({
-    opacity: Math.min(Math.max(translateX.value / 50, 0), 1),
-  }));
-
-  const passOverlayStyle = useAnimatedStyle(() => ({
-    opacity: Math.min(Math.max(-translateX.value / 50, 0), 1),
-  }));
-
-  // if (isGuest) {
-  //   return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
-  // }
-
-  const panGesture = Gesture.Pan()
-    .onUpdate((event) => {
-      translateX.value = event.translationX;
-      translateY.value = event.translationY;
-      const progress = Math.min(Math.abs(event.translationX) / 120, 1);
-      backCardScale.value = 1 + progress * 0.04;
-    })
-    .onEnd((event) => {
-      if (Math.abs(event.translationX) > 120) {
-        const flyX = event.translationX > 0 ? 500 : -500;
-        const liked = event.translationX > 0;
-        translateX.value = withTiming(flyX, { duration: 200 }, () => {
-          translateX.value = 0;
-          translateY.value = 0;
-          backCardScale.value = 1;
-          if (liked) {
-            runOnJS(handleLike)();
-          } else {
-            runOnJS(handlePass)();
-          }
-        });
-        translateY.value = withTiming(0, { duration: 200 });
-      } else {
-        translateX.value = withSpring(0, { damping: 20, stiffness: 300 });
-        translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
-        backCardScale.value = withSpring(1, { damping: 20, stiffness: 300 });
-      }
-    });
-
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -448,12 +329,12 @@ export default function DatingScreen() {
             style={styles.backButton}
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.back();
+              router.push('/(tabs)/explore');
             }}
           >
             <ArrowLeft size={25} color="#fff" strokeWidth={2.6} />
           </Pressable>
-          <Text style={styles.title}>People You May Like</Text>
+          <Text style={styles.title}>Nightlife Profiles</Text>
           <Pressable
             accessibilityLabel="Advanced filters"
             style={styles.backButton}
@@ -464,32 +345,137 @@ export default function DatingScreen() {
         </View>
 
         {profile ? (
-          <GestureDetector gesture={panGesture}>
-            <ProfileHeader
-              profile={profile}
-              liked={alreadyLiked}
-              onPass={handlePass}
-              onLike={handleLike}
-              onReply={() => handleOpenReply(firstPrompt)}
-              onRequireSocial={requireSocialProfile}
-              stageHeight={screenHeight * 0.64}
-              animatedCardStyle={animatedCardStyle}
-              animatedBackFarStyle={animatedBackStyle}
-              animatedBackNearStyle={animatedBackStyle}
-              likeOverlayStyle={likeOverlayStyle}
-              passOverlayStyle={passOverlayStyle}
-            />
-          </GestureDetector>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            overScrollMode="never"
+            contentContainerStyle={styles.profileScrollContent}
+          >
+            {/* Hero section — first photo + name/age + venue + tags */}
+            <Pressable
+              onPress={() => handleOpenReply(firstPrompt)}
+              style={styles.heroSection}
+            >
+              <Image
+                source={profile.photos[0].source}
+                style={styles.heroImage}
+                contentFit="cover"
+                contentPosition="center"
+              />
+              <LinearGradient
+                colors={['rgba(95,0,12,0.02)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0.88)']}
+                locations={[0, 0.45, 1]}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.heroCopy}>
+                <View style={styles.heroLocationRow}>
+                  <MapPin size={15} color="rgba(255,255,255,0.86)" fill="rgba(255,255,255,0.86)" />
+                  <Text style={styles.heroLocationText}>{profile.venue}</Text>
+                </View>
+                <View style={styles.heroNameRow}>
+                  <Text style={styles.heroName}>
+                    {profile.name}, {profile.age}
+                  </Text>
+                  <PremiumBadgeDot visible={profile.isPremium === true} />
+                  <BadgeCheck size={23} color="#3CA4FF" fill="#3CA4FF" />
+                </View>
+                <View style={styles.heroTags}>
+                  {profile.tags.slice(0, 3).map((tag) => (
+                    <View key={tag} style={styles.heroTag}>
+                      <Text style={styles.heroTagText}>{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </Pressable>
+
+            {/* Like / Pass action bar */}
+            <View style={styles.actionBar}>
+              <Pressable
+                accessibilityLabel="Pass profile"
+                style={styles.passButton}
+                onPress={handlePass}
+              >
+                <X size={26} color="#fff" strokeWidth={2.5} />
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Like profile"
+                style={[styles.likeButton, alreadyLiked && styles.likeButtonActive]}
+                onPress={handleLike}
+              >
+                <Heart size={26} color="#fff" fill={alreadyLiked ? '#fff' : 'transparent'} />
+              </Pressable>
+            </View>
+
+            {/* Interleaved prompts + photos */}
+            {(profile as any).anthem ? (
+              <AnthemPlayer anthem={(profile as any).anthem} />
+            ) : null}
+
+            {profile.prompts[0] && (
+              <PromptBlock
+                prompt={profile.prompts[0]}
+                onReply={() => handleOpenReply(profile.prompts[0])}
+              />
+            )}
+            {profile.photos[1] && (
+              <PhotoBlock
+                photo={profile.photos[1]}
+                onReply={handleOpenPhotoReply}
+              />
+            )}
+            {profile.prompts[1] && (
+              <PromptBlock
+                prompt={profile.prompts[1]}
+                onReply={() => handleOpenReply(profile.prompts[1])}
+              />
+            )}
+            {profile.photos[2] && (
+              <PhotoBlock
+                photo={profile.photos[2]}
+                onReply={handleOpenPhotoReply}
+              />
+            )}
+            {profile.prompts[2] && (
+              <PromptBlock
+                prompt={profile.prompts[2]}
+                onReply={() => handleOpenReply(profile.prompts[2])}
+              />
+            )}
+
+            {/* Next profile button */}
+            <Pressable style={styles.nextProfileButton} onPress={handlePass}>
+              <Text style={styles.nextProfileText}>Next Profile</Text>
+            </Pressable>
+          </ScrollView>
         ) : (
-          <View style={[styles.heroStage, styles.emptyState, { height: screenHeight * 0.64 }]}>
-            <ActivityIndicator color="#fff" />
+          <View style={styles.emptyState}>
+            {loading || prefetching ? <ActivityIndicator color="#fff" /> : null}
             <Text style={styles.emptyTitle}>
               {loading || prefetching
-                ? 'Finding people near your events'
-                : hasMore
-                  ? 'Loading the next people'
-                  : 'No profiles yet'}
+                ? 'Finding nightlife profiles near your events'
+                : error
+                  ? "Couldn't load people"
+                  : hasMore
+                    ? 'Loading the next people'
+                    : 'No nightlife profiles yet'}
             </Text>
+            {error ? (
+              <>
+                <Text style={styles.emptyBody} numberOfLines={2}>
+                  {error}
+                </Text>
+                <Pressable
+                  style={styles.emptyRetryButton}
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    if (user?.uid) void fetchProfiles(user.uid, { append: false });
+                  }}
+                >
+                  <Text style={styles.emptyRetryText}>Try Again</Text>
+                </Pressable>
+              </>
+            ) : null}
           </View>
         )}
       </View>
@@ -501,6 +487,28 @@ export default function DatingScreen() {
         onClose={() => setReplyTarget(null)}
         onSend={handleSendReply}
       />
+
+      <Modal visible={matchProfile !== null} transparent animationType="fade" onRequestClose={handleDismissMatch}>
+        <View style={styles.modalRoot}>
+          <Pressable style={styles.modalScrim} onPress={handleDismissMatch} />
+          <View style={styles.matchModal}>
+            <Text style={styles.matchEmoji}>💫</Text>
+            <Text style={styles.matchTitle}>It's a Match!</Text>
+            <Text style={styles.matchSubtitle}>
+              You and {matchProfile?.name} liked each other
+            </Text>
+            <Pressable style={styles.matchChatButton} onPress={() => {
+              handleDismissMatch();
+              router.push('/(tabs)/inbox');
+            }}>
+              <Text style={styles.matchChatText}>Send a Message</Text>
+            </Pressable>
+            <Pressable style={styles.matchKeepButton} onPress={handleDismissMatch}>
+              <Text style={styles.matchKeepText}>Keep Exploring</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showFilters}
@@ -729,102 +737,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginHorizontal: 10,
   },
-  subtitle: {
-    color: 'rgba(255,255,255,0.44)',
-    fontSize: 13,
-    marginTop: 2,
+  profileScrollContent: {
+    paddingBottom: 24,
+    gap: 18,
   },
-  profileButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  profileImage: {
-    width: '100%',
-    height: '100%',
-  },
-  profileFallback: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(244,74,34,0.12)',
-  },
-  profileInitials: {
-    color: colors.iris,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  statusRow: {
-    alignSelf: 'center',
-    minHeight: 42,
-    minWidth: '68%',
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 9,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statusText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  statusMeta: {
-    color: 'rgba(255,255,255,0.42)',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  heroStage: {
-    justifyContent: 'flex-end',
-    marginTop: 14,
-    marginBottom: spacing.sm,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    borderRadius: 34,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    backgroundColor: 'rgba(0,0,0,0.22)',
-  },
-  emptyTitle: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  backCardFar: {
-    position: 'absolute',
-    top: 0,
-    left: 28,
-    right: 28,
-    bottom: 24,
-    borderRadius: 34,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  backCardNear: {
-    position: 'absolute',
-    top: 12,
-    left: 14,
-    right: 14,
-    bottom: 12,
-    borderRadius: 34,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  hero: {
-    position: 'absolute',
-    top: 24,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  heroSection: {
+    height: 500,
     borderRadius: 34,
     overflow: 'hidden',
     backgroundColor: colors.base[100],
@@ -832,52 +750,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.22)',
   },
   heroImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: '100%',
-    height: '100%',
-  },
-  heroActionRail: {
-    position: 'absolute',
-    right: 14,
-    bottom: 116,
-    width: 62,
-    borderRadius: 31,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(0,0,0,0.36)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
-  },
-  railButton: {
-    width: 62,
-    height: 62,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
-  },
-  railButtonSoft: {
-    position: 'absolute',
-    right: 14,
-    bottom: 248,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,184,78,0.34)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  railButtonPurple: {
-    backgroundColor: 'rgba(139,92,246,0.42)',
-  },
-  railButtonActive: {
-    backgroundColor: colors.iris,
+    ...StyleSheet.absoluteFillObject,
   },
   heroCopy: {
     position: 'absolute',
@@ -885,63 +758,36 @@ const styles = StyleSheet.create({
     right: 92,
     bottom: spacing.lg,
   },
-  locationRow: {
+  heroLocationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginBottom: 10,
   },
-  locationText: {
+  heroLocationText: {
     color: 'rgba(255,255,255,0.82)',
     fontSize: 16,
     fontWeight: '800',
   },
-  nameRow: {
+  heroNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
   },
-  nameText: {
+  heroName: {
     color: '#fff',
     fontSize: 29,
     fontWeight: '800',
     letterSpacing: 0,
     flexShrink: 1,
   },
-  headlineText: {
-    color: 'rgba(255,255,255,0.82)',
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 7,
-    fontWeight: '600',
-  },
-  eventPill: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    marginTop: spacing.md,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: radii.pill,
-    backgroundColor: 'rgba(244,74,34,0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(244,74,34,0.32)',
-    maxWidth: '100%',
-  },
-  eventPillText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '800',
-    flexShrink: 1,
-  },
-  cardTags: {
+  heroTags: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
     marginTop: spacing.md,
   },
-  cardTag: {
+  heroTag: {
     borderRadius: radii.pill,
     paddingHorizontal: 14,
     paddingVertical: 9,
@@ -949,166 +795,39 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
   },
-  cardTagText: {
+  heroTagText: {
     color: '#fff',
     fontSize: 13,
     fontWeight: '800',
   },
-  quickFacts: {
+  actionBar: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  quickFact: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-    fontWeight: '700',
-    paddingHorizontal: 12,
+    justifyContent: 'center',
+    gap: 24,
     paddingVertical: 8,
-    borderRadius: radii.pill,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    overflow: 'hidden',
   },
-  tagsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 9,
-  },
-  tagPill: {
-    borderRadius: radii.pill,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
+  passButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  tagText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  promptBlock: {
-    borderRadius: 24,
-    padding: spacing.lg,
-    backgroundColor: '#151515',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  promptTitle: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 13,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  promptAnswer: {
-    color: '#fff',
-    fontSize: 25,
-    lineHeight: 31,
-    fontWeight: '800',
-    letterSpacing: 0,
-    marginTop: spacing.sm,
-  },
-  replyButton: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    marginTop: spacing.lg,
-    borderRadius: radii.pill,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-    backgroundColor: 'rgba(244,74,34,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(244,74,34,0.22)',
-  },
-  replyButtonText: {
-    color: colors.iris,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  photoSection: {
-    minHeight: 500,
-    borderRadius: 28,
-    overflow: 'hidden',
-    backgroundColor: colors.base[100],
-  },
-  sectionImage: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  captionGradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    minHeight: 116,
-    justifyContent: 'flex-end',
-    padding: spacing.lg,
-  },
-  captionText: {
-    color: '#fff',
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: '800',
-  },
-  endBlock: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xxl,
-  },
-  endTitle: {
-    color: '#fff',
-    fontSize: 21,
-    fontWeight: '800',
-  },
-  endBody: {
-    color: 'rgba(255,255,255,0.44)',
-    fontSize: 13,
-    lineHeight: 20,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-  },
-  bottomFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  actionsBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 18,
-  },
-  actionButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.09)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.16)',
   },
   likeButton: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
+  likeButtonActive: {
     backgroundColor: colors.iris,
-    borderColor: 'rgba(255,255,255,0.24)',
-    shadowColor: colors.iris,
-    shadowOpacity: 0.32,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 8 },
-  },
-  superlikeButton: {
-    backgroundColor: '#8B5CF6',
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  actionButtonActive: {
-    transform: [{ scale: 0.96 }],
   },
   modalRoot: {
     flex: 1,
@@ -1204,32 +923,93 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
-  overlay: {
-    position: 'absolute',
-    top: 40,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-    zIndex: 10,
-    borderWidth: 4,
+  promptBlock: {
+    borderRadius: 24,
+    padding: spacing.lg,
+    backgroundColor: '#151515',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
-  likeOverlay: {
-    left: 20,
-    borderColor: '#4CAF50',
-    backgroundColor: 'rgba(76,175,80,0.3)',
-    transform: [{ rotate: '-15deg' }],
+  promptTitle: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
-  passOverlay: {
-    right: 20,
-    borderColor: '#FF5252',
-    backgroundColor: 'rgba(255,82,82,0.3)',
-    transform: [{ rotate: '15deg' }],
-  },
-  overlayText: {
-    fontSize: 32,
-    fontWeight: '900',
+  promptAnswer: {
     color: '#fff',
-    letterSpacing: 4,
+    fontSize: 25,
+    lineHeight: 31,
+    fontWeight: '800',
+    letterSpacing: 0,
+    marginTop: spacing.sm,
+  },
+  promptReplyHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.lg,
+  },
+  promptReplyHintText: {
+    color: colors.iris,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  photoBlock: {
+    height: 400,
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: colors.base[100],
+  },
+  photoBlockImage: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  photoCaptionGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    minHeight: 116,
+    justifyContent: 'flex-end',
+    padding: spacing.lg,
+  },
+  photoCaptionText: {
+    color: '#fff',
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '800',
+  },
+  photoTapHint: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    minHeight: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+  },
+  photoTapHintText: {
+    color: colors.iris,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  nextProfileButton: {
+    minHeight: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    marginTop: 8,
+  },
+  nextProfileText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
   },
   filterSheet: {
     maxHeight: '78%',
@@ -1363,5 +1143,96 @@ const styles = StyleSheet.create({
   },
   filterToggleThumbActive: {
     alignSelf: 'flex-end',
+  },
+  matchModal: {
+    marginHorizontal: 40,
+    marginBottom: '30%',
+    borderRadius: 34,
+    padding: 40,
+    alignItems: 'center',
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  matchEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  matchTitle: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  matchSubtitle: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 21,
+  },
+  matchChatButton: {
+    marginTop: 28,
+    width: '100%',
+    minHeight: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.iris,
+  },
+  matchChatText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  matchKeepButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+  },
+  matchKeepText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    borderRadius: 34,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(0,0,0,0.22)',
+    flex: 1,
+    marginTop: 14,
+    marginBottom: spacing.sm,
+  },
+  emptyTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  emptyBody: {
+    color: 'rgba(255,255,255,0.62)',
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+    maxWidth: 260,
+    textAlign: 'center',
+  },
+  emptyRetryButton: {
+    minWidth: 116,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  emptyRetryText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

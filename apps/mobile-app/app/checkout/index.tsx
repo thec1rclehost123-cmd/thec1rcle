@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
+  Linking,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import { trackPurchaseFailed, trackTicketPurchase } from '@/lib/analytics';
 import { calculatePricing, type PricingResult } from '@/lib/api';
 import { colors, gradients, typography } from '@/lib/design/theme';
@@ -26,6 +31,28 @@ import { useCartStore, type CartItem } from '@/store/cartStore';
 import { useProfileStore } from '@/store/profileStore';
 import { useSubscriptionStore, type PremiumFeature } from '@/store/subscriptionStore';
 
+let _pricingCache: {
+  key: string;
+  data: PricingResult['pricing'];
+  timestamp: number;
+} | null = null;
+const PRICING_CACHE_TTL = 30_000;
+const PRIVACY_POLICY_URL = 'https://thec1rcle.com/privacy';
+
+function getPricingCacheKey(eventId: string, items: { tierId: string; quantity: number }[], promoCode: string | null, promoterCode: string | null) {
+  return `${eventId}:${JSON.stringify(items)}:${promoCode ?? ''}:${promoterCode ?? ''}`;
+}
+
+function getCachedPricing(key: string) {
+  if (!_pricingCache || _pricingCache.key !== key) return null;
+  if (Date.now() - _pricingCache.timestamp > PRICING_CACHE_TTL) return null;
+  return _pricingCache.data;
+}
+
+function setCachedPricing(key: string, data: PricingResult['pricing']) {
+  _pricingCache = { key, data, timestamp: Date.now() };
+}
+
 const checkoutFont = {
   regular: typography.fontFamily.body,
   medium: typography.fontFamily.medium,
@@ -34,7 +61,7 @@ const checkoutFont = {
 };
 
 function formatMoney(value: number) {
-  if (value <= 0) return '₹0';
+  if (value <= 0) return 'Free';
   return `₹${Math.round(value).toLocaleString('en-IN')}`;
 }
 
@@ -65,71 +92,136 @@ function premiumFeatureFromError(error: any): PremiumFeature {
   return 'premiumOnlyEvent';
 }
 
-function CheckoutItemRow({
-  item,
-  onQuantityChange,
-  onRemove,
+function CheckoutConfirmationHandoff({
+  status,
+  eventTitle,
 }: {
-  item: CartItem;
-  onQuantityChange: (quantity: number) => void;
-  onRemove: () => void;
+  status: CheckoutStatus | null;
+  eventTitle: string;
 }) {
-  const tierSubtotal = item.tier.price * item.quantity;
+  const confirmed = status === 'confirmed';
 
   return (
-    <View style={styles.itemRow}>
-      <View style={styles.itemCopy}>
-        <Text style={styles.itemTier} numberOfLines={1}>
-          {item.tier.name}
+    <SafeAreaView style={styles.handoffScreen}>
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(244,74,34,0.24)', 'rgba(0,0,0,0.74)', colors.base.DEFAULT]}
+        locations={[0, 0.48, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={styles.handoffContent}>
+        <View style={styles.handoffIconWrap}>
+          {confirmed ? (
+            <Ionicons name="checkmark" size={38} color="#fff" />
+          ) : (
+            <ActivityIndicator color="#fff" size="large" />
+          )}
+        </View>
+        <Text style={styles.handoffTitle}>
+          {confirmed ? "You're in" : 'Confirming payment'}
         </Text>
-        <Text style={styles.itemPrice}>
-          {item.quantity} x {formatMoney(item.tier.price)}
+        <Text style={styles.handoffCopy}>
+          {confirmed
+            ? 'Taking you to your ticket confirmation.'
+            : 'Razorpay approved the payment. We are issuing your ticket now.'}
+        </Text>
+        <Text style={styles.handoffEvent} numberOfLines={2}>
+          {eventTitle}
         </Text>
       </View>
-      <View style={styles.quantityControl}>
-        <Pressable
-          onPress={() => {
-            Haptics.selectionAsync();
-            onQuantityChange(item.quantity - 1);
-          }}
-          style={styles.quantityButton}
-          hitSlop={8}
-        >
-          <Ionicons name="remove" size={14} color={colors.gold} />
-        </Pressable>
-        <Text style={styles.quantityValue}>{item.quantity}</Text>
-        <Pressable
-          onPress={() => {
-            Haptics.selectionAsync();
-            onQuantityChange(Math.min(item.tier.remaining || 10, item.quantity + 1));
-          }}
-          style={styles.quantityButton}
-          hitSlop={8}
-        >
-          <Ionicons name="add" size={14} color={colors.gold} />
-        </Pressable>
-      </View>
-      <Text style={styles.itemSubtotal}>{formatMoney(tierSubtotal)}</Text>
-      <Pressable
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          onRemove();
-        }}
-        style={styles.removeButton}
-        hitSlop={8}
-      >
-        <Ionicons name="close" size={15} color={colors.goldStone} />
-      </Pressable>
-    </View>
+    </SafeAreaView>
   );
 }
 
-function SummaryLine({ label, value, tone }: { label: string; value: string; tone?: 'discount' }) {
+function PromoModal({
+  visible,
+  onClose,
+  onApply,
+  promoError,
+  setPromoError,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onApply: (code: string) => void;
+  promoError: string | null;
+  setPromoError: (err: string | null) => void;
+}) {
+  const [input, setInput] = useState('');
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (visible) {
+      setInput('');
+      setPromoError(null);
+      setTimeout(() => inputRef.current?.focus(), 300);
+    }
+  }, [visible, setPromoError]);
+
   return (
-    <View style={styles.summaryLine}>
-      <Text style={[styles.summaryLabel, tone === 'discount' && styles.discountText]}>{label}</Text>
-      <Text style={[styles.summaryValue, tone === 'discount' && styles.discountText]}>{value}</Text>
-    </View>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable style={styles.modalSheet} onPress={() => {}}>
+          <BlurView
+            blurMethod="dimezisBlurView"
+            intensity={70}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Promo Code</Text>
+            <Text style={styles.modalSubtitle}>Enter a code to get a discount</Text>
+            <View style={styles.modalInputRow}>
+              <TextInput
+                ref={inputRef}
+                placeholder="SAVE20"
+                placeholderTextColor="rgba(254,248,232,0.3)"
+                value={input}
+                onChangeText={(text) => {
+                  setInput(text);
+                  setPromoError(null);
+                }}
+                autoCapitalize="characters"
+                style={styles.modalInput}
+              />
+              <Pressable
+                onPress={() => onApply(input.trim().toUpperCase())}
+                style={({ pressed }) => [
+                  styles.modalApplyButton,
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <LinearGradient
+                  colors={gradients.primary as [string, string]}
+                  style={styles.modalApplyGradient}
+                >
+                  <Text style={styles.modalApplyText}>Apply</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+            {promoError ? (
+              <View style={styles.modalErrorRow}>
+                <Ionicons name="alert-circle" size={14} color={colors.error} />
+                <Text style={styles.modalErrorText}>{promoError}</Text>
+              </View>
+            ) : null}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function GlassCard({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+  return (
+    <Animated.View entering={FadeInUp.delay(delay).springify().damping(20)} style={styles.glassCard}>
+      <BlurView
+        blurMethod="dimezisBlurView"
+        intensity={28}
+        tint="dark"
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={styles.glassCardInner}>{children}</View>
+    </Animated.View>
   );
 }
 
@@ -143,19 +235,21 @@ export default function CheckoutScreen() {
 
   const [promoInput, setPromoInput] = useState('');
   const [promoError, setPromoError] = useState<string | null>(null);
+  const [showPromoModal, setShowPromoModal] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [checkoutStatus, setCheckoutStatus] = useState<CheckoutStatus | null>(null);
   const [billingEmail, setBillingEmail] = useState(profile?.email || user?.email || '');
   const [pricing, setPricing] = useState<PricingResult['pricing'] | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
-  const [summaryOpen, setSummaryOpen] = useState(true);
   const [hostUpdatesOptIn, setHostUpdatesOptIn] = useState(true);
+  const cartExpired = useCartStore((s) => s.isReservationExpired());
 
   const cartEventTitle = items[0]?.eventTitle || 'Your booking';
   const cartEventDate = items[0]?.eventDate || '';
   const cartEventVenue = items[0]?.eventVenue || 'Venue TBA';
   const cartEventImage = items[0]?.eventCoverImage;
+  const cartEventAccentColor = items[0]?.eventAccentColor;
   const eventId = items[0]?.eventId || '';
   const promoterCode = items.find((item) => item.promoterCode)?.promoterCode;
   const ticketCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -169,14 +263,21 @@ export default function CheckoutScreen() {
     return items.reduce((sum, item) => sum + item.tier.price * item.quantity, 0);
   }, [items]);
 
-  useEffect(() => {
+  const fetchPricing = useCallback(() => {
     if (!eventId || checkoutItems.length === 0) {
       setPricing(null);
       setQuoteError(null);
       return;
     }
 
-    let cancelled = false;
+    const cacheKey = getPricingCacheKey(eventId, checkoutItems, promo?.code ?? null, promoterCode ?? null);
+    const cached = getCachedPricing(cacheKey);
+    if (cached) {
+      setPricing(cached);
+      setQuoteLoading(false);
+      return;
+    }
+
     setQuoteLoading(true);
     setQuoteError(null);
 
@@ -187,11 +288,10 @@ export default function CheckoutScreen() {
       promoterCode: promoterCode ?? null,
     })
       .then((result) => {
-        if (cancelled) return;
+        setCachedPricing(cacheKey, result.pricing);
         setPricing(result.pricing);
       })
       .catch((error: any) => {
-        if (cancelled) return;
         if (error.code === 'PREMIUM_REQUIRED') {
           openPaywall(premiumFeatureFromError(error), error.message);
         }
@@ -199,13 +299,13 @@ export default function CheckoutScreen() {
         setQuoteError(error.message || 'We could not refresh live pricing.');
       })
       .finally(() => {
-        if (!cancelled) setQuoteLoading(false);
+        setQuoteLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [checkoutItems, eventId, openPaywall, promo?.code, promoterCode]);
+
+  useEffect(() => {
+    fetchPricing();
+  }, [fetchPricing]);
 
   const subtotal = Number(pricing?.subtotal ?? localSubtotal);
   const discount = Number(
@@ -225,28 +325,32 @@ export default function CheckoutScreen() {
   const paymentMethodDetail = isFreeOrder
     ? 'No payment required'
     : 'UPI, cards, wallets, netbanking';
-  const payDisabled = processing || quoteLoading || !!quoteError;
+  const payDisabled = processing || quoteLoading || !!quoteError || cartExpired;
   const payButtonLabel = processing
     ? getCheckoutStatusLabel(checkoutStatus)
     : isFreeOrder
       ? 'Confirm order'
       : `Pay ${formatMoney(total)}`;
+  const showingPaymentHandoff =
+    processing && (checkoutStatus === 'verifying' || checkoutStatus === 'confirmed');
 
-  const handleApplyPromo = async () => {
-    const normalized = promoInput.trim().toUpperCase();
-    if (!normalized || !eventId) return;
-
+  const handleApplyPromo = async (code: string) => {
+    if (!code || !eventId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setPromoError(null);
-    const result = await applyPromoCode(normalized, eventId);
-
+    const result = await applyPromoCode(code, eventId);
     if (!result.success) {
       setPromoError(result.error || 'This promo code is not available for this order.');
       return;
     }
-
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowPromoModal(false);
     setPromoInput('');
+  };
+
+  const handleRemovePromo = () => {
+    Haptics.selectionAsync();
+    clearPromoCode();
   };
 
   const handlePaymentMethodChange = () => {
@@ -291,6 +395,7 @@ export default function CheckoutScreen() {
       userPhone: profile?.phone || undefined,
       promoCode: promo?.code ?? undefined,
       promoterCode: promoterCode ?? undefined,
+      hostUpdatesOptIn,
       onStatusChange: setCheckoutStatus,
     });
 
@@ -308,13 +413,15 @@ export default function CheckoutScreen() {
 
     trackTicketPurchase(eventId, 'Selected tickets', total, ticketCount);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setProcessing(false);
     router.replace({
       pathname: '/checkout/success',
       params: {
         orderId: result.orderId,
+        eventId,
         eventTitle: cartEventTitle,
         eventDate: cartEventDate,
+        eventCoverImage: cartEventImage || '',
+        accentColor: cartEventAccentColor || '',
         venueLocation: cartEventVenue,
         totalAmount: String(total),
         ticketCount: String(ticketCount),
@@ -323,301 +430,336 @@ export default function CheckoutScreen() {
     });
   };
 
+  if (showingPaymentHandoff) {
+    return <CheckoutConfirmationHandoff status={checkoutStatus} eventTitle={cartEventTitle} />;
+  }
+
   if (items.length === 0) {
+    if (processing || checkoutStatus === 'confirmed') {
+      return <CheckoutConfirmationHandoff status={checkoutStatus} eventTitle={cartEventTitle} />;
+    }
+
     return (
-      <SafeAreaView style={styles.emptyScreen}>
-        <Ionicons name="ticket-outline" size={48} color={colors.iris} />
-        <Text style={styles.emptyTitle}>No tickets selected</Text>
-        <Text style={styles.emptyCopy}>Pick an event and choose ticket tiers before checkout.</Text>
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.replace('/(tabs)/explore');
-          }}
-          style={styles.primaryButton}
-        >
-          <Text style={styles.primaryButtonText}>Explore events</Text>
-        </Pressable>
+      <SafeAreaView style={styles.screen}>
+        <View style={styles.emptyContent}>
+          <LinearGradient
+            colors={['rgba(244,74,34,0.15)', 'rgba(0,0,0,0)']}
+            style={styles.emptyGlow}
+          />
+          <View style={styles.emptyIcon}>
+            <Ionicons name="ticket-outline" size={28} color={colors.iris} />
+          </View>
+          <Text style={styles.emptyTitle}>No tickets selected</Text>
+          <Text style={styles.emptyCopy}>Pick an event and choose ticket tiers before checkout.</Text>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.replace('/(tabs)/explore');
+            }}
+            style={styles.primaryButton}
+          >
+            <Text style={styles.primaryButtonText}>Explore events</Text>
+          </Pressable>
+        </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <View style={styles.screen}>
       <LinearGradient
         pointerEvents="none"
-        colors={['rgba(244,74,34,0.20)', 'rgba(0,0,0,0.72)', colors.base.DEFAULT]}
-        locations={[0, 0.45, 1]}
-        style={styles.topGradient}
+        colors={[
+          hexToRgba(cartEventAccentColor || '#F44A22', 0.25),
+          'rgba(0,0,0,0.6)',
+          colors.base.DEFAULT,
+        ]}
+        locations={[0, 0.35, 1]}
+        style={styles.ambientGlow}
       />
-      <View style={styles.headerShell}>
-        <BlurView
-          experimentalBlurMethod="dimezisBlurView"
-          intensity={42}
-          tint="dark"
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.header}>
+
+      <SafeAreaView edges={['top']} style={styles.safeTop}>
+        <View style={styles.headerRow}>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.back();
             }}
-            style={styles.headerIconButton}
             hitSlop={10}
+            style={styles.headerBack}
           >
-            <Ionicons name="chevron-back" size={25} color={colors.gold} />
+            <Ionicons name="chevron-back" size={24} color={colors.gold} />
           </Pressable>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              clearCart();
-            }}
-            style={styles.clearButton}
-            hitSlop={8}
-          >
-            <Text style={styles.clearButtonText}>Clear</Text>
-          </Pressable>
+
+          {promo ? (
+            <Pressable onPress={handleRemovePromo} style={styles.promoBadge}>
+              <Text style={styles.promoBadgeText}>{promo.code}</Text>
+              <Ionicons name="close-circle" size={14} color={colors.success} />
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowPromoModal(true);
+              }}
+              style={styles.promoButton}
+            >
+              <Ionicons name="pricetag-outline" size={14} color={colors.gold} />
+              <Text style={styles.promoButtonText}>Promo</Text>
+            </Pressable>
+          )}
         </View>
-        <Text style={styles.reviewTitle}>REVIEW & PAY</Text>
-        <Text style={styles.reviewSubtitle}>{getCheckoutStatusLabel(checkoutStatus)}</Text>
-      </View>
+      </SafeAreaView>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 292 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 260 }]}
       >
-        <Pressable
-          onPress={() => {
-            Haptics.selectionAsync();
-            setSummaryOpen((open) => !open);
-          }}
-          style={styles.eventSummaryCard}
-        >
-          {cartEventImage ? (
-            <Image source={{ uri: cartEventImage }} style={styles.eventPoster} contentFit="cover" />
-          ) : (
+        <Animated.View entering={FadeInUp.springify().damping(20)} style={styles.heroSection}>
+          <View style={styles.heroPosterWrap}>
+            {cartEventImage ? (
+              <Image source={{ uri: cartEventImage }} style={styles.heroPoster} contentFit="cover" />
+            ) : (
+              <LinearGradient
+                colors={gradients.primary as [string, string]}
+                style={styles.heroPoster}
+              />
+            )}
             <LinearGradient
-              colors={gradients.primary as [string, string]}
-              style={styles.eventPoster}
+              colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.85)']}
+              style={styles.heroOverlay}
             />
-          )}
-          <View style={styles.eventSummaryCopy}>
-            <Text style={styles.eventTitle} numberOfLines={2}>
+          </View>
+
+          <View style={styles.heroInfo}>
+            <Text style={styles.heroTitle} numberOfLines={2}>
               {cartEventTitle}
             </Text>
-            <Text style={styles.eventMeta} numberOfLines={1}>
-              {ticketCount} {ticketCount === 1 ? 'item' : 'items'}
-            </Text>
-          </View>
-          <Ionicons
-            name={summaryOpen ? 'chevron-up' : 'chevron-down'}
-            size={18}
-            color={colors.goldStone}
-          />
-        </Pressable>
-
-        {summaryOpen ? (
-          <View style={styles.detailPanel}>
-            <View style={styles.eventDetailLine}>
-              <Ionicons name="calendar-outline" size={15} color={colors.goldStone} />
-              <Text style={styles.eventDetailText} numberOfLines={1}>
+            <View style={styles.heroMetaRow}>
+              <Ionicons name="calendar-outline" size={13} color="rgba(254,248,232,0.6)" />
+              <Text style={styles.heroMetaText} numberOfLines={1}>
                 {cartEventDate
                   ? `${formatEventDate(cartEventDate)} · ${formatEventTime(cartEventDate)}`
                   : 'Date TBA'}
               </Text>
             </View>
-            <View style={styles.eventDetailLine}>
-              <Ionicons name="location-outline" size={15} color={colors.goldStone} />
-              <Text style={styles.eventDetailText} numberOfLines={1}>
+            <View style={styles.heroMetaRow}>
+              <Ionicons name="location-outline" size={13} color="rgba(254,248,232,0.6)" />
+              <Text style={styles.heroMetaText} numberOfLines={1}>
                 {cartEventVenue}
               </Text>
             </View>
-            <View style={styles.ticketList}>
-              {items.map((item) => (
-                <CheckoutItemRow
-                  key={`${item.eventId}-${item.tier.id}`}
-                  item={item}
-                  onRemove={() => removeItem(item.eventId, item.tier.id)}
-                  onQuantityChange={(quantity) => {
-                    Haptics.selectionAsync();
-                    updateQuantity(item.eventId, item.tier.id, quantity);
-                  }}
-                />
-              ))}
-            </View>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({
-                  pathname: '/checkout/[eventId]',
-                  params: { eventId: items[0]?.eventId || '' },
-                });
-              }}
-              style={styles.editTicketsButton}
-            >
-              <Ionicons name="create-outline" size={15} color={colors.gold} />
-              <Text style={styles.editTicketsText}>Edit tickets</Text>
-            </Pressable>
           </View>
-        ) : null}
+        </Animated.View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionEyebrow}>PAY WITH</Text>
-          <View style={styles.paymentMethodRow}>
-            <View style={styles.paymentMark}>
-              <Ionicons name={isFreeOrder ? 'checkmark' : 'card'} size={18} color={colors.gold} />
-            </View>
-            <View style={styles.paymentCopy}>
-              <Text style={styles.paymentTitle}>{paymentMethodLabel}</Text>
-              <Text style={styles.paymentSubtitle}>{paymentMethodDetail}</Text>
-            </View>
-            <Pressable onPress={handlePaymentMethodChange} hitSlop={8}>
-              <Text style={styles.changeText}>Change</Text>
-            </Pressable>
+        <GlassCard delay={80}>
+          <View style={styles.cardSectionHeader}>
+            <Ionicons name="receipt-outline" size={15} color="rgba(254,248,232,0.6)" />
+            <Text style={styles.cardSectionTitle}>Order</Text>
           </View>
-        </View>
 
-        <View style={styles.section}>
-          <View style={styles.receiptHeader}>
-            <Text style={styles.sectionEyebrow}>ORDER</Text>
-            {quoteLoading ? (
-              <View style={styles.quotePill}>
-                <ActivityIndicator color={colors.irisGlow} size="small" />
-                <Text style={styles.quotePillText}>Live price</Text>
+          <View style={styles.ticketSummaryList}>
+            {items.map((item) => (
+              <View key={`${item.eventId}-${item.tier.id}`} style={styles.ticketSummaryRow}>
+                <View style={styles.ticketSummaryLeft}>
+                  <Text style={styles.ticketSummaryName} numberOfLines={1}>
+                    {item.tier.name}
+                  </Text>
+                  <Text style={styles.ticketSummaryQty}>
+                    {item.quantity} × {formatMoney(item.tier.price)}
+                  </Text>
+                </View>
+                <Text style={styles.ticketSummaryTotal}>
+                  {formatMoney(item.tier.price * item.quantity)}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.priceLines}>
+            <View style={styles.priceLine}>
+              <Text style={styles.priceLabel}>Subtotal</Text>
+              <Text style={styles.priceValue}>{formatMoney(subtotal)}</Text>
+            </View>
+            {discount > 0 ? (
+              <View style={styles.priceLine}>
+                <Text style={[styles.priceLabel, styles.discountLabel]}>
+                  {promo?.code ? `${promo.code}` : 'Discount'}
+                </Text>
+                <Text style={[styles.priceValue, styles.discountValue]}>
+                  −{formatMoney(discount)}
+                </Text>
+              </View>
+            ) : null}
+            {platformFee > 0 ? (
+              <View style={styles.priceLine}>
+                <Text style={styles.priceLabel}>Platform fee</Text>
+                <Text style={styles.priceValue}>{formatMoney(platformFee)}</Text>
+              </View>
+            ) : null}
+            {paymentFee > 0 ? (
+              <View style={styles.priceLine}>
+                <Text style={styles.priceLabel}>Payment fee</Text>
+                <Text style={styles.priceValue}>{formatMoney(paymentFee)}</Text>
+              </View>
+            ) : null}
+            {taxes > 0 ? (
+              <View style={styles.priceLine}>
+                <Text style={styles.priceLabel}>GST</Text>
+                <Text style={styles.priceValue}>{formatMoney(taxes)}</Text>
               </View>
             ) : null}
           </View>
 
+          <View style={styles.divider} />
+
+          <View style={styles.totalLine}>
+            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalValue}>{formatMoney(total)}</Text>
+          </View>
+
+          {quoteLoading ? (
+            <View style={styles.quoteIndicator}>
+              <ActivityIndicator size="small" color={colors.irisGlow} />
+              <Text style={styles.quoteIndicatorText}>Updating...</Text>
+            </View>
+          ) : null}
+
           {quoteError ? (
             <View style={styles.quoteErrorBox}>
-              <Ionicons name="warning-outline" size={17} color={colors.error} />
+              <Ionicons name="warning-outline" size={14} color={colors.error} />
               <Text style={styles.quoteErrorText}>{quoteError}</Text>
-            </View>
-          ) : null}
-
-          <SummaryLine label={`Tickets (${ticketCount})`} value={formatMoney(subtotal)} />
-          {discount > 0 ? (
-            <SummaryLine
-              label={`Discount${promo?.code ? ` (${promo.code})` : ''}`}
-              value={`-${formatMoney(discount)}`}
-              tone="discount"
-            />
-          ) : null}
-          {platformFee > 0 ? (
-            <SummaryLine label="Platform fee" value={formatMoney(platformFee)} />
-          ) : null}
-          {paymentFee > 0 ? (
-            <SummaryLine label="Payment fee" value={formatMoney(paymentFee)} />
-          ) : null}
-          {taxes > 0 ? <SummaryLine label="GST on fees" value={formatMoney(taxes)} /> : null}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionEyebrow}>PROMO</Text>
-          {promo ? (
-            <View style={styles.appliedPromoRow}>
-              <View>
-                <Text style={styles.appliedPromoCode}>{promo.code}</Text>
-                <Text style={styles.appliedPromoLabel}>
-                  {promo.label || `${promo.discountPercent}% discount`}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  clearPromoCode();
-                }}
-                hitSlop={8}
-              >
-                <Text style={styles.removePromoText}>Remove</Text>
+              <Pressable onPress={fetchPricing} hitSlop={8}>
+                <Text style={styles.quoteRetryText}>Retry</Text>
               </Pressable>
             </View>
-          ) : (
-            <>
-              <View style={styles.promoInputRow}>
-                <TextInput
-                  placeholder="C1RCLE10"
-                  placeholderTextColor="rgba(254,248,232,0.34)"
-                  value={promoInput}
-                  onChangeText={(text) => {
-                    setPromoInput(text);
-                    setPromoError(null);
-                  }}
-                  autoCapitalize="characters"
-                  style={styles.promoInput}
-                />
-                <Pressable onPress={handleApplyPromo} style={styles.applyButton}>
-                  <Text style={styles.applyButtonText}>Apply</Text>
-                </Pressable>
-              </View>
-              {promoError ? <Text style={styles.errorText}>{promoError}</Text> : null}
-            </>
-          )}
-        </View>
+          ) : null}
+        </GlassCard>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionEyebrow}>RECEIPT</Text>
+        <GlassCard delay={160}>
+          <View style={styles.cardSectionHeader}>
+            <Ionicons name="card-outline" size={15} color="rgba(254,248,232,0.6)" />
+            <Text style={styles.cardSectionTitle}>Payment</Text>
+          </View>
+          <Pressable onPress={handlePaymentMethodChange} style={styles.paymentRow}>
+            <View style={styles.paymentIconWrap}>
+              <Ionicons
+                name={isFreeOrder ? 'checkmark-circle' : 'card'}
+                size={20}
+                color={colors.iris}
+              />
+            </View>
+            <View style={styles.paymentInfo}>
+              <Text style={styles.paymentTitle}>{paymentMethodLabel}</Text>
+              <Text style={styles.paymentSubtitle}>{paymentMethodDetail}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="rgba(254,248,232,0.3)" />
+          </Pressable>
+        </GlassCard>
+
+        <GlassCard delay={240}>
+          <View style={styles.cardSectionHeader}>
+            <Ionicons name="mail-outline" size={15} color="rgba(254,248,232,0.6)" />
+            <Text style={styles.cardSectionTitle}>Receipt</Text>
+          </View>
           <TextInput
-            placeholder="Receipt email"
-            placeholderTextColor="rgba(254,248,232,0.34)"
+            placeholder="Email for receipt"
+            placeholderTextColor="rgba(254,248,232,0.3)"
             value={billingEmail}
             onChangeText={setBillingEmail}
             autoCapitalize="none"
             keyboardType="email-address"
             style={styles.emailInput}
           />
-        </View>
-      </ScrollView>
+        </GlassCard>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <View style={styles.footerTotalRow}>
-          <Text style={styles.footerTotalLabel}>Total</Text>
-          <Text style={styles.footerTotalValue}>{formatMoney(total)}</Text>
-        </View>
-
-        <Pressable
-          onPress={() => {
-            Haptics.selectionAsync();
-            setHostUpdatesOptIn((value) => !value);
-          }}
-          style={styles.optInRow}
-        >
-          <View style={[styles.checkbox, hostUpdatesOptIn && styles.checkboxChecked]}>
-            {hostUpdatesOptIn ? <Ionicons name="checkmark" size={12} color="#fff" /> : null}
-          </View>
+        <View style={styles.optInRow}>
+          <Pressable
+            onPress={() => {
+              Haptics.selectionAsync();
+              setHostUpdatesOptIn((v) => !v);
+            }}
+            style={[styles.checkbox, hostUpdatesOptIn && styles.checkboxChecked]}
+          >
+            {hostUpdatesOptIn ? <Ionicons name="checkmark" size={10} color="#fff" /> : null}
+          </Pressable>
           <Text style={styles.optInText} numberOfLines={1}>
             Get updates from {hostLabel}
           </Text>
-        </Pressable>
+        </View>
 
-        <Text style={styles.feesText}>
-          {bookingFeesWaived ? 'Premium booking fees waived' : 'Includes fees ⓘ'}
-        </Text>
+        {cartExpired ? (
+          <View style={styles.expiredBanner}>
+            <Ionicons name="time-outline" size={14} color={colors.warning} />
+            <Text style={styles.expiredBannerText}>
+              Your cart reservation has expired. Prices and availability may have changed.
+            </Text>
+          </View>
+        ) : null}
+      </ScrollView>
 
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable
           onPress={handlePay}
           disabled={payDisabled}
           style={[styles.payButton, payDisabled && styles.payButtonDisabled]}
         >
-          {processing ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="lock-closed" size={18} color="#fff" />
-              <Text style={styles.payButtonText}>{payButtonLabel}</Text>
-            </>
-          )}
+          <LinearGradient
+            colors={gradients.primary as [string, string]}
+            style={styles.payGradient}
+          >
+            {processing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Ionicons name="lock-closed" size={16} color="#fff" />
+            )}
+            <Text style={styles.payButtonText}>{payButtonLabel}</Text>
+          </LinearGradient>
         </Pressable>
 
+        {bookingFeesWaived && !isFreeOrder ? (
+          <View style={styles.feesWaivedRow}>
+            <Ionicons name="flash" size={12} color={colors.success} />
+            <Text style={styles.feesWaivedText}>Premium booking fees waived</Text>
+          </View>
+        ) : null}
+
         <Text style={styles.finePrint}>
-          By confirming your order, you agree to The C1rcle General Terms and Conditions and Privacy
-          Policy.
+          By confirming, you agree to the{' '}
+          <Text style={styles.finePrintLink} onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}>
+            Terms
+          </Text>{' '}
+          &{' '}
+          <Text style={styles.finePrintLink} onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}>
+            Privacy Policy
+          </Text>
         </Text>
       </View>
-    </SafeAreaView>
+
+      <PromoModal
+        visible={showPromoModal}
+        onClose={() => setShowPromoModal(false)}
+        onApply={handleApplyPromo}
+        promoError={promoError}
+        setPromoError={setPromoError}
+      />
+    </View>
   );
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  if (!hex || hex === 'transparent') return `rgba(0,0,0,${alpha})`;
+  let h = hex.replace('#', '');
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const num = parseInt(h, 16);
+  if (isNaN(num)) return `rgba(0,0,0,${alpha})`;
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 const styles = StyleSheet.create({
@@ -625,451 +767,292 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.base.DEFAULT,
   },
-  topGradient: {
+  ambientGlow: {
     position: 'absolute',
     left: 0,
     right: 0,
     top: 0,
-    height: 220,
+    height: 340,
   },
-  emptyScreen: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.base.DEFAULT,
-    paddingHorizontal: 24,
+  safeTop: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    zIndex: 50,
   },
-  emptyTitle: {
-    color: colors.gold,
-    fontFamily: checkoutFont.black,
-    fontSize: 24,
-    fontWeight: '900',
-    marginTop: 16,
-  },
-  emptyCopy: {
-    color: colors.goldStone,
-    fontFamily: checkoutFont.regular,
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 22,
-  },
-  primaryButton: {
-    borderRadius: 8,
-    backgroundColor: colors.iris,
-    paddingHorizontal: 22,
-    paddingVertical: 13,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontFamily: checkoutFont.black,
-    fontWeight: '900',
-  },
-  headerShell: {
-    overflow: 'hidden',
-    paddingHorizontal: 20,
-    paddingBottom: 18,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  header: {
-    height: 48,
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  headerIconButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  clearButton: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 16,
     paddingVertical: 8,
   },
-  clearButtonText: {
-    color: colors.goldStone,
-    fontFamily: checkoutFont.bold,
-    fontSize: 13,
+  headerBack: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  reviewTitle: {
-    color: colors.gold,
-    fontFamily: checkoutFont.black,
-    fontSize: 42,
-    lineHeight: 46,
-    fontWeight: '900',
-  },
-  reviewSubtitle: {
-    color: colors.goldStone,
-    fontFamily: checkoutFont.medium,
-    fontSize: 13,
-    marginTop: 4,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  eventSummaryCard: {
-    minHeight: 88,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.075)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.14)',
-    padding: 10,
+  promoButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
-  eventPoster: {
-    width: 68,
-    height: 68,
-    borderRadius: 8,
-    backgroundColor: colors.base[100],
-  },
-  eventSummaryCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  eventTitle: {
+  promoButtonText: {
     color: colors.gold,
-    fontFamily: checkoutFont.bold,
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  promoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: colors.successMuted,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0,214,143,0.3)',
+  },
+  promoBadgeText: {
+    color: colors.success,
+    fontSize: 12,
     fontWeight: '800',
   },
-  eventMeta: {
-    color: colors.goldStone,
-    fontFamily: checkoutFont.medium,
-    fontSize: 12,
-    lineHeight: 16,
-    marginTop: 6,
+  scrollContent: {
+    paddingTop: 60,
+    paddingHorizontal: 16,
+    gap: 14,
   },
-  detailPanel: {
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.10)',
-    backgroundColor: 'rgba(255,255,255,0.035)',
-    padding: 12,
-    marginTop: 10,
+  heroSection: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 2,
   },
-  eventDetailLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+  heroPosterWrap: {
+    height: 200,
+    position: 'relative',
   },
-  eventDetailText: {
-    flex: 1,
-    color: colors.goldStone,
-    fontFamily: checkoutFont.medium,
-    fontSize: 12,
+  heroPoster: {
+    width: '100%',
+    height: '100%',
   },
-  ticketList: {
-    marginTop: 4,
-    gap: 8,
-  },
-  itemRow: {
-    minHeight: 48,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.28)',
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  itemCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  itemTier: {
-    color: colors.gold,
-    fontFamily: checkoutFont.bold,
-    fontSize: 13,
-    lineHeight: 17,
-  },
-  itemPrice: {
-    color: colors.goldStone,
-    fontFamily: checkoutFont.medium,
-    fontSize: 11,
-    marginTop: 3,
-  },
-  quantityControl: {
-    width: 80,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 6,
-  },
-  quantityButton: {
-    width: 22,
-    height: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quantityValue: {
-    minWidth: 18,
-    color: colors.gold,
-    fontFamily: checkoutFont.black,
-    fontSize: 13,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  itemSubtotal: {
-    minWidth: 46,
-    color: colors.gold,
-    fontFamily: checkoutFont.bold,
-    fontSize: 12,
-    textAlign: 'right',
-  },
-  removeButton: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  editTicketsButton: {
-    height: 40,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.14)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 10,
-  },
-  editTicketsText: {
-    color: colors.gold,
-    fontFamily: checkoutFont.bold,
-    fontSize: 13,
-  },
-  section: {
-    marginTop: 22,
-  },
-  sectionEyebrow: {
-    color: colors.goldStone,
-    fontFamily: checkoutFont.black,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-  },
-  paymentMethodRow: {
-    minHeight: 68,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.14)',
-    backgroundColor: 'rgba(255,255,255,0.055)',
-    marginTop: 9,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  paymentMark: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
-    backgroundColor: colors.iris,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  paymentCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  paymentTitle: {
-    color: colors.gold,
-    fontFamily: checkoutFont.bold,
-    fontSize: 15,
-    lineHeight: 19,
-  },
-  paymentSubtitle: {
-    color: colors.goldStone,
-    fontFamily: checkoutFont.medium,
-    fontSize: 12,
-    marginTop: 3,
-  },
-  changeText: {
-    color: colors.irisGlow,
-    fontFamily: checkoutFont.bold,
-    fontSize: 13,
-  },
-  receiptHeader: {
-    minHeight: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  quotePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-  },
-  quotePillText: {
-    color: colors.goldStone,
-    fontFamily: checkoutFont.medium,
-    fontSize: 11,
-  },
-  quoteErrorBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    padding: 11,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 84, 112, 0.10)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255, 84, 112, 0.32)',
-    marginTop: 10,
-  },
-  quoteErrorText: {
-    flex: 1,
-    color: colors.error,
-    fontFamily: checkoutFont.medium,
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  summaryLine: {
-    minHeight: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    marginTop: 7,
-  },
-  summaryLabel: {
-    flex: 1,
-    color: colors.goldStone,
-    fontFamily: checkoutFont.medium,
-    fontSize: 14,
-  },
-  summaryValue: {
-    color: colors.gold,
-    fontFamily: checkoutFont.bold,
-    fontSize: 14,
-  },
-  discountText: {
-    color: colors.success,
-  },
-  appliedPromoRow: {
-    borderRadius: 8,
-    backgroundColor: colors.successMuted,
-    padding: 13,
-    marginTop: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  appliedPromoCode: {
-    color: colors.success,
-    fontFamily: checkoutFont.black,
-    fontWeight: '900',
-  },
-  appliedPromoLabel: {
-    color: 'rgba(255,255,255,0.72)',
-    fontFamily: checkoutFont.medium,
-    fontSize: 12,
-    marginTop: 3,
-  },
-  removePromoText: {
-    color: colors.gold,
-    fontFamily: checkoutFont.bold,
-    fontSize: 12,
-  },
-  promoInputRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 9,
-  },
-  promoInput: {
-    flex: 1,
-    height: 48,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    color: colors.gold,
-    backgroundColor: 'rgba(255,255,255,0.055)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.14)',
-    fontFamily: checkoutFont.medium,
-  },
-  applyButton: {
-    width: 86,
-    height: 48,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.iris,
-  },
-  applyButtonText: {
-    color: '#fff',
-    fontFamily: checkoutFont.black,
-    fontWeight: '900',
-  },
-  errorText: {
-    color: colors.error,
-    fontFamily: checkoutFont.medium,
-    fontSize: 12,
-    marginTop: 9,
-  },
-  emailInput: {
-    minHeight: 50,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    color: colors.gold,
-    backgroundColor: 'rgba(255,255,255,0.055)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.14)',
-    fontFamily: checkoutFont.medium,
-    marginTop: 9,
-  },
-  footer: {
+  heroOverlay: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    paddingTop: 14,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(0,0,0,0.98)',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.13)',
+    height: '60%',
   },
-  footerTotalRow: {
-    minHeight: 34,
+  heroInfo: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: 18,
+    gap: 6,
+  },
+  heroTitle: {
+    color: '#fff',
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    marginBottom: 2,
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroMetaText: {
+    color: 'rgba(254,248,232,0.7)',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  glassCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  glassCardInner: {
+    padding: 18,
+  },
+  cardSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 14,
+  },
+  cardSectionTitle: {
+    color: 'rgba(254,248,232,0.6)',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  ticketSummaryList: {
+    gap: 10,
+  },
+  ticketSummaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 16,
   },
-  footerTotalLabel: {
-    color: colors.gold,
-    fontFamily: checkoutFont.black,
-    fontSize: 23,
+  ticketSummaryLeft: {
+    flex: 1,
+    minWidth: 0,
+  },
+  ticketSummaryName: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  ticketSummaryQty: {
+    color: 'rgba(254,248,232,0.5)',
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  ticketSummaryTotal: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginVertical: 12,
+  },
+  priceLines: {
+    gap: 8,
+  },
+  priceLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  priceLabel: {
+    color: 'rgba(254,248,232,0.55)',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  priceValue: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  discountLabel: {
+    color: colors.success,
+  },
+  discountValue: {
+    color: colors.success,
+  },
+  totalLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalLabel: {
+    color: '#fff',
+    fontSize: 18,
     fontWeight: '900',
   },
-  footerTotalValue: {
-    color: colors.gold,
-    fontFamily: checkoutFont.black,
-    fontSize: 24,
+  totalValue: {
+    color: '#fff',
+    fontSize: 20,
     fontWeight: '900',
   },
-  optInRow: {
-    minHeight: 32,
+  quoteIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
-    marginTop: 8,
+    gap: 8,
+    marginTop: 10,
+  },
+  quoteIndicatorText: {
+    color: colors.goldStone,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  quoteErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: colors.errorMuted,
+  },
+  quoteErrorText: {
+    flex: 1,
+    color: colors.error,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  quoteRetryText: {
+    color: colors.error,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  paymentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  paymentIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(244,74,34,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paymentInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  paymentTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  paymentSubtitle: {
+    color: 'rgba(254,248,232,0.5)',
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  emailInput: {
+    height: 46,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    color: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.08)',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  optInRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 4,
   },
   checkbox: {
-    width: 19,
-    height: 19,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(254,248,232,0.48)',
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: 'rgba(254,248,232,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1079,41 +1062,237 @@ const styles = StyleSheet.create({
   },
   optInText: {
     flex: 1,
-    color: colors.goldStone,
-    fontFamily: checkoutFont.medium,
+    color: 'rgba(254,248,232,0.55)',
     fontSize: 13,
+    fontWeight: '500',
   },
-  feesText: {
-    color: colors.goldStone,
-    fontFamily: checkoutFont.medium,
+  expiredBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.warningMuted,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,170,0,0.2)',
+  },
+  expiredBannerText: {
+    flex: 1,
+    color: colors.warning,
     fontSize: 12,
-    marginTop: 2,
+    fontWeight: '500',
+  },
+  footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 10,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.06)',
   },
   payButton: {
-    height: 58,
-    borderRadius: 8,
-    backgroundColor: colors.iris,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#F44A22',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  payButtonDisabled: {
+    opacity: 0.5,
+  },
+  payGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 9,
-    marginTop: 12,
-  },
-  payButtonDisabled: {
-    opacity: 0.58,
+    gap: 8,
+    paddingVertical: 18,
   },
   payButtonText: {
     color: '#fff',
-    fontFamily: checkoutFont.black,
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '900',
   },
+  feesWaivedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    marginTop: 6,
+  },
+  feesWaivedText: {
+    color: colors.success,
+    fontSize: 11,
+    fontWeight: '600',
+  },
   finePrint: {
-    color: 'rgba(254,248,232,0.54)',
-    fontFamily: checkoutFont.regular,
+    color: 'rgba(254,248,232,0.4)',
     fontSize: 10,
     lineHeight: 14,
     textAlign: 'center',
-    marginTop: 9,
+    marginTop: 8,
+  },
+  finePrintLink: {
+    color: 'rgba(254,248,232,0.7)',
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  handoffScreen: {
+    flex: 1,
+    backgroundColor: colors.base.DEFAULT,
+  },
+  handoffContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  handoffIconWrap: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    backgroundColor: colors.iris,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  handoffTitle: {
+    color: colors.gold,
+    fontSize: 30,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  handoffCopy: {
+    color: colors.goldStone,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginTop: 10,
+    maxWidth: 320,
+  },
+  handoffEvent: {
+    color: colors.gold,
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 22,
+    maxWidth: 320,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
+  },
+  modalContent: {
+    padding: 28,
+    paddingBottom: 40,
+    gap: 12,
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  modalSubtitle: {
+    color: 'rgba(254,248,232,0.5)',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  modalInputRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  modalInput: {
+    flex: 1,
+    height: 52,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    color: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.1)',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  modalApplyButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  modalApplyGradient: {
+    height: 52,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalApplyText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  modalErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  modalErrorText: {
+    color: colors.error,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  emptyContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  emptyGlow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 200,
+  },
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(244,74,34,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    color: colors.gold,
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  emptyCopy: {
+    color: colors.goldStone,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 22,
+    fontSize: 15,
+  },
+  primaryButton: {
+    borderRadius: 12,
+    backgroundColor: colors.iris,
+    paddingHorizontal: 22,
+    paddingVertical: 13,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontWeight: '900',
   },
 });

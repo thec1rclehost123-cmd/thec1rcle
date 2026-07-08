@@ -97,7 +97,7 @@ export function Card({
         style={[animatedStyle, styles.glassContainer, style]}
       >
         <BlurView
-          experimentalBlurMethod="dimezisBlurView"
+          blurMethod="dimezisBlurView"
           intensity={20}
           tint="dark"
           style={styles.blur}

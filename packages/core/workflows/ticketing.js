@@ -219,6 +219,7 @@ export async function verifyCheckoutPayment({
       alreadyVerified,
       order: ticketResult.order,
       tickets: allTickets,
+      coverWallets: ticketResult.coverWallets || [],
       reservationId: order.reservationId || null,
     };
   });
@@ -298,6 +299,7 @@ export async function verifyCheckoutPayment({
       status: ticket.status,
       qrMode: ticket.qrMode,
     })),
+    coverWallets: transactionResult.coverWallets || [],
     ticketsCount: transactionResult.tickets.length,
     razorpayOrderId,
     razorpayPaymentId,

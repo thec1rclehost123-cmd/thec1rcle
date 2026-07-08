@@ -17,6 +17,7 @@ const mockTicketsState = {
 const mockSubscriptionState = {
   hydrateFromProfile: jest.fn(),
   fetchSubscription: jest.fn(),
+  fetchRevenueCatSubscription: jest.fn(),
   clearSubscription: jest.fn(),
 };
 
@@ -35,8 +36,6 @@ jest.mock('../../lib/firebase', () => ({
 }));
 
 jest.mock('../../lib/api', () => ({
-  clearAuthSessionSync: jest.fn(),
-  markAuthSessionPending: jest.fn(),
   syncAuthSession: jest.fn(),
 }));
 
@@ -68,7 +67,7 @@ jest.mock('../../store/subscriptionStore', () => ({
 }));
 
 import { initAuthListener, useAuthStore } from '../../store/authStore';
-import { syncAuthSession, clearAuthSessionSync, markAuthSessionPending } from '../../lib/api';
+import { syncAuthSession } from '../../lib/api';
 import { refreshPushToken } from '../../lib/notifications';
 import { wsManager } from '../../lib/websocket';
 
@@ -190,8 +189,6 @@ describe('authStore', () => {
       const cleanup = initAuthListener();
       mockAuthCallback?.(user);
 
-      expect(markAuthSessionPending).toHaveBeenCalledWith('user_1');
-
       await flushPromises();
 
       expect(syncAuthSession).toHaveBeenCalledTimes(1);
@@ -228,8 +225,6 @@ describe('authStore', () => {
       const cleanup = initAuthListener();
 
       mockAuthCallback?.(null);
-
-      expect(clearAuthSessionSync).toHaveBeenCalled();
 
       const state = useAuthStore.getState();
       expect(state.user).toBeNull();
