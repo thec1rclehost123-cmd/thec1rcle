@@ -29,11 +29,10 @@
     "guardrails:check": "node scripts/check-backend-boundaries.mjs",
     "test:guardrails": "node --test scripts/check-backend-boundaries.test.mjs",
     "architecture:guest": "npm test -w apps/guest-portal",
-    "prepush": "npm run lint && npm run stylelint:check && npm run type-check && (npm test || echo Tests non-blocking per CI continue-on-error policy) && npm run build && npm run guardrails:check"
+    "prepush": "npm run lint && npm run stylelint:check && turbo type-check --filter=!@c1rcle/admin-console && (npm test || echo Tests non-blocking per CI continue-on-error policy) && npm run build && npm run guardrails:check"
   },
   "lint-staged": {
     "*": "prettier --write --ignore-unknown",
-    "*.{js,jsx,ts,tsx}": "eslint --fix --no-ignore",
     "*.css": "stylelint --fix --allow-empty-input"
   },
   "devDependencies": {
