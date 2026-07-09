@@ -93,25 +93,20 @@ export const postChatMessageInternal = async (
   const userData = userSnap.exists ? userSnap.data() : {};
 
   // 4. Strip HTML/script tags from content (XSS prevention)
-  const stripHtml = (input: string): string =>
-    input.replace(/<[^>]*>/g, '').replace(/[&<>"']/g, (c) => {
-      switch (c) {
-        case '&':
-          return '&amp;';
-        case '<':
-          return '&lt;';
-        case '>':
-          return '&gt;';
-        case '"':
-          return '&quot;';
-        case "'":
-          return '&#x27;';
-        default:
-          return c;
-      }
-    });
-
-  const sanitized = stripHtml(content).substring(0, 1000).trim();
+  const sanitized = content
+    .replace(/[&<>"'`]/g, (c) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#x27;',
+        '`': '&#x60;',
+      })[c] || c,
+    )
+    .replace(/<[^>]*>/g, '')
+    .substring(0, 1000)
+    .trim();
   if (!sanitized) {
     throw new functions.https.HttpsError(
       'invalid-argument',

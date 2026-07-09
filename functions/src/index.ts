@@ -338,7 +338,7 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
       await webhookLogRef.update({ status: 'completed', orderId, paymentId: payment.id });
     } catch (error) {
       await webhookLogRef.update({ status: 'failed', error: String(error) });
-      console.error(`[Webhook] Error confirming order ${orderId}:`, error);
+      console.error('[Webhook] Error confirming order %s:', orderId, error);
     }
   } else {
     await webhookLogRef.update({ status: 'ignored', event });
