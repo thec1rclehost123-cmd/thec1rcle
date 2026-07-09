@@ -137,28 +137,23 @@ async function validateScannerToken(fastify: FastifyInstance, request: any): Pro
 
   if (!token && !scannerCode) return false;
 
-  // Try Firebase ID token first (staff also logged in as guest user)
-  if (token) {
-    try {
-      const decoded = await (fastify as any).firebase.auth().verifyIdToken(token);
-      if (decoded && ['admin', 'manager', 'door_staff', 'bartender'].includes(decoded.role as string)) {
-        return true;
-      }
-    } catch {}
-  }
+  try {
+    const decoded = await (fastify as any).firebase.auth().verifyIdToken(token);
+    if (decoded && ['admin', 'manager', 'door_staff', 'bartender'].includes(decoded.role as string)) {
+      return true;
+    }
+  } catch {}
 
-  // Try scanner session token (Bearer)
-  if (token) {
+  try {
     const session = await validateScannerSession(fastify, token);
     if (session.authorized) {
       request.scannerCodeId = session.codeDoc.id;
       request.scannerCodeData = session.codeData;
       return true;
     }
-  }
+  } catch {}
 
-  // Try X-Scanner-Code header — look up event_code directly
-  if (scannerCode) {
+  try {
     const codeSnap = await fastify.db
       .collection('event_codes')
       .where('code', '==', scannerCode.toUpperCase().trim())
@@ -173,7 +168,7 @@ async function validateScannerToken(fastify: FastifyInstance, request: any): Pro
         return true;
       }
     }
-  }
+  } catch {}
 
   return false;
 }
