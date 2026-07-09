@@ -1,3 +1,4 @@
+import React from 'react';
 import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -31,7 +32,7 @@ interface EventCardProps {
   variant?: 'default' | 'compact' | 'featured';
 }
 
-export function EventCard({
+export const EventCard = React.memo(function EventCard({
   id,
   title,
   venue,
@@ -209,7 +210,7 @@ export function EventCard({
       </View>
     </AnimatedPressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   // Default Card

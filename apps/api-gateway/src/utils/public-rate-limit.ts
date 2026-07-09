@@ -30,7 +30,10 @@ export async function enforcePublicRateLimit(
     const results = await multi.exec();
     const count = Number(results?.[0]?.[1] || 0);
     if (count > limit) {
-      throw new Error('RATE_LIMITED');
+      const err = new Error('RATE_LIMITED');
+      (err as any).code = 'RATE_LIMITED';
+      (err as any).retryAfter = windowSeconds;
+      throw err;
     }
     return;
   }
@@ -41,7 +44,10 @@ export async function enforcePublicRateLimit(
     return;
   }
   if (current.count >= limit) {
-    throw new Error('RATE_LIMITED');
+    const err = new Error('RATE_LIMITED');
+    (err as any).code = 'RATE_LIMITED';
+    (err as any).retryAfter = windowSeconds;
+    throw err;
   }
   current.count += 1;
   memoryCounters.set(key, current);

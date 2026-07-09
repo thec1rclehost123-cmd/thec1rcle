@@ -21,9 +21,16 @@ import {
   finalizeRazorpayTicketPurchase,
   verifyRazorpayWebhookSignature,
 } from '@c1rcle/core/ticket-checkout-wallet-service';
+// @ts-ignore
+import {
+  assertCanCheckoutEvent,
+  isPremiumEarlyAccessActive,
+  isPremiumRequiredError,
+} from '@c1rcle/core/subscription-service';
 import { z } from 'zod';
 import * as Sentry from '@sentry/node';
 import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
+import { buildErrorResponse } from '../../lib/api-contracts';
 
 function allowMockRazorpay() {
   const isProduction =
@@ -137,6 +144,59 @@ function extractQueueId(admissionToken?: string | null): string | null {
   return parts[2] || null;
 }
 
+async function enforceGenderRestriction(
+  fastify: any,
+  event: any,
+  items: { tierId: string; quantity: number }[],
+  userId: string,
+): Promise<void> {
+  const tiers = event.ticketCatalog?.tiers || event.tickets || [];
+  for (const item of items) {
+    const tier = tiers.find((t: any) => t.id === item.tierId);
+    if (!tier) continue;
+
+    let restriction =
+      tier.genderRestriction ||
+      tier.genderRequirement ||
+      tier.requiredGender ||
+      tier.gender ||
+      null;
+    if (!restriction || restriction === 'none' || restriction === 'any') {
+      const entryType = String(tier.entryType || '').toLowerCase();
+      if (entryType === 'female') restriction = 'female';
+      else if (entryType === 'stag' || entryType === 'male') restriction = 'male';
+      if (!restriction) continue;
+    }
+
+    const db = fastify.db;
+    const userDoc = await db.collection('users').doc(userId).get();
+    const profile = userDoc.exists ? userDoc.data() : null;
+    const userGender = profile?.gender || null;
+
+    // Edge case: null/other/prefer_not_to_say users cannot buy gender-restricted tickets
+    if (!userGender || ['other', 'prefer_not_to_say'].includes(userGender.toLowerCase())) {
+      const err = new Error(
+        !userGender
+          ? 'Please set your gender in profile settings before purchasing this ticket.'
+          : 'This ticket is restricted to specific genders. Update your gender in profile settings to continue.',
+      );
+      (err as any).statusCode = 403;
+      (err as any).code = 'GENDER_UPDATE_REQUIRED';
+      throw err;
+    }
+
+    const normalizedGender = userGender.toLowerCase();
+    if (normalizedGender !== restriction) {
+      const err = new Error(
+        `${tier.name || 'This ticket'} is restricted to ${restriction} attendees only.`,
+      );
+      (err as any).statusCode = 403;
+      (err as any).code = 'GENDER_RESTRICTION';
+      throw err;
+    }
+  }
+}
+
 async function buildCheckoutQuote(event: any, items: any[], pricing: any, db: any, redis: any) {
   const tiers = event.ticketCatalog?.tiers || event.tickets || [];
   const selectedByTier = new Map(
@@ -217,6 +277,17 @@ function buildReservationSnapshot(reservation: any) {
   };
 }
 
+function premiumRequiredResponse(request: any, reply: any, error: any) {
+  return reply.status(403).send(
+    buildErrorResponse({
+      code: 'PREMIUM_REQUIRED',
+      message: error.message || 'C1RCLE Premium required',
+      details: error.details || null,
+      requestId: request.id,
+    }),
+  );
+}
+
 export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.addContentTypeParser(
     'application/json',
@@ -278,7 +349,22 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         const eventDoc = await fastify.db.collection('events').doc(eventId).get();
         if (!eventDoc.exists)
           return reply.status(404).send({ success: false, error: 'Event not found' });
-        const event = { id: eventDoc.id, ...eventDoc.data() };
+        const event: any = { id: eventDoc.id, ...eventDoc.data() };
+        let subscriptionContext = null;
+        if (userId) {
+          subscriptionContext = await assertCanCheckoutEvent(fastify.db, userId, event);
+        } else if (event.isPremiumOnly === true || isPremiumEarlyAccessActive(event)) {
+          return reply.status(403).send(
+            buildErrorResponse({
+              code: 'PREMIUM_REQUIRED',
+              message:
+                event.isPremiumOnly === true
+                  ? 'This event is exclusive to C1RCLE Premium.'
+                  : 'C1RCLE Premium gets early access to this drop.',
+              requestId: request.id,
+            }),
+          );
+        }
 
         // Validate and resolve promoterCode against active links
         let resolvedLinkId: string | null = (request.body as any).linkId || null;
@@ -304,7 +390,15 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           }
         }
 
-        const pricingResult = await calculatePricing({ event, items, promoCode, promoterCode });
+        const pricingResult = await calculatePricing({
+          event,
+          items,
+          promoCode,
+          promoterCode,
+          userId,
+          subscriptionTier: subscriptionContext?.subscription?.tier || 'free',
+          waiveBookingFees: subscriptionContext?.subscription?.isPremium === true,
+        });
         const pricing = pricingResult?.pricing || pricingResult;
         const quote = await buildCheckoutQuote(event, items, pricing, fastify.db, fastify.redis);
         return {
@@ -313,8 +407,12 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           quote,
           reservation: reservationSnapshot,
           linkId: resolvedLinkId,
+          subscription: subscriptionContext?.subscription || { tier: 'free', isPremium: false },
         };
       } catch (error: any) {
+        if (isPremiumRequiredError(error)) {
+          return premiumRequiredResponse(request, reply, error);
+        }
         if (isInventoryError(error)) {
           fastify.log.warn(`Inventory service unavailable during calculate: ${error.message}`);
           reply.header('Retry-After', '5');
@@ -427,6 +525,12 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
       const idempotencyKey = request.headers['x-idempotency-key'] as string;
 
       try {
+        const eventDoc = await fastify.db.collection('events').doc(eventId).get();
+        const event = eventDoc.exists ? { id: eventDoc.id, ...eventDoc.data() } : null;
+        if (event) {
+          await enforceGenderRestriction(fastify, event, items, userId);
+        }
+
         await enforcePublicRateLimit(fastify, request, `checkout:reserve:${userId}`, 5, 60);
 
         const work = async () => {
@@ -461,6 +565,16 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
 
         return result;
       } catch (error: any) {
+        if (error.statusCode === 403) {
+          return reply.status(403).send({
+            success: false,
+            code: error.code || 'GENDER_RESTRICTION',
+            error: error.message,
+          });
+        }
+        if (isPremiumRequiredError(error)) {
+          return premiumRequiredResponse(request, reply, error);
+        }
         if (isInventoryError(error)) {
           fastify.log.warn(`Inventory service unavailable during reserve: ${error.message}`);
           reply.header('Retry-After', '5');
@@ -548,11 +662,15 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           key: result.key,
         };
       } catch (error: any) {
-        if (error.message === 'RATE_LIMITED') {
-          reply.header('Retry-After', '60');
-          return reply
-            .status(429)
-            .send({ success: false, error: 'Too many requests, please slow down.' });
+        if (isPremiumRequiredError(error)) {
+          return premiumRequiredResponse(request, reply, error);
+        }
+        if (error.code === 'RATE_LIMITED') {
+          reply.header('Retry-After', String(error.retryAfter ?? 60));
+          return reply.status(429).send({
+            success: false,
+            error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
+          });
         }
 
         if (error.code === 'SOLD_OUT') {
@@ -734,11 +852,15 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           redisReleased: result.redisReleased,
         };
       } catch (error: any) {
-        if (error.message === 'RATE_LIMITED') {
-          reply.header('Retry-After', '60');
-          return reply
-            .status(429)
-            .send({ success: false, error: 'Too many requests, please slow down.' });
+        if (isPremiumRequiredError(error)) {
+          return premiumRequiredResponse(request, reply, error);
+        }
+        if (error.code === 'RATE_LIMITED') {
+          reply.header('Retry-After', String(error.retryAfter ?? 60));
+          return reply.status(429).send({
+            success: false,
+            error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
+          });
         }
 
         const status =
@@ -864,7 +986,12 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
                     );
                 }
               })
-              .catch(() => null); // non-critical, fire-and-forget
+              .catch((e: any) =>
+                fastify.log.error(
+                  { orderId: finalResult.order.id, eventId: orderEventId, error: e?.message },
+                  'Failed to fetch event for order denormalization',
+                ),
+              );
           }
         }
 
@@ -881,11 +1008,15 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
 
         return finalResult;
       } catch (error: any) {
-        if (error.message === 'RATE_LIMITED') {
-          reply.header('Retry-After', '60');
-          return reply
-            .status(429)
-            .send({ success: false, error: 'Too many requests, please slow down.' });
+        if (isPremiumRequiredError(error)) {
+          return premiumRequiredResponse(request, reply, error);
+        }
+        if (error.code === 'RATE_LIMITED') {
+          reply.header('Retry-After', String(error.retryAfter ?? 60));
+          return reply.status(429).send({
+            success: false,
+            error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
+          });
         }
 
         const isContention =
@@ -912,6 +1043,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         }
 
         fastify.log.error(`Initiate checkout failed: ${error.message}`);
+        console.error('FULL ERROR STACK:', error.stack);
         return reply.status(500).send({ success: false, error: 'Internal server error' });
       }
     },

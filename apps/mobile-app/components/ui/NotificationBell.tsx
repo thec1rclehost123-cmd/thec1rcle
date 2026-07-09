@@ -101,7 +101,12 @@ export function NotificationBell({
         onPress={handlePress}
         style={[animatedStyle, styles.container]}
       >
-        <BlurView intensity={40} tint="dark" style={styles.blurContainer}>
+        <BlurView
+          blurMethod="dimezisBlurView"
+          intensity={40}
+          tint="dark"
+          style={styles.blurContainer}
+        >
           {renderContent()}
         </BlurView>
       </AnimatedPressable>
@@ -154,8 +159,10 @@ const styles = StyleSheet.create({
   solidContainer: {
     width: 44,
     height: 44,
-    backgroundColor: colors.base[50],
+    backgroundColor: 'rgba(7,7,9,0.94)',
     borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center',
     justifyContent: 'center',
   },

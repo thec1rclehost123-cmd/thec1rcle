@@ -1,13 +1,12 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import Animated, {
   FadeInDown,
   FadeInUp,
-  withSpring,
   withRepeat,
   withSequence,
   withTiming,
@@ -16,25 +15,29 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/lib/design/theme';
+import { markPermissionsRequested } from '@/lib/onboardingFlow';
+import { useAuthStore } from '@/store/authStore';
+import { recordNotificationPrompt, recordLocationPrompt } from '@/lib/permissions';
 
 const { width } = Dimensions.get('window');
 
 // Mockup Constants
 const MOCKUP_WIDTH = width * 0.72;
-const MOCKUP_HEIGHT = 380;
+const MOCKUP_HEIGHT = 340; // reduced to make room for bottom content
 
 // Reusable animated floating avatar
 function FloatingAvatar({ emoji, bg, size, top, left, delay = 0, duration = 3000 }: any) {
   const translateY = useSharedValue(0);
 
   useEffect(() => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       translateY.value = withRepeat(
         withSequence(withTiming(-8, { duration }), withTiming(0, { duration })),
         -1,
         true,
       );
     }, delay);
+    return () => clearTimeout(timer);
   }, []);
 
   const animStyle = useAnimatedStyle(() => ({
@@ -66,16 +69,28 @@ function FloatingAvatar({ emoji, bg, size, top, left, delay = 0, duration = 3000
 
 export default function NotificationPermissionScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
+
+  const continueToLocationSetup = async () => {
+    router.replace('/location-permission');
+  };
 
   const handleAllow = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const { status } = await Notifications.requestPermissionsAsync();
-    router.replace('/(tabs)/explore');
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        await recordNotificationPrompt(user?.uid);
+      }
+    } finally {
+      await continueToLocationSetup();
+    }
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.replace('/(tabs)/explore');
+    await recordNotificationPrompt(user?.uid);
+    await continueToLocationSetup();
   };
 
   return (
@@ -96,7 +111,7 @@ export default function NotificationPermissionScreen() {
           <View style={styles.dynamicIsland} />
 
           {/* Time */}
-          <Text style={styles.mockDate}>Monday, June 6</Text>
+          <Text style={styles.mockDate}>Friday, August 12</Text>
           <Text style={styles.mockTime}>9:41</Text>
 
           {/* Notifications */}
@@ -113,7 +128,7 @@ export default function NotificationPermissionScreen() {
               <View style={styles.notifContent}>
                 <Text style={styles.notifTitle}>Riya Desai</Text>
                 <Text style={styles.notifBody} numberOfLines={1}>
-                  Added 23 photos to Outings.
+                  Invited you to the secret rave tonight.
                 </Text>
               </View>
               <Text style={styles.notifTime}>now</Text>
@@ -131,7 +146,7 @@ export default function NotificationPermissionScreen() {
               <View style={styles.notifContent}>
                 <Text style={styles.notifTitle}>Kabir Ahuja</Text>
                 <Text style={styles.notifBody} numberOfLines={1}>
-                  Is eating at SOCIAL, Bandra.
+                  Got VIP tickets for Afterlife!
                 </Text>
               </View>
               <Text style={styles.notifTime}>2m</Text>
@@ -145,7 +160,7 @@ export default function NotificationPermissionScreen() {
           bg="#C8E6C9"
           size={44}
           top={MOCKUP_HEIGHT - 60}
-          left={MOCKUP_WIDTH * 0.15}
+          left={MOCKUP_WIDTH * 0.1}
           delay={0}
           duration={3500}
         />
@@ -154,7 +169,7 @@ export default function NotificationPermissionScreen() {
           bg="#B3E5FC"
           size={60}
           top={MOCKUP_HEIGHT - 20}
-          left={MOCKUP_WIDTH * -0.05}
+          left={MOCKUP_WIDTH * 0.05}
           delay={200}
           duration={4000}
         />
@@ -173,7 +188,7 @@ export default function NotificationPermissionScreen() {
           bg="#D1C4E9"
           size={90}
           top={MOCKUP_HEIGHT - 35}
-          left={MOCKUP_WIDTH * 0.55}
+          left={MOCKUP_WIDTH * 0.4}
           delay={300}
           duration={4500}
         />
@@ -183,7 +198,7 @@ export default function NotificationPermissionScreen() {
           bg="#FFCCBC"
           size={56}
           top={MOCKUP_HEIGHT - 60}
-          left={MOCKUP_WIDTH * 1.0}
+          left={MOCKUP_WIDTH * 0.65}
           delay={150}
           duration={3200}
         />
@@ -192,7 +207,7 @@ export default function NotificationPermissionScreen() {
           bg="#FFE082"
           size={46}
           top={MOCKUP_HEIGHT + 25}
-          left={MOCKUP_WIDTH * 0.9}
+          left={MOCKUP_WIDTH * 0.75}
           delay={50}
           duration={3600}
         />
@@ -201,7 +216,7 @@ export default function NotificationPermissionScreen() {
           bg="#F8BBD0"
           size={52}
           top={MOCKUP_HEIGHT - 10}
-          left={MOCKUP_WIDTH * 1.25}
+          left={MOCKUP_WIDTH * 0.85}
           delay={250}
           duration={4200}
         />
@@ -210,7 +225,7 @@ export default function NotificationPermissionScreen() {
       {/* Bottom Content */}
       <Animated.View
         entering={FadeInUp.delay(300).duration(600).springify()}
-        style={[styles.bottomContent, { paddingBottom: insets.bottom + 20 }]}
+        style={[styles.bottomContent, { paddingBottom: insets.bottom + 70 }]}
       >
         <Text style={styles.title}>Don't miss out on what your friends are up to</Text>
         <Text style={styles.subtitle}>Never miss those precious moments.</Text>
@@ -236,7 +251,7 @@ export default function NotificationPermissionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#050506',
+    backgroundColor: colors.base.DEFAULT,
   },
   illustrationArea: {
     flex: 1,
@@ -359,7 +374,7 @@ const styles = StyleSheet.create({
     marginBottom: 36,
   },
   primaryButton: {
-    backgroundColor: colors.iris,
+    backgroundColor: '#F44A22',
     width: '100%',
     paddingVertical: 18,
     borderRadius: 30,

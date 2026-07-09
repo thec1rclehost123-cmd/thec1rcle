@@ -146,9 +146,9 @@ export async function getGuestWalletTicket(dbOrUserId, authOrTicketId, maybeUser
     if (ticket.entitlementId) {
       ticket.qrPayload = ticket.entitlementId;
     } else {
-      // Import here to avoid circular dependency or heavy boot
-      const { signTicketId } = await import('./ticket-engine.js');
-      ticket.qrPayload = signTicketId(ticket.ticketId);
+      ticket.qrMode = 'raw_id';
+      ticket.qrPayload = ticket.id || ticket.ticketId;
+      ticket.qrData = ticket.qrPayload;
     }
   }
 

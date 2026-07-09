@@ -19,6 +19,7 @@ export interface ScanResponse {
     ticketName: string;
     quantity: number;
     entryType: string;
+    genderRestriction?: string | null;
   };
   previousScan?: {
     time: string;
@@ -61,6 +62,7 @@ export async function processQRScan(request: ScanRequest): Promise<ScanResponse>
               ticketName: data.ticket.ticketName || 'Entry',
               quantity: data.ticket.quantity || 1,
               entryType: data.ticket.entryType || 'general',
+              genderRestriction: data.ticket.genderRestriction || null,
             }
           : undefined,
       };
@@ -71,6 +73,7 @@ export async function processQRScan(request: ScanRequest): Promise<ScanResponse>
       already_used: 'already_scanned',
       event_mismatch: 'wrong_event',
       order_not_confirmed: 'not_confirmed',
+      revoked: 'invalid',
     };
 
     const prev = data.previousScan;
@@ -108,8 +111,31 @@ export async function processQRScan(request: ScanRequest): Promise<ScanResponse>
 function simulateScan(qrData: string): ScanResponse {
   try {
     const parsed = JSON.parse(qrData);
-    const random = Math.random();
 
+    // Support entitlement QR format: { eid, ts, sig, gr? }
+    if (parsed.eid && parsed.ts && parsed.sig) {
+      const random = Math.random();
+      if (random < 0.7) {
+        return {
+          success: true,
+          result: 'valid',
+          message: 'Entry approved!',
+          ticket: {
+            orderId: 'entitlement',
+            eventId: 'demo_event',
+            userName: 'Demo Guest',
+            ticketName: 'Entry',
+            quantity: 1,
+            entryType: 'general',
+            genderRestriction: parsed.gr || null,
+          },
+        };
+      }
+      return { success: false, result: 'invalid', error: 'Ticket denied' };
+    }
+
+    // Legacy static QR format: { o, e, t, n, u, q, et, gr? }
+    const random = Math.random();
     if (random < 0.7) {
       return {
         success: true,
@@ -122,6 +148,7 @@ function simulateScan(qrData: string): ScanResponse {
           ticketName: parsed.n || 'General Entry',
           quantity: parsed.q || 1,
           entryType: parsed.et || 'general',
+          genderRestriction: parsed.gr || null,
         },
       };
     } else if (random < 0.85) {

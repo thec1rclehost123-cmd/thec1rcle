@@ -96,7 +96,7 @@ export function Card({
         onPress={onPress ? handlePress : undefined}
         style={[animatedStyle, styles.glassContainer, style]}
       >
-        <BlurView intensity={20} tint="dark" style={styles.blur}>
+        <BlurView blurMethod="dimezisBlurView" intensity={20} tint="dark" style={styles.blur}>
           <View style={[styles.glassOverlay, { padding: paddingStyles[padding] }]}>{children}</View>
         </BlurView>
       </Container>

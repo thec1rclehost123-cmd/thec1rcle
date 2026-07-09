@@ -497,9 +497,14 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         if (type === 'user') {
           const existingDoc = await fastify.db.collection('users').doc(actualId).get();
           const rawUpdates = updates || request.body || {};
+
+          const canOverride = request.user?.role === 'admin' || request.user?.admin === true;
+          const isAdminOverride = canOverride && rawUpdates.adminOverrideGenderCooldown === true;
           const result = buildGuestProfileUpdates(
             rawUpdates,
             existingDoc.exists ? existingDoc.data() || {} : {},
+            new Date().toISOString(),
+            isAdminOverride,
           );
 
           if (result.error) {

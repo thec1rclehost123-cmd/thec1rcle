@@ -92,15 +92,24 @@ export const postChatMessageInternal = async (
   const userSnap = await db.collection('users').doc(userId).get();
   const userData = userSnap.exists ? userSnap.data() : {};
 
-  // 4. Construct Message Payload
+  // 4. Strip HTML/script tags from content (XSS prevention)
+  const sanitized = content.replace(/<[^>]*>/g, '').replace(/[<>&"'`]/g, '').substring(0, 1000).trim();
+  if (!sanitized) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Message content is empty after sanitization',
+    );
+  }
+
+  // 5. Construct Message Payload
   const messagePayload = {
     eventId,
     senderId: userId,
     senderName: userData?.displayName || 'C1RCLE Member',
     senderAvatar: userData?.photoURL || null,
     senderBadge: userData?.role === 'host' ? 'host' : undefined,
-    content: content.substring(0, 1000), // Basic length limit
-    type,
+    content: sanitized,
+    type: type === 'system' ? 'text' : type, // Prevent client from sending 'system' type
     isAnonymous: !!isAnonymous,
     isDeleted: false,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -116,7 +125,7 @@ export const postChatMessageInternal = async (
     .doc(eventId)
     .update({
       lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-      lastMessageContent: isAnonymous ? 'Anonymous message' : content.substring(0, 50),
+      lastMessageContent: isAnonymous ? 'Anonymous message' : sanitized.substring(0, 50),
     })
     .catch((e) => console.error('[Chat] Metadata update failed', e));
 

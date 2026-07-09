@@ -154,6 +154,19 @@ describe('guest-auth contracts', () => {
     expect(result.error).toMatch(/Gender can only be changed once every 30 days/);
   });
 
+  it('bypasses gender cooldown when adminOverride is true', () => {
+    const result = buildGuestProfileUpdates(
+      { gender: 'woman' },
+      { gender: 'man', genderLastChangedAt: '2026-04-01T00:00:00.000Z' },
+      '2026-04-20T00:00:00.000Z',
+      true,
+    );
+
+    expect(result.error).toBeNull();
+    expect((result.safeUpdates as any).gender).toBe('woman');
+    expect((result.safeUpdates as any).genderLastChangedAt).toBe('2026-04-20T00:00:00.000Z');
+  });
+
   it('normalizes avatar and phone fields during safe guest profile updates', () => {
     const result = buildGuestProfileUpdates(
       {

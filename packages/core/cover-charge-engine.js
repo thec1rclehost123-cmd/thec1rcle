@@ -15,6 +15,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import bcrypt from 'bcryptjs';
 import { getAdminDb } from './admin.js';
 import { recordLedgerTransaction } from './ledger-engine.js';
 
@@ -30,6 +31,29 @@ const IDEMPOTENCY_LOOKBACK_LIMIT = 10;
 // HELPERS
 // =============================================================================
 
+const MAX_SAFE_PAISE = 100_000_000_00; // ₹10,00,000 (~$12,000) — upper bound for any single value
+
+/**
+ * Guard that enforces paise values are safe integers within valid range.
+ * Prevents IEEE 754 precision loss, overflow attacks, and negative values.
+ * Must be applied to ALL amountPaise inputs before any arithmetic.
+ *
+ * @param {number} value - The paise value to assert
+ * @param {string} [name='amountPaise'] - Name for error messages
+ * @throws {Error} if value is not a safe non-negative integer or exceeds max bound
+ */
+function assertSafePaise(value, name = 'amountPaise') {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value)) {
+    throw new Error(`${name} must be a safe integer, got ${value}`);
+  }
+  if (value < 0) {
+    throw new Error(`${name} must be non-negative, got ${value}`);
+  }
+  if (value > MAX_SAFE_PAISE) {
+    throw new Error(`${name} exceeds maximum allowed value (${MAX_SAFE_PAISE} paise)`);
+  }
+}
+
 function newWalletId() {
   return `CW-${randomUUID().replace(/-/g, '').substring(0, 12).toUpperCase()}`;
 }
@@ -42,7 +66,7 @@ function newTxnId() {
  * Format paise as a display string: 50000 → "₹500.00"
  */
 export function formatPaise(paise) {
-  if (!Number.isInteger(paise)) throw new Error(`formatPaise: expected integer, got ${paise}`);
+  assertSafePaise(paise, 'formatPaise input');
   const rupees = paise / 100;
   return `₹${rupees.toFixed(2)}`;
 }
@@ -131,37 +155,44 @@ export function computeTerminationTime(eventStartIso, terminationHour = 5, tzOff
  * @param {string} params.eventStartIso - ISO8601 with tz
  * @param {string} params.tzOffset - e.g. "+05:30"
  * @param {string} params.termsAcceptedAt
+ * @param {'PENDING'|'ACTIVE'} [params.initialState='PENDING'] - wallet starts PENDING until door scan activates it
  * @param {object|null} [transaction] - optional Firestore transaction
  * @returns {Promise<import('./types/cover-charge.js').CoverWallet>}
  */
 export async function issueWallet(
   {
+    db = null,
     orderId,
     eventId,
     venueId,
     userId,
+    guestFirstName = null,
     tierConfig,
     eventStartIso,
     tzOffset = '+05:30',
     termsAcceptedAt,
+    initialState = 'PENDING',
   },
   transaction = null,
 ) {
-  if (!Number.isInteger(tierConfig.walletAmountPaise) || tierConfig.walletAmountPaise <= 0) {
+  assertSafePaise(tierConfig.walletAmountPaise, 'tierConfig.walletAmountPaise');
+  if (tierConfig.walletAmountPaise <= 0) {
     throw new Error(
       `walletAmountPaise must be a positive integer, got ${tierConfig.walletAmountPaise}`,
     );
   }
 
-  const db = getAdminDb();
+  const dbClient = db || getAdminDb();
 
   // Idempotency: check for existing wallet for this order
-  const existingQuery = await db
+  const existingQueryRef = dbClient
     .collection(WALLET_COLLECTION)
     .where('orderId', '==', orderId)
     .where('userId', '==', userId)
-    .limit(1)
-    .get();
+    .limit(1);
+  const existingQuery = transaction
+    ? await transaction.get(existingQueryRef)
+    : await existingQueryRef.get();
 
   if (!existingQuery.empty) {
     return { id: existingQuery.docs[0].id, ...existingQuery.docs[0].data() };
@@ -182,7 +213,8 @@ export async function issueWallet(
     eventId,
     venueId,
     userId,
-    state: 'ACTIVE',
+    guestFirstName: guestFirstName || null,
+    state: initialState,
     openingBalancePaise: tierConfig.walletAmountPaise,
     currentBalancePaise: tierConfig.walletAmountPaise,
     totalDebitedPaise: 0,
@@ -213,7 +245,7 @@ export async function issueWallet(
     createdBy: 'checkout_service',
   };
 
-  const ref = db.collection(WALLET_COLLECTION).doc(walletId);
+  const ref = dbClient.collection(WALLET_COLLECTION).doc(walletId);
 
   if (transaction) {
     transaction.set(ref, wallet);
@@ -225,11 +257,72 @@ export async function issueWallet(
 }
 
 // =============================================================================
+// ACTIVATION (PENDING → ACTIVE)
+// =============================================================================
+
+/**
+ * Activate a pending cover wallet.
+ *
+ * Called when the bouncer scans the user's ticket at the door.
+ * Idempotent: if the wallet is already ACTIVE, returns success.
+ *
+ * @param {string} walletId
+ * @param {object} [options]
+ * @param {string} [options.activatedBy] - scanner operator info
+ * @param {string} [options.scanId] - the ticket_scan document ID that triggered activation
+ * @returns {Promise<{success: boolean, code?: string, wallet?: object}>}
+ */
+export async function activateWallet(walletId, { activatedBy = 'scanner', scanId = null } = {}) {
+  const db = getAdminDb();
+  const walletRef = db.collection(WALLET_COLLECTION).doc(walletId);
+
+  return await db.runTransaction(async (tx) => {
+    const walletDoc = await tx.get(walletRef);
+    if (!walletDoc.exists) {
+      return { success: false, code: 'WALLET_NOT_FOUND' };
+    }
+
+    const wallet = walletDoc.data();
+
+    if (wallet.state === 'ACTIVE') {
+      return { success: true, code: 'ALREADY_ACTIVE', wallet };
+    }
+
+    if (wallet.state !== 'PENDING') {
+      return {
+        success: false,
+        code: 'INVALID_STATE',
+        message: `Cannot activate wallet in state: ${wallet.state}`,
+      };
+    }
+
+    const now = new Date().toISOString();
+    tx.update(walletRef, {
+      state: 'ACTIVE',
+      activatedAt: now,
+      activatedBy,
+      scanId: scanId || null,
+      lastActivityAt: now,
+    });
+
+    return {
+      success: true,
+      code: 'ACTIVATED',
+      wallet: { ...wallet, state: 'ACTIVE', activatedAt: now },
+    };
+  });
+}
+
+// =============================================================================
 // DEBIT
 // =============================================================================
 
 /**
- * Debit a Cover Wallet for a preset item.
+ * Debit a Cover Wallet for a preset item (or custom amount).
+ *
+ * When `presetItemId` is provided, uses the preset item's amount.
+ * When `customAmountPaise` is provided, validates against min/max and debits directly.
+ * One of `presetItemId` or `customAmountPaise` must be set.
  *
  * Idempotent: if idempotencyKey has been seen before, returns the original txn.
  *
@@ -240,7 +333,8 @@ export async function debitWallet(req) {
   const {
     walletId,
     presetItemId,
-    quantity,
+    customAmountPaise,
+    quantity = 1,
     idempotencyKey,
     operatorId,
     operatorName,
@@ -259,6 +353,13 @@ export async function debitWallet(req) {
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) {
     return { success: false, code: 'INVALID_QUANTITY', message: 'quantity must be 1–10' };
   }
+  if (!presetItemId && !customAmountPaise) {
+    return {
+      success: false,
+      code: 'MISSING_AMOUNT',
+      message: 'Either presetItemId or customAmountPaise is required',
+    };
+  }
 
   const db = getAdminDb();
 
@@ -272,17 +373,17 @@ export async function debitWallet(req) {
 
     const wallet = walletDoc.data();
 
-    // --- Idempotency check ---
-    const idempSnap = await db
+    // --- Idempotency check (deterministic doc ID, transaction-snapshot-isolated) ---
+    const txnDocId = `TXN-${idempotencyKey}`;
+    const txnRef = db
       .collection(WALLET_COLLECTION)
       .doc(walletId)
       .collection(TXN_SUBCOLLECTION)
-      .where('idempotencyKey', '==', idempotencyKey)
-      .limit(1)
-      .get();
+      .doc(txnDocId);
 
-    if (!idempSnap.empty) {
-      const existingTxn = { id: idempSnap.docs[0].id, ...idempSnap.docs[0].data() };
+    const existingTxnDoc = await tx.get(txnRef);
+    if (existingTxnDoc.exists) {
+      const existingTxn = { id: existingTxnDoc.id, ...existingTxnDoc.data() };
       return {
         success: true,
         transactionId: existingTxn.id,
@@ -327,26 +428,57 @@ export async function debitWallet(req) {
       };
     }
 
-    // --- Preset item lookup ---
-    const item = wallet.rules.allowedPresetItems?.find((i) => i.id === presetItemId);
-    if (!item) {
-      return {
-        success: false,
-        code: 'ITEM_NOT_ALLOWED',
-        message: 'Preset item not found or not available for this wallet',
-      };
-    }
-    if (!item.isAvailable) {
-      return { success: false, code: 'ITEM_NOT_ALLOWED', message: 'Item is currently unavailable' };
+    // --- Amount resolution: preset item lookup OR custom amount ---
+    let itemName = '';
+    let totalAmountPaise = 0;
+
+    if (presetItemId) {
+      const item = wallet.rules.allowedPresetItems?.find((i) => i.id === presetItemId);
+      if (!item) {
+        return {
+          success: false,
+          code: 'ITEM_NOT_ALLOWED',
+          message: 'Preset item not found or not available for this wallet',
+        };
+      }
+      if (!item.isAvailable) {
+        return {
+          success: false,
+          code: 'ITEM_NOT_ALLOWED',
+          message: 'Item is currently unavailable',
+        };
+      }
+      assertSafePaise(item.amountPaise, `presetItem(${item.id}).amountPaise`);
+      itemName = item.name;
+      totalAmountPaise = item.amountPaise * quantity;
+    } else if (customAmountPaise) {
+      try {
+        assertSafePaise(customAmountPaise, 'customAmountPaise');
+      } catch (e) {
+        return {
+          success: false,
+          code: 'INVALID_CUSTOM_AMOUNT',
+          message: e.message,
+        };
+      }
+      if (!Number.isInteger(customAmountPaise) || customAmountPaise <= 0) {
+        return {
+          success: false,
+          code: 'INVALID_CUSTOM_AMOUNT',
+          message: 'customAmountPaise must be a positive integer',
+        };
+      }
+      itemName = 'Custom Charge';
+      totalAmountPaise = customAmountPaise;
     }
 
-    // --- Amount calculation ---
-    const totalAmountPaise = item.amountPaise * quantity;
-    if (!Number.isInteger(totalAmountPaise)) {
+    try {
+      assertSafePaise(totalAmountPaise, 'totalAmountPaise');
+    } catch (e) {
       return {
         success: false,
         code: 'AMOUNT_CALCULATION_ERROR',
-        message: 'Amount calculation error',
+        message: e.message,
       };
     }
 
@@ -375,12 +507,11 @@ export async function debitWallet(req) {
     }
 
     // --- Commit ---
-    const txnId = newTxnId();
     const timestamp = now.toISOString();
     const newBalance = wallet.currentBalancePaise - totalAmountPaise;
 
     const txn = {
-      id: txnId,
+      id: txnDocId,
       walletId,
       eventId: wallet.eventId,
       venueId: wallet.venueId,
@@ -389,10 +520,10 @@ export async function debitWallet(req) {
       idempotencyKey,
       amountPaise: totalAmountPaise,
       balanceAfterPaise: newBalance,
-      presetItemId,
-      presetItemName: item.name,
+      presetItemId: presetItemId || null,
+      presetItemName: itemName,
       quantity,
-      unitAmountPaise: item.amountPaise,
+      unitAmountPaise: presetItemId ? totalAmountPaise / quantity : customAmountPaise,
       operatorId,
       operatorName: operatorName || '',
       operatorRole: operatorRole || 'staff',
@@ -400,12 +531,6 @@ export async function debitWallet(req) {
       eventCodeId,
       createdAt: timestamp,
     };
-
-    const txnRef = db
-      .collection(WALLET_COLLECTION)
-      .doc(walletId)
-      .collection(TXN_SUBCOLLECTION)
-      .doc(txnId);
 
     tx.set(txnRef, txn);
     tx.update(walletRef, {
@@ -417,11 +542,11 @@ export async function debitWallet(req) {
 
     return {
       success: true,
-      transactionId: txnId,
+      transactionId: txnDocId,
       balanceAfterPaise: newBalance,
       balanceAfterDisplay: formatPaise(newBalance),
       receipt: {
-        itemName: item.name,
+        itemName,
         quantity,
         amountPaise: totalAmountPaise,
         timestamp,
@@ -446,7 +571,7 @@ export async function reverseTransaction(req) {
     walletId,
     transactionId,
     reason,
-    supervisorPinHash,
+    supervisorPin,
     operatorId,
     operatorRole,
     deviceId,
@@ -460,7 +585,7 @@ export async function reverseTransaction(req) {
       message: 'Reversals require manager or admin role',
     };
   }
-  if (!supervisorPinHash) {
+  if (!supervisorPin) {
     return {
       success: false,
       code: 'SUPERVISOR_PIN_REQUIRED',
@@ -470,8 +595,8 @@ export async function reverseTransaction(req) {
 
   const db = getAdminDb();
 
-  // Verify supervisor PIN against stored hash
-  const pinVerified = await verifySupervisorPin(supervisorPinHash, walletId);
+  // Server-side bcrypt verification of the plain PIN
+  const pinVerified = await verifySupervisorPin(supervisorPin, walletId);
   if (!pinVerified) {
     return {
       success: false,
@@ -502,6 +627,7 @@ export async function reverseTransaction(req) {
     }
 
     const originalTxn = txnDoc.data();
+    assertSafePaise(originalTxn.amountPaise, 'originalTxn.amountPaise');
 
     if (originalTxn.type !== 'DEBIT') {
       return {
@@ -535,12 +661,24 @@ export async function reverseTransaction(req) {
       };
     }
 
-    const reversalId = newTxnId();
-    const timestamp = new Date().toISOString();
     const idempotencyKey = `REV-${transactionId}`;
+    const reversalDocId = `TXN-${idempotencyKey}`;
+    const timestamp = new Date().toISOString();
+
+    // Idempotency check — deterministic doc ID within the transaction
+    const reversalRef = db
+      .collection(WALLET_COLLECTION)
+      .doc(walletId)
+      .collection(TXN_SUBCOLLECTION)
+      .doc(reversalDocId);
+
+    const existingReversal = await tx.get(reversalRef);
+    if (existingReversal.exists) {
+      return { success: true, transactionId: reversalDocId, code: 'IDEMPOTENCY_REPLAY' };
+    }
 
     const reversalTxn = {
-      id: reversalId,
+      id: reversalDocId,
       walletId,
       eventId: wallet.eventId,
       venueId: wallet.venueId,
@@ -562,12 +700,6 @@ export async function reverseTransaction(req) {
       createdAt: timestamp,
     };
 
-    const reversalRef = db
-      .collection(WALLET_COLLECTION)
-      .doc(walletId)
-      .collection(TXN_SUBCOLLECTION)
-      .doc(reversalId);
-
     tx.set(reversalRef, reversalTxn);
     tx.update(txnRef, { status: 'REVERSED', reversedAt: timestamp, reversedBy: operatorId });
     tx.update(walletRef, {
@@ -577,7 +709,7 @@ export async function reverseTransaction(req) {
       lastActivityAt: timestamp,
     });
 
-    return { success: true, transactionId: reversalId };
+    return { success: true, transactionId: reversalDocId };
   });
 }
 
@@ -597,6 +729,15 @@ export async function topUpWallet(req) {
       success: false,
       code: 'INSUFFICIENT_ROLE',
       message: 'Top-up requires host or admin role',
+    };
+  }
+  try {
+    assertSafePaise(amountPaise, 'amountPaise');
+  } catch (e) {
+    return {
+      success: false,
+      code: 'INVALID_AMOUNT',
+      message: e.message,
     };
   }
   if (!Number.isInteger(amountPaise) || amountPaise <= 0) {
@@ -626,20 +767,19 @@ export async function topUpWallet(req) {
 
     const wallet = walletDoc.data();
 
-    // --- Idempotency check ---
-    const idempSnap = await db
+    // --- Idempotency check (deterministic doc ID, transaction-snapshot-isolated) ---
+    const topUpDocId = `TXN-${idempotencyKey}`;
+    const topUpRef = db
       .collection(WALLET_COLLECTION)
       .doc(walletId)
       .collection(TXN_SUBCOLLECTION)
-      .where('idempotencyKey', '==', idempotencyKey)
-      .limit(1)
-      .get();
+      .doc(topUpDocId);
 
-    if (!idempSnap.empty) {
-      const existing = { id: idempSnap.docs[0].id, ...idempSnap.docs[0].data() };
+    const existingTopUp = await tx.get(topUpRef);
+    if (existingTopUp.exists) {
       return {
         success: true,
-        transactionId: existing.id,
+        transactionId: topUpDocId,
         code: 'IDEMPOTENCY_REPLAY',
         message: 'Already committed',
       };
@@ -676,11 +816,10 @@ export async function topUpWallet(req) {
       };
     }
 
-    const txnId = newTxnId();
     const timestamp = new Date().toISOString();
 
     const txn = {
-      id: txnId,
+      id: topUpDocId,
       walletId,
       eventId: wallet.eventId,
       venueId: wallet.venueId,
@@ -698,13 +837,7 @@ export async function topUpWallet(req) {
       createdAt: timestamp,
     };
 
-    const txnRef = db
-      .collection(WALLET_COLLECTION)
-      .doc(walletId)
-      .collection(TXN_SUBCOLLECTION)
-      .doc(txnId);
-
-    tx.set(txnRef, txn);
+    tx.set(topUpRef, txn);
     tx.update(walletRef, {
       currentBalancePaise: newBalance,
       totalCreditedPaise: wallet.totalCreditedPaise + amountPaise,
@@ -712,7 +845,7 @@ export async function topUpWallet(req) {
       lastActivityAt: timestamp,
     });
 
-    return { success: true, transactionId: txnId, balanceAfterPaise: newBalance };
+    return { success: true, transactionId: topUpDocId, balanceAfterPaise: newBalance };
   });
 }
 
@@ -996,17 +1129,18 @@ export async function generateReconciliation(eventId, venueId) {
 // =============================================================================
 
 /**
- * Check and increment device-level debit velocity.
- * Returns true if the debit is within velocity limits, false if exceeded.
+ * Check debit velocity bound to scanner session ID.
+ * Returns true if within limits, false if exceeded.
+ * Does NOT increment — caller must increment only on successful debit.
  *
  * @param {object} redis - ioredis client
- * @param {string} deviceId
+ * @param {string} sessionId - scanner session ID (not deviceId)
  * @param {string} walletId
  * @param {number} maxPerMinute
  * @returns {Promise<boolean>}
  */
-export async function checkAndIncrementVelocity(redis, deviceId, walletId, maxPerMinute = 3) {
-  const key = `cwv:${deviceId}:${walletId}:${Math.floor(Date.now() / 60000)}`;
+export async function checkAndIncrementVelocity(redis, sessionId, walletId, maxPerMinute = 3) {
+  const key = `cwv:${sessionId}:${walletId}:${Math.floor(Date.now() / 60000)}`;
   const count = await redis.incr(key);
   if (count === 1) {
     await redis.expire(key, 90); // 90s TTL (covers the 60s window + buffer)
@@ -1019,17 +1153,14 @@ export async function checkAndIncrementVelocity(redis, deviceId, walletId, maxPe
 // =============================================================================
 
 /**
- * Verify a supervisor PIN hash against the stored hash for this wallet's venue.
- * The stored hash is a bcrypt hash in platform_settings/{venueId}.supervisorPinHash.
+ * Verify a supervisor's plain PIN against the stored bcrypt hash for this wallet's venue.
+ * The stored hash lives in platform_settings/{venueId}.supervisorPinHash.
  *
- * For v1, we use a simple constant-time comparison of bcrypt hashes.
- * In production, use the `bcrypt` package.
- *
- * @param {string} submittedHash - bcrypt hash of the PIN submitted by staff
+ * @param {string} supervisorPin - plain-text PIN submitted by staff (safe over TLS)
  * @param {string} walletId
  * @returns {Promise<boolean>}
  */
-async function verifySupervisorPin(submittedHash, walletId) {
+async function verifySupervisorPin(supervisorPin, walletId) {
   const db = getAdminDb();
 
   const walletDoc = await db.collection(WALLET_COLLECTION).doc(walletId).get();
@@ -1042,8 +1173,5 @@ async function verifySupervisorPin(submittedHash, walletId) {
   const storedHash = settingsDoc.data()?.supervisorPinHash;
   if (!storedHash) return false;
 
-  // In production: return await bcrypt.compare(plainPin, storedHash)
-  // Here we compare the client-submitted bcrypt hash with the stored hash
-  // The client must hash the PIN before sending (prevents plain PIN transit)
-  return storedHash === submittedHash;
+  return bcrypt.compare(supervisorPin, storedHash);
 }

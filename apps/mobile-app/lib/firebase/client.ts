@@ -1,24 +1,12 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  sendPasswordResetEmail,
-  onAuthStateChanged,
-  OAuthProvider,
-  signInWithCredential,
-  GoogleAuthProvider,
-  PhoneAuthProvider,
-  User,
-  Auth,
-} from 'firebase/auth';
+import { initializeAppCheck, CustomProvider, type AppCheck } from 'firebase/app-check';
 import { NativeModules } from 'react-native';
 import { firebaseConfig } from './config';
+import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 
-// Initialize Firebase App (singleton)
+// Initialize Web Firebase App (for App Check / API compatibility if needed)
 let firebaseApp: FirebaseApp;
-let firebaseAuth: Auth;
+let firebaseAppCheck: AppCheck | null = null;
 
 export function getFirebaseApp(): FirebaseApp {
   if (!firebaseApp) {
@@ -27,62 +15,195 @@ export function getFirebaseApp(): FirebaseApp {
   return firebaseApp;
 }
 
-// Firebase Auth
-export function getFirebaseAuth(): Auth {
-  if (!firebaseAuth) {
-    firebaseAuth = getAuth(getFirebaseApp());
+export function initAppCheck(): AppCheck {
+  if (!firebaseAppCheck) {
+    const debugToken = process.env.EXPO_PUBLIC_APPCHECK_DEBUG_TOKEN || '';
+    firebaseAppCheck = initializeAppCheck(getFirebaseApp(), {
+      provider: new CustomProvider({
+        getToken: async () => ({
+          token: debugToken,
+          expireTimeMillis: Date.now() + 1000 * 60 * 60, // 1 hour
+        }),
+      }),
+      isTokenAutoRefreshEnabled: true,
+    });
   }
-  return firebaseAuth;
+  return firebaseAppCheck;
 }
 
-// ─── Auth helper functions ───────────────────────────────────────
+// Firebase Auth Native
+export function getFirebaseAuth() {
+  return auth();
+}
+
+type PendingProviderLink = {
+  email: string;
+  providerId: string;
+  providerName: string;
+  credential: FirebaseAuthTypes.AuthCredential;
+};
+
+let pendingProviderLink: PendingProviderLink | null = null;
+
+export function getPendingProviderLink() {
+  return pendingProviderLink
+    ? {
+        email: pendingProviderLink.email,
+        providerId: pendingProviderLink.providerId,
+        providerName: pendingProviderLink.providerName,
+      }
+    : null;
+}
+
+export function clearPendingProviderLink() {
+  pendingProviderLink = null;
+}
+
+function normalizeEmail(value?: string | null) {
+  return String(value || '')
+    .trim()
+    .toLowerCase();
+}
+
+async function linkPendingProviderIfNeeded(user: FirebaseAuthTypes.User) {
+  if (!pendingProviderLink) return;
+
+  const pending = pendingProviderLink;
+  if (normalizeEmail(user.email) !== normalizeEmail(pending.email)) {
+    pendingProviderLink = null;
+    return;
+  }
+
+  try {
+    await user.linkWithCredential(pending.credential);
+  } catch (error: any) {
+    if (error?.code !== 'auth/provider-already-linked') {
+      throw error;
+    }
+  } finally {
+    pendingProviderLink = null;
+  }
+}
+
+function buildProviderLinkError(
+  providerName: string,
+  email: string,
+  signInMethods: string[],
+  credential: FirebaseAuthTypes.AuthCredential,
+) {
+  pendingProviderLink = {
+    email,
+    providerId: credential.providerId,
+    providerName,
+    credential,
+  };
+
+  const requiresPassword = signInMethods.includes('password');
+  const message = requiresPassword
+    ? `We found an existing account for ${email}. Enter your password to link ${providerName} and continue.`
+    : `We found an existing account for ${email}. Sign in with your original method first, then try ${providerName} again.`;
+  const error = new Error(message) as Error & {
+    code?: string;
+    email?: string;
+    signInMethods?: string[];
+    providerName?: string;
+  };
+  error.code = requiresPassword
+    ? 'auth/link-with-password-required'
+    : 'auth/account-exists-with-different-credential';
+  error.email = email;
+  error.signInMethods = signInMethods;
+  error.providerName = providerName;
+  return error;
+}
+
+async function handleAccountExistsWithDifferentCredential(
+  error: any,
+  credential: FirebaseAuthTypes.AuthCredential,
+  fallbackEmail: string | null | undefined,
+  providerName: string,
+) {
+  if (error?.code !== 'auth/account-exists-with-different-credential') {
+    throw error;
+  }
+
+  const email = normalizeEmail(error.customData?.email || error.email || fallbackEmail);
+  if (!email) {
+    throw error;
+  }
+
+  const signInMethods = await auth().fetchSignInMethodsForEmail(email);
+  throw buildProviderLinkError(providerName, email, signInMethods, credential);
+}
 
 export async function loginWithEmail(email: string, password: string) {
-  const auth = getFirebaseAuth();
-  return signInWithEmailAndPassword(auth, email, password);
+  const result = await auth().signInWithEmailAndPassword(email, password);
+  await linkPendingProviderIfNeeded(result.user);
+  return result;
 }
 
 export async function signupWithEmail(email: string, password: string) {
-  const auth = getFirebaseAuth();
-  return createUserWithEmailAndPassword(auth, email, password);
+  const result = await auth().createUserWithEmailAndPassword(email, password);
+  return result;
+}
+
+export async function sendVerificationEmail(user: FirebaseAuthTypes.User, url: string) {
+  return user.sendEmailVerification({
+    url,
+    handleCodeInApp: true,
+    iOS: { bundleId: 'com.c1rcle.app' },
+    android: { packageName: 'com.c1rcle.app', installApp: false, minimumVersion: '12' },
+  });
+}
+
+export async function applyVerificationCode(code: string) {
+  return auth().applyActionCode(code);
 }
 
 export async function logout() {
-  const auth = getFirebaseAuth();
-  return signOut(auth);
+  clearPendingProviderLink();
+  try {
+    const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+    await GoogleSignin.signOut();
+  } catch (e) {
+    // Ignore errors (e.g., if Google Sign-In wasn't configured or active)
+  }
+  return auth().signOut();
 }
 
 export async function resetPassword(email: string) {
-  const auth = getFirebaseAuth();
-  return sendPasswordResetEmail(auth, email);
+  return auth().sendPasswordResetEmail(email);
 }
 
-export async function sendPhoneVerificationCode(phoneNumber: string, verifier: any) {
-  const provider = new PhoneAuthProvider(getFirebaseAuth());
-  return provider.verifyPhoneNumber(phoneNumber, verifier);
+export async function sendPhoneVerificationCode(phoneNumber: string, verifier?: any) {
+  return auth().signInWithPhoneNumber(phoneNumber);
 }
 
 export async function loginWithPhoneVerificationCode(verificationId: string, code: string) {
-  const credential = PhoneAuthProvider.credential(verificationId, code);
-  return signInWithCredential(getFirebaseAuth(), credential);
+  const credential = auth.PhoneAuthProvider.credential(verificationId, code);
+  return auth().signInWithCredential(credential);
 }
 
-export function subscribeToAuthState(callback: (user: User | null) => void) {
-  const auth = getFirebaseAuth();
-  return onAuthStateChanged(auth, callback);
+export async function linkWithPhoneVerificationCode(verificationId: string, code: string) {
+  const credential = auth.PhoneAuthProvider.credential(verificationId, code);
+  const currentUser = auth().currentUser;
+  if (!currentUser) throw new Error('No user signed in to link');
+  return currentUser.linkWithCredential(credential);
 }
 
-// ─── Social Login ────────────────────────────────────────────────
+export async function linkEmailToUser(email: string) {
+  const currentUser = auth().currentUser;
+  if (!currentUser) throw new Error('No user signed in to link');
+  return currentUser.updateEmail(email);
+}
 
-/**
- * Sign in with Apple (uses expo-apple-authentication)
- * Required by App Store if any third-party auth is offered.
- */
-export async function loginWithApple(): Promise<{ user: User }> {
-  // Dynamic import to avoid crash if package isn't installed
+export function subscribeToAuthState(callback: (user: FirebaseAuthTypes.User | null) => void) {
+  return auth().onAuthStateChanged(callback);
+}
+
+export async function loginWithApple(): Promise<{ user: FirebaseAuthTypes.User }> {
   const AppleAuthentication = await import('expo-apple-authentication');
 
-  // Check availability (only iOS 13+)
   const isAvailable = await AppleAuthentication.isAvailableAsync();
   if (!isAvailable) {
     throw new Error('Apple Sign-In is not available on this device');
@@ -99,61 +220,74 @@ export async function loginWithApple(): Promise<{ user: User }> {
     throw new Error('Apple Sign-In failed — no identity token');
   }
 
-  // Create Firebase credential from Apple token
-  const oAuthCredential = new OAuthProvider('apple.com').credential({
-    idToken: credential.identityToken,
-  });
+  const oAuthCredential = auth.AppleAuthProvider.credential(credential.identityToken);
 
-  const auth = getFirebaseAuth();
-  const result = await signInWithCredential(auth, oAuthCredential);
+  let result;
+  try {
+    result = await auth().signInWithCredential(oAuthCredential);
+  } catch (error: any) {
+    await handleAccountExistsWithDifferentCredential(
+      error,
+      oAuthCredential,
+      credential.email,
+      'Apple',
+    );
+    throw error;
+  }
 
-  // Profile creation is now handled by the API Gateway during first request/handshake
   return { user: result.user };
 }
 
-/**
- * Sign in with Google (uses @react-native-google-signin/google-signin)
- * Mirrors the website's loginWithGoogle from AuthProvider.jsx
- */
-export async function loginWithGoogle(): Promise<{ user: User }> {
+export async function loginWithGoogle(): Promise<{ user: FirebaseAuthTypes.User }> {
   if (!NativeModules.RNGoogleSignin) {
     throw new Error(
-      'Google Sign-In is not supported in this client (e.g. Expo Go). Please use Email or Apple Login instead.',
+      'Google Sign-In is not supported in this client. Please use Email or Apple Login instead.',
     );
   }
 
   try {
-    const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+    const { GoogleSignin } = require('@react-native-google-signin/google-signin');
 
-    // Configure Google Sign-In
     GoogleSignin.configure({
       webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     });
 
-    // Start Google sign-in flow
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     const signInResult = await GoogleSignin.signIn();
+    const tokens = await GoogleSignin.getTokens();
 
-    const idToken = signInResult.data?.idToken;
+    const idToken = signInResult.data?.idToken || tokens.idToken;
     if (!idToken) {
       throw new Error('Google Sign-In failed — no ID token');
     }
 
-    // Create Firebase credential from Google token
-    const googleCredential = GoogleAuthProvider.credential(idToken);
+    const accessToken = tokens.accessToken;
+    if (!accessToken) {
+      throw new Error('Google Sign-In failed — no access token');
+    }
 
-    const auth = getFirebaseAuth();
-    const result = await signInWithCredential(auth, googleCredential);
+    const googleCredential = auth.GoogleAuthProvider.credential(idToken, accessToken);
 
-    // Profile creation is now handled by the API Gateway during first request/handshake
+    const result = await auth()
+      .signInWithCredential(googleCredential)
+      .catch(async (error) => {
+        await handleAccountExistsWithDifferentCredential(
+          error,
+          googleCredential,
+          signInResult.data?.user?.email,
+          'Google',
+        );
+        throw error;
+      });
+
     return { user: result.user };
   } catch (e: any) {
-    console.error('Google Sign-In failed:', e);
-    throw new Error(
-      e.message ||
-        'Google Sign-In is not supported in this client. Please use Email or Apple Login instead.',
-    );
+    if (e?.code) {
+      throw e;
+    }
+    if (__DEV__) console.error('Google Sign-In failed:', e);
+    throw new Error(e.message || 'Google Sign-In failed.');
   }
 }
 
-export type { User };
+export type User = FirebaseAuthTypes.User;

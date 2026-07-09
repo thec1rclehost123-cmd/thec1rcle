@@ -9,7 +9,10 @@
 
 import { Alert } from 'react-native';
 import { useCartStore } from '@/store/cartStore';
+import { useTicketsStore } from '@/store/ticketsStore';
+import { useSubscriptionStore, type PremiumFeature } from '@/store/subscriptionStore';
 import { reserveTickets, initiateCheckout, verifyPayment } from './api';
+import { getFirebaseAuth } from './firebase';
 
 // Razorpay key for the frontend SDK (public key only — secret stays on server)
 const RAZORPAY_KEY = process.env.EXPO_PUBLIC_RAZORPAY_KEY;
@@ -34,6 +37,7 @@ export interface CheckoutParams {
   userPhone?: string;
   promoCode?: string | null;
   promoterCode?: string | null;
+  hostUpdatesOptIn?: boolean;
   onStatusChange?: (status: CheckoutStatus) => void;
 }
 
@@ -51,6 +55,19 @@ export interface CheckoutResult {
   orderId?: string;
   error?: string;
   requiresPayment?: boolean;
+  premiumRequired?: boolean;
+}
+
+function premiumFeatureFromError(error: any): PremiumFeature {
+  const feature = error?.details?.feature;
+  if (feature === 'premiumOnlyEvent' || feature === 'earlyAccessDrop') return feature;
+  return 'premiumOnlyEvent';
+}
+
+function sortItems(
+  items: { tierId: string; quantity: number }[],
+): { tierId: string; quantity: number }[] {
+  return [...items].sort((a, b) => a.tierId.localeCompare(b.tierId));
 }
 
 function matchesReservationSelection(
@@ -61,7 +78,7 @@ function matchesReservationSelection(
     return false;
   }
 
-  return JSON.stringify(reservation.items) === JSON.stringify(params.items);
+  return JSON.stringify(sortItems(reservation.items)) === JSON.stringify(sortItems(params.items));
 }
 
 function createCheckoutActionId(): string {
@@ -72,11 +89,31 @@ function createCheckoutActionId(): string {
 }
 
 function buildPhaseIdempotencyKey(actionId: string, phase: string): string {
-  return `${actionId}:${phase}`;
+  return `${actionId}::${phase}`;
 }
 
 function buildVerifyIdempotencyKey(paymentId: string): string {
   return `verify:${paymentId}`;
+}
+
+async function refreshTicketWallet(): Promise<void> {
+  try {
+    const uid = getFirebaseAuth().currentUser?.uid;
+    if (uid) {
+      await useTicketsStore.getState().fetchUserOrders();
+    }
+  } catch (error) {
+    if (__DEV__) console.warn('[Checkout] Wallet refresh after checkout failed:', error);
+  }
+}
+
+function refreshPostCheckoutState(): void {
+  void refreshTicketWallet();
+  void getFirebaseAuth()
+    .currentUser?.getIdToken(true)
+    .catch((error) => {
+      if (__DEV__) console.warn('[Checkout] Token refresh after checkout failed:', error);
+    });
 }
 
 // ─── Main Checkout Flow ──────────────────────────────────────────
@@ -87,12 +124,22 @@ function buildVerifyIdempotencyKey(paymentId: string): string {
  * 1. POST /api/checkout/reserve   → Lock inventory
  * 2. POST /api/checkout/initiate  → Create order + Razorpay order
  * 3. Razorpay native SDK          → Collect payment
- * 4. PATCH /api/payments          → Verify signature
+ * 4. POST /api/checkout/verify    → Verify signature
  * 5. Webhook confirms in background (same as web)
  */
 export async function processFullCheckout(params: CheckoutParams): Promise<CheckoutResult> {
   const { onStatusChange } = params;
   const checkoutActionId = createCheckoutActionId();
+
+  // Verify auth before making any API calls
+  const currentUser = getFirebaseAuth().currentUser;
+  if (!currentUser?.uid) {
+    onStatusChange?.('failed');
+    return {
+      success: false,
+      error: 'You must be signed in to complete checkout.',
+    };
+  }
 
   try {
     // ── Step 1: Reserve Inventory ──
@@ -156,6 +203,7 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
         userPhone: params.userPhone,
         promoCode: params.promoCode,
         promoterCode: params.promoterCode,
+        hostUpdatesOptIn: params.hostUpdatesOptIn ?? true,
       },
       {
         headers: {
@@ -181,6 +229,7 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
       useCartStore.getState().clearPendingReservation();
       useCartStore.getState().setPendingPaymentOrderId(null);
       useCartStore.getState().clearCart();
+      refreshPostCheckoutState();
       onStatusChange?.('confirmed');
       return {
         success: true,
@@ -243,6 +292,7 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
     useCartStore.getState().clearPendingReservation();
     useCartStore.getState().setPendingPaymentOrderId(null);
     useCartStore.getState().clearCart();
+    refreshPostCheckoutState();
 
     onStatusChange?.('confirmed');
     return {
@@ -252,7 +302,17 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
     };
   } catch (error: any) {
     onStatusChange?.('failed');
-    console.error('[Checkout] Error:', error);
+    if (__DEV__) console.error('[Checkout] Error:', error);
+    if (error.code === 'PREMIUM_REQUIRED') {
+      useSubscriptionStore
+        .getState()
+        .openPaywall(premiumFeatureFromError(error), error.message || undefined);
+      return {
+        success: false,
+        premiumRequired: true,
+        error: error.message || 'C1RCLE Premium is required.',
+      };
+    }
     return {
       success: false,
       error: error.message || 'Something went wrong with the checkout',
@@ -358,7 +418,7 @@ async function importRazorpaySDK(): Promise<any | null> {
     const mod = await import('react-native-razorpay');
     return mod.default || mod;
   } catch {
-    console.warn('[Payments] react-native-razorpay not available');
+    if (__DEV__) console.warn('[Payments] react-native-razorpay not available');
     return null;
   }
 }

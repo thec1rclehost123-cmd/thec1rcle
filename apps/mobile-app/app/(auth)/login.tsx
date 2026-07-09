@@ -9,26 +9,30 @@ import {
   ActivityIndicator,
   StyleSheet,
   Animated,
+  Keyboard,
+  AppState,
+  ScrollView,
+  InteractionManager,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Eye, EyeOff, Mail, Phone } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/store/authStore';
 import Svg, { Path } from 'react-native-svg';
-
-function AppleSvg({ size = 20, color = '#000000' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Path
-        d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 4.17c.66-.81 1.11-1.93.99-3.06-1 .04-2.21.67-2.93 1.49-.62.69-1.16 1.84-1.01 2.96 1.12.09 2.27-.57 2.95-1.39z"
-        fill={color}
-      />
-    </Svg>
-  );
-}
+import { colors } from '@/lib/design/theme';
+import { CountryCodePicker } from '@/components/ui/CountryCodePicker';
+import {
+  DEFAULT_PHONE_COUNTRY,
+  getLocalPhoneDigits,
+  getPhoneNumberInputError,
+  normalizePhoneNumber,
+  type PhoneCountry,
+} from '@/lib/phone';
 
 function GoogleSvg({ size = 18 }: { size?: number }) {
   return (
@@ -54,12 +58,20 @@ function GoogleSvg({ size = 18 }: { size?: number }) {
 }
 
 export default function LoginScreen() {
+  const params = useLocalSearchParams<{ returnTo?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
+  const [showPhoneForm, setShowPhoneForm] = useState(false);
+  const emailInputRef = useRef<TextInput>(null);
+  const phoneInputRef = useRef<TextInput>(null);
 
-  const { login, loginApple, loginGoogle, loading, error, clearError } = useAuth();
+  const { login, loginApple, loginGoogle, sendPhoneCode, loading, error, setError, clearError } =
+    useAuth();
+  const insets = useSafeAreaInsets();
 
   // Animated values for staggered layout slide & fade-in
   const fadeLogo = useRef(new Animated.Value(1)).current;
@@ -77,11 +89,9 @@ export default function LoginScreen() {
   const fadeFooter = useRef(new Animated.Value(1)).current;
   const slideFooter = useRef(new Animated.Value(0)).current;
 
-  const glowAnim = useRef(new Animated.Value(0.3)).current;
-
-  // Transition animation for when email form reveals
-  const fadeForm = useRef(new Animated.Value(0)).current;
-  const slideForm = useRef(new Animated.Value(15)).current;
+  // Keep auth forms mounted visibly; Android can delay opacity animations over video surfaces.
+  const fadeForm = useRef(new Animated.Value(1)).current;
+  const slideForm = useRef(new Animated.Value(0)).current;
 
   const player = useVideoPlayer(require('../../assets/background-video.mp4'), (player) => {
     player.loop = true;
@@ -90,22 +100,30 @@ export default function LoginScreen() {
   });
 
   useEffect(() => {
-    // Continuous subtle pulsing glow behind logo
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 0.6,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0.25,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-      ]),
-    ).start();
+    const resumeVideo = () => {
+      try {
+        player.play();
+      } catch {
+        // Ignore native player state races while auth sheets are closing.
+      }
+    };
 
+    resumeVideo();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') resumeVideo();
+    });
+
+    return () => {
+      subscription.remove();
+      try {
+        player.pause();
+      } catch {
+        // Ignore native crash during Fast Refresh when player is already released
+      }
+    };
+  }, [player]);
+
+  useEffect(() => {
     // Staggered layout mount animation
     Animated.stagger(100, [
       Animated.parallel([
@@ -132,34 +150,106 @@ export default function LoginScreen() {
   }, []);
 
   useEffect(() => {
-    if (showEmailForm) {
-      fadeForm.setValue(0);
-      slideForm.setValue(15);
-      Animated.parallel([
-        Animated.timing(fadeForm, { toValue: 1, duration: 450, useNativeDriver: true }),
-        Animated.timing(slideForm, { toValue: 0, duration: 450, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [showEmailForm]);
+    if (!showEmailForm && !showPhoneForm) return;
+
+    const focusTask = InteractionManager.runAfterInteractions(() => {
+      const input = showPhoneForm ? phoneInputRef.current : emailInputRef.current;
+      input?.focus();
+    });
+
+    return () => focusTask.cancel();
+  }, [showEmailForm, showPhoneForm]);
+
+  const [verificationSent, setVerificationSent] = useState(false);
+  const isAuthFormOpen = showEmailForm || showPhoneForm;
+  const returnTo =
+    typeof params.returnTo === 'string' && params.returnTo.startsWith('/') ? params.returnTo : '/';
+
+  const finishAuthNavigation = () => {
+    if (router.canDismiss()) router.dismissAll();
+    router.replace(returnTo as any);
+  };
 
   const handleLogin = async () => {
-    if (!email.trim() || !password) return;
+    Keyboard.dismiss();
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError('Please enter your email');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password');
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const result = await login(email.trim(), password);
-    if (result.success) router.replace('/');
+    const result = await login(trimmedEmail, password);
+    if (result.success) {
+      if ((result as any).action === 'signup_verification_sent') {
+        setVerificationSent(true);
+      } else {
+        finishAuthNavigation();
+      }
+    }
+  };
+
+  const handlePhoneSubmit = async () => {
+    Keyboard.dismiss();
+    setError(null);
+    clearError();
+
+    const inputError = getPhoneNumberInputError(phone, phoneCountry);
+    if (inputError) {
+      setError(inputError);
+      return;
+    }
+
+    const phoneNumber = normalizePhoneNumber(phone, phoneCountry);
+    const result = await sendPhoneCode(phoneNumber);
+    if (result.success && result.verificationId) {
+      router.push({
+        pathname: '/(auth)/otp',
+        params: { verificationId: result.verificationId, phoneNumber, returnTo },
+      });
+    }
+  };
+
+  const handleCountrySelect = (country: PhoneCountry) => {
+    setPhoneCountry(country);
+    setPhone((current) => getLocalPhoneDigits(current, country).slice(0, country.localDigits));
+    setError(null);
+    clearError();
   };
 
   const handleApple = async () => {
     const result = await loginApple();
-    if (result.success) router.replace('/');
+    if (result.success) {
+      finishAuthNavigation();
+    }
+    if ((result as any).requiresPasswordLink && (result as any).email) {
+      setEmail((result as any).email);
+      setPassword('');
+      setShowEmailForm(true);
+    }
   };
 
   const handleGoogle = async () => {
     const result = await loginGoogle();
-    if (result.success) router.replace('/');
+    if (result.success) {
+      finishAuthNavigation();
+    }
+    if ((result as any).requiresPasswordLink && (result as any).email) {
+      setEmail((result as any).email);
+      setPassword('');
+      setShowEmailForm(true);
+    }
   };
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !loading;
+  const phoneDigits = getLocalPhoneDigits(phone, phoneCountry);
 
   return (
     <View style={s.container}>
@@ -169,188 +259,299 @@ export default function LoginScreen() {
           style={[StyleSheet.absoluteFillObject, { top: -140 }]}
           contentFit="cover"
           nativeControls={false}
+          pointerEvents="none"
         />
       )}
 
       {/* Heavy Vignette Gradient with nightlife energy visibility */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.9)', '#000000']}
+        colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.9)', colors.base.DEFAULT]}
         locations={[0, 0.35, 0.7, 1]}
         style={StyleSheet.absoluteFillObject}
+        pointerEvents="none"
       />
 
       <SafeAreaView style={s.safeArea}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.kav}>
-          <View style={s.content}>
-            {/* Header Section */}
-            <Animated.View
-              style={[s.header, { opacity: fadeLogo, transform: [{ translateY: slideLogo }] }]}
-            >
-              <Text style={s.title}>THEC1RCLE</Text>
-              <Text style={s.tagline}>Nightlife, sorted.</Text>
-            </Animated.View>
+        <View style={[s.skipRow, { top: insets.top > 0 ? insets.top : 20 }]}>
+          <Pressable
+            onPress={() => {
+              useAuthStore.getState().setGuestMode(true);
+              router.replace('/(tabs)/explore');
+            }}
+          >
+            <Text style={s.skipText}>Skip</Text>
+          </Pressable>
+        </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          style={s.kav}
+        >
+          <ScrollView
+            contentContainerStyle={s.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <View style={s.content}>
+              {/* Header Section */}
+              <Animated.View
+                style={[
+                  s.header,
+                  isAuthFormOpen && s.headerCompact,
+                  { opacity: fadeLogo, transform: [{ translateY: slideLogo }] },
+                ]}
+              >
+                <Text style={s.title}>THEC1RCLE</Text>
+                <Text style={s.tagline}>Nightlife, sorted.</Text>
+              </Animated.View>
 
-            {/* Error box */}
-            {error ? (
-              <View style={s.errorBox}>
-                <Text style={s.errorText}>{error}</Text>
-              </View>
-            ) : null}
+              {/* Error box */}
+              {error ? (
+                <View style={s.errorBox}>
+                  <Text style={s.errorText}>{error}</Text>
+                </View>
+              ) : null}
 
-            {/* Buttons / Form */}
-            {!showEmailForm ? (
-              <View style={s.buttonGroup}>
-                {Platform.OS === 'ios' && (
+              {/* Buttons / Form */}
+              {verificationSent ? (
+                <View style={s.form}>
+                  <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                    <Mail size={48} color="#ffffff" style={{ opacity: 0.8, marginBottom: 16 }} />
+                    <Text
+                      style={{ color: '#fff', fontSize: 24, fontWeight: '700', marginBottom: 8 }}
+                    >
+                      Check your email
+                    </Text>
+                    <Text
+                      style={{
+                        color: 'rgba(255,255,255,0.7)',
+                        fontSize: 16,
+                        textAlign: 'center',
+                        lineHeight: 22,
+                      }}
+                    >
+                      We couldn't find an account for{' '}
+                      <Text style={{ fontWeight: '600', color: '#fff' }}>{email}</Text>, so we're
+                      creating one for you!
+                    </Text>
+                    <Text
+                      style={{
+                        color: 'rgba(255,255,255,0.7)',
+                        fontSize: 16,
+                        textAlign: 'center',
+                        marginTop: 12,
+                        lineHeight: 22,
+                      }}
+                    >
+                      Click the secure link we just sent you to verify your email and finish setting
+                      up your account.
+                    </Text>
+                  </View>
+                  <Pressable onPress={() => setVerificationSent(false)} style={s.backBtn}>
+                    <Text style={s.backText}>Back to Login</Text>
+                  </Pressable>
+                </View>
+              ) : !showEmailForm && !showPhoneForm ? (
+                <View style={s.buttonGroup}>
+                  {Platform.OS === 'ios' && (
+                    <Animated.View
+                      style={{ opacity: fadeApple, transform: [{ translateY: slideApple }] }}
+                      pointerEvents={loading ? 'none' : 'auto'}
+                    >
+                      <AppleAuthentication.AppleAuthenticationButton
+                        buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                        buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                        cornerRadius={8}
+                        style={s.appleAuthButton}
+                        onPress={handleApple}
+                      />
+                    </Animated.View>
+                  )}
+
                   <Animated.View
-                    style={{ opacity: fadeApple, transform: [{ translateY: slideApple }] }}
+                    style={{ opacity: fadeGoogle, transform: [{ translateY: slideGoogle }] }}
                   >
-                    <Pressable style={s.appleBtn} onPress={handleApple} disabled={loading}>
+                    <Pressable style={s.googleBtn} onPress={handleGoogle} disabled={loading}>
                       <View style={s.btnIcon}>
-                        <AppleSvg size={20} color="#000000" />
+                        <GoogleSvg size={18} />
                       </View>
-                      <Text style={s.appleBtnText}>Continue with Apple</Text>
+                      <Text style={s.googleBtnText}>Continue with Google</Text>
                     </Pressable>
                   </Animated.View>
-                )}
 
-                <Animated.View
-                  style={{ opacity: fadeGoogle, transform: [{ translateY: slideGoogle }] }}
-                >
-                  <Pressable style={s.googleBtn} onPress={handleGoogle} disabled={loading}>
-                    <View style={s.btnIcon}>
-                      <GoogleSvg size={18} />
-                    </View>
-                    <Text style={s.googleBtnText}>Continue with Google</Text>
-                  </Pressable>
-                </Animated.View>
-
-                <Animated.View
-                  style={{ opacity: fadeEmail, transform: [{ translateY: slideEmail }] }}
-                >
-                  <Pressable
-                    style={s.emailBtn}
-                    onPress={() => router.push('/(auth)/phone' as any)}
-                    disabled={loading}
+                  <Animated.View
+                    style={{ opacity: fadeEmail, transform: [{ translateY: slideEmail }] }}
                   >
-                    <View style={s.btnIcon}>
-                      <Phone size={16} color="#ffffff" />
-                    </View>
-                    <Text style={s.emailBtnText}>Continue with Phone</Text>
-                  </Pressable>
-                </Animated.View>
+                    <Pressable
+                      style={s.emailBtn}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setShowPhoneForm(true);
+                      }}
+                      disabled={loading}
+                    >
+                      <View style={s.btnIcon}>
+                        <Phone size={16} color="#ffffff" />
+                      </View>
+                      <Text style={s.emailBtnText}>Continue with Phone</Text>
+                    </Pressable>
+                  </Animated.View>
 
+                  <Animated.View
+                    style={{ opacity: fadeEmail, transform: [{ translateY: slideEmail }] }}
+                  >
+                    <Pressable
+                      style={s.emailBtn}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setShowEmailForm(true);
+                      }}
+                      disabled={loading}
+                    >
+                      <View style={s.btnIcon}>
+                        <Mail size={16} color="#ffffff" />
+                      </View>
+                      <Text style={s.emailBtnText}>Continue with Email</Text>
+                    </Pressable>
+                  </Animated.View>
+                </View>
+              ) : showPhoneForm ? (
                 <Animated.View
-                  style={{ opacity: fadeEmail, transform: [{ translateY: slideEmail }] }}
+                  style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}
                 >
+                  <View style={s.phoneInputRow}>
+                    <CountryCodePicker
+                      selectedCountry={phoneCountry}
+                      onSelect={handleCountrySelect}
+                    />
+                    <TextInput
+                      ref={phoneInputRef}
+                      style={[s.input, s.phoneNumberInput]}
+                      placeholder={phoneCountry.example}
+                      placeholderTextColor="rgba(255,255,255,0.4)"
+                      keyboardType="number-pad"
+                      autoComplete="tel"
+                      autoFocus
+                      maxLength={phoneCountry.localDigits}
+                      value={phone}
+                      onChangeText={(t) => {
+                        setPhone(t.replace(/\D/g, '').slice(0, phoneCountry.localDigits));
+                        clearError();
+                      }}
+                    />
+                  </View>
+
                   <Pressable
-                    style={s.emailBtn}
+                    onPress={handlePhoneSubmit}
+                    disabled={loading || phoneDigits.length < phoneCountry.localDigits}
+                    style={[
+                      s.submitBtn,
+                      (loading || phoneDigits.length < phoneCountry.localDigits) &&
+                        s.submitBtnDisabled,
+                    ]}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#000" />
+                    ) : (
+                      <Text style={s.submitBtnText}>Send OTP</Text>
+                    )}
+                  </Pressable>
+
+                  <Pressable
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setShowEmailForm(true);
+                      setShowPhoneForm(false);
                     }}
-                    disabled={loading}
+                    style={s.backBtn}
                   >
-                    <View style={s.btnIcon}>
-                      <Mail size={16} color="#ffffff" />
-                    </View>
-                    <Text style={s.emailBtnText}>Continue with Email</Text>
+                    <Text style={s.backText}>Use another method</Text>
                   </Pressable>
                 </Animated.View>
-              </View>
-            ) : (
-              <View style={s.form}>
-                <TextInput
-                  style={s.input}
-                  placeholder="Email"
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  value={email}
-                  onChangeText={(t) => {
-                    setEmail(t);
-                    clearError();
-                  }}
-                />
-
-                <View style={s.passwordContainer}>
+              ) : showEmailForm ? (
+                <Animated.View
+                  style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}
+                >
                   <TextInput
-                    style={[s.input, { paddingRight: 48 }]}
-                    placeholder="Password"
+                    ref={emailInputRef}
+                    style={s.input}
+                    placeholder="Email"
                     placeholderTextColor="rgba(255,255,255,0.4)"
-                    secureTextEntry={!showPassword}
-                    value={password}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoFocus
+                    value={email}
                     onChangeText={(t) => {
-                      setPassword(t);
+                      setEmail(t);
                       clearError();
                     }}
                   />
-                  <Pressable onPress={() => setShowPassword((v) => !v)} style={s.eyeIcon}>
-                    {showPassword ? (
-                      <EyeOff size={18} color="rgba(255,255,255,0.6)" />
-                    ) : (
-                      <Eye size={18} color="rgba(255,255,255,0.6)" />
-                    )}
-                  </Pressable>
-                </View>
 
-                <Pressable
-                  onPress={handleLogin}
-                  disabled={!canSubmit}
-                  style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#000" />
-                  ) : (
-                    <Text style={s.submitBtnText}>Sign In</Text>
-                  )}
-                </Pressable>
-
-                <Pressable
-                  onPress={() => router.push('/(auth)/forgot-password')}
-                  style={s.forgotBtn}
-                >
-                  <Text style={s.forgotText}>Forgot Password?</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowEmailForm(false);
-                  }}
-                  style={s.backBtn}
-                >
-                  <Text style={s.backText}>Use another method</Text>
-                </Pressable>
-              </View>
-            )}
-
-            {/* Staggered Footer & Request Access / Legal text */}
-            <Animated.View
-              style={[
-                s.footerContainer,
-                { opacity: fadeFooter, transform: [{ translateY: slideFooter }] },
-              ]}
-            >
-              {!showEmailForm ? (
-                <View style={s.footerSubContainer}>
-                  <View style={s.signupRow}>
-                    <Text style={s.signupText}>New here? </Text>
-                    <Pressable onPress={() => router.push('/(auth)/signup')}>
-                      <Text style={s.signupLink}>Sign Up</Text>
+                  <View style={s.passwordContainer}>
+                    <TextInput
+                      style={[s.input, { paddingRight: 48 }]}
+                      placeholder="Password"
+                      placeholderTextColor="rgba(255,255,255,0.4)"
+                      secureTextEntry={!showPassword}
+                      value={password}
+                      onChangeText={(t) => {
+                        setPassword(t);
+                        clearError();
+                      }}
+                    />
+                    <Pressable onPress={() => setShowPassword((v) => !v)} style={s.eyeIcon}>
+                      {showPassword ? (
+                        <EyeOff size={18} color="rgba(255,255,255,0.6)" />
+                      ) : (
+                        <Eye size={18} color="rgba(255,255,255,0.6)" />
+                      )}
                     </Pressable>
                   </View>
-                </View>
-              ) : (
-                <View style={s.signupRow}>
-                  <Text style={s.signupText}>Don't have an account? </Text>
-                  <Pressable onPress={() => router.push('/(auth)/signup')}>
-                    <Text style={s.signupLink}>Sign Up</Text>
+
+                  <Pressable
+                    onPress={handleLogin}
+                    disabled={!canSubmit}
+                    style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#000" />
+                    ) : (
+                      <Text style={s.submitBtnText}>Sign In</Text>
+                    )}
                   </Pressable>
+
+                  <Pressable
+                    onPress={() => router.push('/(auth)/forgot-password')}
+                    style={s.forgotBtn}
+                  >
+                    <Text style={s.forgotText}>Forgot Password?</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowEmailForm(false);
+                    }}
+                    style={s.backBtn}
+                  >
+                    <Text style={s.backText}>Use another method</Text>
+                  </Pressable>
+                </Animated.View>
+              ) : null}
+
+              {/* Staggered Footer & Request Access / Legal text */}
+              <Animated.View
+                style={[
+                  s.footerContainer,
+                  { opacity: fadeFooter, transform: [{ translateY: slideFooter }] },
+                ]}
+              >
+                <View style={s.footerSubContainer}>
+                  {/* Removed Signup link since auth is now unified */}
                 </View>
-              )}
-            </Animated.View>
-          </View>
+              </Animated.View>
+            </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
@@ -360,40 +561,53 @@ export default function LoginScreen() {
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.base.DEFAULT,
   },
   safeArea: {
     flex: 1,
+  },
+  skipRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  skipText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 15,
+    fontWeight: '600',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   kav: {
     flex: 1,
     justifyContent: 'flex-end',
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   content: {
     paddingHorizontal: 24,
-    paddingBottom: 10,
-    justifyContent: 'flex-end',
+    paddingBottom: 20,
+    paddingTop: 50, // Space for the absolute Skip button
     flex: 1,
   },
   header: {
+    flex: 1,
     alignItems: 'center',
-    marginBottom: 64,
-    position: 'relative',
+    justifyContent: 'center',
     width: '100%',
+    minHeight: 120, // Prevents logo from being completely crushed
   },
-  glowCircle: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(139, 92, 246, 0.12)', // Violet light glow
-    alignSelf: 'center',
-    top: -30,
-    // iOS soft glow shadows
-    shadowColor: '#8b5cf6',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 35,
+  headerCompact: {
+    flex: 0,
+    minHeight: 128,
+    justifyContent: 'flex-end',
+    marginBottom: 28,
   },
   inviteCue: {
     color: 'rgba(255,255,255,0.45)',
@@ -440,8 +654,13 @@ const s = StyleSheet.create({
   buttonGroup: {
     width: '100%',
     gap: 12,
+    marginBottom: 10,
   },
-  appleBtn: {
+  appleAuthButton: {
+    width: '100%',
+    height: 52,
+  },
+  googleBtn: {
     backgroundColor: '#FFFFFF',
     height: 52,
     borderRadius: 18,
@@ -450,27 +669,10 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
   },
-  appleBtnText: {
-    color: '#000000',
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: 0,
-  },
-  googleBtn: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    height: 52,
-    borderRadius: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    position: 'relative',
-  },
   googleBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: '700',
     letterSpacing: 0,
   },
   emailBtn: {
@@ -497,6 +699,7 @@ const s = StyleSheet.create({
   form: {
     width: '100%',
     gap: 12,
+    marginBottom: 10,
   },
   input: {
     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -508,6 +711,15 @@ const s = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  phoneInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+  },
+  phoneNumberInput: {
+    flex: 1,
   },
   passwordContainer: {
     position: 'relative',

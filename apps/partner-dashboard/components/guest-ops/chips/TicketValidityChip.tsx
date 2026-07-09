@@ -4,12 +4,7 @@ import { cn } from '@/lib/utils';
 import { CheckCircle2, AlertTriangle, XCircle, RefreshCcw } from 'lucide-react';
 
 type ValidityResult =
-  | 'valid'
-  | 'already_scanned'
-  | 'invalid'
-  | 'cancelled'
-  | 'not_found'
-  | 're_entry';
+  'valid' | 'already_scanned' | 'invalid' | 'cancelled' | 'not_found' | 're_entry';
 
 const VALIDITY_CONFIG: Record<
   ValidityResult,

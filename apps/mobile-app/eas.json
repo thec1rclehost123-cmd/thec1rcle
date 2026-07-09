@@ -7,6 +7,9 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
       "env": {
         "EXPO_PUBLIC_APP_ENV": "development"
       }
@@ -14,13 +17,26 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "preview"
+        "EXPO_PUBLIC_APP_ENV": "preview",
+        "EXPO_PUBLIC_DEMO_MODE": "false"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "production"
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_DEMO_MODE": "false",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyBXkPmq-nquyESOJj-CURwNVmHxn9usnXo",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "c1rcle-prod.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "c1rcle-prod",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "c1rcle-prod.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "920135291846",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:920135291846:web:38c00a8ac61c8ca68c58c7",
+        "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-PXJ5N6KW5S",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.thec1rcle.com",
+        "EXPO_PUBLIC_RAZORPAY_KEY": "rzp_test_T5Lv1MFYY59MFA",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://YOUR_DSN@oXXXX.ingest.sentry.io/XXXXXX",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "YOUR_GOOGLE_WEB_CLIENT_ID"
       }
     }
   },

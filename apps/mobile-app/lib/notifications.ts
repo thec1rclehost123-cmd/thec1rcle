@@ -1,6 +1,7 @@
 // Push notifications service
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch } from './api';
@@ -25,6 +26,15 @@ export async function requestNotificationPermissions(): Promise<boolean> {
     return false;
   }
 
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'Default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#6D5DF6',
+    });
+  }
+
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
@@ -41,45 +51,72 @@ export async function requestNotificationPermissions(): Promise<boolean> {
   return true;
 }
 
+function getEasProjectId(): string | undefined {
+  return (
+    Constants.expoConfig?.extra?.eas?.projectId ||
+    Constants.easConfig?.projectId ||
+    process.env.EXPO_PUBLIC_PROJECT_ID
+  );
+}
+
+export type PushTokenResult =
+  | { token: string }
+  | { error: 'permission_denied' }
+  | { error: 'no_project_id' }
+  | { error: 'system_error'; message: string };
+
 // Get Expo push token
-export async function getExpoPushToken(): Promise<string | null> {
+export async function getExpoPushToken(): Promise<PushTokenResult | null> {
   try {
     const hasPermission = await requestNotificationPermissions();
-    if (!hasPermission) return null;
+    if (!hasPermission) return { error: 'permission_denied' };
 
-    const token = await Notifications.getExpoPushTokenAsync({
-      projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
+    const projectId = getEasProjectId();
+    if (!projectId) return { error: 'no_project_id' };
+
+    const result = await Notifications.getExpoPushTokenAsync({
+      projectId,
     });
 
-    return token.data;
+    return { token: result.data };
   } catch (error) {
-    console.error('Error getting push token:', error);
-    return null;
+    if (__DEV__) console.error('Error getting push token:', error);
+    return { error: 'system_error', message: String(error) };
   }
+}
+
+async function sendDeviceTokenToGateway(token: string): Promise<void> {
+  await apiFetch('/api/v1/users/me/device-token', {
+    method: 'POST',
+    body: JSON.stringify({
+      token,
+      provider: 'expo',
+      platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'unknown',
+      deviceId: `${Platform.OS}-${Device.osBuildId || Device.modelId || 'unknown'}`,
+      projectId: getEasProjectId(),
+      appVersion: Constants.expoConfig?.version || 'unknown',
+    }),
+    requireAuth: true,
+  });
 }
 
 // Register push token with user profile — via API gateway
 export async function registerPushToken(userId: string): Promise<boolean> {
   try {
-    const token = await getExpoPushToken();
-    if (!token) return false;
+    const result = await getExpoPushToken();
+    if (!result || 'error' in result) {
+      if (result && result.error === 'permission_denied') {
+        if (__DEV__) console.log('Push notification permission not granted');
+      }
+      return false;
+    }
 
-    await apiFetch('/api/v1/profiles', {
-      method: 'PATCH',
-      body: JSON.stringify({
-        type: 'user',
-        id: userId,
-        updates: {
-          pushToken: token,
-          lastTokenUpdate: new Date().toISOString(),
-        },
-      }),
-      requireAuth: true,
-    });
+    await sendDeviceTokenToGateway(result.token);
+    await AsyncStorage.setItem(PUSH_TOKEN_KEY, result.token);
 
     return true;
   } catch (error) {
-    console.error('Error registering push token:', error);
+    if (__DEV__) console.error('Error registering push token:', error);
     return false;
   }
 }
@@ -118,7 +155,7 @@ export async function scheduleEventReminder(
   }
 
   const id = await scheduleLocalNotification(
-    `🎉 ${eventTitle} starts soon!`,
+    `${eventTitle} starts soon!`,
     `Your event starts in ${hoursBeforeEvent} hour${hoursBeforeEvent > 1 ? 's' : ''}. Get ready!`,
     { eventId, type: 'event_reminder' },
     {
@@ -176,27 +213,16 @@ export async function setBadgeCount(count: number): Promise<void> {
  */
 export async function refreshPushToken(userId: string): Promise<void> {
   try {
-    const newToken = await getExpoPushToken();
-    if (!newToken) return;
+    const result = await getExpoPushToken();
+    if (!result || 'error' in result) return;
 
     const storedToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
-    if (storedToken === newToken) return; // token unchanged — skip write
+    if (storedToken === result.token) return;
 
-    await apiFetch('/api/v1/profiles', {
-      method: 'PATCH',
-      body: JSON.stringify({
-        type: 'user',
-        id: userId,
-        updates: {
-          pushToken: newToken,
-          lastTokenUpdate: new Date().toISOString(),
-        },
-      }),
-      requireAuth: true,
-    });
+    await sendDeviceTokenToGateway(result.token);
 
-    await AsyncStorage.setItem(PUSH_TOKEN_KEY, newToken);
+    await AsyncStorage.setItem(PUSH_TOKEN_KEY, result.token);
   } catch (error) {
-    console.error('Error refreshing push token:', error);
+    if (__DEV__) console.error('Error refreshing push token:', error);
   }
 }

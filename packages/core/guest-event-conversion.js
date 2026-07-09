@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { trackEventView } from './analytics-service.js';
 import * as surgeCore from './surge.js';
@@ -100,6 +100,12 @@ export async function getEventInterested(db, eventId, limit = 20) {
   );
   if (userIds.length === 0) return { count, users: [] };
 
+  const likedAtByUserId = new Map(
+    likesSnapshot.docs.map((doc) => {
+      const data = doc.data() || {};
+      return [data.userId, data.createdAt || null];
+    }),
+  );
   const userDocs = await Promise.all(
     userIds.map((uid) => db.collection(USER_COLLECTION).doc(uid).get()),
   );
@@ -110,7 +116,9 @@ export async function getEventInterested(db, eventId, limit = 20) {
       const displayName = data.displayName || 'C1RCLE Member';
       return {
         id: doc.id,
+        userId: doc.id,
         name: displayName,
+        displayName,
         handle: data.handle || `@${displayName.toLowerCase().replace(/\s/g, '')}`,
         photoURL: data.photoURL || null,
         initials: displayName
@@ -120,6 +128,7 @@ export async function getEventInterested(db, eventId, limit = 20) {
           .toUpperCase()
           .slice(0, 2),
         gender: normalizeInterestedUserGender(data.gender),
+        likedAt: likedAtByUserId.get(doc.id) || null,
       };
     });
 
@@ -407,6 +416,8 @@ export async function joinEventWaitlist(db, { eventId, ticketId, tierId, userId,
   if (!eventId || !email) throw new Error('Event ID and Email are required');
 
   const normalizedTierId = tierId || ticketId || 'any';
+
+  // Check for existing entry (backward compatible with legacy random-ID entries)
   const existingSnapshot = await db
     .collection(WAITLIST_COLLECTION)
     .where('eventId', '==', eventId)
@@ -421,9 +432,13 @@ export async function joinEventWaitlist(db, { eventId, ticketId, tierId, userId,
 
   await assertEventSoldOutForWaitlist(db, eventId, normalizedTierId);
 
-  const id = `wl_${randomUUID().substring(0, 8)}`;
+  // Use deterministic document ID based on email+eventId to prevent duplicate entries on race
+  const idHash = createHash('sha256').update(`${email}_${eventId}`).digest('hex').slice(0, 16);
+  const entryId = `wl_${idHash}`;
+
+  const now = new Date().toISOString();
   const entry = {
-    id,
+    id: entryId,
     eventId,
     ticketId: normalizedTierId,
     tierId: normalizedTierId,
@@ -431,11 +446,12 @@ export async function joinEventWaitlist(db, { eventId, ticketId, tierId, userId,
     email,
     phone: phone || null,
     status: 'waiting',
-    createdAt: new Date().toISOString(),
+    createdAt: now,
     notifiedAt: null,
+    expiresAt: null,
   };
 
-  await db.collection(WAITLIST_COLLECTION).doc(id).set(entry);
+  await db.collection(WAITLIST_COLLECTION).doc(entryId).set(entry);
   return entry;
 }
 

@@ -18,7 +18,25 @@ export function isEventDetailVisible(event?: {}): boolean;
 export function computeHeatScore(event?: {}): number;
 export function listEventMapPins(
   db: any,
-  options?: { lat?: number | string; lng?: number | string; radius?: number; limit?: number },
+  options?: {
+    northEastLat?: number | string;
+    northEastLng?: number | string;
+    southWestLat?: number | string;
+    southWestLng?: number | string;
+    northEast?: {
+      lat?: number | string;
+      lng?: number | string;
+      latitude?: number | string;
+      longitude?: number | string;
+    };
+    southWest?: {
+      lat?: number | string;
+      lng?: number | string;
+      latitude?: number | string;
+      longitude?: number | string;
+    };
+    limit?: number | string;
+  },
 ): Promise<any>;
 export function buildSearchText(parts?: any[]): string;
 export function derivePriceRange(rawEvent?: {}, priceMin?: number, priceMax?: number): any;

@@ -1,13 +1,116 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
-import { ArrowLeft, MessageCircle, Heart } from 'lucide-react-native';
+import { ArrowLeft, MessageCircle, Heart, Lock, Sparkles } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { colors } from '@/lib/design/theme';
+import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { useDatingStore, type Match } from '@/store/datingStore';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
+import { PremiumBadgeDot } from '@/components/ui/PremiumBadge';
 import { formatTimeAgo } from '@/lib/social';
+
+type ReceivedLike = {
+  id: string;
+  profile?: {
+    displayName?: string;
+    photoURL?: string | null;
+  };
+};
+
+type LikesSummary = {
+  likes: ReceivedLike[];
+  total: number;
+  visibleCount: number;
+  lockedCount: number;
+  isPremium: boolean;
+};
+
+function WhoLikedMeCard({
+  summary,
+  onAcceptLike,
+}: {
+  summary: LikesSummary | null;
+  onAcceptLike: (like: ReceivedLike) => void;
+}) {
+  const openPaywall = useSubscriptionStore((state) => state.openPaywall);
+  const lockedCount = summary?.lockedCount ?? 0;
+  const total = summary?.total ?? 0;
+  const visibleLike = summary?.likes?.[0];
+  const locked = summary ? !summary.isPremium && lockedCount > 0 : true;
+
+  const handlePress = () => {
+    if (locked) {
+      openPaywall('whoLikedMe');
+    }
+  };
+
+  return (
+    <Pressable style={styles.likesCard} onPress={handlePress}>
+      <View style={styles.likesTopRow}>
+        <View style={styles.likesIconWrap}>
+          {visibleLike?.profile?.photoURL && !locked ? (
+            <Image source={{ uri: visibleLike.profile.photoURL }} style={styles.likesAvatar} />
+          ) : (
+            <Heart size={22} color="#F6C55B" fill="#F6C55B" />
+          )}
+          {locked ? (
+            <BlurView
+              blurMethod="dimezisBlurView"
+              intensity={34}
+              tint="dark"
+              style={StyleSheet.absoluteFill}
+            />
+          ) : null}
+        </View>
+        <View style={styles.likesCopy}>
+          <View style={styles.likesTitleRow}>
+            <Text style={styles.likesTitle}>Who liked me</Text>
+            {locked ? <Lock size={14} color="#F6C55B" strokeWidth={2.4} /> : null}
+          </View>
+          <Text style={styles.likesBody}>
+            {locked
+              ? `${(lockedCount ?? 0) > 0 ? lockedCount : (total ?? 0) > 0 ? total : 'New'} hidden ${lockedCount === 1 ? 'like' : 'likes'}`
+              : total > 0
+                ? `${total} ${total === 1 ? 'person likes' : 'people like'} you`
+                : 'No incoming likes yet'}
+          </Text>
+        </View>
+        {locked ? (
+          <View style={styles.likesCta}>
+            <Sparkles size={13} color="#2B1600" />
+            <Text style={styles.likesCtaText}>Premium</Text>
+          </View>
+        ) : null}
+      </View>
+      {!locked && summary?.likes?.length ? (
+        <View style={styles.visibleLikes}>
+          {summary.likes.slice(0, 3).map((like) => (
+            <View key={like.id} style={styles.visibleLikeRow}>
+              {like.profile?.photoURL ? (
+                <Image source={{ uri: like.profile.photoURL }} style={styles.visibleLikeAvatar} />
+              ) : (
+                <View style={styles.visibleLikeAvatarFallback}>
+                  <Heart size={14} color="#F6C55B" fill="#F6C55B" />
+                </View>
+              )}
+              <Text style={styles.visibleLikeName} numberOfLines={1}>
+                {like.profile?.displayName || 'C1RCLE member'}
+              </Text>
+              <Pressable style={styles.matchNowButton} onPress={() => onAcceptLike(like)}>
+                <Heart size={14} color="#fff" fill="#fff" />
+                <Text style={styles.matchNowText}>Accept</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
 
 function MatchCard({ match }: { match: Match }) {
   const initials = match.displayName
@@ -41,13 +144,14 @@ function MatchCard({ match }: { match: Match }) {
             <Text style={styles.avatarInitials}>{initials}</Text>
           </View>
         )}
-        {/* Online indicator */}
-        <View style={styles.onlineDot} />
       </View>
 
       {/* Info */}
       <View style={styles.matchInfo}>
-        <Text style={styles.matchName}>{match.displayName}</Text>
+        <View style={styles.matchNameRow}>
+          <Text style={styles.matchName}>{match.displayName}</Text>
+          <PremiumBadgeDot visible={match.isPremium === true} />
+        </View>
         <Text style={styles.matchEvent} numberOfLines={1}>
           🎟 {match.sharedEventTitle}
         </Text>
@@ -66,9 +170,66 @@ export default function MatchesScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const { matches, matchesLoading, fetchMatches } = useDatingStore();
+  const openPaywall = useSubscriptionStore((state) => state.openPaywall);
+  const [likesSummary, setLikesSummary] = useState<LikesSummary | null>(null);
+  const fetchMatchesRef = useRef(fetchMatches);
+  fetchMatchesRef.current = fetchMatches;
+  const renderMatch = useCallback(({ item }: { item: Match }) => <MatchCard match={item} />, []);
+
+  const handleAcceptLike = useCallback(
+    async (like: ReceivedLike) => {
+      if (!like.id || !user?.uid) return;
+      try {
+        await apiFetch(`/api/v1/social/likes/${encodeURIComponent(like.id)}/respond`, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'accept' }),
+        });
+        setLikesSummary((current) =>
+          current
+            ? {
+                ...current,
+                likes: current.likes.filter((entry) => entry.id !== like.id),
+                visibleCount: Math.max(0, current.visibleCount - 1),
+                total: Math.max(0, current.total - 1),
+              }
+            : current,
+        );
+        void fetchMatches(user.uid);
+      } catch (error: any) {
+        if (error.code === 'PREMIUM_REQUIRED') {
+          openPaywall('whoLikedMe', error.message);
+        } else {
+          console.error('[MatchesScreen] accept like:', error);
+        }
+      }
+    },
+    [fetchMatches, openPaywall, user?.uid],
+  );
 
   useEffect(() => {
-    if (user?.uid) fetchMatches(user.uid);
+    if (user?.uid) {
+      fetchMatchesRef.current(user.uid).catch((e: any) => {
+        console.error('[MatchesScreen] fetchMatches failed:', e);
+      });
+    }
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    let active = true;
+    apiFetch<{ data?: LikesSummary; likes?: ReceivedLike[]; total?: number }>(
+      '/api/v1/social/likes/received',
+    )
+      .then((response: any) => {
+        if (!active) return;
+        setLikesSummary(response.data || response);
+      })
+      .catch(() => {
+        if (active) setLikesSummary(null);
+      });
+    return () => {
+      active = false;
+    };
   }, [user?.uid]);
 
   return (
@@ -86,32 +247,36 @@ export default function MatchesScreen() {
         <View style={styles.center}>
           <ActivityIndicator color={colors.iris} size="large" />
         </View>
-      ) : matches.length === 0 ? (
-        <View style={styles.center}>
-          <View style={styles.emptyIconWrap}>
-            <Heart size={36} color={colors.iris} />
-          </View>
-          <Text style={styles.emptyTitle}>No matches yet</Text>
-          <Text style={styles.emptyBody}>
-            When you and someone both like each other, you'll see them here.
-          </Text>
-          <Pressable style={styles.discoverBtn} onPress={() => router.back()}>
-            <Text style={styles.discoverBtnText}>Start Swiping</Text>
-          </Pressable>
-        </View>
       ) : (
         <FlatList
           bounces={false}
           overScrollMode="never"
           data={matches}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <MatchCard match={item} />}
+          renderItem={renderMatch}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <Text style={styles.matchCount}>
-              {matches.length} {matches.length === 1 ? 'match' : 'matches'}
-            </Text>
+            <>
+              <WhoLikedMeCard summary={likesSummary} onAcceptLike={handleAcceptLike} />
+              <Text style={styles.matchCount}>
+                {matches.length} {matches.length === 1 ? 'match' : 'matches'}
+              </Text>
+            </>
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyList}>
+              <View style={styles.emptyIconWrap}>
+                <Heart size={36} color={colors.iris} />
+              </View>
+              <Text style={styles.emptyTitle}>No nightlife matches yet</Text>
+              <Text style={styles.emptyBody}>
+                When you and someone both like each other, you'll see them here.
+              </Text>
+              <Pressable style={styles.discoverBtn} onPress={() => router.back()}>
+                <Text style={styles.discoverBtnText}>Start Exploring</Text>
+              </Pressable>
+            </View>
           }
         />
       )}
@@ -225,25 +390,20 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
   },
-  onlineDot: {
-    position: 'absolute',
-    bottom: 1,
-    right: 1,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#22C55E',
-    borderWidth: 2,
-    borderColor: '#1C1C1E',
-  },
   matchInfo: {
     flex: 1,
     gap: 3,
+  },
+  matchNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
   },
   matchName: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    flexShrink: 1,
   },
   matchEvent: {
     color: 'rgba(255,255,255,0.45)',
@@ -262,5 +422,114 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(244,74,34,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  emptyList: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 58,
+  },
+  likesCard: {
+    gap: 12,
+    borderRadius: 8,
+    padding: 13,
+    marginBottom: 14,
+    backgroundColor: 'rgba(246,197,91,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(246,197,91,0.2)',
+  },
+  likesTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  likesIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(246,197,91,0.16)',
+  },
+  likesAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  likesCopy: {
+    flex: 1,
+  },
+  likesTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  likesTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  likesBody: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+  likesCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    backgroundColor: '#F6C55B',
+  },
+  likesCtaText: {
+    color: '#2B1600',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  visibleLikes: {
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(246,197,91,0.16)',
+    paddingTop: 10,
+  },
+  visibleLikeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  visibleLikeAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
+  visibleLikeAvatarFallback: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(246,197,91,0.12)',
+  },
+  visibleLikeName: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  matchNowButton: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.iris,
+  },
+  matchNowText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '900',
   },
 });

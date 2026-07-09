@@ -11,6 +11,7 @@ interface DoorEntrySuccessProps {
     quantity: number;
     total: number;
     qrData?: string;
+    genderRestriction?: string | null;
   };
   onDone: () => void;
 }
@@ -26,6 +27,21 @@ export default function DoorEntrySuccess({ data, onDone }: DoorEntrySuccessProps
 
         {/* Title */}
         <Text className="text-white text-3xl font-bold text-center">Entry Confirmed!</Text>
+
+        {/* Gender restriction banner */}
+        {data.genderRestriction && (
+          <View
+            className={`px-6 py-3 rounded-2xl mt-4 ${
+              data.genderRestriction === 'female' ? 'bg-pink-500' : 'bg-blue-500'
+            }`}
+          >
+            <Text className="text-white text-xl font-black tracking-widest text-center">
+              {data.genderRestriction === 'female'
+                ? 'FEMALE TICKET'
+                : `${data.genderRestriction.toUpperCase()} TICKET`}
+            </Text>
+          </View>
+        )}
 
         {/* Guest Details */}
         <View className="bg-white/20 rounded-2xl px-8 py-6 mt-6 items-center">

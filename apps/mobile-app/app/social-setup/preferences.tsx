@@ -11,7 +11,8 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/lib/design/theme';
-import type { SocialProfile } from '@/store/socialProfileStore';
+import { useAuth } from '@/hooks/useAuth';
+import { markSocialSetupSkipped } from '@/lib/onboardingFlow';
 import { useSocialProfileStore } from '@/store/socialProfileStore';
 
 // ── Chip multi-select ─────────────────────────────────────────────────────────
@@ -121,7 +122,7 @@ function AgeRangePicker({
               style={ageStyles.counterBtn}
               onPress={() => {
                 Haptics.selectionAsync();
-                onChangeMin(Math.min(max - 1, min + 1));
+                onChangeMin(Math.min(max, min + 1));
               }}
             >
               <Text style={ageStyles.counterBtnText}>+</Text>
@@ -138,7 +139,7 @@ function AgeRangePicker({
               style={ageStyles.counterBtn}
               onPress={() => {
                 Haptics.selectionAsync();
-                onChangeMax(Math.max(min + 1, max - 1));
+                onChangeMax(Math.max(min, max - 1));
               }}
             >
               <Text style={ageStyles.counterBtnText}>−</Text>
@@ -199,6 +200,7 @@ type InterestedIn = 'male' | 'female' | 'nonbinary' | 'everyone';
 
 export default function SocialSetupPreferences() {
   const params = useLocalSearchParams<{ photosJson: string }>();
+  const { user } = useAuth();
   const { socialProfile } = useSocialProfileStore();
 
   const [city, setCity] = useState(socialProfile?.city ?? '');
@@ -234,11 +236,23 @@ export default function SocialSetupPreferences() {
     });
   };
 
+  const handleSkip = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await markSocialSetupSkipped(user?.uid);
+    router.replace('/(tabs)/explore');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable
+          style={styles.backBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+        >
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.stepIndicator}>
@@ -380,6 +394,9 @@ export default function SocialSetupPreferences() {
           <Text style={styles.nextBtnText}>Continue</Text>
           <ChevronRight size={18} color="#fff" strokeWidth={2} />
         </Pressable>
+        <Pressable onPress={handleSkip} style={styles.skipBtn}>
+          <Text style={styles.skipText}>Skip for now</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -470,6 +487,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 20,
     paddingTop: 12,
+    gap: 12,
   },
   nextBtn: {
     backgroundColor: colors.iris,
@@ -489,5 +507,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  skipBtn: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  skipText: {
+    color: 'rgba(255,255,255,0.38)',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

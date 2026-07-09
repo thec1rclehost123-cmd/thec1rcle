@@ -22,13 +22,7 @@ export type HostSettingsAction =
   | 'ORGANIZATION_DEACTIVATED';
 
 export type HostSettingsSection =
-  | 'general'
-  | 'security'
-  | 'financials'
-  | 'alerts'
-  | 'defaults'
-  | 'integrations'
-  | 'auditlog';
+  'general' | 'security' | 'financials' | 'alerts' | 'defaults' | 'integrations' | 'auditlog';
 
 export interface HostSettings {
   hostId: string;

@@ -77,6 +77,8 @@ export async function calculatePricing(input) {
     promoCode = null,
     promoterCode = null,
     userId = null,
+    subscriptionTier = 'free',
+    waiveBookingFees = false,
     timestamp = new Date(),
   } = input;
 
@@ -181,19 +183,37 @@ export async function calculatePricing(input) {
 
   // 4. Final Reconciliation
   const discountedSubtotal = Math.max(0, result.subtotal - result.discountTotal);
-  result.fees = calculateFees(discountedSubtotal);
+  const calculatedFees = calculateFees(discountedSubtotal);
+  const shouldWaiveBookingFees = waiveBookingFees === true || subscriptionTier === 'premium';
+  result.fees = shouldWaiveBookingFees
+    ? {
+        platform: 0,
+        payment: 0,
+        gst: 0,
+        total: 0,
+        waived: calculatedFees.total,
+        waivedBreakdown: calculatedFees,
+      }
+    : calculatedFees;
   result.grandTotal = Math.round((discountedSubtotal + result.fees.total) * 100) / 100;
   result.isFree = result.grandTotal === 0;
+  result.subscription = {
+    tier: subscriptionTier === 'premium' ? 'premium' : 'free',
+    bookingFeesWaived: shouldWaiveBookingFees,
+    bookingFeesSaved: shouldWaiveBookingFees ? calculatedFees.total : 0,
+  };
 
   // 5. Populate Audit Ledger
   result.ledger = {
     ...result.ledger,
+    version: shouldWaiveBookingFees ? '3.1.subscription' : result.ledger.version,
     subtotal_raw: result.subtotal,
     discount_total_raw: result.discountTotal,
     fees_platform_raw: result.fees.platform,
     fees_payment_raw: result.fees.payment,
     fees_gst_raw: result.fees.gst,
     fees_total_raw: result.fees.total,
+    fees_waived_raw: shouldWaiveBookingFees ? calculatedFees.total : 0,
     total_raw: result.grandTotal,
   };
 

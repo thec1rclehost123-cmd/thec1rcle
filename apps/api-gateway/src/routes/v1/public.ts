@@ -130,10 +130,13 @@ export default async function publicRoutes(fastify: FastifyInstance) {
       applyPublicCacheHeaders(reply, 300);
       return await cachedPublic(fastify, 'homepage', 'selects', 300, () => getHomepageSelects());
     } catch (error: any) {
-      if (error.message === 'RATE_LIMITED')
-        return reply
-          .status(429)
-          .send(createApiError(request.id, 'RATE_LIMITED', 'Too many requests'));
+      if (error.code === 'RATE_LIMITED') {
+        reply.header('Retry-After', String(error.retryAfter));
+        return reply.status(429).send({
+          success: false,
+          error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
+        });
+      }
       request.log.error({ error }, 'Failed to list homepage selects');
       return reply
         .status(500)
@@ -149,10 +152,13 @@ export default async function publicRoutes(fastify: FastifyInstance) {
         getHomepageInterviews(),
       );
     } catch (error: any) {
-      if (error.message === 'RATE_LIMITED')
-        return reply
-          .status(429)
-          .send(createApiError(request.id, 'RATE_LIMITED', 'Too many requests'));
+      if (error.code === 'RATE_LIMITED') {
+        reply.header('Retry-After', String(error.retryAfter));
+        return reply.status(429).send({
+          success: false,
+          error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
+        });
+      }
       request.log.error({ error }, 'Failed to list homepage interviews');
       return reply
         .status(500)

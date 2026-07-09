@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, afterAll, vi } from 'vitest';
 import { CheckoutService } from './src/domain/services/checkout-service.js';
-import { createReservation } from './inventory-engine.js';
+// @ts-ignore
+import { createReservation, commitInventory } from '@c1rcle/core/inventory-engine';
 
 vi.mock('./admin.js', () => ({
   getAdminDb: vi.fn(() => ({
@@ -23,6 +24,12 @@ vi.mock('./admin.js', () => ({
         update: vi.fn(),
         get: vi.fn(),
         set: vi.fn(),
+        collection: vi.fn(() => ({
+          doc: vi.fn(() => ({
+            get: vi.fn(),
+            set: vi.fn(),
+          })),
+        })),
       })),
     })),
   })),
@@ -32,34 +39,44 @@ vi.mock('./admin.js', () => ({
 
 export let currentOrderRepo: any = null;
 
-vi.mock('./order-engine.js', async (importOriginal) => {
+vi.mock('@c1rcle/core/order-engine', async (importOriginal) => {
   const mod = await importOriginal<any>();
   return {
     ...mod,
-    executeOrderCreation: vi.fn(async (transaction, { db, event, orderData, reservationId }) => {
-      const status =
-        orderData.totalAmount === 0 || orderData.isRSVP ? 'confirmed' : 'payment_pending';
-      const finalOrder = { ...orderData, status, updatedAt: new Date().toISOString() };
-      if (currentOrderRepo) {
-        if (finalOrder.isRSVP) currentOrderRepo.rsvpOrders.set(finalOrder.id, finalOrder);
-        else currentOrderRepo.orders.set(finalOrder.id, finalOrder);
-        if (reservationId) {
-          const res = currentOrderRepo.reservations.get(reservationId);
-          if (res)
-            currentOrderRepo.reservations.set(reservationId, {
-              ...res,
-              status: 'converted',
-              orderId: finalOrder.id,
-            });
+    executeOrderCreation: vi.fn(
+      async (transaction, { db, event, orderData, reservationId, inventoryEngine }) => {
+        const status =
+          orderData.totalAmount === 0 || orderData.isRSVP ? 'confirmed' : 'payment_pending';
+        const finalOrder = { ...orderData, status, updatedAt: new Date().toISOString() };
+        if (inventoryEngine && !finalOrder.isRSVP) {
+          await inventoryEngine.commitInventory(transaction, {
+            event,
+            items: finalOrder.tickets,
+            reservationId,
+          });
         }
-      }
-      return finalOrder;
-    }),
+        if (currentOrderRepo) {
+          if (finalOrder.isRSVP) currentOrderRepo.rsvpOrders.set(finalOrder.id, finalOrder);
+          else currentOrderRepo.orders.set(finalOrder.id, finalOrder);
+          if (reservationId) {
+            const res = currentOrderRepo.reservations.get(reservationId);
+            if (res)
+              currentOrderRepo.reservations.set(reservationId, {
+                ...res,
+                status: 'converted',
+                orderId: finalOrder.id,
+              });
+          }
+        }
+        return finalOrder;
+      },
+    ),
   };
 });
 
-vi.mock('./inventory-engine.js', () => ({
+vi.mock('@c1rcle/core/inventory-engine', () => ({
   releaseReservation: vi.fn().mockResolvedValue({ success: true }),
+  commitInventory: vi.fn().mockResolvedValue({ success: true }),
   createReservation: vi
     .fn()
     .mockResolvedValue({ success: true, reservationId: 'res-mock', expiresAt: '2099-01-01' }),
@@ -279,6 +296,17 @@ function buildReservation({
 }
 
 describe('CheckoutService parity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentOrderRepo = null;
+    vi.mocked(createReservation).mockResolvedValue({
+      success: true,
+      reservationId: 'res-mock',
+      expiresAt: '2099-01-01',
+    });
+    vi.mocked(commitInventory).mockResolvedValue({ success: true });
+  });
+
   it('reuses the same paid order for repeated calls on one reservation', async () => {
     const orderRepo = new FakeOrderRepository();
     currentOrderRepo = orderRepo;
@@ -318,6 +346,17 @@ describe('CheckoutService parity', () => {
     expect(secondResult.requiresPayment).toBe(true);
     expect(secondResult.order.id).toBe(firstResult.order.id);
     expect(orderRepo.orders.size).toBe(1);
+    expect(commitInventory).toHaveBeenCalledTimes(1);
+    expect(commitInventory).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        event: expect.objectContaining({ id: 'evt-paid' }),
+        reservationId: 'res-paid',
+        items: expect.arrayContaining([
+          expect.objectContaining({ ticketId: 'tier-1', quantity: 1 }),
+        ]),
+      }),
+    );
   });
 
   it('reuses the latest pending payment intent for the same order instead of creating a new one', async () => {
@@ -402,6 +441,17 @@ describe('CheckoutService parity', () => {
       status: 'converted',
       orderId: intent.orderId,
     });
+    expect(commitInventory).toHaveBeenCalledTimes(1);
+    expect(commitInventory).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        event: expect.objectContaining({ id: 'evt-paid' }),
+        reservationId: 'res-mock',
+        items: expect.arrayContaining([
+          expect.objectContaining({ ticketId: 'tier-1', quantity: 2 }),
+        ]),
+      }),
+    );
     expect([...orderRepo.orders.values()][0].tickets).toEqual([
       {
         ticketId: 'tier-1',

@@ -59,6 +59,24 @@ describe('Entitlement Engine', () => {
       expect(result.valid).toBe(false);
       expect(result.error).toBe('INVALID_QR');
     });
+
+    it('should include gr field when genderRestriction is provided', () => {
+      const eid = 'ENT-123';
+      const payload = EntitlementEngine.generateEntitlementQR(eid, 'female');
+      expect(payload.gr).toBe('female');
+    });
+
+    it('should omit gr field when genderRestriction is null', () => {
+      const eid = 'ENT-123';
+      const payload = EntitlementEngine.generateEntitlementQR(eid, null);
+      expect(payload.gr).toBeUndefined();
+    });
+
+    it('should omit gr field when genderRestriction is "none"', () => {
+      const eid = 'ENT-123';
+      const payload = EntitlementEngine.generateEntitlementQR(eid, 'none');
+      expect(payload.gr).toBeUndefined();
+    });
   });
 
   describe('issueEntitlements', () => {

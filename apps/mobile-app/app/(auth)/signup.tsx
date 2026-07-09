@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,22 +8,29 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Modal,
-  FlatList,
+  Keyboard,
+  Linking,
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Eye, EyeOff, ChevronDown, Check, X } from 'lucide-react-native';
+import { Eye, EyeOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { BlurView } from 'expo-blur';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfileStore } from '@/store/profileStore';
 import { getFirebaseAuth } from '@/lib/firebase';
+import { colors } from '@/lib/design/theme';
 
-const CITIES = ['Mumbai', 'Pune', 'Bengaluru', 'Goa', 'Delhi', 'Hyderabad'];
+function normalizePhone(value: string) {
+  const trimmed = value.trim().replace(/\s/g, '');
+  if (trimmed.startsWith('+')) return trimmed;
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length === 0) return '';
+  return `+91${digits}`;
+}
 
 const GENDERS: { key: 'male' | 'female' | 'other' | 'prefer_not_to_say'; label: string }[] = [
   { key: 'male', label: 'Male' },
@@ -32,19 +39,24 @@ const GENDERS: { key: 'male' | 'female' | 'other' | 'prefer_not_to_say'; label: 
   { key: 'prefer_not_to_say', label: 'Prefer not to say' },
 ];
 
+const PRIVACY_POLICY_URL = 'https://thec1rcle.com/privacy';
+
 export default function SignupScreen() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [city, setCity] = useState('Mumbai');
-  const [showCityPicker, setShowCityPicker] = useState(false);
   const [gender, setGender] = useState<'male' | 'female' | 'other' | 'prefer_not_to_say' | ''>('');
-  const [age, setAge] = useState('');
+  const [day, setDay] = useState('');
+  const [month, setMonth] = useState('');
+  const [year, setYear] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const monthRef = useRef<TextInput>(null);
+  const yearRef = useRef<TextInput>(null);
 
   const { signup, loading, error, clearError } = useAuth();
   const { updateProfile } = useProfileStore();
@@ -54,6 +66,16 @@ export default function SignupScreen() {
     player.muted = true;
     player.play();
   });
+
+  useEffect(() => {
+    return () => {
+      try {
+        player.pause();
+      } catch {
+        // Ignore native crash during Fast Refresh when player is already released
+      }
+    };
+  }, [player]);
 
   const clearErrors = () => {
     setLocalError(null);
@@ -79,10 +101,29 @@ export default function SignupScreen() {
       setLocalError('Please select your gender');
       return;
     }
-    if (!age || isNaN(parseInt(age))) {
-      setLocalError('Please enter a valid age');
+    const d = parseInt(day);
+    const m = parseInt(month);
+    const y = parseInt(year);
+    if (!day || !month || !year || isNaN(d) || isNaN(m) || isNaN(y)) {
+      setLocalError('Please enter a valid Date of Birth');
       return;
     }
+    const dob = new Date(y, m - 1, d);
+    if (dob.getFullYear() !== y || dob.getMonth() !== m - 1 || dob.getDate() !== d) {
+      setLocalError('Invalid Date of Birth');
+      return;
+    }
+    const today = new Date();
+    let calcAge = today.getFullYear() - dob.getFullYear();
+    const mDiff = today.getMonth() - dob.getMonth();
+    if (mDiff < 0 || (mDiff === 0 && today.getDate() < dob.getDate())) {
+      calcAge--;
+    }
+    if (calcAge < 18) {
+      setLocalError('You must be at least 18 years old to join');
+      return;
+    }
+    const dateOfBirthStr = `${y}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
     if (password !== confirmPassword) {
       setLocalError("Passwords don't match");
       return;
@@ -92,23 +133,33 @@ export default function SignupScreen() {
     const result = await signup(email.trim(), password);
 
     if (result.success) {
-      try {
-        const birthYear = new Date().getFullYear() - parseInt(age);
-        const dateOfBirth = `${birthYear}-01-01`;
-        const auth = getFirebaseAuth();
-        const user = auth.currentUser;
-        if (user) {
-          await updateProfile(user.uid, {
-            email: user.email ?? email.trim(),
-            displayName: fullName.trim(),
-            phone: phone.trim() || undefined,
-            city,
-            gender: gender as any,
-            dateOfBirth,
+      if (router.canDismiss()) router.dismissAll();
+      const u = getFirebaseAuth().currentUser;
+      if (u) {
+        updateProfile(u.uid, {
+          email: u.email ?? email.trim(),
+          displayName: fullName.trim(),
+          phone: phone.trim() ? normalizePhone(phone) : undefined,
+          gender: gender as any,
+          dateOfBirth: dateOfBirthStr,
+        }).catch((err) => console.error('Failed to save profile during signup:', err));
+
+        try {
+          await new Promise<void>((resolve) => {
+            const unsub = getFirebaseAuth().onAuthStateChanged((user) => {
+              if (user?.uid === u.uid) {
+                unsub();
+                resolve();
+              }
+            });
+            setTimeout(() => {
+              unsub();
+              resolve();
+            }, 5000);
           });
+        } catch {
+          if (__DEV__) console.warn('[Signup] Auth state sync wait timed out');
         }
-      } catch (err) {
-        console.error('Failed to save profile during signup:', err);
       }
       router.replace('/');
     }
@@ -116,13 +167,10 @@ export default function SignupScreen() {
 
   const displayError = localError || error;
 
+  const dismissKeyboard = () => Keyboard.dismiss();
+
   return (
-    <View style={s.container}>
-      {/*
-              CINEMATIC VIDEO BACKGROUND
-              Replace the URI below with require('../../assets/videos/party.mp4')
-              once you drop your video file into the project!
-            */}
+    <Pressable style={s.container} onPress={dismissKeyboard}>
       <VideoView
         player={player}
         style={StyleSheet.absoluteFillObject}
@@ -132,7 +180,7 @@ export default function SignupScreen() {
 
       {/* Heavy Dark Gradient for legibility */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.8)', '#000000']}
+        colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.8)', colors.base.DEFAULT]}
         locations={[0, 0.4, 1]}
         style={StyleSheet.absoluteFillObject}
       />
@@ -221,24 +269,6 @@ export default function SignupScreen() {
                 </View>
               </Field>
 
-              {/* City */}
-              <View style={s.fieldWrap}>
-                <Text style={s.fieldLabel}>CITY</Text>
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowCityPicker(true);
-                  }}
-                >
-                  <BlurView intensity={40} tint="dark" style={s.fieldBox}>
-                    <View style={s.pickerRow}>
-                      <Text style={s.pickerValue}>{city}</Text>
-                      <ChevronDown size={16} color="rgba(255,255,255,0.6)" strokeWidth={2.5} />
-                    </View>
-                  </BlurView>
-                </Pressable>
-              </View>
-
               {/* Gender */}
               <View style={s.fieldWrap}>
                 <Text style={s.fieldLabel}>GENDER</Text>
@@ -254,6 +284,7 @@ export default function SignupScreen() {
                       }}
                     >
                       <BlurView
+                        blurMethod="dimezisBlurView"
                         intensity={gender === key ? 80 : 40}
                         tint={gender === key ? 'light' : 'dark'}
                         style={[s.genderChip, gender === key && s.genderChipActive]}
@@ -267,21 +298,57 @@ export default function SignupScreen() {
                 </View>
               </View>
 
-              {/* Age */}
-              <Field label="AGE">
-                <TextInput
-                  style={s.input}
-                  placeholder="e.g. 25"
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                  keyboardType="numeric"
-                  value={age}
-                  onChangeText={(t) => {
-                    setAge(t.replace(/[^0-9]/g, ''));
-                    clearErrors();
-                  }}
-                  returnKeyType="next"
-                  maxLength={2}
-                />
+              {/* Date of Birth */}
+              <Field label="DATE OF BIRTH">
+                <View style={s.dobRow}>
+                  <TextInput
+                    style={[s.input, s.dobInput]}
+                    placeholder="DD"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    keyboardType="numeric"
+                    value={day}
+                    onChangeText={(t) => {
+                      const digits = t.replace(/[^0-9]/g, '');
+                      setDay(digits);
+                      clearErrors();
+                      if (digits.length === 2) monthRef.current?.focus();
+                    }}
+                    maxLength={2}
+                    returnKeyType="next"
+                  />
+                  <Text style={s.dobSeparator}>/</Text>
+                  <TextInput
+                    ref={monthRef}
+                    style={[s.input, s.dobInput]}
+                    placeholder="MM"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    keyboardType="numeric"
+                    value={month}
+                    onChangeText={(t) => {
+                      const digits = t.replace(/[^0-9]/g, '');
+                      setMonth(digits);
+                      clearErrors();
+                      if (digits.length === 2) yearRef.current?.focus();
+                    }}
+                    maxLength={2}
+                    returnKeyType="next"
+                  />
+                  <Text style={s.dobSeparator}>/</Text>
+                  <TextInput
+                    ref={yearRef}
+                    style={[s.input, s.dobInput, { flex: 1.5 }]}
+                    placeholder="YYYY"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    keyboardType="numeric"
+                    value={year}
+                    onChangeText={(t) => {
+                      setYear(t.replace(/[^0-9]/g, ''));
+                      clearErrors();
+                    }}
+                    maxLength={4}
+                    returnKeyType="next"
+                  />
+                </View>
               </Field>
 
               {/* Password */}
@@ -346,7 +413,13 @@ export default function SignupScreen() {
               {/* Terms */}
               <Text style={s.terms}>
                 By signing up, you agree to our <Text style={s.termsLink}>Terms of Service</Text>{' '}
-                and <Text style={s.termsLink}>Privacy Policy</Text>
+                and{' '}
+                <Text
+                  style={s.termsLink}
+                  onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}
+                >
+                  Privacy Policy
+                </Text>
               </Text>
 
               {/* Create Account CTA */}
@@ -372,50 +445,8 @@ export default function SignupScreen() {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
-
-        {/* City Picker Modal */}
-        <Modal
-          visible={showCityPicker}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowCityPicker(false)}
-        >
-          <Pressable style={s.modalOverlay} onPress={() => setShowCityPicker(false)}>
-            <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
-          </Pressable>
-          <View style={s.modalSheet}>
-            <View style={s.modalHandle} />
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>SELECT CITY</Text>
-              <Pressable onPress={() => setShowCityPicker(false)} style={s.modalClose}>
-                <X size={18} color="#FFF" strokeWidth={2.5} />
-              </Pressable>
-            </View>
-
-            <FlatList
-              bounces={false}
-              overScrollMode="never"
-              data={CITIES}
-              keyExtractor={(item) => item}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={[s.cityRow, city === item && s.cityRowActive]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setCity(item);
-                    setShowCityPicker(false);
-                  }}
-                >
-                  <Text style={[s.cityRowText, city === item && s.cityRowTextActive]}>{item}</Text>
-                  {city === item && <Check size={18} color="#FFF" strokeWidth={3} />}
-                </Pressable>
-              )}
-              style={s.cityList}
-            />
-          </View>
-        </Modal>
       </SafeAreaView>
-    </View>
+    </Pressable>
   );
 }
 
@@ -424,7 +455,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <View style={s.fieldWrap}>
       <Text style={s.fieldLabel}>{label}</Text>
-      <BlurView intensity={40} tint="dark" style={s.fieldBox}>
+      <BlurView blurMethod="dimezisBlurView" intensity={40} tint="dark" style={s.fieldBox}>
         {children}
       </BlurView>
     </View>
@@ -435,7 +466,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.base.DEFAULT,
   },
   safeArea: {
     flex: 1,
@@ -569,16 +600,20 @@ const s = StyleSheet.create({
     flex: 1,
   },
 
-  // City picker trigger
-  pickerRow: {
+  dobRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  pickerValue: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  dobInput: {
+    flex: 1,
+    textAlign: 'center',
+  },
+  dobSeparator: {
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: 20,
+    fontWeight: '300',
+    paddingHorizontal: 12,
   },
 
   // Gender chips
@@ -669,75 +704,5 @@ const s = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
     textDecorationLine: 'underline',
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-  },
-  modalSheet: {
-    backgroundColor: '#000',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    paddingBottom: 50,
-    maxHeight: '60%',
-  },
-  modalHandle: {
-    width: 40,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
-  },
-  modalTitle: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 2,
-  },
-  modalClose: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cityList: {
-    paddingTop: 8,
-  },
-  cityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
-  },
-  cityRowActive: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  cityRowText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cityRowTextActive: {
-    color: '#FFF',
-    fontWeight: '800',
   },
 });

@@ -297,7 +297,7 @@ describe('guest chat service', () => {
     });
   });
 
-  it('marks reported messages and redacts them for every reader', async () => {
+  it('hides reported messages from the reporter and globally hides at three reports', async () => {
     const db = createDb({
       chats: {
         event_event_1: {
@@ -322,6 +322,23 @@ describe('guest chat service', () => {
           status: 'active',
           type: 'event',
         },
+        event_event_1_user_3: {
+          chatId: 'event_event_1',
+          eventId: 'event_1',
+          userId: 'user_3',
+          status: 'active',
+          type: 'event',
+        },
+        event_event_1_user_4: {
+          chatId: 'event_event_1',
+          eventId: 'event_1',
+          userId: 'user_4',
+          status: 'active',
+          type: 'event',
+        },
+      },
+      users: {
+        user_1: { displayName: 'Aayush' },
       },
       chatMessages: {
         msg_1: {
@@ -341,16 +358,120 @@ describe('guest chat service', () => {
     const report = await reportChatMessage(db, 'user_2', 'event_event_1', 'msg_1', {
       reason: 'unsafe',
     });
-    const page = await getChatMessages(db, 'user_1', 'event_event_1', { limit: 50 });
-
-    expect(report.report).toMatchObject({ messageId: 'msg_1', status: 'pending' });
-    expect(page.messages[0]).toMatchObject({
-      id: 'msg_1',
-      content: 'This message is under review',
-      imageUrl: null,
-      type: 'text',
-      isReported: true,
+    const duplicateReport = await reportChatMessage(db, 'user_2', 'event_event_1', 'msg_1', {
+      reason: 'unsafe',
     });
+    const reporterPage = await getChatMessages(db, 'user_2', 'event_event_1', { limit: 50 });
+    const senderPage = await getChatMessages(db, 'user_1', 'event_event_1', { limit: 50 });
+
+    expect(report.report).toMatchObject({ messageId: 'msg_1', status: 'pending', reportCount: 1 });
+    expect(duplicateReport.report).toMatchObject({
+      messageId: 'msg_1',
+      status: 'already_reported',
+      reportCount: 1,
+    });
+    expect(reporterPage.messages).toHaveLength(0);
+    expect(senderPage.messages[0]).toMatchObject({
+      id: 'msg_1',
+      content: 'Bad message',
+      imageUrl: 'https://example.com/photo.jpg',
+      type: 'image',
+      isReported: true,
+      isHidden: false,
+      reportCount: 1,
+    });
+
+    await reportChatMessage(db, 'user_3', 'event_event_1', 'msg_1', { reason: 'unsafe' });
+    const thirdReport = await reportChatMessage(db, 'user_4', 'event_event_1', 'msg_1', {
+      reason: 'unsafe',
+    });
+    const hiddenPage = await getChatMessages(db, 'user_1', 'event_event_1', { limit: 50 });
+
+    expect(thirdReport.moderation).toMatchObject({
+      reportCount: 3,
+      hidden: true,
+      strikeApplied: true,
+      chatStrikes: 1,
+      chatBanned: false,
+    });
+    expect(hiddenPage.messages).toHaveLength(0);
+    expect(db.store.get('chatMessages').get('msg_1')).toMatchObject({
+      isHidden: true,
+      reportCount: 3,
+      reportedBy: ['user_2', 'user_3', 'user_4'],
+    });
+    expect(db.store.get('users').get('user_1').chatStrikes).toBe(1);
+    expect(db.store.get('users').get('user_1').isChatBanned).toBeUndefined();
+  });
+
+  it('bans senders after their third chat strike', async () => {
+    const db = createDb({
+      chats: {
+        event_event_1: {
+          id: 'event_event_1',
+          type: 'event',
+          eventId: 'event_1',
+          title: 'Neon District',
+        },
+      },
+      chatMembers: {
+        event_event_1_user_1: {
+          chatId: 'event_event_1',
+          eventId: 'event_1',
+          userId: 'user_1',
+          status: 'active',
+          type: 'event',
+        },
+        event_event_1_user_2: {
+          chatId: 'event_event_1',
+          eventId: 'event_1',
+          userId: 'user_2',
+          status: 'active',
+          type: 'event',
+        },
+        event_event_1_user_3: {
+          chatId: 'event_event_1',
+          eventId: 'event_1',
+          userId: 'user_3',
+          status: 'active',
+          type: 'event',
+        },
+        event_event_1_user_4: {
+          chatId: 'event_event_1',
+          eventId: 'event_1',
+          userId: 'user_4',
+          status: 'active',
+          type: 'event',
+        },
+      },
+      users: {
+        user_1: { displayName: 'Aayush', chatStrikes: 2 },
+      },
+      chatMessages: {
+        msg_1: {
+          id: 'msg_1',
+          chatId: 'event_event_1',
+          eventId: 'event_1',
+          senderId: 'user_1',
+          senderName: 'Aayush',
+          content: 'Another bad message',
+          type: 'text',
+          createdAt: '2099-01-01T00:01:00.000Z',
+        },
+      },
+    });
+
+    await reportChatMessage(db, 'user_2', 'event_event_1', 'msg_1', { reason: 'unsafe' });
+    await reportChatMessage(db, 'user_3', 'event_event_1', 'msg_1', { reason: 'unsafe' });
+    await reportChatMessage(db, 'user_4', 'event_event_1', 'msg_1', { reason: 'unsafe' });
+
+    expect(db.store.get('users').get('user_1')).toMatchObject({
+      chatStrikes: 3,
+      isChatBanned: true,
+    });
+    await expect(
+      sendChatMessage(db, 'user_1', 'event_event_1', { text: 'Can I send?' }),
+    ).rejects.toThrow('Chat banned');
   });
 
   it('returns full attendees for premium users and teaser attendees for free users', async () => {

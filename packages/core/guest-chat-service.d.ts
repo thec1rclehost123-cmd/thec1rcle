@@ -36,12 +36,28 @@ export function sendChatMessage(
   },
 ): Promise<any>;
 
+export function assertUserCanSendChatMessage(db: any, userId: string): Promise<any>;
+
 export function reportChatMessage(
   db: any,
   userId: string,
   chatId: string,
   messageId: string,
   payload?: { reason?: string | null },
+): Promise<any>;
+
+export function reportSocialMessage(
+  db: any,
+  userId: string,
+  payload: {
+    messageId: string;
+    senderId?: string | null;
+    eventId?: string | null;
+    conversationId?: string | null;
+    chatId?: string | null;
+    reason?: string | null;
+    details?: string | null;
+  },
 ): Promise<any>;
 
 export function getEventAttendees(

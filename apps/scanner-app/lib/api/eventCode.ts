@@ -75,6 +75,7 @@ function getMockEventData(code: string): EventData & { valid: boolean } {
   return {
     valid: true,
     code,
+    codeId: 'dev_code_id',
     event: {
       id: 'dev_event_001',
       title: 'Dev Night — Test Event',
@@ -85,13 +86,13 @@ function getMockEventData(code: string): EventData & { valid: boolean } {
       endTime: '04:00',
       capacity: 500,
     },
-    permissions: { canScan: true, canDoorEntry: true },
+    permissions: { canScan: true, canDoorEntry: true, canWalkIn: true, canCharge: true },
     tiers: [
       { id: 'stag', name: 'Stag Entry', price: 500, entryType: 'stag', available: true },
       { id: 'couple', name: 'Couple Entry', price: 800, entryType: 'couple', available: true },
       { id: 'vip', name: 'VIP Entry', price: 2000, entryType: 'vip', available: true },
     ],
     gate: 'Main Gate',
-    stats: { totalEntered: 0, prebooked: 0, doorEntries: 0, doorRevenue: 0 },
+    stats: { totalEntered: 0, prebooked: 0, doorEntries: 0, doorRevenue: 0, walkIns: 0 },
   };
 }

@@ -542,10 +542,11 @@ export async function createReservation(event, customerId, deviceId, items, opti
   }
 
   // Mutex Lock — fail-closed: never proceed without the lock
+  // TTL 10s: must exceed the max expected duration of validatePurchase + multi.exec
   const lockKey = `inv:lock:${event.id}`;
   let acquiredLock = false;
   try {
-    acquiredLock = await redis.set(lockKey, 'locked', 'NX', 'EX', 5);
+    acquiredLock = await redis.set(lockKey, 'locked', 'NX', 'EX', 10);
     if (!acquiredLock) {
       throw new Error('System busy, please retry in 1s');
     }
@@ -637,12 +638,12 @@ export async function createReservation(event, customerId, deviceId, items, opti
     }
 
     return { success: true, reservationId, expiresAt: reservation.expiresAt };
-  } finally {
+    } finally {
     try {
       await redis.del(lockKey);
     } catch (e) {
-      // Lock TTL is 5s so it will expire naturally; log but don't throw from finally
-      console.warn('[Redis] Failed to release inventory lock (will expire in 5s):', e.message);
+      // Lock TTL is 10s so it will expire naturally; log but don't throw from finally
+      console.warn('[Redis] Failed to release inventory lock (will expire in 10s):', e.message);
     }
   }
 }

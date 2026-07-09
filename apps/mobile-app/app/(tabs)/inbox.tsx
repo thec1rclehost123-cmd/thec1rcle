@@ -3,35 +3,40 @@
  * Segment control: Event Chats | Private Chats
  * Matches the Venues/Hosts tab style.
  */
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   ScrollView,
-  FlatList,
   Pressable,
   StyleSheet,
   Image,
   Modal,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { Search, Plus, MessageCircle, Heart, X, Lock } from 'lucide-react-native';
+import { router, useFocusEffect } from 'expo-router';
+import Animated, { FadeIn, FadeInDown, runOnJS } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Search, MessageCircle, Heart, X, Lock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/lib/design/theme';
-import {
-  DEMO_MODE,
-  DEMO_EVENT_CHATS,
-  DEMO_PRIVATE_CHATS,
-  DEMO_NEW_MATCHES,
-  type DemoEventChat,
-  type DemoPrivateChat,
-  type DemoNewMatch,
-} from '@/lib/demo';
+import { useAuthStore } from '@/store/authStore';
+import { useChatStore } from '@/store/chatStore';
+import { apiFetch } from '@/lib/api';
+import type { EventChat, DirectChat } from '@/lib/chat';
+import { DiscoLoader } from '@/components/ui/DiscoLoader';
+import { GuestAuthPrompt } from '@/components/ui/GuestAuthPrompt';
+
+interface NewMatch {
+  id: string;
+  name: string;
+  photoURL?: string;
+  sharedEventTitle?: string;
+  isNew: boolean;
+}
 
 type Tab = 'events' | 'private';
 
@@ -60,7 +65,13 @@ function getEventTimeBadge(eventDate: string): string {
 
 // ── Event chat card ───────────────────────────────────────────────────────────
 
-function EventChatCard({ chat, index }: { chat: DemoEventChat; index: number }) {
+const EventChatCard = React.memo(function EventChatCard({
+  chat,
+  index,
+}: {
+  chat: EventChat;
+  index: number;
+}) {
   const isFirst = index === 0;
   const badge = getEventTimeBadge(chat.eventDate);
   const isLive = badge === 'LIVE NOW' || badge === 'STARTS SOON' || badge.startsWith('STARTS IN');
@@ -71,8 +82,8 @@ function EventChatCard({ chat, index }: { chat: DemoEventChat; index: number }) 
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         router.push({
-          pathname: '/chat/[id]',
-          params: { id: chat.eventId, title: chat.eventTitle },
+          pathname: '/social/group/[eventId]',
+          params: { eventId: chat.eventId, eventTitle: chat.eventTitle },
         });
       }}
     >
@@ -94,9 +105,9 @@ function EventChatCard({ chat, index }: { chat: DemoEventChat; index: number }) 
             {badge}
           </Text>
         </View>
-        {chat.unreadCount > 0 && (
+        {(chat.unreadCount ?? 0) > 0 && (
           <View style={cardStyles.unreadBadge}>
-            <Text style={cardStyles.unreadText}>{chat.unreadCount}</Text>
+            <Text style={cardStyles.unreadText}>{chat.unreadCount ?? ''}</Text>
           </View>
         )}
       </View>
@@ -110,7 +121,7 @@ function EventChatCard({ chat, index }: { chat: DemoEventChat; index: number }) 
           <Text style={cardStyles.memberCount}>{chat.participantCount} people active</Text>
         </View>
         <View style={cardStyles.avatarStack}>
-          {chat.activeAvatars.slice(0, 3).map((img, i) => (
+          {(chat.activeAvatars ?? []).slice(0, 3).map((img, i) => (
             <Image
               key={i}
               source={typeof img === 'string' ? { uri: img } : img}
@@ -121,11 +132,11 @@ function EventChatCard({ chat, index }: { chat: DemoEventChat; index: number }) 
       </View>
     </Pressable>
   );
-}
+});
 
 // ── Private chat row ──────────────────────────────────────────────────────────
 
-function PrivateChatRow({ chat }: { chat: DemoPrivateChat }) {
+const PrivateChatRow = React.memo(function PrivateChatRow({ chat }: { chat: DirectChat }) {
   return (
     <Pressable
       style={rowStyles.row}
@@ -154,25 +165,25 @@ function PrivateChatRow({ chat }: { chat: DemoPrivateChat }) {
           <Text style={rowStyles.name} numberOfLines={1}>
             {chat.otherUserName}
           </Text>
-          <Text style={rowStyles.time}>{formatChatTime(chat.lastMessageTime)}</Text>
+          <Text style={rowStyles.time}>{formatChatTime(chat.lastMessageTime ?? '')}</Text>
         </View>
         <View style={rowStyles.msgRow}>
           <Text
-            style={[rowStyles.lastMsg, chat.unreadCount > 0 && rowStyles.lastMsgUnread]}
+            style={[rowStyles.lastMsg, (chat.unreadCount ?? 0) > 0 && rowStyles.lastMsgUnread]}
             numberOfLines={1}
           >
             {chat.lastMessage}
           </Text>
-          {chat.unreadCount > 0 && (
+          {(chat.unreadCount ?? 0) > 0 && (
             <View style={rowStyles.badge}>
-              <Text style={rowStyles.badgeText}>{chat.unreadCount}</Text>
+              <Text style={rowStyles.badgeText}>{chat.unreadCount ?? ''}</Text>
             </View>
           )}
         </View>
       </View>
     </Pressable>
   );
-}
+});
 
 // ── Ditto Replica Empty State ─────────────────────────────────────────────────
 
@@ -228,10 +239,10 @@ function EmptyChatReplica() {
         <View
           style={{
             width: 260,
-            height: 280,
+            height: 240,
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: 40,
+            marginBottom: 0,
             position: 'relative',
           }}
         >
@@ -239,16 +250,20 @@ function EmptyChatReplica() {
           <View
             style={{
               width: 220,
-              height: 260,
-              borderRadius: 36,
+              height: 240,
+              borderTopLeftRadius: 36,
+              borderTopRightRadius: 36,
+              borderBottomLeftRadius: 0,
+              borderBottomRightRadius: 0,
               borderWidth: 2,
+              borderBottomWidth: 0,
               borderColor: 'rgba(255,255,255,0.1)',
               backgroundColor: '#0A0A0A',
               paddingTop: 32,
               paddingHorizontal: 16,
               overflow: 'hidden',
               position: 'absolute',
-              bottom: -20,
+              bottom: 0,
             }}
           >
             {/* Mock Row 1 */}
@@ -427,8 +442,8 @@ function EmptyChatReplica() {
           </View>
         </View>
 
-        <Text style={{ color: '#FFF', fontSize: 22, fontWeight: '700', marginBottom: 12 }}>
-          It's Quiet Here
+        <Text style={{ color: '#FFF', fontSize: 26, fontWeight: '800', marginBottom: 12 }}>
+          It's quiet in here.
         </Text>
         <Text
           style={{
@@ -437,23 +452,11 @@ function EmptyChatReplica() {
             textAlign: 'center',
             lineHeight: 22,
             marginBottom: 32,
+            paddingHorizontal: 40,
           }}
         >
-          Start a chat with your friends or others in{'\n'}your event.
+          RSVP to events or start swiping{'\n'}to make connections.
         </Text>
-
-        <Pressable
-          style={({ pressed }) => ({
-            backgroundColor: '#FFF',
-            paddingHorizontal: 28,
-            paddingVertical: 14,
-            borderRadius: 30,
-            opacity: pressed ? 0.8 : 1,
-          })}
-          onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-        >
-          <Text style={{ color: '#000', fontSize: 16, fontWeight: '700' }}>Start Chat</Text>
-        </Pressable>
       </View>
     </View>
   );
@@ -463,26 +466,94 @@ function EmptyChatReplica() {
 
 export default function InboxScreen() {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<Tab>('private');
+  const [activeTab, setActiveTab] = useState<Tab>('events');
   const [isLikesModalVisible, setIsLikesModalVisible] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const windowWidth = Dimensions.get('window').width;
   const cardWidth = (windowWidth - 32 - 12) / 2;
   const cardHeight = cardWidth * 1.33;
 
+  const { user, isGuest } = useAuthStore();
+  const {
+    eventChats,
+    privateChats,
+    newMatches,
+    totalUnread,
+    loading,
+    fetchAll,
+    subscribeToUpdates,
+  } = useChatStore();
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const ambientColor = useMemo(() => {
+    if (eventChats.length === 0) return 'transparent';
+    const badge = getEventTimeBadge(eventChats[0].eventDate);
+    if (badge === 'LIVE NOW') return 'rgba(245,158,11,0.06)';
+    if (badge === 'STARTS SOON' || badge.startsWith('STARTS IN')) return 'rgba(139,92,246,0.05)';
+    if (badge === 'TOMORROW') return 'rgba(59,130,246,0.04)';
+    return 'rgba(59,130,246,0.03)';
+  }, [eventChats]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (isGuest) return;
+      if (!user?.uid) return;
+      fetchAll(user.uid);
+      const unsub = subscribeToUpdates(user.uid);
+      return () => unsub();
+    }, [user?.uid, isGuest]),
+  );
+
+  const onRefresh = useCallback(() => {
+    if (!user?.uid) return;
+    setRefreshing(true);
+    fetchAll(user.uid);
+    setRefreshing(false);
+  }, [user?.uid, fetchAll]);
+
   const switchTab = (tab: Tab) => {
     if (tab === activeTab) return;
     Haptics.selectionAsync();
     setActiveTab(tab);
+    scrollRef.current?.scrollTo({ x: tab === 'events' ? 0 : windowWidth, animated: true });
   };
 
-  const newMatchCount = DEMO_NEW_MATCHES.filter((m) => m.isNew).length;
-  const totalUnread = (DEMO_PRIVATE_CHATS as any).totalUnread ?? 0;
+  const newMatchCount = newMatches.filter((m) => m.isNew).length;
+
+  // if (isGuest) {
+  //   return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
+  // }
+
+  const handleInboxSwipe = useCallback(
+    (direction: 'next' | 'previous') => {
+      switchTab(direction === 'next' ? 'private' : 'events');
+    },
+    [activeTab], // We'll ignore the dependency warning or just use activeTab
+  );
+
+  const inboxSwipeGesture = React.useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-24, 24])
+        .failOffsetY([-18, 18])
+        .onEnd((event) => {
+          const shouldSwitch =
+            Math.abs(event.translationX) >= 52 || Math.abs(event.velocityX) >= 650;
+
+          if (!shouldSwitch) return;
+
+          runOnJS(handleInboxSwipe)(event.translationX < 0 ? 'next' : 'previous');
+        }),
+    [handleInboxSwipe],
+  );
+
+  if (isGuest) {
+    return <EmptyChatReplica />;
+  }
 
   const hasNoChats =
-    DEMO_EVENT_CHATS.length === 0 &&
-    DEMO_PRIVATE_CHATS.length === 0 &&
-    DEMO_NEW_MATCHES.length === 0;
+    !loading && eventChats.length === 0 && privateChats.length === 0 && newMatches.length === 0;
 
   if (hasNoChats) {
     return <EmptyChatReplica />;
@@ -511,80 +582,98 @@ export default function InboxScreen() {
       </Animated.View>
 
       {/* ── Segment control ── */}
-      <Animated.View
-        entering={FadeInDown.delay(50).springify().damping(24)}
-        style={styles.segmentWrap}
-      >
-        <View style={styles.segmentTrack}>
-          {/* Private Chats tab */}
-          <Pressable
-            style={[styles.segmentPill, activeTab === 'private' && styles.segmentPillActive]}
-            onPress={() => switchTab('private')}
-          >
-            <Heart
-              size={14}
-              color={activeTab === 'private' ? '#fff' : 'rgba(255,255,255,0.4)'}
-              strokeWidth={activeTab === 'private' ? 2.2 : 1.8}
-            />
-            <Text style={[styles.segmentText, activeTab === 'private' && styles.segmentTextActive]}>
-              Private Chats
-            </Text>
-            {/* Badge showing unread + new matches */}
-            {activeTab !== 'private' && newMatchCount + totalUnread > 0 && (
-              <View style={styles.tabBadge}>
-                <Text style={styles.tabBadgeText}>{newMatchCount + totalUnread}</Text>
-              </View>
-            )}
-          </Pressable>
+      <GestureDetector gesture={inboxSwipeGesture}>
+        <Animated.View entering={FadeIn.duration(160)} style={styles.segmentWrap}>
+          <View style={styles.segmentTrack}>
+            {/* Event Chats tab */}
+            <Pressable
+              style={[styles.segmentPill, activeTab === 'events' && styles.segmentPillActive]}
+              onPress={() => switchTab('events')}
+            >
+              <MessageCircle
+                size={14}
+                color={activeTab === 'events' ? '#fff' : 'rgba(255,255,255,0.4)'}
+                strokeWidth={activeTab === 'events' ? 2.2 : 1.8}
+              />
+              <Text
+                style={[styles.segmentText, activeTab === 'events' && styles.segmentTextActive]}
+              >
+                Event Chats
+              </Text>
+            </Pressable>
 
-          {/* Event Chats tab */}
-          <Pressable
-            style={[styles.segmentPill, activeTab === 'events' && styles.segmentPillActive]}
-            onPress={() => switchTab('events')}
-          >
-            <MessageCircle
-              size={14}
-              color={activeTab === 'events' ? '#fff' : 'rgba(255,255,255,0.4)'}
-              strokeWidth={activeTab === 'events' ? 2.2 : 1.8}
-            />
-            <Text style={[styles.segmentText, activeTab === 'events' && styles.segmentTextActive]}>
-              Event Chats
-            </Text>
-          </Pressable>
-        </View>
-      </Animated.View>
-
-      <View style={{ flex: 1 }}>
-        {activeTab === 'private' ? (
-          <ScrollView
-            key="private-chats"
-            style={{ flex: 1 }}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <Animated.View entering={FadeIn.duration(200)}>
-              {DEMO_MODE && DEMO_PRIVATE_CHATS.length > 0 ? (
-                DEMO_PRIVATE_CHATS.map((chat) => <PrivateChatRow key={chat.id} chat={chat} />)
-              ) : (
-                <View style={styles.emptyCard}>
-                  <Text style={styles.emptyTitle}>No messages yet</Text>
-                  <Text style={styles.emptyBody}>
-                    Match with someone at an event to start a private conversation.
-                  </Text>
+            {/* Private Chats tab */}
+            <Pressable
+              style={[styles.segmentPill, activeTab === 'private' && styles.segmentPillActive]}
+              onPress={() => switchTab('private')}
+            >
+              <Heart
+                size={14}
+                color={activeTab === 'private' ? '#fff' : 'rgba(255,255,255,0.4)'}
+                strokeWidth={activeTab === 'private' ? 2.2 : 1.8}
+              />
+              <Text
+                style={[styles.segmentText, activeTab === 'private' && styles.segmentTextActive]}
+              >
+                Private Chats
+              </Text>
+              {/* Badge showing unread + new matches */}
+              {activeTab !== 'private' && newMatchCount + totalUnread > 0 && (
+                <View style={styles.tabBadge}>
+                  <Text style={styles.tabBadgeText}>{newMatchCount + totalUnread}</Text>
                 </View>
               )}
-            </Animated.View>
-          </ScrollView>
-        ) : (
+            </Pressable>
+          </View>
+        </Animated.View>
+      </GestureDetector>
+
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={(e) => {
+          const offsetX = e.nativeEvent.contentOffset.x;
+          const idx = Math.round(offsetX / windowWidth);
+          const newTab = idx === 0 ? 'events' : 'private';
+          if (newTab !== activeTab) {
+            setActiveTab(newTab);
+            Haptics.selectionAsync();
+          }
+        }}
+        style={{ flex: 1 }}
+      >
+        <View style={{ width: windowWidth, flex: 1 }}>
+          {ambientColor !== 'transparent' && (
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor: ambientColor,
+                  opacity: 0.6,
+                },
+              ]}
+              pointerEvents="none"
+            />
+          )}
           <ScrollView
             key="event-chats"
             style={{ flex: 1 }}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.iris}
+              />
+            }
           >
             <Animated.View entering={FadeIn.duration(200)}>
-              {DEMO_MODE && DEMO_EVENT_CHATS.length > 0 ? (
-                DEMO_EVENT_CHATS.map((chat, i) => (
+              {eventChats.length > 0 ? (
+                eventChats.map((chat: EventChat, i: number) => (
                   <EventChatCard key={chat.id} chat={chat} index={i} />
                 ))
               ) : (
@@ -597,16 +686,37 @@ export default function InboxScreen() {
               )}
             </Animated.View>
           </ScrollView>
-        )}
-      </View>
+        </View>
 
-      {/* ── FAB ── */}
-      <Pressable
-        style={[styles.fab, { bottom: insets.bottom + 90 }]}
-        onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
-      >
-        <Plus size={24} color="#fff" strokeWidth={2.5} />
-      </Pressable>
+        <View style={{ width: windowWidth, flex: 1 }}>
+          <ScrollView
+            key="private-chats"
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.iris}
+              />
+            }
+          >
+            <Animated.View entering={FadeIn.duration(200)}>
+              {privateChats.length > 0 ? (
+                privateChats.map((chat: DirectChat) => <PrivateChatRow key={chat.id} chat={chat} />)
+              ) : (
+                <View style={styles.emptyCard}>
+                  <Text style={styles.emptyTitle}>No messages yet</Text>
+                  <Text style={styles.emptyBody}>
+                    Match with someone at an event to start a private conversation.
+                  </Text>
+                </View>
+              )}
+            </Animated.View>
+          </ScrollView>
+        </View>
+      </ScrollView>
 
       {/* ── Likes Overlay ── */}
       <Modal
@@ -638,7 +748,7 @@ export default function InboxScreen() {
               contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16 }}
               showsVerticalScrollIndicator={false}
             >
-              {DEMO_NEW_MATCHES.map((match) => (
+              {newMatches.map((match: NewMatch) => (
                 <Pressable
                   key={match.id}
                   style={{

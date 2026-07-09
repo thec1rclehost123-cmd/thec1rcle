@@ -36,6 +36,18 @@ export async function proxyToGateway(
   }
 
   try {
+    const targetUrl = new URL(url);
+    const allowedBase = new URL(GATEWAY_URL);
+    if (targetUrl.origin !== allowedBase.origin) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'FORBIDDEN', message: 'Invalid gateway origin', requestId },
+        },
+        { status: 403 },
+      );
+    }
+
     const forwardedHeaders = new Headers(init.headers);
     if (!forwardedHeaders.has('x-request-id')) {
       forwardedHeaders.set('x-request-id', requestId);

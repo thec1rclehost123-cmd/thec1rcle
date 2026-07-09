@@ -1,21 +1,52 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    
-    // Allow hosts to upload verification documents
-    match /hosts/{userId}/{fileName} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // Allow users to manage their own KYC documents across nested step folders
-    match /kyc-documents/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    function isImageUnder5Mb() {
+      return request.resource != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
     }
     
-    // Allow public access to event images
+    // Host verification documents are private to the owner; Admin SDK bypasses rules.
+    match /hosts/{userId}/{allPaths=**} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) && isImageUnder5Mb();
+    }
+
+    // KYC documents are never public; Admin SDK bypasses rules for backend review.
+    match /kyc-documents/{userId}/{allPaths=**} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) && isImageUnder5Mb();
+    }
+
+    // Verification selfies/documents are private to the owner and backend review.
+    match /verifications/{userId}/{allPaths=**} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) && isImageUnder5Mb();
+    }
+
+    // Profile photos are public read, but only the owner can upload bounded images.
+    match /users/{userId}/photos/{allPaths=**} {
+      allow read: if true;
+      allow write: if isOwner(userId) && isImageUnder5Mb();
+    }
+    
+    // Event images are public read, but client writes are admin-only.
     match /events/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin() && isImageUnder5Mb();
     }
   }
 }

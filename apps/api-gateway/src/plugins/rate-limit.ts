@@ -160,11 +160,11 @@ export default fp(async (fastify: FastifyInstance) => {
       );
 
       return {
-        statusCode: 429,
-        error: 'Too Many Requests',
-        message: `You've reached the request limit for this minute. Please pause for a moment.`,
-        requestId: req.id,
-        expiresIn: context.after,
+        success: false,
+        error: {
+          code: 'RATE_LIMITED',
+          message: 'Too many requests, please try again later.',
+        },
       };
     },
   });

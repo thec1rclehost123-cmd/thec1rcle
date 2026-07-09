@@ -75,10 +75,29 @@ vi.mock('@c1rcle/core/guest-wallet-profile-notification-service', () => ({
   markAllGuestNotificationsRead: vi.fn(async () => ({ updated: 2 })),
 }));
 
+vi.mock('@c1rcle/core/guest-pass-engine', () => ({
+  buildGuestPass: vi.fn(async () => ({
+    statusCode: 503,
+    body: {
+      success: false,
+      code: 'not_configured',
+      provider: 'apple',
+      missing: ['APPLE_PASS_TYPE_ID'],
+      fallback: 'pdf',
+    },
+  })),
+}));
+
 import validatePlugin from '../../plugins/validate';
 import ticketRoutes from './tickets';
 import guestProfileRoutes from './guest-profiles';
 import guestNotificationRoutes from './guest-notifications';
+import guestPassRoutes from './guest-passes';
+// @ts-ignore
+import { buildGuestPass } from '@c1rcle/core/guest-pass-engine';
+
+// @ts-ignore
+import { initiateGuestTransfer } from '../../services/guest-gp5';
 
 async function buildServer() {
   const server = Fastify({ logger: false });
@@ -105,6 +124,7 @@ async function buildServer() {
   await server.register(ticketRoutes, { prefix: '/api/v1' });
   await server.register(guestProfileRoutes, { prefix: '/api/v1' });
   await server.register(guestNotificationRoutes, { prefix: '/api/v1' });
+  await server.register(guestPassRoutes, { prefix: '/api/v1' });
   return server;
 }
 
@@ -199,6 +219,27 @@ describe('GP-5 gateway wallet/profile/notification routes', () => {
     await server.close();
   });
 
+  it('GET /api/v1/passes/:platform returns structured not_configured wallet fallback', async () => {
+    const server = await buildServer();
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/passes/apple?orderId=ord_1',
+      headers: { authorization: 'Bearer test-token' },
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toMatchObject({
+      success: false,
+      code: 'not_configured',
+      provider: 'apple',
+      fallback: 'pdf',
+    });
+    expect(buildGuestPass).toHaveBeenCalledWith(
+      expect.objectContaining({ orderId: 'ord_1', platform: 'apple' }),
+    );
+    await server.close();
+  });
+
   it('PATCH /api/v1/guest-notifications/:id marks an owned notification as read', async () => {
     const server = await buildServer();
     const response = await server.inject({
@@ -209,6 +250,52 @@ describe('GP-5 gateway wallet/profile/notification routes', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ success: true });
+    await server.close();
+  });
+
+  it('POST /api/v1/tickets/transfer returns 403 GENDER_UPDATE_REQUIRED when recipient gender is prefer_not_to_say', async () => {
+    vi.mocked(initiateGuestTransfer).mockRejectedValueOnce(
+      Object.assign(new Error('Recipient must update their gender to proceed with this transfer'), {
+        statusCode: 403,
+        code: 'GENDER_UPDATE_REQUIRED',
+      }),
+    );
+
+    const server = await buildServer();
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/tickets/transfer',
+      headers: { authorization: 'Bearer test-token' },
+      payload: { ticketId: 'ENT-TKT-1', recipientEmail: 'recipient@example.com' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      error: { code: 'GENDER_UPDATE_REQUIRED' },
+    });
+    await server.close();
+  });
+
+  it('POST /api/v1/tickets/transfer returns 403 GENDER_RESTRICTION when recipient gender does not match ticket requirement', async () => {
+    vi.mocked(initiateGuestTransfer).mockRejectedValueOnce(
+      Object.assign(new Error('This ticket is restricted to female attendees'), {
+        statusCode: 403,
+        code: 'GENDER_RESTRICTION',
+      }),
+    );
+
+    const server = await buildServer();
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/tickets/transfer',
+      headers: { authorization: 'Bearer test-token' },
+      payload: { ticketId: 'ENT-TKT-1', recipientEmail: 'male@example.com' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      error: { code: 'GENDER_RESTRICTION' },
+    });
     await server.close();
   });
 });

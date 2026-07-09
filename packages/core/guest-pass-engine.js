@@ -120,12 +120,44 @@ export function buildGoogleWalletPassPreview(order, event = {}, env = process.en
   };
 }
 
-export async function buildGuestPassPreview({
-  orderId,
-  platform,
-  resolveEvent,
-  env = process.env,
-} = {}) {
+function missingEnv(env, keys) {
+  return keys.filter((key) => !env[key]);
+}
+
+function interpolateUrlTemplate(template, values) {
+  return String(template || '').replace(/\{([a-zA-Z0-9_]+)\}/g, (_match, key) =>
+    encodeURIComponent(values[key] || ''),
+  );
+}
+
+function notConfigured(provider, missing) {
+  return {
+    statusCode: 503,
+    body: {
+      success: false,
+      code: 'not_configured',
+      provider,
+      missing,
+      fallback: 'pdf',
+      message: `${provider === 'apple' ? 'Apple Wallet' : 'Google Wallet'} credentials are not configured.`,
+    },
+  };
+}
+
+function notImplemented(provider) {
+  return {
+    statusCode: 501,
+    body: {
+      success: false,
+      code: 'not_implemented',
+      provider,
+      fallback: 'pdf',
+      message: `${provider === 'apple' ? 'Apple Wallet' : 'Google Wallet'} credentials are configured, but pass artifact generation is not enabled.`,
+    },
+  };
+}
+
+export async function buildGuestPass({ orderId, platform, resolveEvent, env = process.env } = {}) {
   if (!orderId) {
     return { statusCode: 400, body: { error: 'Missing orderId' } };
   }
@@ -136,10 +168,56 @@ export async function buildGuestPassPreview({
   }
 
   const event = order.eventId && resolveEvent ? (await resolveEvent(order.eventId)) || {} : {};
-  const body =
-    platform === 'google'
-      ? buildGoogleWalletPassPreview(order, event, env)
-      : buildAppleWalletPassPreview(order, event, env);
 
-  return { statusCode: 501, body };
+  if (platform === 'google') {
+    const template = env.GOOGLE_WALLET_SAVE_URL_TEMPLATE;
+    const missing = template
+      ? []
+      : missingEnv(env, ['GOOGLE_WALLET_ISSUER_ID', 'GOOGLE_WALLET_SERVICE_ACCOUNT_KEY']);
+    if (missing.length > 0) return notConfigured('google', missing);
+    if (!template) return notImplemented('google');
+
+    return {
+      statusCode: 200,
+      body: {
+        success: true,
+        provider: 'google',
+        saveUrl: interpolateUrlTemplate(template, {
+          orderId,
+          eventId: order.eventId || '',
+          userId: order.userId || '',
+        }),
+        pass: buildGoogleWalletPassPreview(order, event, env).pass,
+      },
+    };
+  }
+
+  const template = env.APPLE_WALLET_PASS_URL_TEMPLATE;
+  const missing = template
+    ? []
+    : missingEnv(env, [
+        'APPLE_PASS_TYPE_ID',
+        'APPLE_PASS_TEAM_ID',
+        'APPLE_PASS_CERT_PATH',
+        'APPLE_PASS_KEY_PATH',
+        'APPLE_PASS_WWDR_CERT_PATH',
+      ]);
+  if (missing.length > 0) return notConfigured('apple', missing);
+  if (!template) return notImplemented('apple');
+
+  return {
+    statusCode: 302,
+    headers: {
+      Location: interpolateUrlTemplate(template, {
+        orderId,
+        eventId: order.eventId || '',
+        userId: order.userId || '',
+      }),
+    },
+    body: null,
+  };
+}
+
+export async function buildGuestPassPreview(options = {}) {
+  return buildGuestPass(options);
 }

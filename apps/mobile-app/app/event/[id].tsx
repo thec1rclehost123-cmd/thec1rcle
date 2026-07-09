@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
+import { useCallback, useEffect, useState, useRef, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect, useLocalSearchParams, router, Stack } from 'expo-router';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import Animated, {
   useSharedValue,
@@ -41,6 +41,7 @@ import { useEventsStore, Event, TicketTier } from '@/store/eventsStore';
 import { getEventImage, EVENT_PLACEHOLDER } from '@/lib/utils/event';
 import { useCartStore } from '@/store/cartStore';
 import { colors, radii, gradients, typography } from '@/lib/design/theme';
+import { resolveEventAccentColor } from '@/hooks/useEventAccent';
 import { safeDate, formatEventDate, formatEventTime } from '@/lib/utils/date';
 import { trackScreen } from '@/lib/analytics';
 import { VenueSheet } from '@/components/ui/VenueSheet';
@@ -52,6 +53,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfileStore } from '@/store/profileStore';
 import { shareEventLink } from '@/lib/deeplinks';
 import { useTicketsStore } from '@/store/ticketsStore';
+import { useAuthStore } from '@/store/authStore';
+import { useSubscriptionStore, type PremiumFeature } from '@/store/subscriptionStore';
+import AuthSheet from '@/components/ui/AuthSheet';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const HEADER_HEIGHT = 400;
@@ -61,12 +65,62 @@ const TICKET_TRANSITION_SIZE = Math.hypot(SCREEN_WIDTH, SCREEN_HEIGHT) * 2.1;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+const geocodeCache = new Map<string, { latitude: number; longitude: number }>();
+
 const eventFont = {
   regular: typography.fontFamily.body,
   medium: typography.fontFamily.medium,
   bold: typography.fontFamily.heading,
   black: typography.fontFamily.brandAccent,
 };
+
+function firstNonEmptyString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  }
+  return '';
+}
+
+function resolveUserPhoto(profile: any, user: any): string | null {
+  return (
+    firstNonEmptyString(
+      profile?.photoURL,
+      profile?.photos?.[0],
+      profile?.datingPhotos?.[0],
+      profile?.avatar,
+      profile?.photo,
+      profile?.imageUrl,
+      user?.photoURL,
+    ) || null
+  );
+}
+
+function normalizeIdentityString(value: unknown) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function isViewerInterestedEntry(
+  userInfo: any,
+  viewerUid: string,
+  viewerDisplayName: string,
+  viewerPhoto: string | null,
+) {
+  const candidateId = firstNonEmptyString(userInfo?.userId, userInfo?.id, userInfo?.uid);
+  if (candidateId && candidateId === viewerUid) return true;
+
+  const candidateName = normalizeIdentityString(userInfo?.displayName || userInfo?.name);
+  const candidatePhoto = firstNonEmptyString(
+    userInfo?.photoURL,
+    userInfo?.avatar,
+    userInfo?.photo,
+    userInfo?.imageUrl,
+  );
+
+  return Boolean(
+    (viewerDisplayName && candidateName === normalizeIdentityString(viewerDisplayName)) ||
+    (viewerPhoto && candidatePhoto === viewerPhoto),
+  );
+}
 
 function HeartBurst({
   accent,
@@ -116,35 +170,6 @@ function formatGoingDate(value?: string) {
   return `${weekday}, ${month} ${day} at ${time}`;
 }
 
-function GoingMarquee({ accent }: { accent: string }) {
-  const marqueeX = useSharedValue(0);
-
-  useEffect(() => {
-    marqueeX.value = 0;
-    marqueeX.value = withRepeat(
-      withTiming(-SCREEN_WIDTH, { duration: 9000, easing: Easing.linear }),
-      -1,
-      false,
-    );
-  }, [marqueeX]);
-
-  const marqueeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: marqueeX.value }],
-  }));
-
-  return (
-    <View style={[styles.goingMarquee, { backgroundColor: accent }]}>
-      <Animated.View style={[styles.goingMarqueeTrack, marqueeStyle]}>
-        {Array.from({ length: 12 }).map((_, index) => (
-          <Text key={index} style={styles.goingMarqueeText}>
-            THEC1RCLE
-          </Text>
-        ))}
-      </Animated.View>
-    </View>
-  );
-}
-
 function TicketOriginEventView({
   event,
   params,
@@ -156,8 +181,10 @@ function TicketOriginEventView({
 }) {
   const eventId = String(params.id || event.id);
   const orderId = typeof params.orderId === 'string' ? params.orderId : '';
-  const paramAccent = typeof params.accentColor === 'string' ? params.accentColor : undefined;
-  const accent = colors.iris;
+  const accent =
+    typeof params.accentColor === 'string'
+      ? params.accentColor
+      : resolveEventAccentColor(event as any);
   const title = String(params.eventTitle || event.title || 'THE C1RCLE EVENT');
   const poster =
     getEventImage(event) ||
@@ -178,7 +205,7 @@ function TicketOriginEventView({
 
   const handleCopyLink = async () => {
     Haptics.selectionAsync();
-    const eventLink = `https://thec1rcle.com/app/event?id=${encodeURIComponent(eventId)}`;
+    const eventLink = `https://thec1rcle.com/event/${encodeURIComponent(eventId)}`;
     await Clipboard.setStringAsync(eventLink);
     Alert.alert('Link Copied!', 'The event link has been copied to your clipboard.');
     setShowShare(false);
@@ -201,7 +228,7 @@ function TicketOriginEventView({
 
   const handleSystemShare = async () => {
     Haptics.selectionAsync();
-    const eventLink = `https://thec1rcle.com/app/event?id=${encodeURIComponent(eventId)}`;
+    const eventLink = `https://thec1rcle.com/event/${encodeURIComponent(eventId)}`;
     await shareEventLink(
       eventId,
       title,
@@ -224,7 +251,6 @@ function TicketOriginEventView({
   return (
     <View style={[styles.goingScreen, { backgroundColor: accent }]}>
       <SafeAreaView style={styles.goingSafeArea}>
-        <GoingMarquee accent={accent} />
         <View style={styles.goingContent}>
           <Animated.View entering={FadeInDown.duration(420)} style={styles.goingHeader}>
             <Text style={styles.goingTitle} numberOfLines={3}>
@@ -299,7 +325,6 @@ function TicketOriginEventView({
 
               <View style={styles.sharePreviewContainer}>
                 <View style={[styles.sharePreviewCard, { backgroundColor: accent }]}>
-                  <GoingMarquee accent={accent} />
                   <View style={styles.sharePreviewInfo}>
                     <Text style={styles.sharePreviewTitle} numberOfLines={2}>
                       {title.toUpperCase()}
@@ -350,7 +375,35 @@ function TicketOriginEventView({
 }
 
 // Premium Ticket Tier Card
-function TicketTierCard({
+function getGenderRestriction(tier: TicketTier): string | null {
+  const r =
+    tier.genderRestriction ||
+    (tier as any).genderRequirement ||
+    (tier as any).requiredGender ||
+    null;
+  if (r && r !== 'none' && r !== 'any') return r;
+  if (String(tier.entryType || '').toLowerCase() === 'female') return 'female';
+  return null;
+}
+
+function getRestrictionLabel(gender: string): string {
+  if (gender === 'female') return 'Ladies Only';
+  if (gender === 'male') return 'Men Only';
+  return `${gender} Only`;
+}
+
+function areTierCardEqual(prev: any, next: any) {
+  return (
+    prev.tier.id === next.tier.id &&
+    prev.tier.remaining === next.tier.remaining &&
+    prev.tier.price === next.tier.price &&
+    prev.event.id === next.event.id &&
+    prev.isPopular === next.isPopular &&
+    prev.promoterCode === next.promoterCode
+  );
+}
+
+const TicketTierCard = memo(function TicketTierCard({
   tier,
   event,
   promoterCode,
@@ -367,6 +420,20 @@ function TicketTierCard({
   const [added, setAdded] = useState(false);
   const isAvailable = tier.remaining > 0;
   const { addItem } = useCartStore();
+  const profile = useProfileStore((s) => s.profile);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    };
+  }, []);
+
+  const genderRestriction = getGenderRestriction(tier);
+  const userGender = profile?.gender || null;
+  const isGenderRestricted =
+    genderRestriction !== null && userGender !== null && userGender !== genderRestriction;
+  const isGenderUnknown = genderRestriction !== null && userGender === null;
 
   // Compute sold percentage for progress bar
   const soldPercent = tier.soldPercent ?? 0;
@@ -377,22 +444,44 @@ function TicketTierCard({
     transform: [{ scale: scale.value }],
   }));
 
-  const handleQuantityChange = (delta: number) => {
-    Haptics.selectionAsync();
-    if (delta > 0) {
-      setQuantity(quantity + 1);
-    } else {
-      setQuantity(Math.max(1, quantity - 1));
-    }
-  };
+  const handleQuantityChange = useCallback(
+    (delta: number) => {
+      if (isGenderRestricted || isGenderUnknown) {
+        Alert.alert(
+          'Restricted Ticket',
+          genderRestriction === 'female'
+            ? 'This ticket is restricted to female attendees only.'
+            : `This ticket is restricted to ${genderRestriction} attendees only.`,
+        );
+        return;
+      }
+      Haptics.selectionAsync();
+      setQuantity((prev) => {
+        const next = delta > 0 ? prev + 1 : prev - 1;
+        return Math.max(1, next);
+      });
+    },
+    [isGenderRestricted, isGenderUnknown, genderRestriction],
+  );
 
-  const handleAddToCart = () => {
+  const handleAddToCart = useCallback(() => {
+    if (isGenderRestricted || isGenderUnknown) {
+      Alert.alert(
+        'Restricted Ticket',
+        genderRestriction === 'female'
+          ? 'This ticket is restricted to female attendees only.'
+          : `This ticket is restricted to ${genderRestriction} attendees only.`,
+      );
+      return;
+    }
+    const eventAccentColor = resolveEventAccentColor(event as any);
     const result = addItem({
       eventId: event.id,
       eventTitle: event.title,
       eventDate: event.startDate,
       eventVenue: event.venue || event.location || 'TBA',
       eventCoverImage: getEventImage(event) ?? undefined,
+      eventAccentColor,
       tier,
       quantity,
       promoterCode,
@@ -409,11 +498,21 @@ function TicketTierCard({
       );
     }
 
-    setTimeout(() => {
+    resetTimerRef.current = setTimeout(() => {
+      resetTimerRef.current = null;
       scale.value = withSpring(1);
       setAdded(false);
     }, 2000);
-  };
+  }, [
+    isGenderRestricted,
+    isGenderUnknown,
+    genderRestriction,
+    addItem,
+    event,
+    tier,
+    quantity,
+    promoterCode,
+  ]);
 
   return (
     <Animated.View
@@ -423,8 +522,23 @@ function TicketTierCard({
         styles.tierCard,
         isPopular && styles.tierCardPopular,
         !isAvailable && styles.tierCardSoldOut,
+        isGenderRestricted && styles.tierCardRestricted,
       ]}
     >
+      {/* Gender restriction badge */}
+      {genderRestriction && (
+        <View style={styles.genderBadge}>
+          <LinearGradient
+            colors={
+              genderRestriction === 'female' ? ['#FF69B4', '#FF1493'] : ['#4A90D9', '#2E6BB5']
+            }
+            style={styles.genderBadgeGradient}
+          >
+            <Text style={styles.genderBadgeText}>{getRestrictionLabel(genderRestriction)}</Text>
+          </LinearGradient>
+        </View>
+      )}
+
       {/* Popular badge */}
       {isPopular && (
         <View style={styles.popularBadge}>
@@ -456,7 +570,7 @@ function TicketTierCard({
       )}
 
       {/* Quantity & Add Button */}
-      {isAvailable ? (
+      {isAvailable && !isGenderRestricted ? (
         <View style={styles.tierActions}>
           <View style={styles.quantitySelector}>
             <Pressable onPress={() => handleQuantityChange(-1)} style={styles.quantityButton}>
@@ -477,6 +591,10 @@ function TicketTierCard({
             </LinearGradient>
           </Pressable>
         </View>
+      ) : isGenderRestricted ? (
+        <Pressable onPress={handleAddToCart} style={styles.restrictedButton}>
+          <Text style={styles.restrictedButtonText}>Restricted</Text>
+        </Pressable>
       ) : (
         <Pressable
           onPress={() => {
@@ -490,7 +608,7 @@ function TicketTierCard({
       )}
     </Animated.View>
   );
-}
+}, areTierCardEqual);
 
 // Floating Header Button
 function HeaderButton({
@@ -504,7 +622,12 @@ function HeaderButton({
 }) {
   return (
     <Pressable onPress={onPress} style={styles.headerButton}>
-      <BlurView intensity={28} tint="dark" style={styles.headerButtonBlur}>
+      <BlurView
+        blurMethod="dimezisBlurView"
+        intensity={28}
+        tint="dark"
+        style={styles.headerButtonBlur}
+      >
         {icon}
       </BlurView>
       {badge !== undefined && badge > 0 && (
@@ -531,24 +654,37 @@ export default function EventDetailScreen() {
     posterTransitionTag?: string;
   }>();
   const { id, ref, source } = params;
-  const { getEventById, events, featuredEvents } = useEventsStore();
+  const getEventById = useEventsStore((s) => s.getEventById);
+  const initialEventRef = useRef<Event | null>(null);
+  const initialEvent = useEventsStore((s) => {
+    const found =
+      s.events.find((e) => e.id === id) || s.featuredEvents.find((e) => e.id === id) || null;
+    if (found && found.id === initialEventRef.current?.id) {
+      return initialEventRef.current;
+    }
+    initialEventRef.current = found;
+    return found;
+  });
   const cartItems = useCartStore((s) => s.items);
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+  const isPremium = useSubscriptionStore((s) => s.isPremium);
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const profile = useProfileStore((s) => s.profile);
-  const { likedEventIds, toggleInterest, fetchInterestedUsers, interestedUsers } =
-    useEventInterestStore();
+  const {
+    isInterested,
+    toggleInterest,
+    fetchInterestedUsers,
+    fetchEventInterestState,
+    interestedUsers,
+  } = useEventInterestStore();
   const { followedVenueIds, followedHostIds, fetchFollows, toggleVenueFollow, toggleHostFollow } =
     useFollowStore();
   const { orders, fetchUserOrders } = useTicketsStore();
 
-  const initialEvent = useMemo(() => {
-    return events.find((e) => e.id === id) || featuredEvents.find((e) => e.id === id) || null;
-  }, [id, events, featuredEvents]);
-
   const [event, setEvent] = useState<Event | null>(initialEvent);
   const [loading, setLoading] = useState(!initialEvent);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [venueCoords, setVenueCoords] = useState<{ latitude: number; longitude: number } | null>(
     null,
   );
@@ -557,12 +693,12 @@ export default function EventDetailScreen() {
   const [showHostSheet, setShowHostSheet] = useState(false);
   const [showGuestlistSheet, setShowGuestlistSheet] = useState(false);
   const [showTicketSheet, setShowTicketSheet] = useState(false);
+  const [showAuthSheet, setShowAuthSheet] = useState(false);
   const [heartBurstTarget, setHeartBurstTarget] = useState<'top' | 'title'>('title');
-  const [localLikedEventIds, setLocalLikedEventIds] = useState<Set<string>>(new Set());
   const miniMapRef = useRef<MapView>(null);
   const ticketTransitionLocked = useRef(false);
 
-  const isLiked = id ? likedEventIds.has(id) || localLikedEventIds.has(id) : false;
+  const isLiked = id ? isInterested(id) : false;
   const eventInterested = id ? (interestedUsers[id] ?? []) : [];
 
   const scrollY = useSharedValue(0);
@@ -572,13 +708,58 @@ export default function EventDetailScreen() {
   const heartBurst = useSharedValue(0);
   const heartPop = useSharedValue(1);
 
+  const posterUri = useMemo(() => (event ? getEventImage(event) : ''), [event]);
+  const { interestedListUsers, interestedSummary } = useMemo(() => {
+    if (!event) return { interestedListUsers: [], interestedCount: 0, interestedSummary: '' };
+    const detailInterestedUsers = Array.isArray((event as any).interestedData?.users)
+      ? (event as any).interestedData.users
+      : [];
+    const sourceUsers = eventInterested.length > 0 ? eventInterested : detailInterestedUsers;
+    const viewerDisplayName = firstNonEmptyString(profile?.displayName, user?.displayName);
+    const viewerPhoto = resolveUserPhoto(profile, user);
+    const viewerInterestedUser =
+      isLiked && user?.uid
+        ? {
+            userId: user.uid,
+            displayName: viewerDisplayName || 'C1rcle User',
+            photoURL: viewerPhoto,
+            likedAt: new Date().toISOString(),
+            isCurrentUser: true,
+          }
+        : null;
+    const users = viewerInterestedUser
+      ? [
+          viewerInterestedUser,
+          ...sourceUsers.filter(
+            (userInfo: any) =>
+              !isViewerInterestedEntry(
+                userInfo,
+                viewerInterestedUser.userId,
+                viewerDisplayName,
+                viewerPhoto,
+              ),
+          ),
+        ]
+      : sourceUsers;
+    const count = Math.max(Number((event as any).interestedData?.count || 0), users.length);
+    const leadName = (users[0]?.displayName || users[0]?.name || '').split(' ')[0] || '';
+    const othersCount = Math.max(count - 1, 0);
+    const summary =
+      count <= 0
+        ? 'Be the first to show interest'
+        : othersCount === 0
+          ? `${leadName || '1 guest'} is interested`
+          : `${leadName} and ${othersCount} others interested`;
+    return { interestedListUsers: users, interestedCount: count, interestedSummary: summary };
+  }, [eventInterested, event, isLiked, profile, user]);
+
   useEffect(() => {
     trackScreen('EventDetail');
   }, []);
 
   useEffect(() => {
     if (user?.uid) {
-      void fetchUserOrders(user.uid);
+      void fetchUserOrders();
       void fetchFollows(user.uid);
     }
   }, [user?.uid]);
@@ -596,7 +777,8 @@ export default function EventDetailScreen() {
     if (!confirmedOrder || !event) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const accentColor = colors.iris;
+    const accentColor =
+      resolveEventAccentColor(confirmedOrder as any) || resolveEventAccentColor(event as any);
 
     router.push({
       pathname: '/event/[id]',
@@ -618,13 +800,22 @@ export default function EventDetailScreen() {
     async function loadEvent() {
       if (!id) return;
       setLoading(true);
-      const eventData = await getEventById(id);
-      setEvent(eventData);
-      setLoading(false);
-      void fetchInterestedUsers(id);
+      setLoadError(null);
+      try {
+        const eventData = await getEventById(id);
+        if (!eventData) {
+          setEvent(null);
+          setLoading(false);
+          return;
+        }
+        setEvent(eventData);
+        setLoading(false);
+        if (user?.uid) {
+          void fetchInterestedUsers(id);
+          void fetchEventInterestState(id);
+        }
 
-      // Geocode venue
-      if (eventData) {
+        // Geocode venue
         if (eventData.coordinates) {
           setVenueCoords(eventData.coordinates);
         } else {
@@ -632,23 +823,34 @@ export default function EventDetailScreen() {
             .filter(Boolean)
             .join(', ');
           if (searchText) {
-            try {
-              const results = await Location.geocodeAsync(searchText);
-              if (results.length > 0) {
-                setVenueCoords({
-                  latitude: results[0].latitude,
-                  longitude: results[0].longitude,
-                });
+            const cached = geocodeCache.get(searchText);
+            if (cached) {
+              setVenueCoords(cached);
+            } else {
+              try {
+                const results = await Location.geocodeAsync(searchText);
+                if (results.length > 0) {
+                  const coords = {
+                    latitude: results[0].latitude,
+                    longitude: results[0].longitude,
+                  };
+                  geocodeCache.set(searchText, coords);
+                  setVenueCoords(coords);
+                }
+              } catch (e) {
+                console.warn('[EventDetail] Geocode failed:', e);
               }
-            } catch (e) {
-              console.warn('[EventDetail] Geocode failed:', e);
             }
           }
         }
+      } catch (e) {
+        console.error('[EventDetail] Failed to load event:', e);
+        setLoadError('Unable to load event. Check your connection and try again.');
+        setLoading(false);
       }
     }
     loadEvent();
-  }, [id]);
+  }, [fetchEventInterestState, fetchInterestedUsers, id, user?.uid]);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -762,25 +964,20 @@ export default function EventDetailScreen() {
       withSpring(1, { damping: 8, stiffness: 360 }),
     );
     heartBurst.value = withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) });
-    if (!user?.uid) {
-      setLocalLikedEventIds((current) => {
-        const next = new Set(current);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        return next;
-      });
+    if (!user?.uid || useAuthStore.getState().isGuest) {
+      setShowAuthSheet(true);
       return;
     }
     toggleInterest(id, user.uid, {
       displayName: profile?.displayName ?? '',
-      photoURL: profile?.photoURL ?? null,
+      photoURL: resolveUserPhoto(profile, user),
     });
   };
 
   const handleShare = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!event || !id) return;
-    const eventLink = `https://thec1rcle.com/app/event?id=${encodeURIComponent(id)}`;
+    const eventLink = `https://thec1rcle.com/event/${encodeURIComponent(id)}`;
     void shareEventLink(
       id,
       event.title,
@@ -835,8 +1032,23 @@ export default function EventDetailScreen() {
     }
   };
 
+  const isSoldOut = !event?.tickets?.some((tier) => tier.remaining > 0);
+  const isPremiumGated = event?.premiumOnly === true || event?.isEarlyAccess === true;
+  const premiumGateFeature: PremiumFeature = event?.isEarlyAccess
+    ? 'earlyAccessDrop'
+    : 'premiumOnlyEvent';
+
   const handleGetTickets = () => {
-    if (ticketTransitionLocked.current) return;
+    const { user: authUser, isGuest } = useAuthStore.getState();
+    if (!authUser || isGuest) {
+      setShowAuthSheet(true);
+      return;
+    }
+    if (isPremiumGated && !isPremium) {
+      useSubscriptionStore.getState().openPaywall(premiumGateFeature);
+      return;
+    }
+    if (ticketTransitionLocked.current || loading || isSoldOut) return;
     ticketTransitionLocked.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     ticketTransition.value = 0;
@@ -879,14 +1091,14 @@ export default function EventDetailScreen() {
     );
   }
 
-  // Not Found State
-  if (!event) {
+  // Not Found / Error State
+  if (!event || loadError) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.errorEmoji}>😕</Text>
-        <Text style={styles.errorTitle}>Event Not Found</Text>
+        <Text style={styles.errorEmoji}>{loadError ? '📡' : '😕'}</Text>
+        <Text style={styles.errorTitle}>{loadError ? 'Connection Issue' : 'Event Not Found'}</Text>
         <Text style={styles.errorText}>
-          This event may have been removed or is no longer available.
+          {loadError || 'This event may have been removed or is no longer available.'}
         </Text>
         <Pressable
           onPress={() => {
@@ -932,7 +1144,7 @@ export default function EventDetailScreen() {
   }
 
   const accent = colors.iris;
-  const posterUri = getEventImage(event);
+  // posterUri hoisted
   const posterTransitionTag =
     typeof params.posterTransitionTag === 'string'
       ? params.posterTransitionTag
@@ -943,22 +1155,10 @@ export default function EventDetailScreen() {
   const venueOrHostLabel = event.hostName || event.venue || 'Host TBA';
   const addressLabel = (event as any).address || event.location || event.city || 'Address TBA';
   const timeLabel = `${formattedDate} at ${formattedTime}`;
-  const detailInterestedUsers = Array.isArray((event as any).interestedData?.users)
-    ? (event as any).interestedData.users
-    : [];
-  const guestlistUsers = eventInterested.length > 0 ? eventInterested : detailInterestedUsers;
-  const interestedCount = Math.max(
-    Number((event as any).interestedData?.count || 0),
-    guestlistUsers.length,
-  );
-  const interestedLeadName = guestlistUsers[0]?.displayName?.split(' ')[0] || '';
-  const interestedOthersCount = Math.max(interestedCount - 1, 0);
-  const interestedSummary =
-    interestedCount <= 0
-      ? 'Be the first to show interest'
-      : interestedOthersCount === 0
-        ? `${interestedLeadName || '1 guest'} is interested`
-        : `${interestedLeadName} and ${interestedOthersCount} others interested`;
+  const eventHeaderTopPadding = Math.max(insets.top + 10, 34);
+  const posterStageTopPadding = eventHeaderTopPadding + 48;
+  const posterStageHeight = DETAIL_POSTER_HEIGHT + posterStageTopPadding + 18;
+  // interested users hoisted
   const instagramHandle =
     (event as any).venueInstagram ||
     (event as any).hostInstagram ||
@@ -980,6 +1180,7 @@ export default function EventDetailScreen() {
   const handleFollowProfile = () => {
     if (!user?.uid) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setShowAuthSheet(true);
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1021,7 +1222,20 @@ export default function EventDetailScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: '#050505' }]}>
+    <View style={styles.container}>
+      {posterUri ? (
+        <Image
+          source={{ uri: posterUri }}
+          style={StyleSheet.absoluteFill}
+          blurRadius={20}
+          contentFit="cover"
+        />
+      ) : null}
+      <LinearGradient
+        colors={[hexToRgba(accent, 0.2), 'rgba(5,5,5,0.5)', 'rgba(5,5,5,0.7)']}
+        locations={[0, 0.5, 1]}
+        style={StyleSheet.absoluteFill}
+      />
       <Stack.Screen options={{ animation: 'fade', headerShown: false }} />
 
       <VenueSheet
@@ -1041,15 +1255,17 @@ export default function EventDetailScreen() {
       <GuestlistSheet
         visible={showGuestlistSheet}
         onClose={() => setShowGuestlistSheet(false)}
-        users={guestlistUsers}
+        users={interestedListUsers}
         eventId={event.id}
+        currentUserId={user?.uid}
+        title="Interested List"
       />
 
       <Animated.View
         pointerEvents="none"
         style={[
           styles.compactHeaderBackdrop,
-          { height: Math.max(insets.top - 7, 11) + 56 },
+          { height: eventHeaderTopPadding + 56 },
           compactHeaderBackdropStyle,
         ]}
       />
@@ -1061,7 +1277,7 @@ export default function EventDetailScreen() {
           left: 0,
           right: 0,
           zIndex: 100,
-          paddingTop: Math.max(insets.top - 7, 11),
+          paddingTop: eventHeaderTopPadding,
           paddingHorizontal: 18,
           paddingBottom: 10,
           flexDirection: 'row',
@@ -1122,49 +1338,15 @@ export default function EventDetailScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
       >
-        <Animated.View style={[styles.posterStage, posterStageAnimatedStyle]}>
-          <View
-            pointerEvents="none"
-            style={[
-              styles.posterDominantGlow,
-              {
-                backgroundColor: hexToRgba(accent, 0.48),
-                shadowColor: accent,
-              },
-            ]}
-          />
-          <View
-            pointerEvents="none"
-            style={[
-              styles.posterSideGlow,
-              {
-                borderColor: hexToRgba(accent, 0.38),
-                shadowColor: accent,
-              },
-            ]}
-          />
-          {posterUri ? (
-            <Image
-              source={{ uri: posterUri }}
-              style={styles.posterBlurBackdrop}
-              contentFit="cover"
-              blurRadius={16}
-              transition={250}
-              cachePolicy="memory-disk"
-            />
-          ) : (
-            <LinearGradient
-              colors={[hexToRgba(accent, 0.78), '#070707']}
-              style={styles.posterBlurBackdrop}
-            />
-          )}
-          <LinearGradient
-            colors={[hexToRgba(accent, 0.2), 'rgba(0,0,0,0.58)', '#050505']}
-            locations={[0, 0.58, 1]}
-            style={StyleSheet.absoluteFill}
-          />
+        <Animated.View
+          style={[
+            styles.posterStage,
+            { height: posterStageHeight, paddingTop: posterStageTopPadding },
+            posterStageAnimatedStyle,
+          ]}
+        >
           <Animated.View
-            entering={FadeInDown.delay(80).springify()}
+            entering={posterTransitionTag ? undefined : FadeInDown.delay(80).springify()}
             style={[styles.posterFrame, { borderColor: hexToRgba(accent, 0.42) }]}
           >
             {posterUri ? (
@@ -1184,17 +1366,11 @@ export default function EventDetailScreen() {
             )}
             <LinearGradient
               pointerEvents="none"
-              colors={['rgba(5,5,5,0)', 'rgba(5,5,5,0.45)', '#050505']}
-              locations={[0, 0.62, 1]}
+              colors={['transparent', 'rgba(5,5,5,0.5)', 'rgba(5,5,5,0.7)']}
+              locations={[0, 0.5, 1]}
               style={styles.posterImageFade}
             />
           </Animated.View>
-          <LinearGradient
-            pointerEvents="none"
-            colors={['rgba(5,5,5,0)', 'rgba(5,5,5,0.76)', '#050505']}
-            locations={[0, 0.58, 1]}
-            style={styles.posterStageFade}
-          />
         </Animated.View>
 
         <View style={styles.detailContent}>
@@ -1260,8 +1436,10 @@ export default function EventDetailScreen() {
               }}
             >
               <View style={styles.interestedAvatars}>
-                {guestlistUsers.slice(0, 6).map((userInfo: any, index: number) => {
-                  const initial = (userInfo.displayName?.[0] ?? '?').toUpperCase();
+                {interestedListUsers.slice(0, 6).map((userInfo: any, index: number) => {
+                  const initial = (
+                    (userInfo.displayName || userInfo.name)?.[0] ?? '?'
+                  ).toUpperCase();
                   const avatarSource = (userInfo as any).photoSource
                     ? (userInfo as any).photoSource
                     : typeof userInfo?.photoURL === 'string' &&
@@ -1336,8 +1514,7 @@ export default function EventDetailScreen() {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 if (venueCoords) {
                   router.push({
-                    pathname: '/map' as any,
-                    params: { eventId: id },
+                    pathname: `/event/${id}/map` as any,
                   });
                 } else {
                   handleGetDirections();
@@ -1349,16 +1526,16 @@ export default function EventDetailScreen() {
                 <MapView
                   ref={miniMapRef}
                   style={styles.detailMap}
-                  provider={PROVIDER_DEFAULT}
+                  provider={undefined}
                   initialRegion={{
                     ...venueCoords,
                     latitudeDelta: 0.008,
                     longitudeDelta: 0.008,
                   }}
-                  scrollEnabled={false}
-                  zoomEnabled={false}
-                  rotateEnabled={false}
-                  pitchEnabled={false}
+                  scrollEnabled={true}
+                  zoomEnabled={true}
+                  rotateEnabled={true}
+                  pitchEnabled={true}
                   customMapStyle={darkMapStyle}
                 >
                   <Marker coordinate={venueCoords}>
@@ -1375,9 +1552,37 @@ export default function EventDetailScreen() {
                   </Text>
                 </LinearGradient>
               )}
-              <Pressable onPress={handleGetDirections} style={styles.mapDirectionsButton}>
-                <Ionicons name="navigate-outline" size={16} color="#fff" />
-              </Pressable>
+              <View style={styles.mapBottomBar}>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    if (venueCoords) {
+                      router.push({
+                        pathname: `/event/${id}/map` as any,
+                      });
+                    } else {
+                      handleGetDirections();
+                    }
+                  }}
+                  style={styles.mapViewFullButton}
+                >
+                  <Ionicons name="expand-outline" size={16} color="#fff" />
+                  <Text style={styles.mapViewFullText}>Full Map</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleGetDirections}
+                  style={[
+                    styles.mapDirectionsButton,
+                    {
+                      backgroundColor: hexToRgba(accent, 0.25),
+                      borderColor: hexToRgba(accent, 0.4),
+                    },
+                  ]}
+                >
+                  <Ionicons name="navigate-outline" size={16} color="#fff" />
+                  <Text style={styles.mapDirectionsText}>Directions</Text>
+                </Pressable>
+              </View>
             </Pressable>
           </Animated.View>
 
@@ -1418,6 +1623,10 @@ export default function EventDetailScreen() {
               <Ionicons name="logo-instagram" size={30} color="#fff" />
             </Pressable>
           </Animated.View>
+
+          {event.tickets && event.tickets.length > 0 && (
+            <View style={styles.buyTicketsSectionSpacer} />
+          )}
         </View>
       </Animated.ScrollView>
 
@@ -1437,16 +1646,22 @@ export default function EventDetailScreen() {
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} style={styles.ticketSheetList}>
-              {event.tickets?.map((tier, index) => (
-                <TicketTierCard
-                  key={tier.id}
-                  tier={tier}
-                  event={event}
-                  promoterCode={typeof ref === 'string' ? ref : undefined}
-                  isPopular={index === 0}
-                  index={index}
-                />
-              ))}
+              {event.tickets?.length ? (
+                event.tickets.map((tier, index) => (
+                  <TicketTierCard
+                    key={tier.id}
+                    tier={tier}
+                    event={event}
+                    promoterCode={typeof ref === 'string' ? ref : undefined}
+                    isPopular={index === 0}
+                    index={index}
+                  />
+                ))
+              ) : (
+                <View style={styles.ticketSheetEmpty}>
+                  <Text style={styles.ticketSheetEmptyText}>No tickets available</Text>
+                </View>
+              )}
             </ScrollView>
             {cartCount > 0 && (
               <Pressable
@@ -1461,16 +1676,34 @@ export default function EventDetailScreen() {
       </Modal>
 
       <View
-        style={[styles.floatingBottomBar, { paddingBottom: Math.max(insets.bottom - 14, 10) }]}
+        style={[styles.floatingBottomBar, { paddingBottom: Math.max(insets.bottom + 8, 18) }]}
         pointerEvents="box-none"
       >
         <AnimatedPressable
           onPress={handleGetTickets}
-          style={[styles.floatingPill, { backgroundColor: accent }, ticketButtonAnimatedStyle]}
+          style={[
+            styles.floatingPill,
+            isPremiumGated && !isPremium ? styles.floatingPillPremium : { backgroundColor: accent },
+            ticketButtonAnimatedStyle,
+            isSoldOut && { opacity: 0.5 },
+          ]}
+          pointerEvents={isSoldOut ? 'none' : 'auto'}
         >
-          <Animated.Text style={[styles.floatingPillText, ticketButtonTextStyle]}>
-            {floatingTicketLabel}
-          </Animated.Text>
+          {isPremiumGated && !isPremium ? (
+            <LinearGradient
+              colors={['#F7D06A', '#B86F17']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.floatingPillPremiumGradient}
+            >
+              <Ionicons name="lock-closed" size={16} color="#241200" style={{ marginRight: 8 }} />
+              <Text style={styles.floatingPillPremiumText}>Unlock Premium Access</Text>
+            </LinearGradient>
+          ) : (
+            <Animated.Text style={[styles.floatingPillText, ticketButtonTextStyle]}>
+              {floatingTicketLabel}
+            </Animated.Text>
+          )}
         </AnimatedPressable>
       </View>
 
@@ -1478,6 +1711,8 @@ export default function EventDetailScreen() {
         pointerEvents="none"
         style={[styles.ticketTransitionOverlay, { backgroundColor: accent }, ticketTransitionStyle]}
       />
+
+      <AuthSheet visible={showAuthSheet} onDismiss={() => setShowAuthSheet(false)} />
     </View>
   );
 }
@@ -1500,24 +1735,7 @@ const styles = StyleSheet.create({
   goingSafeArea: {
     flex: 1,
   },
-  goingMarquee: {
-    height: 34,
-    overflow: 'hidden',
-    justifyContent: 'center',
-  },
-  goingMarqueeTrack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: SCREEN_WIDTH * 3,
-  },
-  goingMarqueeText: {
-    color: '#161616',
-    fontFamily: eventFont.black,
-    fontSize: 14,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    marginRight: 20,
-  },
+
   goingContent: {
     flex: 1,
     paddingHorizontal: 20,
@@ -2070,6 +2288,43 @@ const styles = StyleSheet.create({
   tierCardSoldOut: {
     opacity: 0.5,
   },
+  tierCardRestricted: {
+    opacity: 0.5,
+    borderColor: '#FF4444',
+    borderWidth: 1,
+  },
+  genderBadge: {
+    position: 'absolute',
+    top: -12,
+    left: 16,
+    zIndex: 10,
+  },
+  genderBadgeGradient: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+  },
+  genderBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  restrictedButton: {
+    backgroundColor: 'rgba(255, 68, 68, 0.15)',
+    borderRadius: radii.lg,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 68, 68, 0.3)',
+  },
+  restrictedButtonText: {
+    color: '#FF4444',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   popularBadge: {
     position: 'absolute',
     top: -12,
@@ -2477,63 +2732,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   posterStage: {
-    height: DETAIL_POSTER_HEIGHT + 116,
-    paddingTop: 106,
+    height: DETAIL_POSTER_HEIGHT + 98,
+    paddingTop: 82,
     paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'flex-start',
-    overflow: 'hidden',
-    backgroundColor: '#050505',
+    overflow: 'visible',
   },
-  posterDominantGlow: {
-    position: 'absolute',
-    top: 64,
-    width: DETAIL_POSTER_WIDTH + 84,
-    height: DETAIL_POSTER_HEIGHT + 92,
-    borderRadius: 46,
-    opacity: 0.74,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.72,
-    shadowRadius: 70,
-    elevation: 16,
-    transform: [{ scaleX: 0.94 }],
-  },
-  posterSideGlow: {
-    position: 'absolute',
-    top: 124,
-    left: -82,
-    width: 188,
-    height: 188,
-    borderRadius: 94,
-    borderWidth: 1,
-    opacity: 0.78,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.72,
-    shadowRadius: 38,
-    elevation: 12,
-  },
-  posterBlurBackdrop: {
-    position: 'absolute',
-    top: -70,
-    left: -64,
-    right: -64,
-    height: DETAIL_POSTER_HEIGHT + 250,
-    opacity: 0.9,
-    transform: [{ scale: 1.2 }],
-  },
+
   posterFrame: {
     width: DETAIL_POSTER_WIDTH,
     height: DETAIL_POSTER_HEIGHT,
     borderRadius: 10,
     overflow: 'hidden',
-    backgroundColor: '#1A1A1A',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.26)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 24 },
-    shadowOpacity: 0.52,
-    shadowRadius: 36,
-    elevation: 12,
+    backgroundColor: 'transparent',
     zIndex: 2,
   },
   posterImageFade: {
@@ -2541,15 +2753,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 128,
-  },
-  posterStageFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 190,
-    zIndex: 3,
+    height: 250,
   },
   detailPosterImage: {
     width: '100%',
@@ -2572,7 +2776,7 @@ const styles = StyleSheet.create({
   },
   detailContent: {
     paddingHorizontal: 22,
-    marginTop: -58,
+    marginTop: 0,
   },
   detailTitleRow: {
     flexDirection: 'row',
@@ -2622,14 +2826,9 @@ const styles = StyleSheet.create({
   },
   interestedBar: {
     minHeight: 118,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.12)',
     justifyContent: 'center',
     paddingHorizontal: 22,
     paddingVertical: 16,
-    marginHorizontal: -8,
     marginBottom: 26,
   },
   interestedAvatars: {
@@ -2717,8 +2916,8 @@ const styles = StyleSheet.create({
     textTransform: 'lowercase',
   },
   detailMapShell: {
-    height: 240,
-    borderRadius: 8,
+    height: 280,
+    borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#111',
     borderWidth: StyleSheet.hairlineWidth,
@@ -2742,18 +2941,46 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
-  mapDirectionsButton: {
+  mapBottomBar: {
     position: 'absolute',
-    right: 12,
-    bottom: 12,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(0,0,0,0.68)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.2)',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    gap: 8,
+    padding: 10,
+  },
+  mapViewFullButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  mapViewFullText: {
+    color: '#fff',
+    fontFamily: eventFont.bold,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  mapDirectionsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  mapDirectionsText: {
+    color: '#fff',
+    fontFamily: eventFont.bold,
+    fontSize: 13,
+    fontWeight: '700',
   },
   venueProfileRow: {
     flexDirection: 'row',
@@ -2963,6 +3190,15 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '900',
   },
+  ticketSheetEmpty: {
+    paddingVertical: 48,
+    alignItems: 'center',
+  },
+  ticketSheetEmptyText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontFamily: eventFont.medium,
+    fontSize: 15,
+  },
   // Modern Redesign Styles
   heroHostRow: {
     marginBottom: 8,
@@ -3037,9 +3273,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   floatingPill: {
-    width: '84%',
-    height: 40,
-    borderRadius: 20,
+    width: '90%',
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -3047,6 +3283,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
+  },
+  floatingPillPremium: {
+    overflow: 'hidden',
+    borderRadius: 20,
+  },
+  floatingPillPremiumGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: 40,
+    paddingHorizontal: 20,
+  },
+  floatingPillPremiumText: {
+    color: '#241200',
+    fontFamily: eventFont.black,
+    fontSize: 13,
+    fontWeight: '900',
   },
   floatingPillText: {
     color: '#fff',
@@ -3090,6 +3344,28 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontFamily: eventFont.bold,
     fontSize: 16,
+  },
+  buyTicketsSection: {
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  buyTicketsSectionSpacer: {
+    height: 8,
+  },
+  buyTicketsButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  buyTicketsGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buyTicketsText: {
+    color: '#fff',
+    fontFamily: eventFont.black,
+    fontSize: 17,
+    fontWeight: '900',
   },
   shareSheetActionRow: {
     flexDirection: 'row',

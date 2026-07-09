@@ -1,17 +1,26 @@
 import '../global.css';
 import { useCallback, useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Alert, NativeModules, Platform } from 'react-native';
+import { Stack, router } from 'expo-router';
+import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { colors } from '@/lib/design/theme';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { DemoDataProvider } from '@/components/DemoDataProvider';
+import { PremiumPaywallModal } from '@/components/subscription/PremiumPaywallModal';
 import { initSentry } from '@/lib/sentry';
-import { initAuthListener } from '@/store/authStore';
+import { initAuthListener, useAuthStore } from '@/store/authStore';
+import { useCartStore } from '@/store/cartStore';
+import { OfflineBanner } from '@/components/ui/OfflineBanner';
+import { subscribeToDeepLinks, handleDeepLink } from '@/lib/deeplinks';
+import { addNotificationResponseListener } from '@/lib/notifications';
+import { apiFetch } from '@/lib/api';
 
 initSentry();
 
@@ -20,9 +29,137 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 export default function RootLayout() {
-  const RootGestureHandlerView = GestureHandlerRootView as any;
+  const RootGestureHandlerView = GestureHandlerRootView;
 
   useEffect(() => initAuthListener(), []);
+
+  useEffect(() => {
+    const configureAndroidNavigationBar = async () => {
+      if (Platform.OS !== 'android') return;
+      if (!NativeModules.ExpoNavigationBar) return;
+
+      try {
+        const NavigationBar = await import('expo-navigation-bar');
+
+        await Promise.all([
+          NavigationBar.setBackgroundColorAsync(colors.base.DEFAULT),
+          NavigationBar.setButtonStyleAsync('light'),
+        ]);
+      } catch {
+        // The Android client may not include ExpoNavigationBar yet; app startup must still continue.
+      }
+    };
+
+    configureAndroidNavigationBar();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToDeepLinks((url) => {
+      handleDeepLink(url);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const sub = addNotificationResponseListener((response) => {
+      const data = response.notification.request.content.data;
+      if (!data) return;
+      const { type, eventId, conversationId, matchId, profileId } = data as Record<string, string>;
+      switch (type) {
+        case 'event_reminder':
+        case 'event_update':
+          if (eventId) router.push(`/event/${eventId}`);
+          break;
+        case 'new_message':
+          if (conversationId) router.push(`/social/dm/${conversationId}`);
+          break;
+        case 'match':
+          if (matchId) router.push(`/social/matches/${matchId}` as any);
+          break;
+        case 'dm_request':
+          if (conversationId) router.push(`/social/dm/${conversationId}`);
+          break;
+        case 'ticket_update':
+          if (eventId) router.push(`/event/${eventId}`);
+          break;
+        default:
+          router.push('/(tabs)/notifications' as any);
+          break;
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+    let unsubHydrate: (() => void) | null = null;
+
+    const recoverPendingPayment = async () => {
+      const { pendingPaymentOrderId, pendingReservation, items } = useCartStore.getState();
+      const user = useAuthStore.getState().user;
+
+      if (!user || !pendingPaymentOrderId) return;
+
+      // First, poll server to check if order is already confirmed (via webhook)
+      try {
+        const response = await apiFetch<{
+          success: boolean;
+          order?: { status: string };
+        }>(`/api/v1/orders/${pendingPaymentOrderId}?includeEvent=false`, {
+          requireAuth: true,
+        });
+        const orderStatus = response?.order?.status;
+        if (orderStatus === 'confirmed') {
+          // Payment already captured server-side — clear recovery state
+          useCartStore.getState().setPendingPaymentOrderId(null);
+          useCartStore.getState().clearPendingReservation();
+          return;
+        }
+      } catch {
+        // Server unreachable — fall through to local recovery dialog
+      }
+
+      const hasValidReservation =
+        pendingReservation && new Date(pendingReservation.expiresAt).getTime() > Date.now();
+
+      // If reservation is still valid, silently let checkout screen handle it
+      if (hasValidReservation) return;
+
+      resumeTimer = setTimeout(() => {
+        Alert.alert('Resume Payment?', 'You have an incomplete payment from a previous session.', [
+          {
+            text: 'Cancel Payment',
+            style: 'destructive',
+            onPress: () => useCartStore.getState().setPendingPaymentOrderId(null),
+          },
+          {
+            text: 'Resume Payment',
+            onPress: () => {
+              const eventId = items[0]?.eventId;
+              if (eventId) {
+                router.replace(`/checkout/${eventId}`);
+              } else {
+                router.replace('/checkout');
+              }
+            },
+          },
+        ]);
+      }, 1000);
+    };
+
+    if (useCartStore.persist.hasHydrated()) {
+      recoverPendingPayment();
+    } else {
+      unsubHydrate = useCartStore.persist.onFinishHydration(() => {
+        recoverPendingPayment();
+      });
+    }
+
+    return () => {
+      if (resumeTimer) clearTimeout(resumeTimer);
+      if (unsubHydrate) unsubHydrate();
+    };
+  }, []);
 
   const onLayoutRootView = useCallback(async () => {
     await SplashScreen.hideAsync();
@@ -33,22 +170,31 @@ export default function RootLayout() {
       <DemoDataProvider>
         <ErrorBoundary>
           <SafeAreaProvider>
-            <RootGestureHandlerView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+            <RootGestureHandlerView
+              style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}
+              onLayout={onLayoutRootView}
+            >
               <View style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}>
                 <StatusBar style="light" backgroundColor={colors.base.DEFAULT} />
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    contentStyle: { backgroundColor: colors.base.DEFAULT },
-                    animation: 'slide_from_right',
-                  }}
-                >
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="(auth)" />
-                  <Stack.Screen name="profile-setup" />
-                  <Stack.Screen name="social-setup" />
-                  <Stack.Screen name="(tabs)" />
-                </Stack>
+                <OfflineBanner />
+                <ThemeProvider value={DarkTheme}>
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      contentStyle: { backgroundColor: colors.base.DEFAULT },
+                      navigationBarColor: colors.base.DEFAULT,
+                      animation: 'slide_from_right',
+                    }}
+                  >
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="profile-setup" />
+                    <Stack.Screen name="profile-creation" />
+                    <Stack.Screen name="social-setup" />
+                    <Stack.Screen name="(tabs)" />
+                  </Stack>
+                </ThemeProvider>
+                <PremiumPaywallModal />
               </View>
             </RootGestureHandlerView>
           </SafeAreaProvider>

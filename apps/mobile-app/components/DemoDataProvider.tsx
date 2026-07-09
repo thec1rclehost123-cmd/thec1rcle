@@ -50,14 +50,6 @@ export function DemoDataProvider({ children }: { children: ReactNode }) {
       searchResults: [],
       error: null,
       hasMore: false,
-      // Replace all fetch methods with no-ops so live re-fetches don't wipe demo data
-      fetchEvents: noop,
-      fetchFeaturedEvents: noop,
-      fetchPublicEvents: noop,
-      searchEvents: noop as any,
-      loadMoreEvents: noop,
-      fetchByCategory: noop as any,
-      loadMoreByCategory: noop as any,
     });
 
     // ── Venues ───────────────────────────────────────────────────────────
@@ -116,8 +108,11 @@ export function DemoDataProvider({ children }: { children: ReactNode }) {
         profiles: allDatingProfiles,
         matches: DEMO_MATCHES as any,
         loading: false,
+        prefetching: false,
         matchesLoading: false,
         error: null,
+        nextCursor: null,
+        hasMore: false,
         fetchProfiles: noop as any,
         fetchMatches: noop as any,
         // Override removeTopProfile to cycle back to full pool instead of depleting

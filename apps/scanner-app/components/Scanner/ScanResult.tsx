@@ -10,6 +10,7 @@ interface ScanResultProps {
       ticketType: string;
       quantity: number;
       entryType: string;
+      genderRestriction?: string | null;
     };
     previousScan?: {
       time: string;
@@ -61,6 +62,19 @@ export default function ScanResult({ result, onDismiss }: ScanResultProps) {
 
         {result.guest && result.type === 'valid' && (
           <View className="mt-6 items-center">
+            {result.guest.genderRestriction && (
+              <View
+                className={`px-6 py-3 rounded-2xl mb-4 ${
+                  result.guest.genderRestriction === 'female' ? 'bg-pink-500' : 'bg-blue-500'
+                }`}
+              >
+                <Text className="text-white text-2xl font-black tracking-widest text-center">
+                  {result.guest.genderRestriction === 'female'
+                    ? 'FEMALE TICKET'
+                    : `${result.guest.genderRestriction.toUpperCase()} TICKET`}
+                </Text>
+              </View>
+            )}
             <Text className="text-white/90 text-2xl font-semibold">{result.guest.name}</Text>
             <View className="flex-row items-center mt-2">
               <View className="bg-white/20 px-4 py-2 rounded-full mr-2">

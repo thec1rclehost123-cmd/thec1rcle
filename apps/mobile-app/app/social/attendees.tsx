@@ -6,6 +6,8 @@ import { useAuthStore } from '@/store/authStore';
 import { getEventAttendees, initiateDMRequest, checkEventEntitlement } from '@/lib/social';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
 
 // Attendee card
 function AttendeeCard({
@@ -68,6 +70,7 @@ function AttendeeCard({
 export default function AttendeesScreen() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const { user } = useAuthStore();
+  const { isPremium, openPaywall } = useSubscriptionStore();
 
   const [attendees, setAttendees] = useState<
     Array<{
@@ -174,17 +177,78 @@ export default function AttendeesScreen() {
         )}
 
         {/* Attendees list */}
-        {!loading &&
-          attendees.map((attendee, index) => (
-            <AttendeeCard
-              key={attendee.userId}
-              attendee={attendee}
-              onMessage={() => handleMessage(attendee)}
-              onViewProfile={() => handleViewProfile(attendee.userId)}
-              isLoading={dmLoading === attendee.userId}
-              index={index}
-            />
-          ))}
+        {!loading && (
+          <View style={{ position: 'relative' }}>
+            {attendees.map((attendee, index) => (
+              <AttendeeCard
+                key={attendee.userId}
+                attendee={attendee}
+                onMessage={() => handleMessage(attendee)}
+                onViewProfile={() => handleViewProfile(attendee.userId)}
+                isLoading={dmLoading === attendee.userId}
+                index={index}
+              />
+            ))}
+
+            {/* Paywall Overlay */}
+            {!isPremium && !loading && attendees.length > 0 && (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  overflow: 'hidden',
+                  borderRadius: 24,
+                }}
+              >
+                <BlurView
+                  intensity={40}
+                  tint="dark"
+                  style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}
+                >
+                  <Text style={{ fontSize: 40, marginBottom: 16 }}>👀</Text>
+                  <Text
+                    style={{
+                      color: '#F2DC55',
+                      fontSize: 20,
+                      fontWeight: '700',
+                      marginBottom: 8,
+                      textAlign: 'center',
+                    }}
+                  >
+                    See Who's Going
+                  </Text>
+                  <Text
+                    style={{
+                      color: 'rgba(255,255,255,0.7)',
+                      textAlign: 'center',
+                      marginBottom: 24,
+                      lineHeight: 22,
+                    }}
+                  >
+                    C1RCLE Premium reveals everyone attending this event so you can start connecting
+                    early.
+                  </Text>
+                  <Pressable
+                    onPress={() => openPaywall('premiumOnlyEvent')}
+                    style={{
+                      backgroundColor: '#F2DC55',
+                      paddingHorizontal: 24,
+                      paddingVertical: 14,
+                      borderRadius: 30,
+                    }}
+                  >
+                    <Text style={{ color: '#0A0A0A', fontSize: 16, fontWeight: '700' }}>
+                      Reveal Attendees
+                    </Text>
+                  </Pressable>
+                </BlurView>
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

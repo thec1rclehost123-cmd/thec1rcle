@@ -19,6 +19,7 @@ export interface CartItem {
   eventDate: string;
   eventVenue: string;
   eventCoverImage?: string;
+  eventAccentColor?: string;
   tier: TicketTier;
   quantity: number;
   priceTotal?: number;
@@ -79,6 +80,9 @@ interface CartState {
 
   // For checkout — returns items in the format the API expects
   getCheckoutItems: () => { tierId: string; quantity: number }[];
+
+  // Reservation expiry
+  isReservationExpired: () => boolean;
 }
 
 export const useCartStore = create<CartState>()(
@@ -173,8 +177,6 @@ export const useCartStore = create<CartState>()(
             items: items.map((i) => ({
               tierId: i.tier.id,
               quantity: i.quantity,
-              price: i.tier.price,
-              subtotal: i.tier.price * i.quantity,
             })),
           });
 
@@ -269,6 +271,12 @@ export const useCartStore = create<CartState>()(
           tierId: i.tier.id,
           quantity: i.quantity,
         }));
+      },
+
+      isReservationExpired: () => {
+        const expiry = get().reservationExpiry;
+        if (!expiry) return false;
+        return Date.now() > expiry;
       },
     }),
     {

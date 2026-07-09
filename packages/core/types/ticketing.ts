@@ -224,6 +224,7 @@ export interface TicketTier {
   name: string;
   description?: string;
   entryType: EntryType;
+  genderRestriction?: 'male' | 'female' | 'other' | 'none';
   pricing: TierPricing;
   inventory: TierInventory;
   limits: PurchaseLimits;
@@ -559,6 +560,7 @@ export interface IssuedTicket {
   tierId: string;
   tierName: string;
   entryType: string;
+  genderRestriction?: 'male' | 'female' | 'other' | 'none';
   quantity: number;
   qrPayload: QRPayload;
   qrShortCode: string;

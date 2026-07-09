@@ -154,7 +154,12 @@ export function CompactHeader({
 
   if (blur) {
     return (
-      <BlurView intensity={40} tint="dark" style={styles.compactContainer}>
+      <BlurView
+        blurMethod="dimezisBlurView"
+        intensity={40}
+        tint="dark"
+        style={styles.compactContainer}
+      >
         {renderContent()}
       </BlurView>
     );

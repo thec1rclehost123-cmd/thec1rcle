@@ -1,3 +1,80 @@
+const ASCII_FOLD = {
+  à: 'a',
+  á: 'a',
+  â: 'a',
+  ã: 'a',
+  ä: 'a',
+  å: 'a',
+  è: 'e',
+  é: 'e',
+  ê: 'e',
+  ë: 'e',
+  ì: 'i',
+  í: 'i',
+  î: 'i',
+  ï: 'i',
+  ò: 'o',
+  ó: 'o',
+  ô: 'o',
+  õ: 'o',
+  ö: 'o',
+  ù: 'u',
+  ú: 'u',
+  û: 'u',
+  ü: 'u',
+  ñ: 'n',
+  ç: 'c',
+  À: 'A',
+  Á: 'A',
+  Â: 'A',
+  Ã: 'A',
+  Ä: 'A',
+  Å: 'A',
+  È: 'E',
+  É: 'E',
+  Ê: 'E',
+  Ë: 'E',
+  Ì: 'I',
+  Í: 'I',
+  Î: 'I',
+  Ï: 'I',
+  Ò: 'O',
+  Ó: 'O',
+  Ô: 'O',
+  Õ: 'O',
+  Ö: 'O',
+  Ù: 'U',
+  Ú: 'U',
+  Û: 'U',
+  Ü: 'U',
+  Ñ: 'N',
+  Ç: 'C',
+  '₹': 'Rs.',
+  '₽': 'RUB',
+  '€': 'EUR',
+  '£': 'GBP',
+  '¥': 'JPY',
+};
+
+function sanitizePdfText(text) {
+  let result = '';
+  for (const ch of text) {
+    const code = ch.charCodeAt(0);
+    if (code < 32 && code !== 10 && code !== 13) continue;
+    if (code <= 126) {
+      result += ch;
+      continue;
+    }
+    const folded = ASCII_FOLD[ch];
+    if (folded) {
+      result += folded;
+      continue;
+    }
+    result += '?';
+  }
+  return result.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+}
+
 function buildRawPDF(contentLines) {
   const objects = [];
   let objectCount = 0;
@@ -23,12 +100,8 @@ function buildRawPDF(contentLines) {
     const size = item.size || 12;
     const fontRef = item.bold ? '/F2' : '/F1';
     const color = item.color || '0 0 0';
-    const escaped = item.text
-      .replace(/\\/g, '\\\\')
-      .replace(/\(/g, '\\(')
-      .replace(/\)/g, '\\)')
-      .replace(/₹/g, 'Rs.');
-    stream += `BT\n${color} rg\n${fontRef} ${size} Tf\n${x} ${y} Td\n(${escaped}) Tj\nET\n`;
+    const sanitized = sanitizePdfText(String(item.text));
+    stream += `BT\n${color} rg\n${fontRef} ${size} Tf\n${x} ${y} Td\n(${sanitized}) Tj\nET\n`;
   }
 
   const streamBytes = Buffer.byteLength(stream, 'utf-8');

@@ -68,6 +68,7 @@ import seoRoutes from './routes/seo';
 import openApiRoutes from './routes/openapi';
 import discoveryRoutes from './routes/v1/discovery';
 import doorRoutes from './routes/v1/door';
+import revenuecatWebhookRoutes from './routes/v1/webhooks/revenuecat';
 import partnersHostRoutes from './routes/v1/partners/hosts';
 import partnersVenueRoutes from './routes/v1/partners/venues';
 import partnersPromoterRoutes from './routes/v1/partners/promoters';
@@ -304,6 +305,7 @@ async function main() {
   await server.register(paymentRoutes, { prefix: '/api/v1' });
   await server.register(hostRoutes, { prefix: '/api/v1' });
   await server.register(scanRoutes, { prefix: '/api/v1/scan' });
+  await server.register(scanRoutes, { prefix: '/api/v1/scanner' });
   await server.register(coverChargeRoutes, { prefix: '/api/v1/cover-charge' });
   await server.register(ticketRoutes, { prefix: '/api/v1' });
   await server.register(userRoutes, { prefix: '/api/v1' });
@@ -348,6 +350,7 @@ async function main() {
   await server.register(guestPromoterRoutes, { prefix: '/api/v1/public' });
   await server.register(guestPassRoutes, { prefix: '/api/v1' });
   await server.register(staffRoutes, { prefix: '/api/v1' });
+  await server.register(revenuecatWebhookRoutes);
 
   // Unified Partner Domain — new clean API (Phase 1)
   await server.register(partnersHostRoutes, { prefix: '/api/v1' });

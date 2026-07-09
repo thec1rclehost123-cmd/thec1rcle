@@ -8,6 +8,8 @@ import {
 } from '@c1rcle/core/guest-wallet-profile-notification-service';
 // @ts-ignore
 import { getUserTicketWallet } from '@c1rcle/core/ticket-checkout-wallet-service';
+// @ts-ignore - JS module with runtime exports
+import { isPremiumRequiredError } from '@c1rcle/core/subscription-service';
 import {
   acceptGuestTransfer,
   assignGuestPartner,
@@ -28,6 +30,7 @@ import {
   previewGuestPairClaim,
   previewGuestShareBundle,
   reclaimGuestShareSlot,
+  revokeGuestShareSlot,
   transferGuestCoupleTicket,
 } from '../../services/guest-gp5';
 
@@ -82,6 +85,13 @@ const ShareBundleDeleteBody = z
   .object({
     bundleId: z.string(),
     slotIndex: z.number().int().optional(),
+  })
+  .strict();
+
+const ShareRevokeBody = z
+  .object({
+    bundleId: z.string(),
+    slotIndex: z.number().int().positive(),
   })
   .strict();
 
@@ -180,7 +190,26 @@ function requireUser(reply: any, request: any) {
 function buildSharePreview(bundle: any) {
   const event = bundle?.event || null;
   return {
-    ...bundle,
+    id: bundle.id,
+    orderId: bundle.orderId,
+    eventId: bundle.eventId,
+    tierId: bundle.tierId,
+    mode: bundle.mode,
+    totalSlots: bundle.totalSlots,
+    remainingSlots: bundle.remainingSlots,
+    genderRequirement: bundle.genderRequirement,
+    isCouple: bundle.isCouple,
+    status: bundle.status,
+    createdAt: bundle.createdAt,
+    expiresAt: bundle.expiresAt,
+    isOwnerClaimed:
+      bundle.slots?.some(
+        (s: any) => s.slotType === 'owner_locked' && s.claimStatus === 'claimed',
+      ) || false,
+    isCoupleComplete: bundle.isCouple
+      ? bundle.slots?.filter((s: any) => s.slotType === 'shareable' && s.claimStatus === 'claimed')
+          .length >= 1
+      : false,
     eventTitle: event?.title || null,
     eventImage: event?.image || null,
     eventDate: event?.date || event?.startDate || null,
@@ -360,6 +389,25 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         );
         return { success: true, transfer };
       } catch (error: any) {
+        if (error.statusCode === 403) {
+          return reply.status(403).send(
+            buildErrorResponse({
+              code: error.code || 'GENDER_RESTRICTION',
+              message: error.message || 'Gender restriction prevents this transfer',
+              requestId: request.id,
+            }),
+          );
+        }
+        if (isPremiumRequiredError(error)) {
+          return reply.status(403).send(
+            buildErrorResponse({
+              code: 'PREMIUM_REQUIRED',
+              message: error.message || 'C1RCLE Premium required',
+              details: error.details || null,
+              requestId: request.id,
+            }),
+          );
+        }
         const status = error.message?.includes('Unauthorized') ? 403 : 400;
         fastify.log.warn(
           { requestId: request.id, userId, error: error.message },
@@ -560,6 +608,44 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
           buildErrorResponse({
             code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST',
             message: error.message || 'Failed to update share bundle',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    '/tickets/share/revoke',
+    {
+      preHandler: [fastify.validate({ body: ShareRevokeBody })],
+    },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
+
+      try {
+        const result = await revokeGuestShareSlot(
+          userId,
+          request.body.bundleId,
+          request.body.slotIndex,
+        );
+        fastify.log.info(
+          {
+            requestId: request.id,
+            userId,
+            bundleId: request.body.bundleId,
+            slotIndex: request.body.slotIndex,
+          },
+          'Guest share slot revoked',
+        );
+        return { success: true, ...result };
+      } catch (error: any) {
+        const status = error.message?.includes('Unauthorized') ? 403 : 400;
+        return reply.status(status).send(
+          buildErrorResponse({
+            code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST',
+            message: error.message || 'Failed to revoke claimed ticket',
             requestId: request.id,
           }),
         );
@@ -1037,6 +1123,72 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         fastify.log.error(
           { requestId: request.id, userId, error: error.message },
           'GET /tickets/:ticketId failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  /**
+   * POST /tickets/:ticketId/refresh-qr
+   * Return the canonical ticket QR payload.
+   * Only active tickets can get fresh QR codes.
+   */
+  fastify.post(
+    '/tickets/:ticketId/refresh-qr',
+    {
+      preHandler: [fastify.validate({ params: TicketIdParam })],
+    },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
+
+      const { ticketId } = request.params;
+
+      try {
+        const ticket = await getGuestWalletTicket(fastify.db, fastify.auth, userId, ticketId);
+        if (!ticket)
+          return reply.status(404).send(
+            buildErrorResponse({
+              code: 'NOT_FOUND',
+              message: 'Ticket not found',
+              requestId: request.id,
+            }),
+          );
+
+        // SECURITY: Reject non-active or revoked tickets from fetching fresh QR codes
+        const status = String(ticket?.status || '').toLowerCase();
+        if (status !== 'active') {
+          return reply.status(403).send(
+            buildErrorResponse({
+              code: 'TICKET_NOT_ACTIVE',
+              message: `Ticket is not active (status: ${status}). QR refresh denied.`,
+              requestId: request.id,
+            }),
+          );
+        }
+
+        const qrData = ticket.id || ticket.ticketId || ticketId;
+
+        fastify.log.info({ requestId: request.id, userId, ticketId }, 'QR code refreshed');
+
+        return buildSuccessResponse({
+          qrData,
+          qrPayload: qrData,
+          bookingCode: ticket.bookingCode || null,
+          qrMode: 'raw_id',
+          qrTtlSeconds: null,
+        });
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'POST /tickets/:ticketId/refresh-qr failed',
         );
         return reply.status(500).send(
           buildErrorResponse({

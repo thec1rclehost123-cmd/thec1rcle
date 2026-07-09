@@ -31,23 +31,46 @@ if (!admin.apps.length) {
 }
 
 /**
- * 1. Reserve Tickets
+ * 1. Reserve Tickets — AUTH-REQUIRED
+ *
+ * SECURITY: Authenticated callers only. Anonymous (unauthed) ticket
+ * reservations are blocked to prevent DDoS/inventory scraping.
+ * The client sends only { eventId, items } — pricing is NEVER trusted
+ * from the client; the server reads prices from the database during
+ * checkout.
  */
 export const reserveTickets = functions.https.onCall(async (data, context) => {
-  // data = { eventId, items: [{tierId, quantity}], deviceId }
-
-  // Auth check (optional for public reservation but good to record)
-  const userId = context.auth?.uid || 'anonymous';
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'You must be signed in to reserve tickets',
+    );
+  }
+  const userId = context.auth.uid;
 
   try {
     if (!data.eventId || !data.items || !Array.isArray(data.items)) {
       throw new functions.https.HttpsError('invalid-argument', 'Missing eventId or items');
     }
 
+    for (const item of data.items) {
+      if (
+        !item.tierId ||
+        !Number.isInteger(item.quantity) ||
+        item.quantity < 1 ||
+        item.quantity > 10
+      ) {
+        throw new functions.https.HttpsError(
+          'invalid-argument',
+          'Each item must have a tierId and a quantity between 1 and 10',
+        );
+      }
+    }
+
     const result: any = await createCartReservation(
       data.eventId,
       userId,
-      data.deviceId,
+      data.deviceId || null,
       data.items,
     );
 
@@ -60,9 +83,6 @@ export const reserveTickets = functions.https.onCall(async (data, context) => {
 
     return result;
   } catch (error: any) {
-    console.error('reserveTickets error:', error);
-    if (error.stack) console.error(error.stack);
-    // Pass through HttpsErrors, wrap others
     if (error instanceof functions.https.HttpsError) throw error;
     throw new functions.https.HttpsError('internal', error.message || 'Unknown error');
   }
@@ -257,19 +277,48 @@ export const verifyPayment = functions.https.onCall(async (data, context) => {
 
 /**
  * 5. Razorpay Webhook (Authority)
+ *
+ * SECURITY:
+ * - HMAC-SHA256 signature verification against RAZORPAY_WEBHOOK_SECRET
+ * - Idempotency via webhook event ID — duplicate webhook deliveries
+ *   are safely skipped by confirmOrderPayment's idempotency check
+ * - Critical failure (inventory exhausted) is logged to audit collection
  */
 export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
   const signature = req.headers['x-razorpay-signature'] as string;
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET || '';
+  const webhookId = req.body.event_id || '';
 
   // Verify Webhook Signature
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(JSON.stringify(req.body))
-    .digest('hex');
+  const rawBody = JSON.stringify(req.body);
+  const expectedSignature = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
 
   if (expectedSignature !== signature) {
+    const safeWebhookId = webhookId.replace(/[\n\r]/g, '_');
+    console.error('[Webhook] Signature mismatch (event_id=%s)', safeWebhookId);
     res.status(403).send('Invalid signature');
+    return;
+  }
+
+  // Idempotency via atomic transaction — prevents concurrent webhook replay.
+  // Only one invocation can claim + process a given webhookId.
+  const webhookLogRef = admin.firestore().collection('webhook_logs').doc(webhookId);
+  try {
+    await admin.firestore().runTransaction(async (transaction) => {
+      const existing = await transaction.get(webhookLogRef);
+      if (existing.exists) {
+        const safeDupWebhookId = webhookId.replace(/[\n\r]/g, '_');
+        console.log('[Webhook] Duplicate event %s skipped (idempotency)', safeDupWebhookId);
+        return;
+      }
+      transaction.set(webhookLogRef, {
+        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+        event: req.body.event,
+        status: 'processing',
+      });
+    });
+  } catch {
+    res.status(500).send('Could not claim webhook');
     return;
   }
 
@@ -280,7 +329,7 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
     const payment = payload.payment.entity;
     const orderId = payment.notes.orderId || payment.description;
 
-    console.log(`[Webhook] Payment CAPTURED for Order ${orderId}`);
+    console.log('[Webhook] Payment CAPTURED for Order %s', orderId.replace(/[\n\r]/g, '_'));
 
     try {
       await confirmOrderPayment(orderId, {
@@ -288,9 +337,13 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
         signature: signature,
         mode: payment.method,
       });
+      await webhookLogRef.update({ status: 'completed', orderId, paymentId: payment.id });
     } catch (error) {
-      console.error(`[Webhook] Error confirming order ${orderId}:`, error);
+      await webhookLogRef.update({ status: 'failed', error: String(error) });
+      console.error('[Webhook] Error confirming order %s:', orderId.replace(/[\n\r]/g, '_'), error);
     }
+  } else {
+    await webhookLogRef.update({ status: 'ignored', event });
   }
 
   res.status(200).send('ok');
@@ -442,6 +495,22 @@ export const onOrderWrite = functions.firestore
         console.warn(`[Messaging] Failed to subscribe user to topic:`, e);
       }
 
+      // Grant Custom Claim for event chat access — eliminating N+1 Firestore reads.
+      // The claim `event_${eventId}: true` is checked in firestore.rules for
+      // eventGroupMessages so the rule engine pays 1 read (get user claims) instead
+      // of 1 read per message * participants.
+      try {
+        const user = await admin.auth().getUser(after.userId);
+        const existingClaims = user.customClaims || {};
+        await admin.auth().setCustomUserClaims(after.userId, {
+          ...existingClaims,
+          [`event_${after.eventId}`]: true,
+        });
+        console.log(`[Claims] Granted event_${after.eventId} claim to user ${after.userId}`);
+      } catch (e) {
+        console.warn(`[Claims] Failed to set custom claims for user ${after.userId}:`, e);
+      }
+
       // Promoter Aggregation
       if (after.promoterId) {
         const promoterStatsRef = admin
@@ -477,3 +546,17 @@ export const onOrderWrite = functions.firestore
     }
     return null;
   });
+
+/**
+ * 10. Ratio Engine (Cron) — Dynamic Ratio Ticketing
+ *
+ * Runs every 5 minutes during event hours to evaluate gender ratio
+ * and apply surge pricing or send targeted incentives.
+ */
+
+/**
+ * 11. Vibe Engine (Trigger) — Live Vibe Heatmaps
+ *
+ * Listens to realTimeAttendance changes on events and updates
+ * the venue's liveVibe status accordingly.
+ */

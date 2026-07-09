@@ -20,12 +20,7 @@ const { width } = Dimensions.get('window');
 const SCAN_AREA_SIZE = width * 0.7;
 
 type ScanResultType =
-  | 'valid'
-  | 'already_scanned'
-  | 'invalid'
-  | 'wrong_event'
-  | 'not_confirmed'
-  | null;
+  'valid' | 'already_scanned' | 'invalid' | 'wrong_event' | 'not_confirmed' | null;
 
 interface ScanResultData {
   type: ScanResultType;
@@ -35,6 +30,7 @@ interface ScanResultData {
     ticketType: string;
     quantity: number;
     entryType: string;
+    genderRestriction?: string | null;
   };
   previousScan?: {
     time: string;
@@ -138,6 +134,7 @@ export default function ScanScreen() {
           ticketType: result.ticket?.ticketName || 'Entry',
           quantity: result.ticket?.quantity || 1,
           entryType: result.ticket?.entryType || 'general',
+          genderRestriction: result.ticket?.genderRestriction || null,
         },
       });
     } else {

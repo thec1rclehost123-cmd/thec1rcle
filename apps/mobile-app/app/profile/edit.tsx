@@ -3,7 +3,7 @@
  * Full-screen form for editing user profile
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -32,11 +33,78 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
-import { apiFetch } from '@/lib/api';
+import { uploadUserPhoto } from '@/lib/firebase/userProfile';
 import { colors, radii, gradients } from '@/lib/design/theme';
 import { trackScreen, track } from '@/lib/analytics';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// Prompt Modal for cross-platform text input
+function PromptModal({
+  visible,
+  title,
+  message,
+  value,
+  onSave,
+  onCancel,
+  onRemove,
+  placeholder,
+}: {
+  visible: boolean;
+  title: string;
+  message: string;
+  value: string;
+  onSave: (val: string) => void;
+  onCancel: () => void;
+  onRemove?: () => void;
+  placeholder?: string;
+}) {
+  const [text, setText] = useState(value);
+
+  useEffect(() => {
+    if (visible) setText(value);
+  }, [visible, value]);
+
+  if (!visible) return null;
+
+  return (
+    <Modal transparent animationType="fade" visible={visible} onRequestClose={onCancel}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <Text style={styles.modalMessage}>{message}</Text>
+          <TextInput
+            style={styles.modalInput}
+            value={text}
+            onChangeText={setText}
+            placeholder={placeholder}
+            placeholderTextColor="rgba(255,255,255,0.3)"
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <View style={styles.modalActions}>
+            {onRemove && (
+              <Pressable onPress={onRemove} style={styles.modalBtn}>
+                <Text style={styles.modalBtnDanger}>Remove</Text>
+              </Pressable>
+            )}
+            <View style={{ flex: 1 }} />
+            <Pressable onPress={onCancel} style={styles.modalBtn}>
+              <Text style={styles.modalBtnCancel}>Cancel</Text>
+            </Pressable>
+            <Pressable onPress={() => onSave(text)} style={styles.modalBtn}>
+              <Text style={styles.modalBtnSave}>Save</Text>
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
 
 // Form field component
 function FormField({
@@ -110,7 +178,7 @@ function CitySelector({
 }
 
 export default function EditProfileScreen() {
-  const { user, setUser } = useAuthStore();
+  const { user } = useAuthStore();
   const profile = useProfileStore((state) => state.profile);
   const profileLoading = useProfileStore((state) => state.loading);
   const loadProfile = useProfileStore((state) => state.loadProfile);
@@ -122,15 +190,71 @@ export default function EditProfileScreen() {
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [bio, setBio] = useState('');
   const [city, setCity] = useState('');
+  const [gender, setGender] = useState<string | null>(null);
   const [photoURL, setPhotoURL] = useState(user?.photoURL || '');
   const [instagram, setInstagram] = useState('');
   const [spotify, setSpotify] = useState('');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [promptConfig, setPromptConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    value: string;
+    type: 'instagram' | 'spotify';
+  }>({ visible: false, title: '', message: '', value: '', type: 'instagram' });
+
+  const genderOptions: { key: string; label: string }[] = [
+    { key: 'male', label: 'Male' },
+    { key: 'female', label: 'Female' },
+    { key: 'other', label: 'Other' },
+    { key: 'prefer_not_to_say', label: 'Prefer not to say' },
+  ];
 
   // Validation
   const [errors, setErrors] = useState<{ name?: string }>({});
+
+  // Dirty tracking for unsaved changes warning
+  const initialValues = useRef({ displayName: '', bio: '', city: '', instagram: '', spotify: '' });
+  const [isDirty, setIsDirty] = useState(false);
+  const markDirty = useCallback(() => setIsDirty(true), []);
+
+  const handleInstagramChange = useCallback(
+    (text: string) => {
+      markDirty();
+      setInstagram(text);
+    },
+    [markDirty],
+  );
+  const handleSpotifyChange = useCallback(
+    (text: string) => {
+      markDirty();
+      setSpotify(text);
+    },
+    [markDirty],
+  );
+  const handleNameChange = useCallback(
+    (text: string) => {
+      markDirty();
+      setDisplayName(text);
+    },
+    [markDirty],
+  );
+  const handleBioChange = useCallback(
+    (text: string) => {
+      markDirty();
+      setBio(text);
+    },
+    [markDirty],
+  );
+
+  // usePreventRemove(isDirty && !saved, ({ data }) => {
+  //   Alert.alert('Unsaved Changes', 'You have unsaved changes. Are you sure you want to leave?', [
+  //     { text: 'Stay', style: 'cancel', onPress: () => {} },
+  //     { text: 'Discard', style: 'destructive', onPress: () => data.action() },
+  //   ]);
+  // });
 
   useEffect(() => {
     trackScreen('EditProfile');
@@ -146,19 +270,33 @@ export default function EditProfileScreen() {
     if (!user?.uid || hydratedUserId.current === user.uid) return;
     if (profileLoading && (!profile || profile.uid !== user.uid)) return;
 
-    setDisplayName(profile?.displayName ?? user.displayName ?? '');
-    setBio(profile?.bio ?? '');
-    setCity(profile?.city ?? '');
+    const name = profile?.displayName ?? user.displayName ?? '';
+    const bioVal = profile?.bio ?? '';
+    const cityVal = profile?.city ?? '';
+    const genderVal = profile?.gender ?? null;
+    const instaVal = profile?.instagram ?? '';
+    const spotVal = profile?.spotify ?? '';
+    setDisplayName(name);
+    setBio(bioVal);
+    setCity(cityVal);
+    setGender(genderVal);
     setPhotoURL(profile?.photoURL ?? user.photoURL ?? '');
-    setInstagram(profile?.instagram ?? '');
-    setSpotify(profile?.spotify ?? '');
+    setInstagram(instaVal);
+    setSpotify(spotVal);
+    initialValues.current = {
+      displayName: name,
+      bio: bioVal,
+      city: cityVal,
+      instagram: instaVal,
+      spotify: spotVal,
+    };
     hydratedUserId.current = user.uid;
   }, [user?.uid, user?.displayName, user?.photoURL, profile, profileLoading]);
 
   const handlePickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -166,7 +304,8 @@ export default function EditProfileScreen() {
 
       if (!result.canceled && result.assets[0]) {
         setUploading(true);
-        await uploadProfilePhoto(result.assets[0].uri);
+        const asset = result.assets[0];
+        await uploadProfilePhoto(asset.uri, { width: asset.width, height: asset.height });
         setUploading(false);
       }
     } catch (error) {
@@ -192,7 +331,8 @@ export default function EditProfileScreen() {
 
       if (!result.canceled && result.assets[0]) {
         setUploading(true);
-        await uploadProfilePhoto(result.assets[0].uri);
+        const asset = result.assets[0];
+        await uploadProfilePhoto(asset.uri, { width: asset.width, height: asset.height });
         setUploading(false);
       }
     } catch (error) {
@@ -202,27 +342,16 @@ export default function EditProfileScreen() {
     }
   };
 
-  const uploadProfilePhoto = async (uri: string) => {
+  const uploadProfilePhoto = async (
+    uri: string,
+    dimensions?: { width?: number; height?: number },
+  ) => {
     if (!user?.uid) return;
 
     try {
-      const formData = new FormData();
-      const filename = `profile_${user.uid}_${Date.now()}.jpg`;
-
-      // @ts-ignore
-      formData.append('file', {
-        uri,
-        name: filename,
-        type: 'image/jpeg',
-      });
-
-      const response = await apiFetch<{ url: string }>('/api/v1/social/upload', {
-        method: 'POST',
-        body: formData,
-        requireAuth: true,
-      });
-
-      setPhotoURL(response.url);
+      const uploadedUrl = await uploadUserPhoto(user.uid, uri, `profile-${Date.now()}`, dimensions);
+      setPhotoURL(uploadedUrl);
+      markDirty();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error('Error uploading photo:', error);
@@ -269,22 +398,26 @@ export default function EditProfileScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const updates = {
+      const updates: Record<string, any> = {
         displayName: displayName.trim(),
         bio: bio.trim(),
         city: city.trim(),
         photoURL,
+        photos: photoURL
+          ? [photoURL, ...(profile?.photos ?? []).filter((photo) => photo && photo !== photoURL)]
+          : [],
         instagram: instagram.trim().replace(/^@+/, ''),
         spotify: spotify.trim(),
       };
 
-      const success = await updateProfile(user.uid, {
-        email: user.email ?? profile?.email ?? '',
-        ...updates,
-      });
+      if (gender !== null) {
+        updates.gender = gender;
+      }
+
+      const success = await updateProfile(user.uid, updates);
 
       if (!success) {
-        throw new Error('Profile update failed');
+        throw new Error(useProfileStore.getState().error || 'Profile update failed');
       }
 
       track('profile_updated', { hasPhoto: !!photoURL, hasCity: !!city });
@@ -296,9 +429,20 @@ export default function EditProfileScreen() {
         setSaved(false);
         router.back();
       }, 1500);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving profile:', error);
-      Alert.alert('Error', 'Failed to save profile. Please try again.');
+
+      if (error.status === 429 || error.code === 'PROFILE_UPDATE_COOLDOWN') {
+        Alert.alert(
+          'Gender Change Limited',
+          'Gender can only be changed once every 30 days. Contact support if this was a mistake.',
+        );
+      } else if (error.code === 'GENDER_UPDATE_REQUIRED') {
+        Alert.alert('Gender Required', 'Please set your gender to continue with this action.');
+      } else {
+        Alert.alert('Error', 'Failed to save profile. Please try again.');
+      }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setSaving(false);
@@ -307,13 +451,55 @@ export default function EditProfileScreen() {
 
   const handleSelectCity = () => {
     Alert.alert('Select City', 'Choose your home city', [
-      { text: 'Mumbai', onPress: () => setCity('Mumbai') },
-      { text: 'Delhi', onPress: () => setCity('Delhi') },
-      { text: 'Bangalore', onPress: () => setCity('Bangalore') },
-      { text: 'Pune', onPress: () => setCity('Pune') },
-      { text: 'Goa', onPress: () => setCity('Goa') },
-      { text: 'Hyderabad', onPress: () => setCity('Hyderabad') },
-      { text: 'Chennai', onPress: () => setCity('Chennai') },
+      {
+        text: 'Mumbai',
+        onPress: () => {
+          markDirty();
+          setCity('Mumbai');
+        },
+      },
+      {
+        text: 'Delhi',
+        onPress: () => {
+          markDirty();
+          setCity('Delhi');
+        },
+      },
+      {
+        text: 'Bangalore',
+        onPress: () => {
+          markDirty();
+          setCity('Bangalore');
+        },
+      },
+      {
+        text: 'Pune',
+        onPress: () => {
+          markDirty();
+          setCity('Pune');
+        },
+      },
+      {
+        text: 'Goa',
+        onPress: () => {
+          markDirty();
+          setCity('Goa');
+        },
+      },
+      {
+        text: 'Hyderabad',
+        onPress: () => {
+          markDirty();
+          setCity('Hyderabad');
+        },
+      },
+      {
+        text: 'Chennai',
+        onPress: () => {
+          markDirty();
+          setCity('Chennai');
+        },
+      },
       { text: 'Cancel', style: 'cancel' },
     ]);
   };
@@ -392,7 +578,7 @@ export default function EditProfileScreen() {
             <FormField
               label="Name"
               value={displayName}
-              onChangeText={setDisplayName}
+              onChangeText={handleNameChange}
               placeholder="Your full name"
               maxLength={50}
               delay={200}
@@ -402,7 +588,7 @@ export default function EditProfileScreen() {
             <FormField
               label="Bio"
               value={bio}
-              onChangeText={setBio}
+              onChangeText={handleBioChange}
               placeholder="Tell people a bit about yourself..."
               multiline
               maxLength={150}
@@ -411,6 +597,48 @@ export default function EditProfileScreen() {
             />
 
             <CitySelector value={city} onSelect={handleSelectCity} delay={400} />
+
+            {/* Gender Selector */}
+            <Animated.View
+              entering={FadeInDown.delay(450).springify()}
+              style={styles.fieldContainer}
+            >
+              <Text style={styles.fieldLabel}>Gender</Text>
+              {gender ? (
+                <View style={styles.genderReadonlyContainer}>
+                  <Text style={styles.genderReadonlyValue}>
+                    {genderOptions.find((g) => g.key === gender)?.label || gender}
+                  </Text>
+                  <Text style={styles.genderReadonlyHint}>
+                    Gender can only be changed once every 30 days. Contact support if this was a
+                    mistake.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.genderGrid}>
+                  {genderOptions.map((option) => (
+                    <Pressable
+                      key={option.key}
+                      onPress={() => {
+                        markDirty();
+                        Haptics.selectionAsync();
+                        setGender(option.key);
+                      }}
+                      style={[styles.genderChip, gender === option.key && styles.genderChipActive]}
+                    >
+                      <Text
+                        style={[
+                          styles.genderChipText,
+                          gender === option.key && styles.genderChipTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </Animated.View>
           </View>
 
           {/* Social Section */}
@@ -420,20 +648,13 @@ export default function EditProfileScreen() {
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  Alert.prompt(
-                    'Link Instagram',
-                    'Enter your Instagram username (without @):',
-                    [
-                      { text: 'Remove', style: 'destructive', onPress: () => setInstagram('') },
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Save',
-                        onPress: (text?: string) => setInstagram(text?.trim() || ''),
-                      },
-                    ],
-                    'plain-text',
-                    instagram,
-                  );
+                  setPromptConfig({
+                    visible: true,
+                    title: 'Link Instagram',
+                    message: 'Enter your Instagram username (without @):',
+                    value: instagram,
+                    type: 'instagram',
+                  });
                 }}
                 style={styles.socialButton}
               >
@@ -455,17 +676,13 @@ export default function EditProfileScreen() {
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  Alert.prompt(
-                    'Link Spotify',
-                    'Enter your Spotify username or profile ID:',
-                    [
-                      { text: 'Remove', style: 'destructive', onPress: () => setSpotify('') },
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Save', onPress: (text?: string) => setSpotify(text?.trim() || '') },
-                    ],
-                    'plain-text',
-                    spotify,
-                  );
+                  setPromptConfig({
+                    visible: true,
+                    title: 'Link Spotify',
+                    message: 'Enter your Spotify username or profile ID:',
+                    value: spotify,
+                    type: 'spotify',
+                  });
                 }}
                 style={styles.socialButton}
               >
@@ -504,6 +721,23 @@ export default function EditProfileScreen() {
             </Text>
           </Animated.View>
         </ScrollView>
+        <PromptModal
+          visible={promptConfig.visible}
+          title={promptConfig.title}
+          message={promptConfig.message}
+          value={promptConfig.value}
+          onCancel={() => setPromptConfig((prev) => ({ ...prev, visible: false }))}
+          onRemove={() => {
+            if (promptConfig.type === 'instagram') handleInstagramChange('');
+            if (promptConfig.type === 'spotify') handleSpotifyChange('');
+            setPromptConfig((prev) => ({ ...prev, visible: false }));
+          }}
+          onSave={(val) => {
+            if (promptConfig.type === 'instagram') handleInstagramChange(val.trim());
+            if (promptConfig.type === 'spotify') handleSpotifyChange(val.trim());
+            setPromptConfig((prev) => ({ ...prev, visible: false }));
+          }}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -775,8 +1009,115 @@ const styles = StyleSheet.create({
   },
   privacyText: {
     flex: 1,
-    color: colors.goldMetallic,
+    color: 'rgba(255, 255, 255, 0.45)',
     fontSize: 13,
     lineHeight: 18,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  modalMessage: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  modalInput: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    color: '#fff',
+    fontSize: 16,
+    padding: 14,
+    marginBottom: 24,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 16,
+  },
+  modalBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  modalBtnCancel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalBtnSave: {
+    color: colors.iris,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalBtnDanger: {
+    color: '#F44A22',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  genderReadonlyContainer: {
+    backgroundColor: colors.base[50],
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  genderReadonlyValue: {
+    color: colors.gold,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  genderReadonlyHint: {
+    color: colors.goldMetallic,
+    fontSize: 12,
+    marginTop: 8,
+    lineHeight: 16,
+  },
+  genderGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  genderChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: radii.pill,
+    backgroundColor: colors.base[50],
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  genderChipActive: {
+    backgroundColor: colors.iris,
+    borderColor: colors.iris,
+  },
+  genderChipText: {
+    color: colors.goldMetallic,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  genderChipTextActive: {
+    color: '#fff',
   },
 });

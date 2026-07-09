@@ -169,6 +169,14 @@
         ]
       }
     },
+    "/users/me/subscription": {
+      "get": {
+        "operationId": "getGuestSubscriptionSummary",
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
     "/guest-profiles/{id}": {
       "get": {
         "operationId": "getGuestPublicProfile",
@@ -363,6 +371,7 @@
     },
     "/payments/verify": {
       "patch": {
+        "deprecated": true,
         "operationId": "verifyPayment",
         "tags": [
           "payments"
@@ -526,6 +535,14 @@
     "/events/{eventId}/rsvp": {
       "post": {
         "operationId": "setEventRsvp",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/events/{eventId}/interested": {
+      "get": {
+        "operationId": "getEventInterestedProfiles",
         "tags": [
           "events"
         ]

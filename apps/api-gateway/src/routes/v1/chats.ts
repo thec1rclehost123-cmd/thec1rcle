@@ -68,7 +68,8 @@ function statusForChatError(message = '') {
     message === 'Forbidden' ||
     message === 'Removed from chat' ||
     message === 'Muted in chat' ||
-    message === 'Chat is not open'
+    message === 'Chat is not open' ||
+    message === 'Chat banned'
   ) {
     return 403;
   }
@@ -88,6 +89,7 @@ function codeForStatus(status: number, message = '') {
     if (message === 'Removed from chat') return 'CHAT_REMOVED';
     if (message === 'Muted in chat') return 'CHAT_MUTED';
     if (message === 'Chat is not open') return 'CHAT_NOT_OPEN';
+    if (message === 'Chat banned') return 'CHAT_BANNED';
     return 'FORBIDDEN';
   }
   if (status === 404) return 'NOT_FOUND';
@@ -97,6 +99,7 @@ function codeForStatus(status: number, message = '') {
 function messageForStatus(status: number, message = '') {
   if (status === 500) return 'Internal server error';
   if (message === 'Forbidden') return 'You do not have access to this chat';
+  if (message === 'Chat banned') return 'You are banned from chat';
   return message || 'Request failed';
 }
 

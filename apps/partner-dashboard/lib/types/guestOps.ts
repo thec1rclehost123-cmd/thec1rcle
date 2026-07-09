@@ -28,25 +28,14 @@ export type GuestSource =
   | 'staff_override';
 
 export type GuestStatus =
-  | 'expected'
-  | 'checked_in'
-  | 'denied'
-  | 'flagged'
-  | 'no_show'
-  | 'pending_approval'
-  | 'removed';
+  'expected' | 'checked_in' | 'denied' | 'flagged' | 'no_show' | 'pending_approval' | 'removed';
 
 export type DoorStatus = 'open' | 'soft_close' | 'hard_close' | 'cutoff';
 
 export type CheckInSource = 'scanner' | 'manual_dashboard' | 'offline_replay';
 
 export type ScanResult =
-  | 'valid'
-  | 'already_scanned'
-  | 'invalid'
-  | 'cancelled'
-  | 'not_found'
-  | 're_entry';
+  'valid' | 'already_scanned' | 'invalid' | 'cancelled' | 'not_found' | 're_entry';
 
 export type OverrideAction =
   | 'manual_check_in'

@@ -56,7 +56,7 @@ export async function initAnalytics(): Promise<void> {
       // const Mixpanel = require("mixpanel-react-native").Mixpanel;
       // mixpanelClient = new Mixpanel("YOUR_MIXPANEL_TOKEN");
       // await mixpanelClient.init();
-      console.log('[Analytics] Mixpanel: Add token to enable');
+      if (__DEV__) console.log('[Analytics] Mixpanel: Add token to enable');
     }
 
     // Amplitude initialization (if enabled)
@@ -64,12 +64,12 @@ export async function initAnalytics(): Promise<void> {
       // const Amplitude = require("@amplitude/analytics-react-native");
       // amplitudeClient = Amplitude.createInstance();
       // await amplitudeClient.init("YOUR_AMPLITUDE_API_KEY");
-      console.log('[Analytics] Amplitude: Add API key to enable');
+      if (__DEV__) console.log('[Analytics] Amplitude: Add API key to enable');
     }
 
-    console.log('[Analytics] Initialized with providers:', config.enabledProviders);
+    if (__DEV__) console.log('[Analytics] Initialized with providers:', config.enabledProviders);
   } catch (error) {
-    console.error('[Analytics] Init error:', error);
+    if (__DEV__) console.error('[Analytics] Init error:', error);
   }
 }
 
@@ -78,7 +78,7 @@ export async function initAnalytics(): Promise<void> {
  */
 export function identify(userId: string, userProperties?: Record<string, any>): void {
   if (config.debugMode) {
-    console.log('[Analytics] Identify:', userId, userProperties);
+    if (__DEV__) console.log('[Analytics] Identify:', userId, userProperties);
   }
 
   // Firebase
@@ -113,7 +113,7 @@ export function identify(userId: string, userProperties?: Record<string, any>): 
  */
 export function resetIdentity(): void {
   if (config.debugMode) {
-    console.log('[Analytics] Reset identity');
+    if (__DEV__) console.log('[Analytics] Reset identity');
   }
 
   if (config.enabledProviders.includes('firebase') && FirebaseAnalytics) {
@@ -145,7 +145,7 @@ export function track(eventName: string, properties?: Record<string, any>): void
 
   // Console logging (dev mode)
   if (config.debugMode || config.enabledProviders.includes('console')) {
-    console.log('[Analytics]', eventName, properties);
+    if (__DEV__) console.log('[Analytics]', eventName, properties);
   }
 
   // Firebase Analytics (immediate)
@@ -156,7 +156,7 @@ export function track(eventName: string, properties?: Record<string, any>): void
         timestamp: event.timestamp.toISOString(),
       });
     } catch (error) {
-      console.error('[Analytics] Firebase error:', error);
+      if (__DEV__) console.error('[Analytics] Firebase error:', error);
     }
   }
 
@@ -165,7 +165,7 @@ export function track(eventName: string, properties?: Record<string, any>): void
     try {
       mixpanelClient.track(eventName, properties);
     } catch (error) {
-      console.error('[Analytics] Mixpanel error:', error);
+      if (__DEV__) console.error('[Analytics] Mixpanel error:', error);
     }
   }
 
@@ -174,7 +174,7 @@ export function track(eventName: string, properties?: Record<string, any>): void
     try {
       amplitudeClient.track(eventName, properties);
     } catch (error) {
-      console.error('[Analytics] Amplitude error:', error);
+      if (__DEV__) console.error('[Analytics] Amplitude error:', error);
     }
   }
 
@@ -212,7 +212,7 @@ export async function flush(): Promise<void> {
   eventQueue.length = 0;
 
   if (config.debugMode) {
-    console.log('[Analytics] Flushed', eventsToSend.length, 'events');
+    if (__DEV__) console.log('[Analytics] Flushed', eventsToSend.length, 'events');
   }
 
   // Events already sent immediately to providers

@@ -18,11 +18,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { Ticket } from 'lucide-react-native';
+import { Ticket, Lock } from 'lucide-react-native';
 import { apiFetch } from '@/lib/api';
 import { trackScreen } from '@/lib/analytics';
-import { colors, gradients } from '@/lib/design/theme';
+import { colors, gradients, radii } from '@/lib/design/theme';
 import { safeDate } from '@/lib/utils/date';
+import { useProfileStore } from '@/store/profileStore';
 
 type ProfileImage = string | ImageSourcePropType;
 
@@ -46,6 +47,7 @@ interface UserProfile {
   createdAt?: string;
   upcomingEvent?: ProfileEvent;
   pastEvents?: ProfileEvent[];
+  hasDatingProfile?: boolean;
 }
 
 const upcomingEvent: ProfileEvent = {
@@ -113,6 +115,7 @@ const fallbackProfiles: Record<string, UserProfile> = {
       eventCoverImage: require('../../../assets/posters/house-of-afro.jpg'),
     },
     pastEvents,
+    hasDatingProfile: true,
   },
   'fallback-anaya': {
     displayName: 'Anaya',
@@ -177,6 +180,7 @@ const fallbackProfiles: Record<string, UserProfile> = {
 };
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PROFILE_AVATAR_SIZE = 136;
 const PROFILE_AVATAR_TOP = Math.max(160, SCREEN_HEIGHT * 0.3 - PROFILE_AVATAR_SIZE / 2);
@@ -310,8 +314,13 @@ function ViewedProfileTimelineItem({ event }: { event: ProfileEvent }) {
 export default function ProfileViewScreen() {
   const { id } = useLocalSearchParams<{ id: string; eventId?: string }>();
   const insets = useSafeAreaInsets();
+  const viewerProfile = useProfileStore((s) => s.profile);
+  const viewerHasDating = viewerProfile?.datingActive === true;
+
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [loadKey, setLoadKey] = useState(0);
 
   useEffect(() => {
     trackScreen('SocialProfile');
@@ -327,6 +336,7 @@ export default function ProfileViewScreen() {
       }
 
       setLoading(true);
+      setFetchError(false);
 
       const fallbackProfile = fallbackProfiles[id];
       if (fallbackProfile) {
@@ -339,6 +349,7 @@ export default function ProfileViewScreen() {
 
       try {
         const data = await apiFetch<any>(`/api/v1/profiles/${id}`, { requireAuth: false });
+        const hasDating = data?.hasDatingProfile || data?.datingActive;
         const normalizedUpcoming = normalizeEvent(
           data?.upcomingEvent || data?.upcomingEvents?.[0] || data?.nextEvent,
           'upcoming',
@@ -355,10 +366,12 @@ export default function ProfileViewScreen() {
             createdAt: data.createdAt || data.joinedAt || data.memberSince,
             upcomingEvent: normalizedUpcoming,
             pastEvents: normalizedPast,
+            hasDatingProfile: hasDating,
           });
         }
       } catch (error) {
         console.error('Error loading profile:', error);
+        if (isMounted) setFetchError(true);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -369,7 +382,18 @@ export default function ProfileViewScreen() {
     return () => {
       isMounted = false;
     };
-  }, [id]);
+  }, [id, loadKey]);
+
+  // MUTUAL OPT-IN ROUTING:
+  // If target has dating profile and viewer has dating profile, route directly to Dating UI.
+  useEffect(() => {
+    if (profile?.hasDatingProfile && viewerHasDating && id) {
+      router.replace({
+        pathname: '/dating/[id]',
+        params: { id },
+      });
+    }
+  }, [profile, viewerHasDating, id]);
 
   if (loading) {
     return (
@@ -382,18 +406,65 @@ export default function ProfileViewScreen() {
   if (!profile) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        <Pressable
-          onPress={() => router.back()}
-          style={[styles.backButton, { top: insets.top - 2, left: 20 }]}
-        >
-          <Ionicons name="chevron-back" size={26} color="#fff" />
-        </Pressable>
-        <Text style={styles.emptyTitle}>User Not Found</Text>
+        {fetchError ? (
+          <>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.back();
+              }}
+              style={[styles.backButton, { top: insets.top - 2, left: 20 }]}
+            >
+              <Ionicons name="chevron-back" size={26} color="#fff" />
+            </Pressable>
+            <Text style={styles.emptyTitle}>Something went wrong</Text>
+            <Text
+              style={{
+                color: 'rgba(255,255,255,0.5)',
+                fontSize: 14,
+                marginTop: 8,
+                marginBottom: 24,
+                textAlign: 'center',
+                paddingHorizontal: 32,
+              }}
+            >
+              Unable to load this profile. Check your connection and try again.
+            </Text>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setLoadKey((k) => k + 1);
+              }}
+              style={{
+                backgroundColor: colors.iris,
+                paddingHorizontal: 28,
+                paddingVertical: 13,
+                borderRadius: 24,
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.back();
+              }}
+              style={[styles.backButton, { top: insets.top - 2, left: 20 }]}
+            >
+              <Ionicons name="chevron-back" size={26} color="#fff" />
+            </Pressable>
+            <Text style={styles.emptyTitle}>User Not Found</Text>
+          </>
+        )}
       </View>
     );
   }
 
   const imageSource = getProfileImageSource(profile);
+  const avatarTransitionTag = id ? `avatar-${id}` : undefined;
   const instagramHandle = profile.instagram?.trim().replace(/^@+/, '') || '';
   const attendedCount = profile.pastEvents?.length || 0;
   const joinedDateText = formatJoinedDate(profile.createdAt);
@@ -454,7 +525,8 @@ export default function ProfileViewScreen() {
               colors={gradients.primary as [string, string]}
               style={styles.avatarGradient}
             >
-              <Image
+              <AnimatedExpoImage
+                {...(avatarTransitionTag ? { sharedTransitionTag: avatarTransitionTag } : {})}
                 source={imageSource}
                 style={styles.avatarPhoto}
                 contentFit="cover"
@@ -474,7 +546,10 @@ export default function ProfileViewScreen() {
 
           {instagramHandle ? (
             <Pressable
-              onPress={() => openInstagramProfile(instagramHandle)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                openInstagramProfile(instagramHandle);
+              }}
               style={styles.instagramProfileButton}
               hitSlop={10}
             >
@@ -484,10 +559,34 @@ export default function ProfileViewScreen() {
         </Animated.View>
 
         <View style={styles.nightsContent}>
+          {profile.hasDatingProfile && !viewerHasDating ? (
+            <AnimatedPressable
+              entering={FadeInDown.delay(120).springify()}
+              style={styles.upsellCard}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/social-setup');
+              }}
+            >
+              <View style={styles.upsellIconBox}>
+                <Lock size={20} color={colors.iris} strokeWidth={2.5} />
+              </View>
+              <View style={styles.upsellInfo}>
+                <Text style={styles.upsellTitle}>
+                  Unlock {profile.displayName}'s Dating Profile
+                </Text>
+                <Text style={styles.upsellSub}>
+                  Set up your Nightlife Profile to view and send an Ask Out!
+                </Text>
+              </View>
+            </AnimatedPressable>
+          ) : null}
+
           {profile.upcomingEvent ? (
             <AnimatedPressable
               entering={FadeInDown.delay(140).springify()}
               onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 if (profile.upcomingEvent?.eventId) {
                   router.push({
                     pathname: '/event/[id]',
@@ -651,6 +750,40 @@ const styles = StyleSheet.create({
   },
   nightsContent: {
     paddingHorizontal: 20,
+    gap: 20,
+  },
+  upsellCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(244,74,34,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(244,74,34,0.18)',
+    borderRadius: 16,
+    padding: 16,
+    gap: 14,
+  },
+  upsellIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(244,74,34,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  upsellInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  upsellTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  upsellSub: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
   },
   upcomingCard: {
     flexDirection: 'row',

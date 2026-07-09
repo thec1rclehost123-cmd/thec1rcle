@@ -7,6 +7,8 @@ import { CancellationService } from './cancellation-service.js';
 // @ts-ignore
 import { calculatePricing } from '@c1rcle/core/pricing-engine';
 // @ts-ignore
+import { validatePromoCode } from '@c1rcle/core/promo-service';
+// @ts-ignore
 import { PUBLIC_LIFECYCLE_STATES } from '@c1rcle/core/events';
 // @ts-ignore
 import {
@@ -16,9 +18,13 @@ import {
   PAYMENT_PENDING_ORDER_STATUS,
 } from '@c1rcle/core/order-engine';
 // @ts-ignore
+import { commitInventory } from '@c1rcle/core/inventory-engine';
+// @ts-ignore
 import { telemetry } from '@c1rcle/core/telemetry';
 // @ts-ignore
 import { getAdminDb } from '@c1rcle/core/admin';
+// @ts-ignore
+import { assertCanCheckoutEvent } from '@c1rcle/core/subscription-service';
 
 /**
  * Optimized Checkout Orchestrator
@@ -33,6 +39,7 @@ export class CheckoutService {
   private payment: PaymentService;
   private fulfillment: FulfillmentService;
   private cancellation: CancellationService;
+  private inventoryCommitter = { commitInventory };
 
   constructor(
     private orderRepo: IOrderRepository,
@@ -55,6 +62,14 @@ export class CheckoutService {
     workspaceId?: string | null;
     options?: { queueId?: string | null };
   }): Promise<any> {
+    const event = await this.eventRepo.getById(
+      params.eventId,
+      params.workspaceId || (undefined as any),
+    );
+    if (!event) throw new Error('Event not found');
+    const db = await getAdminDb();
+    await assertCanCheckoutEvent(db, params.userId, event);
+
     telemetry.track('CHECKOUT_RESERVE_REQUESTED', {
       eventId: params.eventId,
       queueId: params.options?.queueId || null,
@@ -102,6 +117,28 @@ export class CheckoutService {
     });
 
     try {
+      const event = await this.eventRepo.getById(eventId, workspaceId || (undefined as any));
+      if (!event) throw this.withCode(new Error('Event not found'), 'NOT_FOUND');
+      const db = await getAdminDb();
+      const subscriptionContext = await assertCanCheckoutEvent(db, user.id, event);
+
+      const maxTickets = (event as any).isRSVP
+        ? 1
+        : Number((event as any).maxTicketsPerOrder || 10);
+      if (quantity > maxTickets) {
+        throw this.withCode(
+          new Error(`Maximum ${maxTickets} ticket(s) per order allowed.`),
+          'BAD_REQUEST',
+        );
+      }
+
+      if ((event as any).isRSVP) {
+        const hasExisting = await this.orderRepo.checkExistingRSVP(eventId, { userId: user.id });
+        if (hasExisting) {
+          throw this.withCode(new Error('Already registered. One RSVP per person.'), 'BAD_REQUEST');
+        }
+      }
+
       const reservationResult = await this.inventory.reserve({
         eventId,
         userId: user.id,
@@ -114,13 +151,14 @@ export class CheckoutService {
 
       const reservationId = reservationResult.reservationId;
       const expiresAt = reservationResult.expiresAt;
-      const event = await this.eventRepo.getById(eventId, workspaceId || (undefined as any));
-      if (!event) throw this.withCode(new Error('Event not found'), 'NOT_FOUND');
-
       const pricingResult = await calculatePricing({
         event,
         items: [item],
         userId: user.id,
+        subscriptionTier: subscriptionContext.subscription.tier,
+        waiveBookingFees: subscriptionContext.subscription.isPremium,
+        promoValidator: async (eventId: string, code: string, uid: string | null, pricingItems: any[]) =>
+          validatePromoCode(eventId, code, uid || '', pricingItems),
       });
 
       if (!pricingResult.success) {
@@ -183,6 +221,11 @@ export class CheckoutService {
           return;
         }
 
+        await this.inventoryCommitter.commitInventory(transaction, {
+          event,
+          items: orderPayload.tickets,
+          reservationId,
+        });
         await Promise.all([
           this.orderRepo.createOrder(orderPayload, transaction),
           this.orderRepo.updateReservation(
@@ -287,6 +330,19 @@ export class CheckoutService {
         resolvedWorkspaceId || (undefined as any),
       );
       if (!event) throw new Error('Event not found');
+      const db = await getAdminDb();
+      const subscriptionContext = await assertCanCheckoutEvent(db, userId, event);
+
+      const totalQuantity = reservation.items.reduce(
+        (sum: number, item: any) => sum + (Number(item.quantity) || 0),
+        0,
+      );
+      const maxTickets = (event as any).isRSVP
+        ? 1
+        : Number((event as any).maxTicketsPerOrder || 10);
+      if (totalQuantity > maxTickets) {
+        throw new Error(`Maximum ${maxTickets} ticket(s) per order allowed.`);
+      }
 
       const pricingResult = await calculatePricing({
         event,
@@ -294,6 +350,10 @@ export class CheckoutService {
         promoCode,
         promoterCode,
         userId,
+        subscriptionTier: subscriptionContext.subscription.tier,
+        waiveBookingFees: subscriptionContext.subscription.isPremium,
+        promoValidator: async (eventId: string, code: string, uid: string | null, pricingItems: any[]) =>
+          validatePromoCode(eventId, code, uid || '', pricingItems),
       });
 
       if (!pricingResult.success) throw new Error(pricingResult.error);
@@ -320,7 +380,7 @@ export class CheckoutService {
 
       // Phase 1: Atomic Commit — RSVP uniqueness check runs inside the transaction
       // so concurrent requests cannot both pass the check before either writes.
-      const db = await getAdminDb();
+      let createdOrder: any = null;
       await db.runTransaction(async (transaction: any) => {
         if ((event as any).isRSVP) {
           const hasExistingRSVP = await this.orderRepo.checkExistingRSVP(
@@ -330,30 +390,32 @@ export class CheckoutService {
           );
           if (hasExistingRSVP) throw new Error('Already registered. One RSVP per person.');
         }
-        await executeOrderCreation(transaction, {
+        createdOrder = await executeOrderCreation(transaction, {
           db,
           event,
           orderData: orderPayload,
           reservationId: reservationId,
+          inventoryEngine: this.inventoryCommitter,
         });
       });
+      const finalOrder = (createdOrder || orderPayload) as Order;
 
       telemetry.track('CHECKOUT_INITIATED', {
-        orderId: orderPayload.id,
+        orderId: finalOrder.id,
         userId,
         eventId: event.id,
         duration: Date.now() - startTime,
       });
 
       // Phase 2: Fulfillment or Payment Readiness
-      if (orderPayload.status === 'confirmed') {
-        await this.fulfillment.processFulfillment(orderPayload, reservation.queueId);
+      if (finalOrder.status === 'confirmed') {
+        await this.fulfillment.processFulfillment(finalOrder, reservation.queueId);
       }
 
       return {
         success: true,
-        requiresPayment: isPaymentPendingOrderStatus(orderPayload.status),
-        order: orderPayload,
+        requiresPayment: isPaymentPendingOrderStatus(finalOrder.status),
+        order: finalOrder,
         pricing,
       };
     } catch (error: any) {

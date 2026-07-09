@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
+  TextInput,
   ScrollView,
   Pressable,
   ActivityIndicator,
@@ -223,49 +224,63 @@ export default function MediaGalleryScreen() {
   const [showViewer, setShowViewer] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<MediaUploadProgress | null>(null);
   const [canUpload, setCanUpload] = useState(false);
+  const [showCaptionModal, setShowCaptionModal] = useState(false);
+  const [captionText, setCaptionText] = useState('');
+  const [pendingUri, setPendingUri] = useState<string | null>(null);
 
   useEffect(() => {
     if (!eventId || !user?.uid) return;
 
-    checkAccess();
-  }, [eventId, user?.uid]);
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
 
-  const checkAccess = async () => {
-    const entitlement = await checkEventEntitlement(user!.uid, eventId!);
-    setHasAccess(!!entitlement);
+    async function init() {
+      const entitlement = await checkEventEntitlement(user!.uid, eventId!);
+      if (!active) return;
 
-    // Check if in post-event phase for uploads
-    // For now, allow uploads in all phases
-    setCanUpload(!!entitlement);
+      setHasAccess(!!entitlement);
+      setCanUpload(!!entitlement);
 
-    if (entitlement) {
-      // Subscribe to media
-      const unsubscribe = subscribeToEventMedia(eventId!, (newMedia) => {
-        setMedia(newMedia);
+      if (entitlement) {
+        unsubscribe = subscribeToEventMedia(eventId!, (newMedia) => {
+          if (!active) return;
+          setMedia(newMedia);
+          setLoading(false);
+        });
+      } else {
         setLoading(false);
-      });
-
-      return () => unsubscribe();
-    } else {
-      setLoading(false);
+      }
     }
-  };
+
+    init();
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, [eventId, user?.uid]);
 
   const handleUpload = async (uri: string) => {
     if (!user?.uid || !eventId) return;
+    setPendingUri(uri);
+    setCaptionText('');
+    setShowCaptionModal(true);
+  };
 
-    Alert.prompt(
-      'Add Caption',
-      'Optional caption for your photo',
-      [
-        { text: 'Skip', onPress: () => doUpload(uri, undefined) },
-        {
-          text: 'Add',
-          onPress: (caption?: string) => doUpload(uri, caption),
-        },
-      ],
-      'plain-text',
-    );
+  const handleCaptionSubmit = () => {
+    if (pendingUri) {
+      doUpload(pendingUri, captionText || undefined);
+    }
+    setShowCaptionModal(false);
+    setPendingUri(null);
+  };
+
+  const handleCaptionSkip = () => {
+    if (pendingUri) {
+      doUpload(pendingUri, undefined);
+    }
+    setShowCaptionModal(false);
+    setPendingUri(null);
   };
 
   const doUpload = async (uri: string, caption?: string) => {
@@ -429,6 +444,42 @@ export default function MediaGalleryScreen() {
         onDelete={handleDelete}
         onReport={handleReport}
       />
+
+      {/* Caption Input Modal */}
+      <Modal
+        visible={showCaptionModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCaptionSkip}
+      >
+        <View className="flex-1 bg-black/70 items-center justify-center">
+          <View className="bg-[#1C1C1E] rounded-2xl p-6 w-[85%]" style={{ maxWidth: 400 }}>
+            <Text className="text-gold text-lg font-semibold mb-4 text-center">Add Caption</Text>
+            <TextInput
+              value={captionText}
+              onChangeText={setCaptionText}
+              placeholder="Optional caption..."
+              placeholderTextColor="rgba(255,255,255,0.4)"
+              className="bg-[#2C2C2E] text-white rounded-xl px-4 py-3 mb-4"
+              maxLength={150}
+            />
+            <View className="flex-row gap-3">
+              <Pressable
+                onPress={handleCaptionSkip}
+                className="flex-1 bg-[#2C2C2E] py-3 rounded-pill items-center"
+              >
+                <Text className="text-gold-stone font-semibold">Skip</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleCaptionSubmit}
+                className="flex-1 bg-iris py-3 rounded-pill items-center"
+              >
+                <Text className="text-white font-semibold">Add</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-white/10">

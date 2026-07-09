@@ -233,7 +233,12 @@ export function PremiumButton({
       {/* Glass variant */}
       {variant === 'glass' && (
         <>
-          <BlurView intensity={40} tint="dark" style={styles.glassBlur} />
+          <BlurView
+            blurMethod="dimezisBlurView"
+            intensity={40}
+            tint="dark"
+            style={styles.glassBlur}
+          />
           <LinearGradient
             colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.03)']}
             style={styles.glassGradient}
@@ -341,7 +346,12 @@ export function IconButton({
       ]}
     >
       {variant === 'glass' && (
-        <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView
+          blurMethod="dimezisBlurView"
+          intensity={30}
+          tint="dark"
+          style={StyleSheet.absoluteFill}
+        />
       )}
       {icon}
     </AnimatedPressable>

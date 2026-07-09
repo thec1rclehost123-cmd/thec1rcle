@@ -51,28 +51,29 @@ export default fp(async (fastify: FastifyInstance) => {
     });
 
   fastify.get('/ws/updates', { websocket: true }, async (connection, req) => {
-    let userId: string | null = null;
-    const token = (req.query as Record<string, string>)?.token;
-    if (token) {
-      try {
-        const decoded = await (fastify as any).auth.verifyIdToken(token);
-        userId = decoded.uid;
-      } catch {
-        /* anonymous connection — allowed */
-      }
-    }
-
     const client: WSClient = {
-      socket: connection.socket,
+      socket: connection,
       subscriptions: new Set<string>(),
-      userId,
+      userId: null,
     };
     clients.add(client);
 
-    connection.socket.on('message', (message: string) => {
+    connection.on('message', (message: string) => {
       try {
         const data = JSON.parse(message.toString());
-        if (data.type === 'SUBSCRIBE' && data.topic) {
+        if (data.type === 'AUTH' && data.token) {
+          (fastify as any).auth
+            .verifyIdToken(data.token)
+            .then((decoded: any) => {
+              client.userId = decoded.uid;
+              connection.send(JSON.stringify({ type: 'AUTH_SUCCESS', uid: decoded.uid }));
+            })
+            .catch(() => {
+              connection.close(4001, 'Token rejected or revoked');
+            });
+        } else if (client.userId === null) {
+          connection.close(4001, 'Authentication required');
+        } else if (data.type === 'SUBSCRIBE' && data.topic) {
           client.subscriptions.add(data.topic);
         } else if (data.type === 'UNSUBSCRIBE' && data.topic) {
           client.subscriptions.delete(data.topic);
@@ -80,13 +81,11 @@ export default fp(async (fastify: FastifyInstance) => {
       } catch {}
     });
 
-    connection.socket.on('close', () => {
+    connection.on('close', () => {
       clients.delete(client);
     });
 
-    connection.socket.send(
-      JSON.stringify({ type: 'welcome', message: 'Connected to C1RCLE Real-time' }),
-    );
+    connection.send(JSON.stringify({ type: 'welcome', message: 'Connected to C1RCLE Real-time' }));
   });
 
   // Publishes to Redis so all gateway instances forward to their local clients.

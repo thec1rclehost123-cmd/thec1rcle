@@ -20,6 +20,8 @@ const GUEST_PROFILE_UPDATE_FIELDS = new Set([
   'venueId',
   'partnerId',
   'onboardingStatus',
+  'genderLastChangedAt',
+  'adminOverrideGenderCooldown',
 ]);
 
 function asNullableString(value: unknown): string | null {
@@ -193,6 +195,7 @@ export function buildGuestProfileUpdates(
   updates: Record<string, any>,
   existing: Record<string, any> = {},
   now = new Date().toISOString(),
+  adminOverride = false,
 ) {
   const safeUpdates: Record<string, any> = {};
 
@@ -218,20 +221,22 @@ export function buildGuestProfileUpdates(
     const existingGender = existing?.gender;
 
     if (existingGender && existingGender !== safeUpdates.gender) {
-      const lastChangedAt = existing?.genderLastChangedAt
-        ? new Date(existing.genderLastChangedAt).getTime()
-        : 0;
-      const msSinceChange = new Date(now).getTime() - lastChangedAt;
+      if (!adminOverride) {
+        const lastChangedAt = existing?.genderLastChangedAt
+          ? new Date(existing.genderLastChangedAt).getTime()
+          : 0;
+        const msSinceChange = new Date(now).getTime() - lastChangedAt;
 
-      if (msSinceChange < GENDER_CHANGE_COOLDOWN_MS) {
-        const daysLeft = Math.ceil(
-          (GENDER_CHANGE_COOLDOWN_MS - msSinceChange) / (24 * 60 * 60 * 1000),
-        );
-        return {
-          safeUpdates: {},
-          error: `Gender can only be changed once every 30 days. Please try again in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}.`,
-          statusCode: 429,
-        };
+        if (msSinceChange < GENDER_CHANGE_COOLDOWN_MS) {
+          const daysLeft = Math.ceil(
+            (GENDER_CHANGE_COOLDOWN_MS - msSinceChange) / (24 * 60 * 60 * 1000),
+          );
+          return {
+            safeUpdates: {},
+            error: `Gender can only be changed once every 30 days. Please try again in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}.`,
+            statusCode: 429,
+          };
+        }
       }
 
       safeUpdates.genderLastChangedAt = now;
@@ -239,6 +244,9 @@ export function buildGuestProfileUpdates(
       safeUpdates.genderLastChangedAt = now;
     }
   }
+
+  // Remove the admin override flag — not stored in Firestore
+  delete safeUpdates.adminOverrideGenderCooldown;
 
   if (Object.keys(safeUpdates).length === 0) {
     return { safeUpdates, error: null, statusCode: 200 };

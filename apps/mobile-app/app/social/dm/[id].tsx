@@ -2,6 +2,8 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  ActionSheetIOS,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -23,13 +25,14 @@ import {
   BrightMessage,
   BrightSendButton,
   BrightTextInput,
+  BrightToolButton,
   BrightTypingIndicator,
+  SwipeableMessage,
   formatChatTime,
   type ChatSurfaceTheme,
 } from '@/components/chat/BrightChatSurface';
 import { useChatRateLimit } from '@/hooks/useChatRateLimit';
 import { apiFetch } from '@/lib/api';
-import { DEMO_DM_MESSAGES, DEMO_MODE, DEMO_NEW_MATCHES, DEMO_PRIVATE_CHATS } from '@/lib/demo';
 import { colors, radii, spacing, typography } from '@/lib/design/theme';
 import {
   acceptDMRequest,
@@ -41,8 +44,15 @@ import {
   setDMTypingStatus,
   subscribeToDirectMessages,
   subscribeToDMTyping,
+  reportMessage,
+  reportUser,
+  blockUser,
+  sendDirectImageMessage,
 } from '@/lib/social';
 import { useAuthStore } from '@/store/authStore';
+import { useChatImagePicker } from '@/hooks/useChatImagePicker';
+import { PremiumBadgeDot } from '@/components/ui/PremiumBadge';
+import { MoreVertical, Flag, Ban, ImagePlus } from 'lucide-react-native';
 
 const fonts = typography.fontFamily;
 
@@ -86,18 +96,63 @@ export default function DirectMessageScreen() {
 
   const [conversation, setConversation] = useState<PrivateConversation | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
+  const [tempMessages, setTempMessages] = useState<DirectMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [otherUserId, setOtherUserId] = useState<string | undefined>(undefined);
   const [otherUserName, setOtherUserName] = useState(recipientName || 'Guest');
+  const [otherIsPremium, setOtherIsPremium] = useState(false);
   const [otherIsTyping, setOtherIsTyping] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
+  const [sharedEvent, setSharedEvent] = useState<string | undefined>(undefined);
+  const [hiddenMessageIds, setHiddenMessageIds] = useState<Set<string>>(() => new Set());
+  const [likedMessageIds, setLikedMessageIds] = useState<Set<string>>(() => new Set());
+  const [conversationError, setConversationError] = useState(false);
 
   const { canSend, cooldownSeconds, checkRateLimit } = useChatRateLimit();
-  const privateChat = DEMO_PRIVATE_CHATS.find((chat) => chat.id === conversationId);
-  const newMatch = DEMO_NEW_MATCHES.find((match) => match.id === conversationId);
-  const avatarUrl = privateChat?.otherUserAvatar ?? newMatch?.photoURL;
-  const sharedEvent = privateChat?.sharedEventTitle ?? newMatch?.sharedEventTitle;
+  const { uploading: imageUploading, pickAndUpload } = useChatImagePicker(
+    user?.uid || '',
+    `dm/${conversationId || 'unknown'}`,
+  );
+  const visibleMessages = useMemo(() => {
+    const filtered = messages.filter((message) => !hiddenMessageIds.has(message.id));
+    const tempIds = new Set(tempMessages.map((m) => m.id));
+    for (const tm of tempMessages) {
+      if (!filtered.find((m) => m.id === tm.id)) {
+        filtered.push(tm);
+      }
+    }
+    filtered.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    const withDividers: any[] = [];
+    let lastDateStr = '';
+
+    for (const msg of filtered) {
+      const d = new Date(msg.createdAt);
+      const dateStr = d.toLocaleDateString();
+      if (dateStr !== lastDateStr) {
+        const today = new Date().toLocaleDateString();
+        const yesterday = new Date(Date.now() - 86400000).toLocaleDateString();
+        let text: string;
+        if (dateStr === today) text = 'Today';
+        else if (dateStr === yesterday) text = 'Yesterday';
+        else {
+          text = d.toLocaleDateString(undefined, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+          });
+        }
+        withDividers.push({ id: `divider-${dateStr}`, type: 'divider', text });
+        lastDateStr = dateStr;
+      }
+      withDividers.push(msg);
+    }
+    return withDividers;
+  }, [hiddenMessageIds, messages, tempMessages]);
+  const sortedMessages = useMemo(() => [...visibleMessages].reverse(), [visibleMessages]);
 
   const typingHandler = useMemo(() => {
     if (conversationId && user?.uid) {
@@ -110,28 +165,7 @@ export default function DirectMessageScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (!conversationId) return;
-
-      if (DEMO_MODE) {
-        const demoMessages = (DEMO_DM_MESSAGES[conversationId] ?? []).map((message) => ({
-          ...message,
-          conversationId,
-          readAt: null,
-          isDeleted: false,
-        })) as DirectMessage[];
-        const resolvedName =
-          privateChat?.otherUserName ?? newMatch?.name ?? recipientName ?? 'Guest';
-
-        setOtherUserName(resolvedName);
-        setMessages(demoMessages);
-        setConversation({ status: 'accepted' } as PrivateConversation);
-        setOtherIsTyping(conversationId === 'dm-demo-01');
-        setLoading(false);
-        setTimeout(() => messagesListRef.current?.scrollToEnd({ animated: false }), 100);
-        return;
-      }
-
-      if (!user?.uid) return;
+      if (!conversationId || !user?.uid) return;
       let active = true;
 
       async function fetchConversation() {
@@ -142,18 +176,28 @@ export default function DirectMessageScreen() {
           );
           if (active) {
             setConversation(response.conversation);
+            setSharedEvent(
+              response.conversation.eventId ? `Event ${response.conversation.eventId}` : undefined,
+            );
             const otherUserId = response.conversation.participants.find(
               (participant) => participant !== user!.uid,
             );
             if (otherUserId) {
+              setOtherUserId(otherUserId);
               const profile = await apiFetch<any>(`/api/v1/profiles/${otherUserId}`, {
                 requireAuth: false,
               });
-              setOtherUserName(profile?.displayName || 'Guest');
+              const publicProfile = profile?.data || profile;
+              setOtherUserName(publicProfile?.displayName || 'Guest');
+              setAvatarUrl(publicProfile?.photoURL);
+              setOtherIsPremium(
+                publicProfile?.isPremium === true ||
+                  publicProfile?.subscription?.tier === 'premium',
+              );
             }
           }
         } catch {
-          // Preserve the existing silent live-chat fallback.
+          if (active) setConversationError(true);
         } finally {
           if (active) setLoading(false);
         }
@@ -163,7 +207,6 @@ export default function DirectMessageScreen() {
       const unsubscribeMessages = subscribeToDirectMessages(conversationId, (nextMessages) => {
         if (active) {
           setMessages(nextMessages);
-          setTimeout(() => messagesListRef.current?.scrollToEnd({ animated: true }), 100);
         }
       });
       const unsubscribeTyping = subscribeToDMTyping(conversationId, user.uid, (isTyping, name) => {
@@ -178,11 +221,11 @@ export default function DirectMessageScreen() {
         unsubscribeMessages();
         unsubscribeTyping();
       };
-    }, [conversationId, user?.uid, privateChat?.otherUserName, newMatch?.name, recipientName]),
+    }, [conversationId, user?.uid, recipientName]),
   );
 
   const handleSend = async () => {
-    const senderId = user?.uid ?? (DEMO_MODE ? 'demo-user-001' : undefined);
+    const senderId = user?.uid;
     if (!inputText.trim() || !conversationId || !senderId || !checkRateLimit()) return;
 
     const content = inputText.trim();
@@ -191,27 +234,24 @@ export default function DirectMessageScreen() {
     typingHandler.onBlur();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempMsg: DirectMessage = {
+      id: tempId,
+      conversationId,
+      senderId,
+      content,
+      type: 'text',
+      createdAt: new Date().toISOString(),
+      readAt: undefined,
+      isDeleted: false,
+    };
+    setTempMessages((current) => [...current, tempMsg]);
+
     try {
-      if (DEMO_MODE) {
-        setMessages((current) => [
-          ...current,
-          {
-            id: `demo-message-${Date.now()}`,
-            conversationId,
-            senderId,
-            content,
-            type: 'text',
-            createdAt: new Date().toISOString(),
-            readAt: null,
-            isDeleted: false,
-          },
-        ]);
-        setOtherIsTyping(false);
-        setTimeout(() => messagesListRef.current?.scrollToEnd({ animated: true }), 50);
-      } else {
-        await sendDirectMessage(conversationId, senderId, content);
-      }
+      await sendDirectMessage(conversationId, senderId, content);
+      setTempMessages((current) => current.filter((m) => m.id !== tempId));
     } catch (error: any) {
+      setTempMessages((current) => current.filter((m) => m.id !== tempId));
       Alert.alert('Error', error.message);
       setInputText(content);
     } finally {
@@ -238,21 +278,237 @@ export default function DirectMessageScreen() {
     accentColor: colors.iris,
   };
 
+  const hideMessageLocally = useCallback((messageId: string) => {
+    setHiddenMessageIds((current) => {
+      const next = new Set(current);
+      next.add(messageId);
+      return next;
+    });
+  }, []);
+
+  const restoreMessageLocally = useCallback((messageId: string) => {
+    setHiddenMessageIds((current) => {
+      const next = new Set(current);
+      next.delete(messageId);
+      return next;
+    });
+  }, []);
+
+  const toggleMessageLikeLocally = useCallback((messageId: string) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setLikedMessageIds((current) => {
+      const next = new Set(current);
+      if (next.has(messageId)) next.delete(messageId);
+      else next.add(messageId);
+      return next;
+    });
+  }, []);
+
+  const handleReportMessage = useCallback(
+    async (message: DirectMessage) => {
+      if (!conversationId || !message.id || !message.senderId) return;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      hideMessageLocally(message.id);
+
+      const result = await reportMessage({
+        messageId: message.id,
+        conversationId,
+        eventId: conversation?.eventId,
+        senderId: message.senderId,
+      });
+
+      if (!result.success) {
+        restoreMessageLocally(message.id);
+        Alert.alert('Unable to report', result.error || 'Please try again.');
+      }
+    },
+    [conversation?.eventId, conversationId, hideMessageLocally, restoreMessageLocally],
+  );
+
+  const handleBlockUser = useCallback(async () => {
+    if (!otherUserId || !user?.uid) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert('Block User', `Are you sure you want to block ${otherUserName}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Block',
+        style: 'destructive',
+        onPress: async () => {
+          const result = await blockUser(user.uid, otherUserId);
+          if (result.success) {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/inbox');
+            }
+          } else {
+            Alert.alert('Error', result.error || 'Failed to block user.');
+          }
+        },
+      },
+    ]);
+  }, [otherUserId, otherUserName, user?.uid]);
+
+  const handleReportUser = useCallback(() => {
+    if (!otherUserId || !user?.uid) return;
+    Alert.alert('Report User', `Report ${otherUserName} for inappropriate behaviour?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Report',
+        style: 'destructive',
+        onPress: async () => {
+          const result = await reportUser(user.uid, otherUserId, 'inappropriate');
+          if (result.success) {
+            Alert.alert('Reported', 'Thank you. Our team will review this.');
+          } else {
+            Alert.alert('Error', result.error || 'Failed to report user.');
+          }
+        },
+      },
+    ]);
+  }, [otherUserId, otherUserName, user?.uid]);
+
+  const handleViewProfile = useCallback(() => {
+    if (!otherUserId) return;
+    router.push({
+      pathname: '/social/profile/[id]',
+      params: { id: otherUserId },
+    });
+  }, [otherUserId]);
+
+  const handleHeaderMenu = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['View Profile', 'Report User', 'Block User', 'Cancel'],
+          cancelButtonIndex: 3,
+          destructiveButtonIndex: 2,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 0) handleViewProfile();
+          else if (buttonIndex === 1) handleReportUser();
+          else if (buttonIndex === 2) handleBlockUser();
+        },
+      );
+    } else {
+      Alert.alert('Options', undefined, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'View Profile', onPress: handleViewProfile },
+        { text: 'Report User', style: 'destructive', onPress: handleReportUser },
+        { text: 'Block User', style: 'destructive', onPress: handleBlockUser },
+      ]);
+    }
+  }, [handleBlockUser, handleReportUser, handleViewProfile]);
+
+  const handleMessageOptions = useCallback(
+    (message: DirectMessage) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const isOwnMessage = message.senderId === user?.uid;
+
+      const actions = isOwnMessage
+        ? [
+            {
+              text: 'Delete Message',
+              style: 'destructive' as const,
+              onPress: () => hideMessageLocally(message.id),
+            },
+          ]
+        : [
+            {
+              text: 'Report Message',
+              style: 'destructive' as const,
+              onPress: () => handleReportMessage(message),
+            },
+          ];
+
+      if (Platform.OS === 'ios') {
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options: [isOwnMessage ? 'Delete Message' : 'Report Message', 'Cancel'],
+            cancelButtonIndex: 1,
+            destructiveButtonIndex: 0,
+          },
+          (buttonIndex) => {
+            if (buttonIndex === 0) actions[0].onPress();
+          },
+        );
+        return;
+      }
+
+      Alert.alert('Message', undefined, [{ text: 'Cancel', style: 'cancel' }, ...actions]);
+    },
+    [handleReportMessage, hideMessageLocally, user?.uid],
+  );
+
   const renderMessage = useCallback(
-    ({ item, index }: { item: DirectMessage; index: number }) => (
-      <BrightMessage
-        content={item.content}
-        time={formatChatTime(item.createdAt)}
-        senderAvatar={avatarUrl}
-        type={item.type === 'image' ? 'image' : 'text'}
-        isOwnMessage={
-          item.senderId === user?.uid || (DEMO_MODE && item.senderId === 'demo-user-001')
-        }
-        index={index}
-        animate={index >= messages.length - 1}
-      />
-    ),
-    [avatarUrl, messages.length, user?.uid],
+    ({ item, index }: { item: any; index: number }) => {
+      if (item.type === 'divider') {
+        return (
+          <View style={[styles.flip, { alignItems: 'center', marginVertical: 16 }]}>
+            <View
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                paddingHorizontal: 12,
+                paddingVertical: 4,
+                borderRadius: 12,
+              }}
+            >
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600' }}>
+                {item.text}
+              </Text>
+            </View>
+          </View>
+        );
+      }
+
+      const isOwnMessage = item.senderId === user?.uid;
+      const actions = isOwnMessage
+        ? [
+            {
+              label: 'Delete',
+              icon: <Ban size={14} color="#fff" />,
+              color: '#FF3B30',
+              onPress: () => hideMessageLocally(item.id),
+            },
+          ]
+        : [
+            {
+              label: 'Report',
+              icon: <Flag size={14} color="#fff" />,
+              color: '#FF6B4A',
+              onPress: () => handleReportMessage(item),
+            },
+          ];
+
+      return (
+        <View style={styles.flip}>
+          <SwipeableMessage actions={actions}>
+            <BrightMessage
+              content={item.content}
+              time={formatChatTime(item.createdAt)}
+              senderAvatar={avatarUrl}
+              type={item.type === 'image' ? 'image' : 'text'}
+              isOwnMessage={isOwnMessage}
+              index={index}
+              animate={index < 5}
+              isLiked={item.isLiked || likedMessageIds.has(item.id)}
+              onLongPress={() => handleMessageOptions(item)}
+              onDoubleTap={() => toggleMessageLikeLocally(item.id)}
+            />
+          </SwipeableMessage>
+        </View>
+      );
+    },
+    [
+      avatarUrl,
+      handleMessageOptions,
+      toggleMessageLikeLocally,
+      likedMessageIds,
+      hideMessageLocally,
+      handleReportMessage,
+      user?.uid,
+    ],
   );
 
   const messageListEmpty = useMemo(
@@ -261,6 +517,18 @@ export default function DirectMessageScreen() {
   );
 
   const [isScrolled, setIsScrolled] = useState(false);
+
+  const flashListExtraData = useMemo(
+    () => ({
+      otherIsTyping,
+      otherUserName,
+      avatarUrl,
+      userId: user?.uid,
+      likedMessageIds,
+      messageCount: visibleMessages.length,
+    }),
+    [otherIsTyping, otherUserName, avatarUrl, user?.uid, likedMessageIds, visibleMessages.length],
+  );
 
   if (loading) {
     return (
@@ -272,79 +540,137 @@ export default function DirectMessageScreen() {
     );
   }
 
+  if (!conversation && conversationError) {
+    return (
+      <BrightChatSurface theme={theme}>
+        <View style={styles.conversation}>
+          <SafeAreaView style={styles.conversation} edges={['top']}>
+            <BrightChatHeader
+              theme={theme}
+              onBack={() => {
+                if (router.canGoBack()) router.back();
+                else router.replace('/(tabs)/inbox');
+              }}
+            />
+            <View
+              style={[
+                styles.conversation,
+                { alignItems: 'center', justifyContent: 'center', padding: 24 },
+              ]}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
+                Failed to load conversation
+              </Text>
+              <Text
+                style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 16 }}
+              >
+                This conversation may not exist or you may not have access.
+              </Text>
+              <Pressable
+                onPress={() => router.back()}
+                style={{
+                  backgroundColor: colors.iris,
+                  paddingHorizontal: 24,
+                  paddingVertical: 12,
+                  borderRadius: 24,
+                }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        </View>
+      </BrightChatSurface>
+    );
+  }
+
   return (
     <BrightChatSurface theme={theme}>
-      <SafeAreaView style={styles.conversation} edges={['top']}>
-        <BrightChatHeader
-          theme={theme}
-          compact={isScrolled}
-          onBack={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/(tabs)/inbox');
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <SafeAreaView style={styles.conversation} edges={['top']}>
+          <BrightChatHeader
+            theme={theme}
+            compact={isScrolled}
+            onBack={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)/inbox');
+              }
+            }}
+            rightAccessory={
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                {otherUserId ? (
+                  <Pressable
+                    onPress={handleHeaderMenu}
+                    hitSlop={8}
+                    style={styles.headerMenuBtn}
+                    accessibilityLabel="More options"
+                  >
+                    <MoreVertical size={18} color="rgba(255,255,255,0.7)" strokeWidth={1.8} />
+                  </Pressable>
+                ) : null}
+                <PremiumBadgeDot visible={otherIsPremium} />
+              </View>
             }
-          }}
-        />
-
-        {isPending && isRecipient ? (
-          <RequestBanner
-            loading={actionLoading}
-            onAccept={async () => {
-              if (!user?.uid) return;
-              setActionLoading(true);
-              await acceptDMRequest(conversationId, user.uid);
-              setConversation((current) =>
-                current ? { ...current, status: 'accepted' } : current,
-              );
-              setActionLoading(false);
-            }}
-            onDecline={() => {
-              if (!user?.uid) return;
-              declineDMRequest(conversationId, user.uid).then(() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.replace('/(tabs)/inbox');
-                }
-              });
-            }}
           />
-        ) : null}
 
-        <FlashList
-          ref={messagesListRef}
-          data={messages}
-          renderItem={renderMessage}
-          keyExtractor={(message) => message.id}
-          drawDistance={440}
-          style={styles.messages}
-          contentContainerStyle={styles.messagesContent}
-          showsVerticalScrollIndicator={false}
-          onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-            const y = e.nativeEvent.contentOffset.y;
-            if (y > 40 && !isScrolled) setIsScrolled(true);
-            else if (y <= 40 && isScrolled) setIsScrolled(false);
-          }}
-          scrollEventThrottle={16}
-          ListEmptyComponent={messageListEmpty}
-          ListFooterComponent={
-            otherIsTyping ? (
-              <BrightTypingIndicator name={otherUserName} avatarUrl={avatarUrl} />
-            ) : null
-          }
-          extraData={{
-            otherIsTyping,
-            otherUserName,
-            avatarUrl,
-            userId: user?.uid,
-            messageCount: messages.length,
-          }}
-        />
-      </SafeAreaView>
+          {isPending && isRecipient ? (
+            <RequestBanner
+              loading={actionLoading}
+              onAccept={async () => {
+                if (!user?.uid) return;
+                setActionLoading(true);
+                await acceptDMRequest(conversationId, user.uid);
+                setConversation((current) =>
+                  current ? { ...current, status: 'accepted' } : current,
+                );
+                setActionLoading(false);
+              }}
+              onDecline={() => {
+                if (!user?.uid) return;
+                declineDMRequest(conversationId, user.uid).then(() => {
+                  if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace('/(tabs)/inbox');
+                  }
+                });
+              }}
+            />
+          ) : null}
 
-      {isAccepted ? (
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <FlashList
+            ref={messagesListRef}
+            data={sortedMessages}
+            renderItem={renderMessage}
+            keyExtractor={(message) => message.id}
+            drawDistance={440}
+            style={styles.messagesFlipped}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+            onScroll={(e: any) => {
+              const y = e.nativeEvent.contentOffset.y;
+              if (y > 40 && !isScrolled) setIsScrolled(true);
+              else if (y <= 40 && isScrolled) setIsScrolled(false);
+            }}
+            scrollEventThrottle={16}
+            ListEmptyComponent={<View style={styles.flip}>{messageListEmpty}</View>}
+            ListHeaderComponent={
+              otherIsTyping ? (
+                <View style={styles.flip}>
+                  <BrightTypingIndicator name={otherUserName} avatarUrl={avatarUrl} />
+                </View>
+              ) : null
+            }
+            extraData={flashListExtraData}
+          />
+        </SafeAreaView>
+
+        {isAccepted ? (
           <SafeAreaView edges={['bottom']}>
             <BrightComposerDock>
               <BrightTextInput
@@ -354,10 +680,44 @@ export default function DirectMessageScreen() {
                   typingHandler.onChangeText();
                 }}
                 onBlur={typingHandler.onBlur}
-                placeholder="Your message..."
+                placeholder="Type a message"
                 multiline
                 maxLength={500}
               />
+              <BrightToolButton
+                onPress={async () => {
+                  if (!conversationId || !user?.uid) return;
+                  if (!checkRateLimit()) return;
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  const url = await pickAndUpload();
+                  if (url) {
+                    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                    const tempMsg: DirectMessage = {
+                      id: tempId,
+                      conversationId,
+                      senderId: user.uid,
+                      content: url,
+                      type: 'image',
+                      createdAt: new Date().toISOString(),
+                      readAt: undefined,
+                      isDeleted: false,
+                    };
+                    setTempMessages((current) => [...current, tempMsg]);
+                    const result = await sendDirectImageMessage(conversationId, user.uid, url);
+                    setTempMessages((current) => current.filter((m) => m.id !== tempId));
+                    if (!result.success) {
+                      Alert.alert('Error', result.error || 'Failed to send image');
+                    }
+                  }
+                }}
+                disabled={imageUploading || !canSend}
+              >
+                {imageUploading ? (
+                  <ActivityIndicator size="small" color={colors.iris} />
+                ) : (
+                  <ImagePlus size={19} color={colors.iris} />
+                )}
+              </BrightToolButton>
               <BrightSendButton
                 onPress={handleSend}
                 disabled={!inputText.trim() || sending || !canSend}
@@ -366,8 +726,8 @@ export default function DirectMessageScreen() {
               />
             </BrightComposerDock>
           </SafeAreaView>
-        </KeyboardAvoidingView>
-      ) : null}
+        ) : null}
+      </KeyboardAvoidingView>
     </BrightChatSurface>
   );
 }
@@ -375,6 +735,13 @@ export default function DirectMessageScreen() {
 const styles = StyleSheet.create({
   conversation: {
     flex: 1,
+  },
+  headerMenuBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   loading: {
     flex: 1,
@@ -433,6 +800,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radii.pill,
     backgroundColor: colors.iris,
+  },
+  messagesFlipped: {
+    flex: 1,
+    transform: [{ scaleY: -1 }],
+  },
+  flip: {
+    transform: [{ scaleY: -1 }],
   },
   requestSecondaryText: {
     color: '#121212',

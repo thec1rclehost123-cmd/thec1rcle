@@ -51,6 +51,9 @@ export const guestV1OpenApi = {
     '/profiles/bio': { patch: { operationId: 'updateGuestBioProfile', tags: ['profiles'] } },
     '/profiles/avatar': { patch: { operationId: 'updateGuestAvatarProfile', tags: ['profiles'] } },
     '/users/profile': { post: { operationId: 'createGuestProfile', tags: ['profiles'] } },
+    '/users/me/subscription': {
+      get: { operationId: 'getGuestSubscriptionSummary', tags: ['profiles'] },
+    },
     '/guest-profiles/{id}': { get: { operationId: 'getGuestPublicProfile', tags: ['profiles'] } },
     '/guest-profiles/lookup': { get: { operationId: 'lookupGuestProfile', tags: ['profiles'] } },
     '/guest-profiles/avatar': { post: { operationId: 'uploadGuestAvatar', tags: ['profiles'] } },
@@ -85,7 +88,9 @@ export const guestV1OpenApi = {
     '/checkout/initiate': { post: { operationId: 'initiateCheckout', tags: ['checkout'] } },
     '/payments/config': { get: { operationId: 'getPaymentConfig', tags: ['payments'] } },
     '/payments/order': { post: { operationId: 'createPaymentOrder', tags: ['payments'] } },
-    '/payments/verify': { patch: { operationId: 'verifyPayment', tags: ['payments'] } },
+    '/payments/verify': {
+      patch: { operationId: 'verifyPayment', tags: ['payments'], deprecated: true },
+    },
     '/orders/{orderId}': { get: { operationId: 'getGuestOrder', tags: ['orders'] } },
     '/orders/{orderId}/cancel': {
       get: { operationId: 'getOrderCancelEligibility', tags: ['orders'] },
@@ -115,6 +120,9 @@ export const guestV1OpenApi = {
     '/events/{eventId}/view': { post: { operationId: 'recordEventView', tags: ['events'] } },
     '/events/{eventId}/track': { post: { operationId: 'trackEventInteraction', tags: ['events'] } },
     '/events/{eventId}/rsvp': { post: { operationId: 'setEventRsvp', tags: ['events'] } },
+    '/events/{eventId}/interested': {
+      get: { operationId: 'getEventInterestedProfiles', tags: ['events'] },
+    },
     '/events/{eventId}/queue': {
       get: { operationId: 'getEventQueue', tags: ['events'] },
       post: { operationId: 'joinEventQueue', tags: ['events'] },

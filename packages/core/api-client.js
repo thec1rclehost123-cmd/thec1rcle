@@ -85,9 +85,14 @@ export class C1rcleApiClient {
   // ─── Payments ───────────────────────────────────────────────
 
   async verifyPayment(payload) {
-    return this.request('/payments/verify', {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = payload || {};
+    return this.request('/checkout/verify', {
+      method: 'POST',
+      body: JSON.stringify({
+        razorpay_order_id: razorpay_order_id || payload?.razorpayOrderId,
+        razorpay_payment_id: razorpay_payment_id || payload?.razorpayPaymentId,
+        razorpay_signature: razorpay_signature || payload?.razorpaySignature,
+      }),
     });
   }
 

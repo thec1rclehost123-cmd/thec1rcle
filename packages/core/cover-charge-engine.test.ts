@@ -301,7 +301,7 @@ describe('reverseTransaction authorization', () => {
       walletId: 'CW-TEST001',
       transactionId: 'WTX-001',
       reason: 'mistake',
-      supervisorPinHash: 'hash',
+      supervisorPin: '1234',
       operatorId: 'STAFF-001',
       operatorRole: 'staff', // not manager
       deviceId: 'DEVICE-001',
@@ -316,7 +316,7 @@ describe('reverseTransaction authorization', () => {
       walletId: 'CW-TEST001',
       transactionId: 'WTX-001',
       reason: 'mistake',
-      supervisorPinHash: '', // empty
+      supervisorPin: '', // empty
       operatorId: 'MGR-001',
       operatorRole: 'manager',
       deviceId: 'DEVICE-001',

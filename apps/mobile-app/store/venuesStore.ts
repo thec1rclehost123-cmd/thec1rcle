@@ -2,10 +2,8 @@ import { create } from 'zustand';
 // @c1rcle/types provides the canonical Venue shape. The local Venue interface below
 // extends it with mobile-specific fields (coordinates, popularityScore, etc.).
 // When harmonizing: import type { Venue as BaseVenue } from '@c1rcle/types';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { type Coordinates } from '@/lib/venueDiscovery';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, fetchPublicVenues } from '@/lib/api';
 
 export interface Venue {
   id: string;
@@ -69,43 +67,11 @@ export const useVenuesStore = create<VenuesState>((set, get) => ({
   error: null,
 
   fetchVenues: async (filters = {}) => {
+    if (get().loading) return;
     set({ loading: true, error: null });
     try {
-      const db = getFirestore(getFirebaseApp());
-      const snap = await getDocs(collection(db, 'venues'));
-      let venues: Venue[] = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Venue);
-
-      if (filters.tablesOnly) {
-        venues = venues.filter((v: Venue) => v.tablesAvailable);
-      }
-      if (filters.area) {
-        const clean = filters.area.toLowerCase().trim();
-        venues = venues.filter((v: Venue) => {
-          const a = (v.area || '').toLowerCase();
-          const n = (v.neighborhood || '').toLowerCase();
-          const addr = (v.address || '').toLowerCase();
-          const c = (v.city || '').toLowerCase();
-          return (
-            a.includes(clean) || n.includes(clean) || addr.includes(clean) || c.includes(clean)
-          );
-        });
-      }
-      if (filters.search) {
-        const s = filters.search.toLowerCase().trim();
-        venues = venues.filter((v: Venue) => {
-          const name = (v.displayName || v.name || '').toLowerCase();
-          const tags = [...(v.tags || []), ...(v.genres || []), ...(v.vibes || [])]
-            .join(' ')
-            .toLowerCase();
-          return (
-            name.includes(s) ||
-            (v.area || '').toLowerCase().includes(s) ||
-            (v.city || '').toLowerCase().includes(s) ||
-            tags.includes(s)
-          );
-        });
-      }
-
+      const response = await fetchPublicVenues({ ...filters, limit: 100 });
+      const venues = (response.venues || response.items || []) as Venue[];
       set({ venues, loading: false });
     } catch (e: any) {
       set({ error: e?.message || 'Failed to fetch venues', loading: false });

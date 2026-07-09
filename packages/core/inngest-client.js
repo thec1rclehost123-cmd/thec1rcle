@@ -55,6 +55,9 @@ export const Events = {
   // Analytics & Maintenance
   HOST_STATS_SYNC: 'analytics/host-stats-sync',
   MAINTENANCE_PING: 'maintenance/ping',
+
+  // Image Processing
+  POSTER_COLOR_EXTRACT: 'poster/dominant-color-extract',
 };
 
 /**

@@ -176,7 +176,12 @@ export function PremiumHeroCard({
         {/* Category badge with glass effect */}
         {category && (
           <Animated.View entering={FadeIn.delay(300)} style={styles.categoryBadge}>
-            <BlurView intensity={40} tint="dark" style={styles.categoryBlur}>
+            <BlurView
+              blurMethod="dimezisBlurView"
+              intensity={40}
+              tint="dark"
+              style={styles.categoryBlur}
+            >
               <LinearGradient
                 colors={['rgba(244,74,34,0.9)', 'rgba(255,107,74,0.9)']}
                 start={{ x: 0, y: 0 }}
@@ -202,7 +207,7 @@ export function PremiumHeroCard({
       <View style={styles.content}>
         {/* Date chip with frosted glass */}
         <View style={styles.dateChip}>
-          <BlurView intensity={50} tint="dark" style={styles.dateBlur}>
+          <BlurView blurMethod="dimezisBlurView" intensity={50} tint="dark" style={styles.dateBlur}>
             <Text style={styles.dateIcon}>📅</Text>
             <Text style={styles.dateText}>{date}</Text>
           </BlurView>

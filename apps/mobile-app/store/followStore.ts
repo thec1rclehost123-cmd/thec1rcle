@@ -1,29 +1,9 @@
 /**
  * followStore.ts
  * Tracks which venues and hosts the signed-in user follows.
- *
- * Firestore layout:
- *   userFollows/{userId}/venues/{venueId}  — user-centric lookup (Set source)
- *   userFollows/{userId}/hosts/{hostId}    — user-centric lookup
- *   venueFollowers/{venueId}/followers/{userId}  — venue-centric mirror
- *   hostFollowers/{hostId}/followers/{userId}    — host-centric mirror
  */
 import { create } from 'zustand';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  deleteDoc,
-  getDocs,
-  collection,
-  serverTimestamp,
-} from 'firebase/firestore';
 import { apiFetch } from '@/lib/api';
-
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
 
 interface FollowState {
   followedVenueIds: Set<string>;
@@ -46,14 +26,14 @@ export const useFollowStore = create<FollowState>((set, get) => ({
   fetchFollows: async (userId) => {
     if (!userId) return;
     try {
-      const db = getDb();
-      const [venueSnap, hostSnap] = await Promise.all([
-        getDocs(collection(db, 'userFollows', userId, 'venues')),
-        getDocs(collection(db, 'userFollows', userId, 'hosts')),
-      ]);
+      const response = await apiFetch<{
+        data?: { follows?: { venueIds?: string[]; hostIds?: string[] } };
+        follows?: { venueIds?: string[]; hostIds?: string[] };
+      }>('/api/v1/users/me/follows');
+      const follows = response.data?.follows ?? response.follows ?? {};
       set({
-        followedVenueIds: new Set(venueSnap.docs.map((d) => d.id)),
-        followedHostIds: new Set(hostSnap.docs.map((d) => d.id)),
+        followedVenueIds: new Set(follows.venueIds ?? []),
+        followedHostIds: new Set(follows.hostIds ?? []),
         loaded: true,
       });
     } catch (e) {
@@ -95,18 +75,10 @@ export const useFollowStore = create<FollowState>((set, get) => ({
     set({ followedHostIds: next });
 
     try {
-      const db = getDb();
-      const userRef = doc(db, 'userFollows', userId, 'hosts', hostId);
-      const hostRef = doc(db, 'hostFollowers', hostId, 'followers', userId);
-      if (isFollowing) {
-        await Promise.all([deleteDoc(userRef), deleteDoc(hostRef)]);
-      } else {
-        const ts = { followedAt: serverTimestamp() };
-        await Promise.all([
-          setDoc(userRef, { ...ts, hostId, hostName }),
-          setDoc(hostRef, { ...ts, userId }),
-        ]);
-      }
+      await apiFetch(`/api/v1/hosts/${encodeURIComponent(hostId)}/follow`, {
+        method: isFollowing ? 'DELETE' : 'POST',
+        body: isFollowing ? undefined : JSON.stringify({ hostName }),
+      });
     } catch (e) {
       set({ followedHostIds });
       console.error('[FollowStore] toggleHostFollow error', e);

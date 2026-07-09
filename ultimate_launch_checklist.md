@@ -1,6 +1,6 @@
 # THE C1RCLE Mobile App Zero-To-Production Launch Checklist
 
-Last audited: 2026-06-18
+Last audited: 2026-06-26
 Audit root: `/Users/aayushdivase/Desktop/thec1rcle/thec1rcle`
 Primary app: `apps/mobile-app`
 Primary backend: `apps/api-gateway`
@@ -8,23 +8,33 @@ Shared logic: `packages/core`
 
 This document is the production launch source of truth for THE C1RCLE mobile app. It is intentionally codebase-grounded. It does not treat a screen, helper, route, or library as production-ready unless it is wired into the real user flow, has the required config, and has a verification path.
 
+## Technical Pre-QA Gate
+
+Status: NOT READY FOR TESTFLIGHT / PLAY STORE QA HANDOFF.
+
+1. [x] ~~Run Firebase Emulator rules simulation for regular authenticated users.~~
+   Acceptance: `scripts/preqa-rules-smoke.mjs` passes against Auth, Firestore, and Storage emulators; regular users cannot create privileged `users/{uid}` fields, cannot write `events`, cannot read/write `directMessages`, cannot write `cover_wallets`, cannot write wallet txns, and can only upload bounded image files to their own allowed Storage paths.
+2. [ ] Verify Firebase Console state.
+   Acceptance: Firestore composite indexes from `firestore.indexes.json` are deployed and no required indexes are `Building` or `Failed`.
+3. [ ] Verify provider credentials in Firebase/Apple/Google consoles.
+   Acceptance: Apple Service ID/private key/revocation flow, Google Android SHA-1/SHA-256, Google web client ID, APNs, and phone-auth anti-abuse limits are production configured.
+4. [ ] Verify third-party production webhooks and dashboards.
+   Acceptance: Razorpay webhook hits production API Gateway with strict signature verification, RevenueCat entitlement webhook is configured if Premium is enabled, and Sentry/Crashlytics startup crash capture is visible in dashboards.
+5. [x] ~~Local code-owned security hardening has been applied: Firestore user creation now blocks privileged fields, Storage verification/KYC/profile/event writes are owner/admin scoped with 5 MB image constraints, and chat/event composite indexes required by gateway queries are declared.~~
+
 ## 1. To do
 
 1. [ ] Remove and rotate exposed mobile environment secrets.
    Acceptance: mobile `.env*` files contain no Admin SDK private keys, service account emails, server secrets, or secret-looking values under `EXPO_PUBLIC_*`; any exposed Firebase/Admin/API credentials are rotated; only safe public client config remains.
-2. [ ] Disable demo mode in all non-dev builds.
-   Acceptance: `EXPO_PUBLIC_DEMO_MODE=false` is present in EAS preview and production environments, and release builds cannot render `DEMO_EVENTS`, `DEMO_VENUES`, `DEMO_ORDERS`, `DEMO_PRIVATE_CHATS`, `DEMO_EVENT_CHATS`, `DEMO_DM_MESSAGES`, `DEMO_CHAT_MESSAGES`, `MOCK_PROFILES`, or scanner mock fallbacks.
-3. [ ] Move launch-critical mobile data paths behind the Fastify gateway.
-   Acceptance: Explore, event details, ticket tiers, venues, profile, settings, notifications, dating, social, chat, wallet, transfer/share, and safety use versioned gateway contracts or explicitly approved Firebase realtime paths. Broad client-side Firestore collection scans are not used for public launch flows.
-4. [ ] Complete first-login server handshake.
-   Acceptance: every Firebase sign-in path calls `/api/v1/auth/sync` or equivalent, the server creates/updates the user record, provisions default role/custom claims, handles duplicate provider identity cases, returns the canonical user contract, and the client refreshes claims.
-5. [ ] Complete permission and device registration flows.
-   Acceptance: location and notification education screens are in the onboarding journey; Expo push token generation uses the correct EAS project ID; a dedicated device-token route exists; token refresh runs after auth and app resume; APNs/FCM/EAS credentials are verified.
-6. [ ] Verify checkout and ticket issuance on real devices.
+2. [ ] Prove release builds cannot render demo/mock datasets.
+   Acceptance: release builds cannot render `DEMO_EVENTS`, `DEMO_VENUES`, `DEMO_ORDERS`, `DEMO_PRIVATE_CHATS`, `DEMO_EVENT_CHATS`, `DEMO_DM_MESSAGES`, `DEMO_CHAT_MESSAGES`, `MOCK_PROFILES`, or scanner mock fallbacks.
+3. [ ] Verify APNs/FCM/EAS push credentials.
+   Acceptance: production/preview EAS credentials are configured, Expo push receipts are observable, and iOS/Android push delivery is verified on physical devices.
+4. [ ] Verify checkout and ticket issuance on real devices.
    Acceptance: reserve -> calculate -> initiate -> Razorpay native -> verify -> ticket issuance -> QR render -> scanner validation passes on iOS and Android using staging and production-like data.
-7. [ ] Replace demo dating, inbox, and chat surfaces with real production data.
+5. [ ] Replace demo inbox and remaining chat surfaces with real production data.
    Acceptance: profile deck, like/pass, match list, DM list, event chat list, unread badges, typing, media messages, blocking, reporting, and eligibility all work without demo data.
-8. [ ] Complete release hardening.
+6. [ ] Complete release hardening.
    Acceptance: Expo SDK drift is resolved; `expo-doctor`, type-check, lint, targeted tests, EAS production build, app icons/splash, privacy disclosures, store screenshots, review notes, account deletion, and legal URLs are complete.
 
 ## 2. In progress
@@ -37,6 +47,12 @@ This document is the production launch source of truth for THE C1RCLE mobile app
    Acceptance: polling helpers either become websocket/realtime or have explicit launch SLOs; assumed route contracts are smoke-tested against the gateway.
 4. [ ] Crash/error/analytics foundations exist.
    Acceptance: Sentry DSN/release/source maps and analytics destination are configured in EAS, privacy reviewed, and visible in the production dashboards.
+5. [ ] Permission and device registration flows are partially complete.
+   Acceptance: notification token generation uses the EAS project ID lookup recommended by Expo SDK 56, a dedicated `/api/v1/users/me/device-token` route exists, and token refresh runs after auth and foreground resume; physical APNs/FCM/EAS credential proof remains open.
+6. [ ] Media upload/moderation ownership remains partial.
+   Acceptance: profile and verification image uploads are routed through a server media service or explicitly approved Firebase Storage rules/moderation policy before public launch.
+7. [ ] Firebase security rules are locally hardened and emulator-proven, but not production-deployed in this pass.
+   Acceptance: deploy `firestore.rules`, `storage.rules`, and `firestore.indexes.json`; then verify Firebase Console shows no required indexes in `Building` or `Failed`.
 
 ## 3. Done
 
@@ -47,12 +63,19 @@ This document is the production launch source of truth for THE C1RCLE mobile app
 5. [x] ~~Ticket wallet helpers exist for wallet orders, transfers, share bundles, claims, QR rendering, PDF fallback, and pass-generation hooks.~~
 6. [x] ~~Backend routes exist for events, search, checkout, payments, orders, tickets, social, matching, profiles, notifications, scanner, users, auth, refunds, and cron.~~
 7. [x] ~~Sentry/ErrorBoundary/FlashList foundations are present in the mobile app.~~
+8. [x] ~~Firebase auth state now calls `/api/v1/auth/sync`, the server creates/updates a canonical user record, provisions default custom claims, returns a canonical profile/user contract, and the client refreshes claims.~~
+9. [x] ~~Mobile profile load/update, venues list/detail, waitlist status/join, dating discover/swipe/matches, event RSVP/attendees, safety emergency contacts, and push-token registration no longer use broad client-side Firestore scans/writes.~~
+10. [x] ~~EAS preview and production builds explicitly set `EXPO_PUBLIC_DEMO_MODE=false`.~~
+11. [x] ~~Follow state, social/profile verification writes, onboarding profile persistence, and notification reads now use versioned Fastify gateway contracts instead of direct client Firestore paths.~~
+12. [x] ~~`apps/mobile-app/scripts/launch-readiness-check.cjs` documents local push/checkout readiness checks and the external physical-device proofs still required.~~
+13. [x] ~~Pre-QA local security pass tightened Firestore user-create privilege guards, Storage upload/read rules for profile/KYC/verification/event media, and declared missing chat/event indexes.~~
+14. [x] ~~Pre-QA Firebase emulator smoke now runs through `scripts/preqa-rules-smoke.mjs` and passed against Auth, Firestore, and Storage emulators.~~
 
 ## Executive Launch Decision
 
 Status: NOT READY FOR PUBLIC APP STORE / PLAY STORE RELEASE.
 
-Reason: the repo has a broad mobile product shell and meaningful backend work, but public launch is blocked by security/config issues, demo data exposure risk, mixed direct Firestore and gateway ownership, incomplete first-login provisioning, incomplete push registration, incomplete real-device checkout validation, and incomplete social/chat production data wiring.
+Reason: the repo has a broad mobile product shell and meaningful backend work, but public launch is blocked by security/config issues, demo data exposure risk, media upload/moderation policy, physical APNs/FCM proof, real-device checkout validation, and incomplete social/chat production data wiring.
 
 Recommended release posture:
 
@@ -120,15 +143,15 @@ Launch principle: Fastify routes validate with Zod, protected routes verify Fire
 | Events feed | `store/eventsStore.ts` scans Firestore `events` collection | `/api/v1/events`, `/api/v1/events/map`, `/api/v1/search` | Direct Firestore bypasses cache/rate-limit/contracts | Repoint store to gateway |
 | Event detail | `getEventById` reads Firestore doc | `/api/v1/events/:id` | Mixed contract | Repoint detail read |
 | Ticket tiers | Event tickets can come from event document/helper | `/api/v1/events/:id/tickets` | Live inventory must be server-authoritative | Use tickets endpoint |
-| User profile | `profileStore` reads/writes Firestore and best-effort API sync | `/api/v1/users/me`, `/api/v1/profiles/*` | Server profile not canonical | Move profile saves to gateway |
+| User profile | `profileStore`, `lib/firebase/userProfile.ts` use gateway profile contracts | `/api/v1/users/me`, `/api/v1/profiles/*` | Media upload policy remains separate | Add media moderation/upload policy |
 | Profile setup photos | Firebase Storage direct upload | Gateway upload route and Firebase Storage exist | Direct upload lacks moderation/virus/content policy | Add server/media moderation gate or accepted exception |
-| Social profile | `socialProfileStore` writes Firestore directly | `/api/v1/social/*`, profile routes | Verification is client-controlled | Move verification and state changes server-side |
+| Social profile | `socialProfileStore` uses `/api/v1/users/me` and `/api/v1/users/me/verification` | `/api/v1/social/*`, profile routes | Verification approval still needs review worker/admin path | Add approval/rejection workflow |
 | Dating deck | `MOCK_PROFILES` or Firestore orders/users in `datingStore` | `/api/v1/matching/feed`, `/api/v1/social/discover` | Production feed not wired | Use matching/social feed |
 | Likes/passes/matches | Firestore `userLikes`, `userPasses`, `userMatches` in store | `/api/v1/matching/swipe`, `/api/v1/social/*` | Client can spoof actions | Move to gateway |
-| Notifications | Firestore direct reads and writes | `/api/v1/guest-notifications` | Direct writes bypass owner checks | Use guest-notifications route |
+| Notifications | Gateway polling via `store/notificationsStore.ts` | `/api/v1/guest-notifications` | Physical push delivery not yet proven | Verify APNs/FCM/EAS on devices |
 | Settings | AsyncStorage + Firestore write | `/api/v1/users/me/settings` | Server settings not canonical | Use gateway as source |
 | Venues | Firestore collection scan | `/api/v1/venues`, `/api/v1/venues/:id` | Bypasses API and search contracts | Use gateway |
-| Follows | Mixed Firestore and gateway | `/api/v1/follow`, `/api/v1/venues/:venueId/follow` | Host follow still Firestore direct | Use gateway for all follow types |
+| Follows | `followStore` uses `/api/v1/users/me/follows`, `/api/v1/follow`, `/api/v1/venues/:venueId/follow` | `/api/v1/follow`, `/api/v1/venues/:venueId/follow` | Legacy follow mirrors may still exist server-side | Keep server migration/backfill tracked |
 | Tickets/orders | `ticketsStore` uses `/tickets/my-wallet` | `/api/v1/tickets/my-wallet`, orders routes | Mostly good | Add lifecycle states and tests |
 | Checkout | `lib/payments.ts` uses gateway helpers | `/api/v1/checkout/*`, `/api/v1/payments/verify` | Strongest area, but needs device proof | Real-device E2E |
 | Chat | Gateway polling helpers plus demo screen state | `/api/v1/social/chat`, `/api/v1/social/dm/*` | Demo UI and polling gaps | Real conversation list/unread/push |
@@ -912,4 +935,3 @@ Weekly after stabilization:
 4. [ ] Experiment/feature-flag review.
 5. [ ] Support macro and help center review.
 6. [ ] Product funnel review.
-

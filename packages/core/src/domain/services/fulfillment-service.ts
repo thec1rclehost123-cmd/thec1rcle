@@ -11,6 +11,24 @@ import { telemetry } from '@c1rcle/core/telemetry';
 export class FulfillmentService {
   constructor() {}
 
+  private async markDispatchStatus(order: Order, updates: Record<string, any>) {
+    try {
+      const db = await getAdminDb();
+      const collection = order.isRSVP ? 'rsvp_orders' : 'orders';
+      await db
+        .collection(collection)
+        .doc(order.id)
+        .update({
+          ...updates,
+          fulfillmentDispatchUpdatedAt: new Date().toISOString(),
+        });
+    } catch (error: any) {
+      telemetry.error('[Fulfillment] Failed to update dispatch status', error, {
+        orderId: order.id,
+      });
+    }
+  }
+
   async processFulfillment(order: Order, queueId?: string | null): Promise<void> {
     // 1. Consume admission if part of a surge queue
     if (queueId) {
@@ -45,8 +63,16 @@ export class FulfillmentService {
         promoterCode: order.promoterCode,
       });
       telemetry.track('FULFILLMENT_TRIGGERED', { orderId: order.id, userId: order.userId });
+      await this.markDispatchStatus(order, {
+        fulfillmentDispatchStatus: 'dispatched',
+        fulfillmentDispatchError: null,
+      });
     } catch (e: any) {
       telemetry.error('[Fulfillment] Inngest trigger failed', e, { orderId: order.id });
+      await this.markDispatchStatus(order, {
+        fulfillmentDispatchStatus: 'retryable_failed',
+        fulfillmentDispatchError: e?.message || 'Inngest trigger failed',
+      });
     }
   }
 }
