@@ -40,8 +40,11 @@ export async function proxyToGateway(
     const allowedBase = new URL(GATEWAY_URL);
     if (targetUrl.origin !== allowedBase.origin) {
       return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Invalid gateway origin', requestId } },
-        { status: 403 }
+        {
+          success: false,
+          error: { code: 'FORBIDDEN', message: 'Invalid gateway origin', requestId },
+        },
+        { status: 403 },
       );
     }
 
