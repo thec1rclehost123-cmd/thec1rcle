@@ -1,3 +1,5 @@
+import { signStorageUrl } from '../lib/signed-urls.js';
+
 export type PartnerEntityType = 'venue' | 'host' | 'promoter';
 
 function toIso(value: any): string | null {
@@ -462,17 +464,19 @@ export async function getPartnerProfileSummary(db: any, id: string) {
       email: resolvedEmail,
       phone: resolvedPhone,
     },
-    avatarUrl: pickString(
-      doc.profileImage,
-      doc.avatar,
-      doc.avatarUrl,
-      doc.photoURL,
-      doc.photoUrl,
-      doc.logoUrl,
-      doc.logoImage,
-      doc.logo,
+    avatarUrl: await signStorageUrl(
+      pickString(
+        doc.profileImage,
+        doc.avatar,
+        doc.avatarUrl,
+        doc.photoURL,
+        doc.photoUrl,
+        doc.logoUrl,
+        doc.logoImage,
+        doc.logo,
+      ),
     ),
-    coverImageUrl: pickString(doc.coverImage, doc.bannerImage, doc.heroImage),
+    coverImageUrl: await signStorageUrl(pickString(doc.coverImage, doc.bannerImage, doc.heroImage)),
     website: pickString(doc.website, onboardingData.website),
     socialLinks,
     isVerified: Boolean(

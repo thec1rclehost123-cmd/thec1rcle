@@ -77,6 +77,43 @@ export async function resolvePartnerContext(
   const uid = String(user.uid);
   const email = user.email ? String(user.email).toLowerCase().trim() : null;
 
+  // 0. Resolve based on explicitly requested partnerId (from query or headers)
+  const reqPartnerId = (request.headers?.['x-partner-id'] ||
+    request.headers?.['x-workspace-id'] ||
+    request.headers?.['x-host-id'] ||
+    request.headers?.['x-venue-id'] ||
+    (request.query as any)?.hostId ||
+    (request.query as any)?.venueId ||
+    (request.query as any)?.partnerId) as string | undefined;
+
+  if (reqPartnerId) {
+    const memberships: RawMembership[] = Array.isArray(request.authContext?.memberships)
+      ? request.authContext!.memberships
+      : [];
+    const matched = memberships.find((m) => m.partnerId === reqPartnerId && m.isActive !== false);
+    if (matched) {
+      const ctx = buildFromMembership(uid, matched, user);
+      if (ctx) return ctx;
+    }
+
+    const snap = await db
+      .collection('partner_memberships')
+      .where('uid', '==', uid)
+      .where('partnerId', '==', reqPartnerId)
+      .limit(1)
+      .get()
+      .catch(() => null);
+
+    if (snap && !snap.empty) {
+      const data = snap.docs[0].data();
+      const isActive = data.isActive === true || data.status === 'active';
+      if (isActive) {
+        const ctx = buildFromMembership(uid, data, user);
+        if (ctx) return ctx;
+      }
+    }
+  }
+
   // 1. activeMembership already on request.user (fastest — no extra DB read)
   const active = user.activeMembership;
   if (active?.partnerId) {
@@ -101,7 +138,6 @@ export async function resolvePartnerContext(
     .collection('partner_memberships')
     .where('uid', '==', uid)
     .where('isActive', '==', true)
-    .orderBy('createdAt', 'desc')
     .limit(10)
     .get()
     .catch(() => null);

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { sendHostInvitationEmail, generateTemporaryPassword } from '../../../lib/email.js';
 import { getHostAnalytics } from '@c1rcle/core/analytics-engine';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
@@ -15,6 +16,14 @@ import {
   sanitizeEventResubmissionPatch,
 } from '../../../lib/partner-hardening.js';
 import { encrypt, decrypt } from '../../../lib/encryption.js';
+import {
+  enrichHostProfileWithSignedUrls,
+  cleanHostProfilePatch,
+  signStorageUrl,
+} from '../../../lib/signed-urls.js';
+import { uploadPartnerAsset } from '../../../lib/partner-upload.js';
+import { getAdminStorage } from '@c1rcle/core/admin';
+import { randomUUID } from 'node:crypto';
 
 const OverviewQuerySchema = z
   .object({
@@ -203,24 +212,37 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   };
 
   const removeTeamMember = async (hostId: string, memberId: string) => {
-    const ref = fastify.db.collection('partner_memberships').doc(memberId);
-    const doc = await ref.get();
-    if (!doc.exists) {
-      const err: any = new Error('Member not found');
-      err.statusCode = 404;
-      err.code = 'NOT_FOUND';
-      throw err;
+    let ref = fastify.db.collection('partner_memberships').doc(memberId);
+    let doc = await ref.get();
+
+    if (doc.exists) {
+      const membership = doc.data() as PlainRecord;
+      if (String(membership.partnerId || '') !== hostId) {
+        const err: any = new Error('Forbidden');
+        err.statusCode = 403;
+        err.code = 'FORBIDDEN';
+        throw err;
+      }
+      await ref.update({ isActive: false, removedAt: new Date().toISOString() });
+    } else {
+      ref = fastify.db.collection('host_team_invitations').doc(memberId);
+      doc = await ref.get();
+      if (!doc.exists) {
+        const err: any = new Error('Member or Invitation not found');
+        err.statusCode = 404;
+        err.code = 'NOT_FOUND';
+        throw err;
+      }
+      const invitation = doc.data() as PlainRecord;
+      if (String(invitation.hostId || '') !== hostId) {
+        const err: any = new Error('Forbidden');
+        err.statusCode = 403;
+        err.code = 'FORBIDDEN';
+        throw err;
+      }
+      await ref.update({ status: 'revoked', revokedAt: new Date().toISOString() });
     }
 
-    const membership = doc.data() as PlainRecord;
-    if (String(membership.partnerId || '') !== hostId) {
-      const err: any = new Error('Forbidden');
-      err.statusCode = 403;
-      err.code = 'FORBIDDEN';
-      throw err;
-    }
-
-    await ref.update({ isActive: false, removedAt: new Date().toISOString() });
     await fastify
       .writeAuditLog({
         action: 'TEAM_MEMBER_REMOVED',
@@ -240,13 +262,15 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       throw err;
     }
     const data = { id: doc.id, ...(doc.data() || {}) };
-    return { host: data, profile: data };
+    const enriched = await enrichHostProfileWithSignedUrls(data);
+    return { host: enriched, profile: enriched };
   };
 
   const updateHostProfile = async (hostId: string, patch: PlainRecord) => {
+    const cleanedPatch = cleanHostProfilePatch(patch);
     const safe: PlainRecord = {};
     for (const key of hostProfileFields) {
-      if (patch[key] !== undefined) safe[key] = patch[key];
+      if (cleanedPatch[key] !== undefined) safe[key] = cleanedPatch[key];
     }
     // Normalize image fields so the discovery engine can find them
     if (safe.photoURL) {
@@ -1796,6 +1820,180 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
   // ── Team ───────────────────────────────────────────────────────────────────
 
+  fastify.get('/partners/hosts/team/accept', async (request: any, reply: any) => {
+    const { code, hostId } = request.query as any;
+    if (!code || !hostId) {
+      return reply.status(400).send({ error: 'code and hostId required' });
+    }
+    try {
+      const snap = await fastify.db
+        .collection('host_team_invitations')
+        .where('hostId', '==', hostId)
+        .where('inviteToken', '==', code)
+        .limit(1)
+        .get();
+
+      if (snap.empty) {
+        return reply.status(404).send({ error: 'Invitation not found or invalid' });
+      }
+
+      const invDoc = snap.docs[0];
+      const invData = invDoc.data();
+
+      if (invData.inviteExpires && new Date() > new Date(invData.inviteExpires)) {
+        return reply.status(400).send({ error: 'Invitation has expired' });
+      }
+
+      return reply.send({
+        name:
+          invData.firstName && invData.lastName
+            ? `${invData.firstName} ${invData.lastName}`
+            : 'Team Member',
+        email: invData.email,
+        role: invData.role,
+        partnerName: invData.partnerName || 'Host Partner',
+        status: invData.status,
+      });
+    } catch (err: any) {
+      fastify.log.error({ err }, 'GET /partners/hosts/team/accept failed');
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: err.message || 'Failed to retrieve invitation',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
+
+  fastify.post('/partners/hosts/team/accept', async (request: any, reply: any) => {
+    const { inviteCode, hostId } = request.body as any;
+    if (!inviteCode || !hostId) {
+      return reply.status(400).send({ error: 'inviteCode and hostId required' });
+    }
+
+    try {
+      const snap = await fastify.db
+        .collection('host_team_invitations')
+        .where('hostId', '==', hostId)
+        .where('inviteToken', '==', inviteCode)
+        .limit(1)
+        .get();
+
+      if (snap.empty) {
+        return reply.status(404).send({ error: 'Invitation not found or invalid' });
+      }
+
+      const invDoc = snap.docs[0];
+      const invData = invDoc.data();
+
+      if (invData.inviteExpires && new Date() > new Date(invData.inviteExpires)) {
+        return reply.status(400).send({ error: 'Invitation has expired' });
+      }
+
+      if (invData.status === 'accepted' || invData.status === 'active') {
+        return reply.send({
+          success: true,
+          email: invData.email,
+          tempPassword: invData.tempPassword,
+          alreadyAccepted: true,
+        });
+      }
+
+      const email = invData.email;
+      const name =
+        invData.firstName && invData.lastName
+          ? `${invData.firstName} ${invData.lastName}`
+          : 'Team Member';
+      const role = invData.role;
+      const tempPassword = invData.tempPassword;
+
+      // 1. Create/update the Firebase user
+      let userRecord;
+      try {
+        userRecord = await fastify.auth.getUserByEmail(email);
+        await fastify.auth.updateUser(userRecord.uid, { password: tempPassword });
+        await fastify.db.collection('users').doc(userRecord.uid).update({
+          role: 'host',
+          isApproved: true,
+          onboardingComplete: true,
+          mustChangePassword: true,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (e: any) {
+        if (e.code === 'auth/user-not-found') {
+          userRecord = await fastify.auth.createUser({
+            email,
+            password: tempPassword,
+            displayName: name,
+          });
+
+          await fastify.db.collection('users').doc(userRecord.uid).set({
+            uid: userRecord.uid,
+            email,
+            displayName: name,
+            role: 'host',
+            isApproved: true,
+            onboardingComplete: true,
+            mustChangePassword: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        } else {
+          throw e;
+        }
+      }
+
+      const uid = userRecord.uid;
+      const partnerName = invData.partnerName || 'Host Partner';
+
+      // 2. Create or update the partner_memberships document
+      const membershipSnap = await fastify.db
+        .collection('partner_memberships')
+        .where('partnerId', '==', hostId)
+        .where('uid', '==', uid)
+        .limit(1)
+        .get();
+
+      if (membershipSnap.empty) {
+        await fastify.db.collection('partner_memberships').add({
+          uid,
+          partnerId: hostId,
+          partnerName,
+          partnerType: 'host',
+          role,
+          isActive: true,
+          joinedAt: Date.now(),
+          createdAt: new Date().toISOString(),
+        });
+      } else {
+        await membershipSnap.docs[0].ref.update({
+          isActive: true,
+          role,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      // 3. Update the host_team_invitations record status to active
+      await invDoc.ref.update({
+        status: 'accepted',
+        userId: uid,
+        updatedAt: new Date().toISOString(),
+      });
+
+      return reply.send({ success: true, email, tempPassword });
+    } catch (err: any) {
+      fastify.log.error({ err }, 'POST /partners/hosts/team/accept failed');
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: err.message || 'Failed to accept invitation',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
+
   fastify.get(
     '/partners/hosts/team',
     {
@@ -1815,9 +2013,89 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       try {
         requireType(ctx, 'host');
         const members = await hostService.getTeam(ctx);
+
+        const invitesSnap = await fastify.db
+          .collection('host_team_invitations')
+          .where('hostId', '==', ctx.partnerId)
+          .where('status', '==', 'pending')
+          .get()
+          .catch(() => ({ docs: [] }));
+
+        const invitedMembers = invitesSnap.docs.map((doc: any) => {
+          const d = doc.data();
+          const displayName =
+            d.firstName && d.lastName
+              ? `${d.firstName} ${d.lastName}`
+              : d.email || d.phone || 'Invited Member';
+          return {
+            membershipId: doc.id,
+            uid: null,
+            displayName,
+            email: d.email || null,
+            phone: d.phone || null,
+            role: d.role || 'STAFF',
+            status: 'invited',
+            isActive: false,
+            joinedAt: d.createdAt || null,
+            lastActive: null,
+            photoUrl: null,
+            granularPermissions: d.granularPermissions || null,
+            verified: false,
+          };
+        });
+
+        const uids = asArray(members)
+          .map((m: any) => m.uid)
+          .filter(Boolean);
+        const userMap = new Map<string, any>();
+        if (uids.length > 0) {
+          for (let i = 0; i < uids.length; i += 30) {
+            const batch = uids.slice(i, i + 30);
+            const userSnap = await fastify.db
+              .collection('users')
+              .where('__name__', 'in', batch)
+              .get()
+              .catch(() => ({ docs: [] }));
+            userSnap.docs.forEach((doc: any) => {
+              userMap.set(doc.id, doc.data());
+            });
+          }
+        }
+
+        const mappedMembers = asArray(members).map((m: any) => {
+          const uProfile = m.uid ? userMap.get(m.uid) : null;
+          const email = m.email || uProfile?.email || null;
+          const phone = m.phone || uProfile?.phone || uProfile?.phoneNumber || null;
+          const displayName =
+            m.displayName ||
+            uProfile?.displayName ||
+            (uProfile?.firstName && uProfile?.lastName
+              ? `${uProfile.firstName} ${uProfile.lastName}`
+              : null) ||
+            email ||
+            phone ||
+            'Team Member';
+
+          return {
+            membershipId: m.memberId || m.membershipId || '',
+            uid: m.uid || null,
+            displayName,
+            email,
+            phone,
+            role: m.role || 'STAFF',
+            status: m.isActive ? 'active' : 'suspended',
+            isActive: m.isActive,
+            joinedAt: m.joinedAt || null,
+            lastActive: m.lastActive || null,
+            photoUrl: m.photoUrl || uProfile?.photoUrl || uProfile?.photoURL || null,
+            granularPermissions: m.granularPermissions || null,
+            verified: m.verified || uProfile?.verified || false,
+          };
+        });
+
         return reply.header('Cache-Control', 'private, max-age=120').send({
           success: true,
-          members: asArray(members),
+          members: [...mappedMembers, ...invitedMembers],
         });
       } catch (err: any) {
         if (err.statusCode)
@@ -1906,6 +2184,51 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           buildErrorResponse({
             code: 'INTERNAL_ERROR',
             message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    '/partners/hosts/upload',
+    {
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await resolvePartnerContext(fastify.db, request);
+        // Debug: log partner context resolution
+        // eslint-disable-next-line no-console
+        console.debug('[hosts.upload] resolvePartnerContext', {
+          requestId: request.id,
+          hasCtx: !!ctx,
+        });
+        if (!ctx) return;
+        await requireType(ctx, 'host');
+
+        // Use shared upload helper so host upload has same behavior as venue
+        const uploadResult = await uploadPartnerAsset(request, {
+          partnerId: ctx.partnerId,
+          partnerType: 'host',
+          maxBytes: 5 * 1024 * 1024,
+        });
+
+        const signedUrl = await signStorageUrl(uploadResult.url);
+
+        return reply.send({
+          success: true,
+          url: signedUrl,
+          filename: uploadResult.filename,
+          storagePath: uploadResult.storagePath,
+        });
+      } catch (err: any) {
+        fastify.log.error(`Error in host upload: ${err.message}`);
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: err.message || 'Failed to upload file',
             requestId: request.id,
           }),
         );
@@ -2830,6 +3153,10 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               }),
             );
           const now = new Date().toISOString();
+          const tempPassword = generateTemporaryPassword();
+          const inviteToken = randomUUID();
+          const inviteExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
           const ref = await fastify.db.collection('host_team_invitations').add({
             hostId: ctx.partnerId,
             email: email || null,
@@ -2840,8 +3167,45 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             granularPermissions: granularPermissions || {},
             partnerName: partnerName || null,
             status: 'pending',
+            tempPassword,
+            inviteToken,
+            inviteExpires,
             createdAt: now,
           });
+
+          // Dispatch invitation email if email is provided
+          if (email) {
+            let origin = 'http://localhost:3001';
+            if (request.headers.referer) {
+              try {
+                origin = new URL(request.headers.referer).origin;
+              } catch {
+                if (request.headers.origin) origin = request.headers.origin;
+              }
+            } else if (request.headers.origin) {
+              origin = request.headers.origin;
+            }
+
+            const acceptLink = `${origin}/auth/staff-invite?code=${inviteToken}&host=${ctx.partnerId}`;
+            const pName = partnerName || ctx.displayName || 'Host Partner';
+            const roleLabels: Record<string, string> = {
+              COHOST: 'Co-Host',
+              MANAGER: 'Manager',
+              STAFF: 'Staff',
+            };
+            const roleLabel = roleLabels[role] || role || 'Member';
+
+            await sendHostInvitationEmail({
+              recipient: email.toLowerCase().trim(),
+              name: firstName && lastName ? `${firstName} ${lastName}` : 'Team Member',
+              roleLabel,
+              partnerName: pName,
+              acceptLink,
+            }).catch((err: any) => {
+              fastify.log.error({ err }, 'Failed to send host invitation email');
+            });
+          }
+
           return reply.status(201).send({ success: true, invitationId: ref.id });
         }
 

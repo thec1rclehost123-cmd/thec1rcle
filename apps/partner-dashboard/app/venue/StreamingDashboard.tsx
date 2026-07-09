@@ -376,7 +376,8 @@ async function fetchOrdersPage(token: string, venueId: string, page: number, lim
 }
 
 export default function VenueDashboardStreaming() {
-  const { profile, user, hasPermission } = useDashboardAuth();
+  const { profile, user, tabVisibility, hasPermission } = useDashboardAuth();
+  const showEvents = tabVisibility === null || tabVisibility.events === true;
   const venueId = profile?.activeMembership?.partnerId;
   const membership = profile?.activeMembership;
   const venueName = membership?.partnerName || 'Venue Overview';
@@ -440,7 +441,7 @@ export default function VenueDashboardStreaming() {
 
   const upcomingEventsQuery = useQuery({
     queryKey: ['venue', venueId, 'overview-events'],
-    enabled: Boolean(venueId && user),
+    enabled: Boolean(venueId && user) && showEvents,
     queryFn: async () => {
       const token = await user!.getIdToken();
       const params = new URLSearchParams({
@@ -757,155 +758,159 @@ export default function VenueDashboardStreaming() {
             </aside>
           </div>
 
-          <div className="pt-1">
-            <SectionHeader title="Upcoming Events" />
-          </div>
+          {showEvents && (
+            <>
+              <div className="pt-1">
+                <SectionHeader title="Upcoming Events" />
+              </div>
 
-          <section className="rounded-[32px] px-4 pt-4 pb-4" style={cardStyle()}>
-            <div className="space-y-3">
-              {upcomingEventsQuery.isLoading ? (
-                Array.from({ length: 4 }).map((_, index) => (
-                  <div key={index} className="h-[108px] rounded-[28px] v-skeleton" />
-                ))
-              ) : upcomingEvents.length === 0 ? (
-                <div
-                  className="rounded-[28px] px-6 py-12 text-center"
-                  style={{
-                    background: 'var(--v-neutral-bg)',
-                    border: '1px dashed var(--v-border)',
-                  }}
-                >
-                  <CalendarDays
-                    className="w-8 h-8 mx-auto mb-3"
-                    style={{ color: 'var(--v-text-muted)' }}
-                  />
-                  <p
-                    className="text-[14px] font-semibold"
-                    style={{ color: 'var(--v-text-primary)' }}
-                  >
-                    No upcoming events scheduled
-                  </p>
-                </div>
-              ) : (
-                upcomingEvents.map((event) => {
-                  const eventImage = getEventImage(event);
-                  const status = getEventStatus(event);
-
-                  return (
-                    <Link
-                      key={event.id}
-                      href={`/venue/events/${event.id}`}
-                      className="group relative block rounded-[28px] p-4 sm:p-5 transition-all overflow-hidden"
+              <section className="rounded-[32px] px-4 pt-4 pb-4" style={cardStyle()}>
+                <div className="space-y-3">
+                  {upcomingEventsQuery.isLoading ? (
+                    Array.from({ length: 4 }).map((_, index) => (
+                      <div key={index} className="h-[108px] rounded-[28px] v-skeleton" />
+                    ))
+                  ) : upcomingEvents.length === 0 ? (
+                    <div
+                      className="rounded-[28px] px-6 py-12 text-center"
                       style={{
-                        background: 'transparent',
-                        border: '1px solid var(--v-divider)',
+                        background: 'var(--v-neutral-bg)',
+                        border: '1px dashed var(--v-border)',
                       }}
                     >
-                      {eventImage ? (
-                        <>
-                          <div
-                            className="absolute inset-y-0 left-0 w-[52%] opacity-[0.28] transition-opacity duration-500 group-hover:opacity-[0.38]"
-                            style={{
-                              backgroundImage: `url(${eventImage})`,
-                              backgroundSize: 'cover',
-                              backgroundPosition: 'center',
-                              filter: 'blur(44px) saturate(1.22) brightness(1.02)',
-                              transform: 'scale(1.16)',
-                            }}
-                          />
-                          <div
-                            className="absolute inset-y-0 left-[8%] w-[28%] opacity-[0.22] transition-opacity duration-500 group-hover:opacity-[0.3]"
-                            style={{
-                              backgroundImage: `url(${eventImage})`,
-                              backgroundSize: 'cover',
-                              backgroundPosition: 'center',
-                              filter: 'blur(70px) saturate(1.35)',
-                              transform: 'scale(1.3)',
-                            }}
-                          />
-                          <div
-                            className="absolute inset-0"
-                            style={{
-                              background:
-                                'linear-gradient(90deg, rgba(18,18,20,0.46) 0%, rgba(18,18,20,0.62) 22%, rgba(18,18,20,0.84) 48%, rgba(18,18,20,0.96) 100%)',
-                            }}
-                          />
-                        </>
-                      ) : null}
+                      <CalendarDays
+                        className="w-8 h-8 mx-auto mb-3"
+                        style={{ color: 'var(--v-text-muted)' }}
+                      />
+                      <p
+                        className="text-[14px] font-semibold"
+                        style={{ color: 'var(--v-text-primary)' }}
+                      >
+                        No upcoming events scheduled
+                      </p>
+                    </div>
+                  ) : (
+                    upcomingEvents.map((event) => {
+                      const eventImage = getEventImage(event);
+                      const status = getEventStatus(event);
 
-                      <div className="relative z-10 flex items-center gap-4">
-                        <div
-                          className="w-[84px] h-[112px] sm:w-[96px] sm:h-[128px] rounded-[22px] overflow-hidden shrink-0"
-                          style={{ background: 'var(--v-neutral-bg)' }}
+                      return (
+                        <Link
+                          key={event.id}
+                          href={`/venue/events/${event.id}`}
+                          className="group relative block rounded-[28px] p-4 sm:p-5 transition-all overflow-hidden"
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid var(--v-divider)',
+                          }}
                         >
                           {eventImage ? (
-                            <img
-                              src={eventImage}
-                              alt={event.title}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <ImageIcon
-                                className="w-7 h-7"
-                                style={{ color: 'var(--v-text-muted)' }}
+                            <>
+                              <div
+                                className="absolute inset-y-0 left-0 w-[52%] opacity-[0.28] transition-opacity duration-500 group-hover:opacity-[0.38]"
+                                style={{
+                                  backgroundImage: `url(${eventImage})`,
+                                  backgroundSize: 'cover',
+                                  backgroundPosition: 'center',
+                                  filter: 'blur(44px) saturate(1.22) brightness(1.02)',
+                                  transform: 'scale(1.16)',
+                                }}
+                              />
+                              <div
+                                className="absolute inset-y-0 left-[8%] w-[28%] opacity-[0.22] transition-opacity duration-500 group-hover:opacity-[0.3]"
+                                style={{
+                                  backgroundImage: `url(${eventImage})`,
+                                  backgroundSize: 'cover',
+                                  backgroundPosition: 'center',
+                                  filter: 'blur(70px) saturate(1.35)',
+                                  transform: 'scale(1.3)',
+                                }}
+                              />
+                              <div
+                                className="absolute inset-0"
+                                style={{
+                                  background:
+                                    'linear-gradient(90deg, rgba(18,18,20,0.46) 0%, rgba(18,18,20,0.62) 22%, rgba(18,18,20,0.84) 48%, rgba(18,18,20,0.96) 100%)',
+                                }}
+                              />
+                            </>
+                          ) : null}
+
+                          <div className="relative z-10 flex items-center gap-4">
+                            <div
+                              className="w-[84px] h-[112px] sm:w-[96px] sm:h-[128px] rounded-[22px] overflow-hidden shrink-0"
+                              style={{ background: 'var(--v-neutral-bg)' }}
+                            >
+                              {eventImage ? (
+                                <img
+                                  src={eventImage}
+                                  alt={event.title}
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <ImageIcon
+                                    className="w-7 h-7"
+                                    style={{ color: 'var(--v-text-muted)' }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <h3
+                                className="text-[18px] font-black tracking-[-0.04em] mt-3 line-clamp-1 uppercase"
+                                style={{ color: 'var(--v-text-primary)' }}
+                              >
+                                {event.title}
+                              </h3>
+
+                              <p
+                                className="text-[13px] mt-2 line-clamp-2"
+                                style={{ color: 'var(--v-text-secondary)' }}
+                              >
+                                {formatEventDateTime(event.startDate || event.date)}
+                              </p>
+
+                              <div className="flex items-center gap-2 mt-3 flex-wrap">
+                                <span
+                                  className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em]"
+                                  style={status.style}
+                                >
+                                  {status.label}
+                                </span>
+                                {venueName ? (
+                                  <span
+                                    className="text-[11px] font-semibold"
+                                    style={{ color: 'var(--v-text-tertiary)' }}
+                                  >
+                                    {venueName}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            <div className="shrink-0 hidden sm:flex items-center gap-2">
+                              <span
+                                className="text-[11px] font-black uppercase tracking-[0.14em]"
+                                style={{ color: 'var(--v-orange)' }}
+                              >
+                                Open
+                              </span>
+                              <ChevronRight
+                                className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
+                                style={{ color: 'var(--v-orange)' }}
                               />
                             </div>
-                          )}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <h3
-                            className="text-[18px] font-black tracking-[-0.04em] mt-3 line-clamp-1 uppercase"
-                            style={{ color: 'var(--v-text-primary)' }}
-                          >
-                            {event.title}
-                          </h3>
-
-                          <p
-                            className="text-[13px] mt-2 line-clamp-2"
-                            style={{ color: 'var(--v-text-secondary)' }}
-                          >
-                            {formatEventDateTime(event.startDate || event.date)}
-                          </p>
-
-                          <div className="flex items-center gap-2 mt-3 flex-wrap">
-                            <span
-                              className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em]"
-                              style={status.style}
-                            >
-                              {status.label}
-                            </span>
-                            {venueName ? (
-                              <span
-                                className="text-[11px] font-semibold"
-                                style={{ color: 'var(--v-text-tertiary)' }}
-                              >
-                                {venueName}
-                              </span>
-                            ) : null}
                           </div>
-                        </div>
-
-                        <div className="shrink-0 hidden sm:flex items-center gap-2">
-                          <span
-                            className="text-[11px] font-black uppercase tracking-[0.14em]"
-                            style={{ color: 'var(--v-orange)' }}
-                          >
-                            Open
-                          </span>
-                          <ChevronRight
-                            className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
-                            style={{ color: 'var(--v-orange)' }}
-                          />
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })
-              )}
-            </div>
-          </section>
+                        </Link>
+                      );
+                    })
+                  )}
+                </div>
+              </section>
+            </>
+          )}
         </div>
       </VenuePageShell>
     </div>

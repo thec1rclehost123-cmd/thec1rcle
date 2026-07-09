@@ -48,6 +48,17 @@ export const ALLOWLIST_ACTIONS = [
   'PROMOTER_DISABLE',
   'WEBHOOK_RETRY',
   'SUPPORT_RESOLVE',
+  'SUPPORT_ASSIGN',
+  'SUPPORT_CHANGE_PRIORITY',
+  'SUPPORT_REPLY',
+  'SUPPORT_MERGE',
+  'SUPPORT_LINK',
+  'SUPPORT_ADD_INTERNAL_NOTE',
+  'SUPPORT_ESCALATE',
+  'SUPPORT_CLOSE',
+  'SUPPORT_REOPEN',
+  'ANNOUNCEMENT_CREATE',
+  'ANNOUNCEMENT_DELETE',
   'SAFETY_REPORT_DISMISS',
   'MEDIA_REPORT_DISMISS',
   'CONTENT_REMOVE',
@@ -1019,6 +1030,418 @@ export const adminStore = {
       targetId: ticketId,
       targetType: 'support_ticket',
       reason,
+    });
+  },
+
+  async assignSupportTicket(ticketId, agentId, agentName, adminId) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: `Ticket Assigned to ${agentName}`,
+      type: 'assignment',
+      actorName: 'System Admin',
+      detail: `Assigned agent ID: ${agentId}`,
+    });
+    await ref.update({
+      assignedAgent: agentName,
+      assignedAgentId: agentId,
+      status: 'in progress',
+      timeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_ASSIGN',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: `Assigned to ${agentName}`,
+    });
+  },
+
+  async changeSupportTicketPriority(ticketId, priority, adminId) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: `Priority Changed to ${priority}`,
+      type: 'priority_change',
+      actorName: 'System Admin',
+      detail: `Priority changed from ${data.priority} to ${priority}`,
+    });
+    await ref.update({
+      priority,
+      timeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_CHANGE_PRIORITY',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: `Priority updated to ${priority}`,
+    });
+  },
+
+  async replyToSupportTicket(ticketId, message, adminId, adminEmail) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    const messages = data.messages || [];
+
+    messages.push({
+      senderId: adminId,
+      senderName: adminEmail || 'Support Agent',
+      senderRole: 'admin',
+      content: message,
+      timestamp: new Date().toISOString(),
+    });
+
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: 'Admin Replied',
+      type: 'reply',
+      actorName: adminEmail || 'Support Agent',
+      detail: `Reply content: "${message.slice(0, 40)}..."`,
+    });
+
+    await ref.update({
+      messages,
+      timeline,
+      status: 'waiting for user',
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_REPLY',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: `Replied: ${message.slice(0, 50)}`,
+    });
+  },
+
+  async mergeDuplicateSupportTicket(ticketId, duplicateTicketId, adminId) {
+    if (ticketId === duplicateTicketId) {
+      throw Object.assign(new Error('Cannot merge a ticket into itself'), { statusCode: 400 });
+    }
+
+    const db = getAdminDb();
+    const primaryRef = db.collection('support_tickets').doc(ticketId);
+    const primarySnap = await primaryRef.get();
+    if (!primarySnap.exists)
+      throw Object.assign(new Error('Primary ticket not found'), { statusCode: 404 });
+
+    let dupeRef = db.collection('support_tickets').doc(duplicateTicketId);
+    let dupeSnap = await dupeRef.get();
+
+    if (!dupeSnap.exists) {
+      // Fallback: Suffix search for short ID match
+      const snapshot = await db.collection('support_tickets').get();
+      const matchDoc = snapshot.docs.find((d) =>
+        d.id.toLowerCase().endsWith(duplicateTicketId.toLowerCase()),
+      );
+      if (!matchDoc) {
+        throw Object.assign(new Error('Duplicate ticket not found'), { statusCode: 404 });
+      }
+      dupeRef = matchDoc.ref;
+      dupeSnap = matchDoc;
+    }
+
+    if (dupeSnap.id === ticketId) {
+      throw Object.assign(new Error('Cannot merge a ticket into itself'), { statusCode: 400 });
+    }
+
+    const primaryData = primarySnap.data();
+    const dupeData = dupeSnap.data();
+
+    if (primaryData.mergedInto) {
+      throw Object.assign(
+        new Error(
+          `Cannot merge duplicate ticket because the primary ticket is already merged into ticket ${primaryData.mergedInto.slice(-8).toUpperCase()}`,
+        ),
+        { statusCode: 400 },
+      );
+    }
+
+    if (dupeData.mergedInto) {
+      throw Object.assign(
+        new Error(
+          `Ticket ${dupeSnap.id.slice(-8).toUpperCase()} is already merged into ticket ${dupeData.mergedInto.slice(-8).toUpperCase()}`,
+        ),
+        { statusCode: 400 },
+      );
+    }
+
+    // 1. Merge timelines
+    const primaryTimeline = Array.isArray(primaryData.timeline) ? primaryData.timeline : [];
+    primaryTimeline.push({
+      timestamp: new Date().toISOString(),
+      message: `Merged Duplicate Ticket`,
+      type: 'merge',
+      actorName: 'System Admin',
+      detail: `Merged duplicate ticket ID: ${dupeSnap.id}`,
+    });
+
+    // 2. Merge messages & sort chronologically
+    const primaryMessages = Array.isArray(primaryData.messages) ? primaryData.messages : [];
+    const dupeMessages = Array.isArray(dupeData.messages) ? dupeData.messages : [];
+    const annotatedDupeMessages = dupeMessages.map((msg) => ({
+      ...msg,
+      content: `[Merged from ticket ${dupeSnap.id.slice(-8).toUpperCase()}] ${msg.content}`,
+    }));
+    const mergedMessages = [...primaryMessages, ...annotatedDupeMessages];
+    mergedMessages.sort((a, b) => {
+      const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return aTime - bTime;
+    });
+
+    // 3. Merge screenshots and document attachments
+    const primaryImages = Array.isArray(primaryData.images) ? primaryData.images : [];
+    const dupeImages = Array.isArray(dupeData.images) ? dupeData.images : [];
+    const primaryDocs = Array.isArray(primaryData.documents) ? primaryData.documents : [];
+    const dupeDocs = Array.isArray(dupeData.documents) ? dupeData.documents : [];
+    const mergedImages = Array.from(new Set([...primaryImages, ...dupeImages]));
+    const mergedDocs = Array.from(new Set([...primaryDocs, ...dupeDocs]));
+
+    // 4. Update primary ticket
+    await primaryRef.update({
+      timeline: primaryTimeline,
+      messages: mergedMessages,
+      images: mergedImages,
+      documents: mergedDocs,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    // 5. Close and link duplicate ticket
+    const dupeTimeline = Array.isArray(dupeData.timeline) ? dupeData.timeline : [];
+    dupeTimeline.push({
+      timestamp: new Date().toISOString(),
+      message: `Ticket Merged and Closed`,
+      type: 'merge',
+      actorName: 'System Admin',
+      detail: `Merged into primary ticket ID: ${ticketId}`,
+    });
+    await dupeRef.update({
+      status: 'closed',
+      mergedInto: ticketId,
+      timeline: dupeTimeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    // 6. Log admin audit action
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_MERGE',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: `Merged duplicate ticket ${dupeSnap.id} into primary ticket ${ticketId}`,
+    });
+  },
+
+  async linkSupportTicket(ticketId, entityType, entityId, entityName, adminId) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: `Ticket Linked to ${entityType}`,
+      type: 'link',
+      actorName: 'System Admin',
+      detail: `Linked ${entityType}: ${entityName || entityId}`,
+    });
+
+    const updateFields = {};
+    if (entityType === 'venue') {
+      updateFields.linkedVenueId = entityId;
+      updateFields.linkedVenueName = entityName || '';
+    } else if (entityType === 'host') {
+      updateFields.linkedHostId = entityId;
+      updateFields.linkedHostName = entityName || '';
+    } else if (entityType === 'promoter') {
+      updateFields.linkedPromoterId = entityId;
+      updateFields.linkedPromoterName = entityName || '';
+    } else if (entityType === 'event') {
+      updateFields.linkedEventId = entityId;
+      updateFields.linkedEventName = entityName || '';
+    } else if (entityType === 'subscription') {
+      updateFields.linkedSubscriptionId = entityId;
+    }
+
+    await ref.update({
+      ...updateFields,
+      timeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_LINK',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: `Linked to ${entityType} ${entityId}`,
+    });
+  },
+
+  async addSupportTicketInternalNote(ticketId, note, adminId, adminEmail) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const internalNotes = data.internalNotes || [];
+
+    internalNotes.push({
+      authorId: adminId,
+      authorName: adminEmail || 'Support Agent',
+      content: note,
+      timestamp: new Date().toISOString(),
+    });
+
+    await ref.update({
+      internalNotes,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_ADD_INTERNAL_NOTE',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: `Added internal note: ${note.slice(0, 50)}`,
+    });
+  },
+
+  async escalateSupportTicket(ticketId, adminId) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: 'Ticket Escalated to Technical Team',
+      type: 'escalation',
+      actorName: 'System Admin',
+      detail: 'Status changed to escalated',
+    });
+    await ref.update({
+      status: 'escalated',
+      timeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_ESCALATE',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: 'Escalated to technical team',
+    });
+  },
+
+  async closeSupportTicket(ticketId, adminId) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: 'Ticket Closed',
+      type: 'status_change',
+      actorName: 'System Admin',
+      detail: 'Status changed to closed',
+    });
+    await ref.update({
+      status: 'closed',
+      timeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_CLOSE',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: 'Closed ticket',
+    });
+  },
+
+  async reopenSupportTicket(ticketId, adminId) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: 'Ticket Reopened by Admin',
+      type: 'status_change',
+      actorName: 'System Admin',
+      detail: 'Status changed to open',
+    });
+    await ref.update({
+      status: 'open',
+      feedback: null,
+      timeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_REOPEN',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: 'Reopened ticket',
+    });
+  },
+
+  async createPlatformAnnouncement(title, content, tag, adminId) {
+    const db = getAdminDb();
+    const docRef = db.collection('platform_announcements').doc();
+    await docRef.set({
+      title,
+      content,
+      tag,
+      createdBy: adminId,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await this.logAdminAction({
+      adminId,
+      action: 'ANNOUNCEMENT_CREATE',
+      targetId: docRef.id,
+      targetType: 'announcement',
+      reason: `Created announcement: ${title}`,
+    });
+  },
+
+  async deletePlatformAnnouncement(announcementId, adminId) {
+    const db = getAdminDb();
+    const docRef = db.collection('platform_announcements').doc(announcementId);
+    await docRef.delete();
+    await this.logAdminAction({
+      adminId,
+      action: 'ANNOUNCEMENT_DELETE',
+      targetId: announcementId,
+      targetType: 'announcement',
+      reason: `Deleted announcement ${announcementId}`,
     });
   },
 

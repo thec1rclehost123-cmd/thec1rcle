@@ -276,8 +276,9 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
             .then((r) => (r.ok ? r.json() : null))
             .then((ctx) => {
               if (ctx && !controller.signal.aborted) {
-                setGrantedPermissions(ctx.permissions ?? []);
-                setServerDefaultTabVisibility(ctx.tabVisibility ?? null);
+                const payload = ctx.data || ctx;
+                setGrantedPermissions(payload.permissions ?? []);
+                setServerDefaultTabVisibility(payload.tabVisibility ?? null);
               }
             })
             .catch(() => {});

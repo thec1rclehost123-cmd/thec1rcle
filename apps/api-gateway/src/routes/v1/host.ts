@@ -6,6 +6,7 @@ import {
   buildPayoutAccountRecord,
   sanitizeEventResubmissionPatch,
 } from '../../lib/partner-hardening.js';
+import { enrichHostProfileWithSignedUrls, cleanHostProfilePatch } from '../../lib/signed-urls.js';
 
 const HostOverviewQuery = z
   .object({
@@ -177,7 +178,8 @@ export default async function hostRoutes(fastify: FastifyInstance) {
       });
       const doc = await fastify.db.collection('hosts').doc(hostId).get();
       if (!doc.exists) return reply.status(404).send({ error: 'Host not found' });
-      return { host: { id: doc.id, ...doc.data() } };
+      const enriched = await enrichHostProfileWithSignedUrls({ id: doc.id, ...doc.data() });
+      return { host: enriched };
     },
   );
 
@@ -191,9 +193,10 @@ export default async function hostRoutes(fastify: FastifyInstance) {
       await fastify.verifyPartnerAccess(request, hostId).catch(() => {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
+      const cleanedPatch = cleanHostProfilePatch(patch);
       const safe: Record<string, any> = {};
       for (const k of ALLOWED_PROFILE_FIELDS) {
-        if (patch[k] !== undefined) safe[k] = patch[k];
+        if (cleanedPatch[k] !== undefined) safe[k] = cleanedPatch[k];
       }
       safe.updatedAt = new Date().toISOString();
       await fastify.db.collection('hosts').doc(hostId).update(safe);
@@ -208,7 +211,8 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         })
         .catch(() => {});
       const doc = await fastify.db.collection('hosts').doc(hostId).get();
-      return { host: { id: doc.id, ...doc.data() } };
+      const enriched = await enrichHostProfileWithSignedUrls({ id: doc.id, ...doc.data() });
+      return { host: enriched };
     },
   );
 

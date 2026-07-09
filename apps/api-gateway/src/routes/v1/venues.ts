@@ -1,7 +1,11 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-// @ts-ignore
 import { getAdminStorage } from '@c1rcle/core/admin';
+import {
+  signStorageUrl,
+  enrichVenueProfileWithSignedUrls,
+  cleanVenueProfilePatch,
+} from '../../lib/signed-urls.js';
 
 const VenueIdQuery = z.object({ venueId: z.string() });
 const VenueCrmQuery = z.object({
@@ -143,7 +147,8 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       });
       const doc = await fastify.db.collection('venues').doc(venueId).get();
       if (!doc.exists) return reply.status(404).send({ error: 'Venue not found' });
-      return { venue: { id: doc.id, ...doc.data() } };
+      const enriched = await enrichVenueProfileWithSignedUrls({ id: doc.id, ...doc.data() });
+      return { venue: enriched };
     },
   );
 
@@ -161,12 +166,17 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       for (const k of ALLOWED_VENUE_PROFILE_FIELDS) {
         if (patch[k] !== undefined) safe[k] = patch[k];
       }
+
+      // Clean signatures before saving
+      cleanVenueProfilePatch(safe);
+
       safe.updatedAt = new Date().toISOString();
       await fastify.db.collection('venues').doc(venueId).update(safe);
       await fastify.publicDiscoveryService.syncVenueReadModels(venueId).catch(() => {});
       await fastify.invalidatePublicDiscovery('all').catch(() => {});
       const doc = await fastify.db.collection('venues').doc(venueId).get();
-      return { venue: { id: doc.id, ...doc.data() } };
+      const enriched = await enrichVenueProfileWithSignedUrls({ id: doc.id, ...doc.data() });
+      return { venue: enriched };
     },
   );
 
@@ -1730,8 +1740,11 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         await fastify.auth.updateUser(userRecord.uid, {
           password: tempPassword,
         });
-        // Reset mustChangePassword to true in Firestore user record
+        // Reset mustChangePassword to true in Firestore user record and update role/approval
         await fastify.db.collection('users').doc(userRecord.uid).update({
+          role: 'staff',
+          isApproved: true,
+          onboardingComplete: true,
           mustChangePassword: true,
           updatedAt: new Date().toISOString(),
         });
@@ -1766,7 +1779,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       const venueDoc = await fastify.db.collection('venues').doc(venueId).get();
       const venueName = venueDoc.exists ? venueDoc.data()?.name || 'Venue' : 'Venue';
 
-      // 2. Create the partner_memberships document
+      // 2. Create or update the partner_memberships document
       const membershipSnap = await fastify.db
         .collection('partner_memberships')
         .where('partnerId', '==', venueId)
@@ -1784,6 +1797,12 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           isActive: true,
           joinedAt: Date.now(),
           createdAt: new Date().toISOString(),
+        });
+      } else {
+        await membershipSnap.docs[0].ref.update({
+          isActive: true,
+          role,
+          updatedAt: new Date().toISOString(),
         });
       }
 
@@ -1829,9 +1848,12 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       });
       await file.makePublic();
 
+      const url = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+      const signedUrl = await signStorageUrl(url);
+
       return {
         success: true,
-        url: `https://storage.googleapis.com/${bucket.name}/${storagePath}`,
+        url: signedUrl,
         filename: data.filename,
       };
     },

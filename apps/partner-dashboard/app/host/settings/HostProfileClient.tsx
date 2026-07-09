@@ -97,6 +97,8 @@ interface Form {
   hostType: string;
   city: string;
   website: string;
+  contactEmail: string;
+  contactPhone: string;
   instagram: string;
   twitter: string;
 }
@@ -151,6 +153,8 @@ export default function HostProfileClient({
     hostType: '',
     city: '',
     website: '',
+    contactEmail: '',
+    contactPhone: '',
     instagram: '',
     twitter: '',
   });
@@ -178,6 +182,8 @@ export default function HostProfileClient({
           hostType: v.hostType || '',
           city: v.city || '',
           website: v.website || '',
+          contactEmail: v.contactEmail || v.email || '',
+          contactPhone: v.contactPhone || v.phone || '',
           instagram: v.socialLinks?.instagram || '',
           twitter: v.socialLinks?.twitter || '',
         });
@@ -315,16 +321,23 @@ export default function HostProfileClient({
       formData.append('hostId', hostId);
       formData.append('type', type);
 
-      const res = await fetch(`/api/partners/hosts/upload?hostId=${hostId}`, {
+      const res = await fetch(`/api/partners/hosts/upload`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      const data = await res.json().catch(() => null);
+      // Log response for debugging upload issues
+      // eslint-disable-next-line no-console
+      console.debug('host upload response', { ok: res.ok, status: res.status, data });
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Upload failed');
 
-      if (isLogo) setPhotoUrl(data.url);
-      else setBackdropUrl(data.url);
+      const url =
+        data?.url || data?.signedUrl || data?.data?.url || data?.path || data?.storagePath || null;
+      if (!url) throw new Error('Upload succeeded without returning a file URL');
+
+      if (isLogo) setPhotoUrl(url);
+      else setBackdropUrl(url);
       setHasChanges(true);
     } catch (err: any) {
       toastError('Upload failed', err.message || 'Could not upload photo.');
@@ -354,17 +367,25 @@ export default function HostProfileClient({
         hostType: form.hostType,
         city: form.city,
         website: form.website,
+        contactEmail: form.contactEmail,
+        contactPhone: form.contactPhone,
         socialLinks: {
           instagram: form.instagram,
           twitter: form.twitter,
         },
       };
+      // Debug log payload so we can inspect if photoURL/backdropURL are present
+      // eslint-disable-next-line no-console
+      console.debug('HostProfile save updates (before photo fields)', updates, {
+        photoUrl,
+        backdropUrl,
+      });
       if (photoUrl) updates.photoURL = photoUrl;
       if (backdropUrl) {
         updates.backdropURL = backdropUrl;
         updates.coverURL = backdropUrl;
       }
-
+      console.log('updates host: ', updates);
       const res = await fetch(`/api/partners/hosts/profile?hostId=${hostId}`, {
         method: 'PATCH',
         headers: {
@@ -743,6 +764,28 @@ export default function HostProfileClient({
                         className="focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10"
                       />
                     </div>
+                  </FormGroup>
+
+                  <FormGroup label="Support Email" description="Public contact email for support">
+                    <input
+                      type="email"
+                      value={form.contactEmail}
+                      placeholder="support@org.com"
+                      style={inputStyle}
+                      onChange={(e) => handleFieldChange('contactEmail', e.target.value)}
+                      className="focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10"
+                    />
+                  </FormGroup>
+
+                  <FormGroup label="Phone" description="Public phone number">
+                    <input
+                      type="tel"
+                      value={form.contactPhone}
+                      placeholder="+91 98000 00000"
+                      style={inputStyle}
+                      onChange={(e) => handleFieldChange('contactPhone', e.target.value)}
+                      className="focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10"
+                    />
                   </FormGroup>
                 </div>
 

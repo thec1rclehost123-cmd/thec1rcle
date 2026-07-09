@@ -10,6 +10,10 @@ import {
 import { z } from 'zod';
 import { normalizePromoterCommissionRate } from '../../lib/partner-hardening.js';
 import { decrypt } from '../../lib/encryption.js';
+import {
+  enrichPromoterProfileWithSignedUrls,
+  cleanPromoterProfilePatch,
+} from '../../lib/signed-urls.js';
 
 const ConnectionsQuery = z
   .object({
@@ -276,8 +280,8 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
       if (!doc.exists) {
         return { profile: { id: promoterId } };
       }
-
-      return { profile: { id: doc.id, ...doc.data() } };
+      const enriched = await enrichPromoterProfileWithSignedUrls({ id: doc.id, ...doc.data() });
+      return { profile: enriched };
     },
   );
 
@@ -294,15 +298,17 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
 
+      const cleanedBody = cleanPromoterProfilePatch(body);
       const patch: Record<string, any> = { updatedAt: new Date().toISOString() };
       for (const field of ALLOWED_PROMOTER_PROFILE_FIELDS) {
-        if (body[field] !== undefined) patch[field] = body[field];
+        if (cleanedBody[field] !== undefined) patch[field] = cleanedBody[field];
       }
       if (patch.displayName && patch.name === undefined) patch.name = patch.displayName;
 
       await fastify.db.collection('promoters').doc(promoterId).set(patch, { merge: true });
       const doc = await fastify.db.collection('promoters').doc(promoterId).get();
-      return { profile: { id: doc.id, ...doc.data() } };
+      const enriched = await enrichPromoterProfileWithSignedUrls({ id: doc.id, ...doc.data() });
+      return { profile: enriched };
     },
   );
 

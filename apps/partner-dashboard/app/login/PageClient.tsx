@@ -309,7 +309,8 @@ function LoginForm() {
         if (!assignedType) {
           if (userData.role === 'host') assignedType = 'host';
           else if (userData.role === 'promoter') assignedType = 'promoter';
-          else if (userData.role === 'partner' || userData.venueId) assignedType = 'venue';
+          else if (userData.role === 'partner' || userData.role === 'staff' || userData.venueId)
+            assignedType = 'venue';
         }
 
         // Do NOT grant access based solely on a pending onboarding request —
@@ -424,7 +425,8 @@ function LoginForm() {
         if (!assignedType) {
           if (userData.role === 'host') assignedType = 'host';
           else if (userData.role === 'promoter') assignedType = 'promoter';
-          else if (userData.role === 'partner' || userData.venueId) assignedType = 'venue';
+          else if (userData.role === 'partner' || userData.role === 'staff' || userData.venueId)
+            assignedType = 'venue';
         }
 
         if (!assignedType) {

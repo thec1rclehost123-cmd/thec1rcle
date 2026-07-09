@@ -16,6 +16,11 @@ import {
   normalizePromoterCommissionRate,
 } from '../../../lib/partner-hardening.js';
 import { encrypt, decrypt } from '../../../lib/encryption.js';
+import {
+  enrichPromoterProfileWithSignedUrls,
+  cleanPromoterProfilePatch,
+} from '../../../lib/signed-urls.js';
+import { getAdminStorage } from '@c1rcle/core/admin';
 
 const AnalyticsQuerySchema = z
   .object({
@@ -302,6 +307,8 @@ function normalizePromoterConnection(
       false,
     photoURL:
       legacyConnection.photoURL ?? rawConnection.photoURL ?? unifiedConnection.photoURL ?? null,
+    otherCity:
+      legacyConnection.otherCity ?? rawConnection.otherCity ?? unifiedConnection.otherCity ?? null,
     initiatedBy:
       legacyConnection.initiatedBy ??
       rawConnection.initiatedBy ??
@@ -464,10 +471,13 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   const getPromoterProfile = async (promoterId: string) => {
     const doc = await fastify.db.collection('promoters').doc(promoterId).get();
-    return { profile: doc.exists ? { id: doc.id, ...(doc.data() || {}) } : { id: promoterId } };
+    const data = doc.exists ? { id: doc.id, ...(doc.data() || {}) } : { id: promoterId };
+    const enriched = await enrichPromoterProfileWithSignedUrls(data);
+    return { profile: enriched };
   };
 
   const updatePromoterProfile = async (promoterId: string, body: Record<string, any>) => {
+    const cleanedBody = cleanPromoterProfilePatch(body);
     const allowedFields = [
       'displayName',
       'name',
@@ -484,10 +494,14 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       'isPublic',
       'socialLinks',
       'website',
+      'coverImage',
+      'coverURL',
+      'backdropURL',
+      'email',
     ];
     const patch: Record<string, any> = { updatedAt: new Date().toISOString() };
     for (const field of allowedFields) {
-      if (body[field] !== undefined) patch[field] = body[field];
+      if (cleanedBody[field] !== undefined) patch[field] = cleanedBody[field];
     }
     if (patch.displayName && patch.name === undefined) patch.name = patch.displayName;
     await fastify.db.collection('promoters').doc(promoterId).set(patch, { merge: true });
@@ -2183,6 +2197,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             otherType: targetProfile?.type || 'venue',
             otherIsVerified: targetProfile?.isVerified ?? false,
             photoURL: targetProfile?.avatarUrl || null,
+            otherCity: targetProfile?.city || null,
             initiatedBy:
               conn.initiatedBy || (isSender ? 'promoter' : targetProfile?.type || 'venue'),
             createdAt: conn.createdAt || null,
@@ -3287,31 +3302,72 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       try {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
-        const body = UploadSchema.parse(asRecord(request.body));
-        const fieldName = String(body.field || 'profileImage');
-        const url = String(body.url || '');
-        if (!url)
+        const promoterId = ctx.partnerId;
+
+        const data = await request.file();
+        if (!data) {
           return reply.status(400).send(
             buildErrorResponse({
               code: 'BAD_REQUEST',
-              message: 'url required',
+              message: 'No file uploaded',
               requestId: request.id,
             }),
           );
+        }
+
+        const buffer = await data.toBuffer();
+        const maxBytes = 5 * 1024 * 1024; // 5MB
+        if (buffer.length > maxBytes) {
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'BAD_REQUEST',
+              message: 'File must be 5MB or smaller',
+              requestId: request.id,
+            }),
+          );
+        }
+
+        const ext = (data.filename || 'file').split('.').pop() || 'bin';
+        const storagePath = `promoters/${promoterId}/${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
+
+        const bucket = getAdminStorage().bucket();
+        const file = bucket.file(storagePath);
+
+        await file.save(buffer, {
+          metadata: {
+            contentType: data.mimetype || 'application/octet-stream',
+            metadata: {
+              originalName: data.filename || 'file',
+              promoterId,
+            },
+          },
+        });
+
+        const [signedUrl] = await file.getSignedUrl({
+          action: 'read',
+          expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        });
+
+        const uploadFields = (data as any).fields || {};
+        const fieldName = String(
+          uploadFields.field?.value || request.query.field || 'profileImage',
+        );
         const allowed = ['profileImage', 'coverImage', 'logoUrl'];
-        if (!allowed.includes(fieldName))
-          return reply.status(400).send(
-            buildErrorResponse({
-              code: 'BAD_REQUEST',
-              message: 'field must be one of: ' + allowed.join(', '),
-              requestId: request.id,
-            }),
-          );
-        await fastify.db
-          .collection('promoters')
-          .doc(ctx.partnerId)
-          .set({ [fieldName]: url, updatedAt: new Date().toISOString() }, { merge: true });
-        return reply.send({ success: true, [fieldName]: url });
+        if (allowed.includes(fieldName)) {
+          await fastify.db
+            .collection('promoters')
+            .doc(promoterId)
+            .set(
+              { [fieldName]: storagePath, updatedAt: new Date().toISOString() },
+              { merge: true },
+            );
+        }
+
+        return reply.send({
+          success: true,
+          url: signedUrl,
+          path: storagePath,
+        });
       } catch (err: any) {
         if (err instanceof z.ZodError)
           return reply.status(400).send(

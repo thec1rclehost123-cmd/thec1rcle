@@ -14,6 +14,13 @@ import { buildErrorResponse } from '../../../lib/api-contracts.js';
 import { buildPayoutAccountRecord } from '../../../lib/partner-hardening.js';
 import { generateFinanceReportPDF } from '@c1rcle/core/ticket-pdf-engine';
 
+import { uploadPartnerAsset } from '../../../lib/partner-upload.js';
+import {
+  signStorageUrl,
+  enrichVenueProfileWithSignedUrls,
+  cleanVenueProfilePatch,
+} from '../../../lib/signed-urls.js';
+
 const EventFiltersSchema = z
   .object({
     status: z
@@ -1308,22 +1315,26 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
       const ctx = await requireVenueContext(request, reply);
       if (!ctx) return;
 
-      const data = await request.file();
-      if (!data) {
-        return reply.status(400).send(
+      try {
+        const uploadResult = await uploadPartnerAsset(request, {
+          partnerId: ctx.partnerId,
+          partnerType: 'venue',
+        });
+        const signedUrl = await signStorageUrl(uploadResult.url);
+        return {
+          success: true,
+          url: signedUrl,
+          filename: uploadResult.filename,
+        };
+      } catch (err: any) {
+        return reply.status(err.statusCode || 500).send(
           buildErrorResponse({
-            code: 'BAD_REQUEST',
-            message: 'No file uploaded',
+            code: err.code || 'UPLOAD_FAILED',
+            message: err.message || 'Failed to upload file',
             requestId: request.id,
           }),
         );
       }
-
-      return {
-        success: true,
-        url: `https://storage.googleapis.com/c1rcle-assets/venues/${ctx.partnerId}/${data.filename}`,
-        filename: data.filename,
-      };
     },
   );
 
@@ -1363,9 +1374,10 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               }),
             );
           const data = doc.data() || {};
+          const enriched = await enrichVenueProfileWithSignedUrls({ id: doc.id, ...data });
           return reply.send({
-            venue: { id: doc.id, ...data },
-            profile: { id: doc.id, ...data },
+            venue: enriched,
+            profile: enriched,
           });
         }
 
@@ -1497,15 +1509,20 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             safe.coverURL = safe.coverImage;
             safe.backdropURL = safe.coverImage;
           }
+
+          // Clean signed parameters before saving
+          cleanVenueProfilePatch(safe);
+
           safe.updatedAt = new Date().toISOString();
           await fastify.db.collection('venues').doc(ctx.partnerId).set(safe, { merge: true });
           await fastify.publicDiscoveryService.syncVenueReadModels(ctx.partnerId).catch(() => {});
           await fastify.invalidatePublicDiscovery('all').catch(() => {});
           const doc = await fastify.db.collection('venues').doc(ctx.partnerId).get();
           const data = doc.data() || {};
+          const enriched = await enrichVenueProfileWithSignedUrls({ id: doc.id, ...data });
           return reply.send({
-            venue: { id: doc.id, ...data },
-            profile: { id: doc.id, ...data },
+            venue: enriched,
+            profile: enriched,
           });
         }
 
@@ -2041,9 +2058,65 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           if (query.isActive === 'true') q = q.where('isActive', '==', true);
           else if (query.isActive === 'false') q = q.where('isActive', '==', false);
           const snap = await q.get();
-          return reply.send({
-            staff: snap.docs.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) })),
+
+          const members = snap.docs.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }));
+          const userIds = members.map((m: any) => m.userId || m.uid).filter(Boolean);
+
+          // Get Venue Owner Info
+          const venueDoc = await fastify.db.collection('venues').doc(ctx.partnerId).get();
+          const ownerId = venueDoc.exists
+            ? venueDoc.data()?.ownerId || venueDoc.data()?.ownerUid
+            : null;
+          if (ownerId && !userIds.includes(ownerId)) {
+            userIds.push(ownerId);
+          }
+
+          const userProfiles = new Map();
+          if (userIds.length > 0) {
+            for (let i = 0; i < userIds.length; i += 30) {
+              const batch = userIds.slice(i, i + 30);
+              const userSnap = await fastify.db.collection('users').where('uid', 'in', batch).get();
+              userSnap.docs.forEach((d: any) => userProfiles.set(d.id, d.data()));
+            }
+          }
+
+          const enriched = members.map((m: any) => {
+            const userId = m.userId || m.uid;
+            const profile = userId ? userProfiles.get(userId) : null;
+            const computedName = profile?.displayName || m.name || m.email || 'Team Member';
+            return {
+              ...m,
+              name: computedName,
+              displayName: computedName,
+              email: profile?.email || m.email || '',
+              phone: profile?.phoneNumber || profile?.phone || m.phone || '',
+              photoUrl: profile?.photoURL || profile?.photoUrl || m.photoUrl || '',
+              verified: m.verified || false,
+            };
           });
+
+          // Add Venue Owner Card to the top of the list if active
+          if (ownerId && query.isActive !== 'false') {
+            const ownerProfile = userProfiles.get(ownerId);
+            const ownerName = ownerProfile?.displayName || 'Venue Owner';
+            const ownerCard = {
+              id: `owner-${ownerId}`,
+              userId: ownerId,
+              uid: ownerId,
+              name: ownerName,
+              displayName: ownerName,
+              email: ownerProfile?.email || '',
+              phone: ownerProfile?.phoneNumber || ownerProfile?.phone || '',
+              photoUrl: ownerProfile?.photoURL || ownerProfile?.photoUrl || '',
+              role: 'OWNER',
+              status: 'active',
+              isActive: true,
+              verified: true,
+            };
+            enriched.unshift(ownerCard);
+          }
+
+          return reply.send({ staff: enriched });
         }
 
         if (rest === 'staff' && request.method === 'POST') {

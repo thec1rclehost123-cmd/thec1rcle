@@ -50,6 +50,8 @@ export async function proxyToGateway(
       'x-request-id',
       'x-forwarded-for',
       'content-type',
+      'referer',
+      'origin',
     ].forEach((h) => {
       const val = req.headers.get(h);
       if (val && !forwardedHeaders.has(h)) {
@@ -60,6 +62,12 @@ export async function proxyToGateway(
         forwardedHeaders.set(h, val);
       }
     });
+
+    // Body cannot be present/validated on GET, DELETE, and HEAD requests.
+    // Strip content-type header if forwarding bodyless requests.
+    if (req.method === 'GET' || req.method === 'DELETE' || req.method === 'HEAD') {
+      forwardedHeaders.delete('content-type');
+    }
 
     const updatedInit: RequestInit = {
       ...init,
