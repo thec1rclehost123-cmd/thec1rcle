@@ -294,7 +294,7 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
   const expectedSignature = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
 
   if (expectedSignature !== signature) {
-    console.error(`[Webhook] Signature mismatch (event_id=${webhookId})`);
+    console.error('[Webhook] Signature mismatch (event_id=%s)', webhookId);
     res.status(403).send('Invalid signature');
     return;
   }
@@ -306,7 +306,7 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
     await admin.firestore().runTransaction(async (transaction) => {
       const existing = await transaction.get(webhookLogRef);
       if (existing.exists) {
-        console.log(`[Webhook] Duplicate event ${webhookId} skipped (idempotency)`);
+        console.log('[Webhook] Duplicate event %s skipped (idempotency)', webhookId);
         return;
       }
       transaction.set(webhookLogRef, {
@@ -327,7 +327,7 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
     const payment = payload.payment.entity;
     const orderId = payment.notes.orderId || payment.description;
 
-    console.log(`[Webhook] Payment CAPTURED for Order ${orderId}`);
+    console.log('[Webhook] Payment CAPTURED for Order %s', orderId);
 
     try {
       await confirmOrderPayment(orderId, {
