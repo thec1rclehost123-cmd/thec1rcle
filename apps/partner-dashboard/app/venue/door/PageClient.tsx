@@ -77,6 +77,7 @@ export default function DoorPageClient() {
             }));
             setWalkInEntries(fetched);
           } else {
+            console.error(`[GET Door Walk-Ins] Fetch failed: Status ${wiRes.status}`);
             throw new Error(`Failed to load walk-ins (${wiRes.status})`);
           }
         }

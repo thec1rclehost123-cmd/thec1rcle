@@ -7,7 +7,6 @@
         "icon": "./assets/images/icon.png",
         "scheme": "c1rcle-scanner",
         "userInterfaceStyle": "dark",
-        "newArchEnabled": true,
         "splash": {
             "image": "./assets/images/splash-icon.png",
             "resizeMode": "contain",
@@ -43,12 +42,6 @@
                 "expo-camera",
                 {
                     "cameraPermission": "Allow C1RCLE Scanner to access your camera to scan ticket QR codes."
-                }
-            ],
-            [
-                "expo-av",
-                {
-                    "microphonePermission": false
                 }
             ]
         ],
