@@ -1,6 +1,6 @@
 export type PartnerType = 'venue' | 'host' | 'promoter' | 'club'; // Keep 'club' for backward compat during transition
 
-export type VenueRole = 'OWNER' | 'MANAGER' | 'FINANCE_ADMIN' | 'STAFF' | 'SECURITY';
+export type VenueRole = 'OWNER' | 'MANAGER' | 'FINANCE_ADMIN' | 'STAFF' | 'SECURITY' | 'DOOR';
 export type HostRole = 'OWNER' | 'COHOST' | 'MANAGER' | 'STAFF';
 export type PromoterRole = 'PROMOTER' | 'TEAM_LEAD';
 
@@ -57,6 +57,7 @@ export const VENUE_PERMISSIONS: Record<VenueRole, Permission[]> = {
   FINANCE_ADMIN: ['VIEW_FINANCIALS', 'MANAGE_PAYOUTS', 'VIEW_ANALYTICS'],
   STAFF: ['VIEW_GUESTLIST', 'MANAGE_TABLES', 'LOG_INCIDENTS'],
   SECURITY: ['VIEW_GUESTLIST', 'SCAN_ENTRY', 'LOG_INCIDENTS'],
+  DOOR: ['VIEW_GUESTLIST', 'SCAN_ENTRY', 'LOG_INCIDENTS'],
 };
 
 export const HOST_PERMISSIONS: Record<HostRole, Permission[]> = {
@@ -109,4 +110,5 @@ export interface DashboardProfile {
   instagram?: string;
   phone?: string;
   bio?: string;
+  mustChangePassword?: boolean;
 }

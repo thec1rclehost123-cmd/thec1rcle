@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   X,
   RefreshCw,
+  RotateCw,
 } from 'lucide-react';
 import { DataTable } from '@/components/ui/DataTable';
 import { ActionDrawer } from '@/components/ui/ActionDrawer';
@@ -26,6 +27,7 @@ export default function AdminUsers() {
   const [modalConfig, setModalConfig] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [reprovisionType, setReprovisionType] = useState('host');
+  const [refreshedAt, setRefreshedAt] = useState(new Date());
 
   const fetchUsers = async () => {
     try {
@@ -201,6 +203,31 @@ export default function AdminUsers() {
           </button>
         </div>
       </header>
+
+      {/* Refresh Bar */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[#A1A1AA]">
+          Last updated{' '}
+          {refreshedAt
+            ? refreshedAt.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })
+            : '—'}
+        </span>
+        <button
+          onClick={async () => {
+            await fetchUsers();
+            setRefreshedAt(new Date());
+          }}
+          disabled={loading}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"
+        >
+          <RotateCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          REFRESH
+        </button>
+      </div>
 
       <DataTable
         columns={columns}

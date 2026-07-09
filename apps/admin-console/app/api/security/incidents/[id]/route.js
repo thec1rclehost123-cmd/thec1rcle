@@ -19,7 +19,8 @@ const VALID_TRANSITIONS = {
 };
 
 async function handleGet(_req, { params }) {
-  const incident = await getIncident(params.id);
+  const { id } = await params;
+  const incident = await getIncident(id);
   if (!incident) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
@@ -27,7 +28,8 @@ async function handleGet(_req, { params }) {
 }
 
 async function handlePatch(req, { params }) {
-  const incident = await getIncident(params.id);
+  const { id } = await params;
+  const incident = await getIncident(id);
   if (!incident) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
@@ -54,7 +56,7 @@ async function handlePatch(req, { params }) {
     updates.resolvedBy = req.user.uid;
   }
 
-  await updateIncident(params.id, updates);
+  await updateIncident(id, updates);
   return NextResponse.json({ ok: true });
 }
 

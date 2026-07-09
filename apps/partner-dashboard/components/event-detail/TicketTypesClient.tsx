@@ -16,8 +16,10 @@ import { Button, IconButton } from '@/components/ui/Button';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import {
   useTicketSync,
+  tierToEditForm,
   type TicketTier as TicketType,
   type TicketFormValues,
+  type TicketEditFormValues,
   type TicketStatus,
 } from '@/lib/hooks/useTicketSync';
 
@@ -45,6 +47,16 @@ function formatDateDisplay(iso: string | null) {
   );
 }
 
+const ENTRY_TYPE_OPTIONS = [
+  { value: 'general', label: 'General' },
+  { value: 'stag', label: 'Stag' },
+  { value: 'couple', label: 'Couple' },
+  { value: 'female', label: 'Ladies' },
+  { value: 'vip', label: 'VIP' },
+  { value: 'table', label: 'Table' },
+  { value: 'cover', label: 'Cover' },
+];
+
 // ─── Date Input ───────────────────────────────────────────────────────────────
 
 const dateInputStyle: React.CSSProperties = {
@@ -67,6 +79,10 @@ const EMPTY_FORM: TicketFormValues = {
   quantity: '50',
   openSale: '',
   endSale: '',
+  entryType: 'general',
+  minPurchaseQuantity: '1',
+  maxPurchaseQuantity: '10',
+  promoterEnabled: true,
 };
 
 function TicketFormModal({
@@ -84,8 +100,13 @@ function TicketFormModal({
 
   if (!open) return null;
 
-  const set = (field: keyof TicketFormValues) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  const set =
+    (field: keyof TicketFormValues) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setForm((prev) => ({ ...prev, [field]: e.target.value }));
+
+  const toggle = (field: keyof TicketFormValues) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((prev) => ({ ...prev, [field]: e.target.checked }));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,6 +139,16 @@ function TicketFormModal({
     outline: 'none',
   };
 
+  const toggleRowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '8px 12px',
+    borderRadius: 10,
+    background: 'var(--v-elevated)',
+    border: '1px solid var(--v-border)',
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -127,7 +158,7 @@ function TicketFormModal({
       <form
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl p-6"
+        className="w-full max-w-md rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
         style={{
           background: 'var(--v-card)',
           border: '1px solid var(--v-border)',
@@ -171,6 +202,18 @@ function TicketFormModal({
             />
           </div>
 
+          {/* Entry Type */}
+          <div>
+            <label style={labelStyle}>Entry Type</label>
+            <select style={inputStyle} value={form.entryType} onChange={set('entryType')}>
+              {ENTRY_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Price + Quantity */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -197,6 +240,30 @@ function TicketFormModal({
                 onChange={set('quantity')}
                 onFocus={(e) => (e.target.style.borderColor = 'var(--c1rcle-orange)')}
                 onBlur={(e) => (e.target.style.borderColor = 'var(--v-border)')}
+              />
+            </div>
+          </div>
+
+          {/* Min + Max purchase quantity */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label style={labelStyle}>Min Per Order</label>
+              <input
+                style={inputStyle}
+                type="number"
+                min="1"
+                value={form.minPurchaseQuantity}
+                onChange={set('minPurchaseQuantity')}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Max Per Order</label>
+              <input
+                style={inputStyle}
+                type="number"
+                min="1"
+                value={form.maxPurchaseQuantity}
+                onChange={set('maxPurchaseQuantity')}
               />
             </div>
           </div>
@@ -229,6 +296,19 @@ function TicketFormModal({
               onBlur={(e) => (e.target.style.borderColor = 'var(--v-border)')}
             />
           </div>
+
+          {/* Promoter enabled */}
+          <label style={toggleRowStyle}>
+            <span className="text-[13px] font-medium" style={{ color: 'var(--v-text-primary)' }}>
+              Promoter enabled
+            </span>
+            <input
+              type="checkbox"
+              checked={form.promoterEnabled}
+              onChange={toggle('promoterEnabled')}
+              style={{ width: 16, height: 16, accentColor: 'var(--c1rcle-orange)' }}
+            />
+          </label>
         </div>
 
         {/* Footer */}
@@ -252,6 +332,264 @@ function TicketFormModal({
   );
 }
 
+// ─── Edit Ticket Modal ────────────────────────────────────────────────────────
+
+function EditTicketModal({
+  tier,
+  saving,
+  onClose,
+  onSave,
+}: {
+  tier: TicketType | null;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (tierId: string, values: TicketEditFormValues) => void;
+}) {
+  const [form, setForm] = useState<TicketEditFormValues | null>(null);
+  const [openTierId, setOpenTierId] = useState<string | null>(null);
+
+  if (tier && tier.id !== openTierId) {
+    setOpenTierId(tier.id);
+    setForm(tierToEditForm(tier));
+  }
+
+  if (!tier || !form) return null;
+
+  const set =
+    (field: keyof TicketEditFormValues) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      setForm((prev) => (prev ? { ...prev, [field]: e.target.value } : prev));
+
+  const toggle = (field: keyof TicketEditFormValues) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((prev) => (prev ? { ...prev, [field]: e.target.checked } : prev));
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    onSave(tier.id, form);
+  };
+
+  const handleClose = () => {
+    setOpenTierId(null);
+    setForm(null);
+    onClose();
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 12,
+    fontWeight: 600,
+    marginBottom: 6,
+    color: 'var(--v-text-secondary)',
+    letterSpacing: '0.03em',
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    background: 'var(--v-elevated)',
+    border: '1px solid var(--v-border)',
+    borderRadius: 10,
+    padding: '9px 12px',
+    fontSize: 13,
+    color: 'var(--v-text-primary)',
+    outline: 'none',
+  };
+
+  const toggleRowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '8px 12px',
+    borderRadius: 10,
+    background: 'var(--v-elevated)',
+    border: '1px solid var(--v-border)',
+  };
+
+  const TOGGLES: { field: keyof TicketEditFormValues; label: string }[] = [
+    { field: 'promoterEnabled', label: 'Promoter enabled' },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+      onClick={handleClose}
+    >
+      <form
+        onSubmit={handleSubmit}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
+        style={{
+          background: 'var(--v-card)',
+          border: '1px solid var(--v-border)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+        }}
+      >
+        {/* Modal header */}
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <p className="text-[16px] font-bold" style={{ color: 'var(--v-text-primary)' }}>
+              Edit Ticket Type
+            </p>
+            <p className="text-[12px] mt-0.5" style={{ color: 'var(--v-text-tertiary)' }}>
+              Update the details for this tier
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
+            style={{ color: 'var(--v-text-tertiary)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--v-elevated)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          {/* Name */}
+          <div>
+            <label style={labelStyle}>Ticket Name *</label>
+            <input
+              style={inputStyle}
+              placeholder="e.g. GA — Early Bird"
+              value={form.name}
+              onChange={set('name')}
+              required
+            />
+          </div>
+
+          {/* Entry Type */}
+          <div>
+            <label style={labelStyle}>Entry Type</label>
+            <select style={inputStyle} value={form.entryType} onChange={set('entryType')}>
+              {ENTRY_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Price + Quantity */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label style={labelStyle}>Price (₹)</label>
+              <input
+                style={inputStyle}
+                type="number"
+                min="0"
+                value={form.price}
+                onChange={set('price')}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Quantity</label>
+              <input
+                style={inputStyle}
+                type="number"
+                min="1"
+                value={form.quantity}
+                onChange={set('quantity')}
+              />
+            </div>
+          </div>
+
+          {/* Min + Max purchase quantity */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label style={labelStyle}>Min Per Order</label>
+              <input
+                style={inputStyle}
+                type="number"
+                min="1"
+                value={form.minPurchaseQuantity}
+                onChange={set('minPurchaseQuantity')}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Max Per Order</label>
+              <input
+                style={inputStyle}
+                type="number"
+                min="1"
+                value={form.maxPurchaseQuantity}
+                onChange={set('maxPurchaseQuantity')}
+              />
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div style={{ borderTop: '1px solid var(--v-border)' }} />
+
+          {/* Open Sale Date */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label style={labelStyle}>Open Sale Date</label>
+              <input
+                style={dateInputStyle}
+                type="date"
+                value={form.openSale}
+                onChange={set('openSale')}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>End Sale Date</label>
+              <input
+                style={dateInputStyle}
+                type="date"
+                value={form.endSale}
+                onChange={set('endSale')}
+              />
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div style={{ borderTop: '1px solid var(--v-border)' }} />
+
+          {/* Toggles */}
+          <div className="flex flex-col gap-2">
+            {TOGGLES.map(({ field, label }) => (
+              <label key={field} style={toggleRowStyle}>
+                <span
+                  className="text-[13px] font-medium"
+                  style={{ color: 'var(--v-text-primary)' }}
+                >
+                  {label}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={form[field] as boolean}
+                  onChange={toggle(field)}
+                  style={{ width: 16, height: 16, accentColor: 'var(--c1rcle-orange)' }}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 mt-6">
+          <Button variant="ghost" size="sm" type="button" onClick={handleClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="sm" type="submit" disabled={saving}>
+            {saving ? (
+              <span className="flex items-center gap-1.5">
+                <Loader2 size={13} className="animate-spin" />
+                Saving…
+              </span>
+            ) : (
+              'Save Changes'
+            )}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function TicketTypesClient({ eventId }: { eventId: string }) {
@@ -260,6 +598,7 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [editingTier, setEditingTier] = useState<TicketType | null>(null);
 
   // ── All hooks must be called before any early returns (Rules of Hooks) ──
   const {
@@ -268,8 +607,10 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
     isError,
     errorMessage,
     addTier,
+    editTier,
     deleteTier,
     addMutationPending,
+    editMutationPending,
     deleteMutationPending,
     deletingId,
   } = useTicketSync(eventId, venueId);
@@ -419,10 +760,11 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
             />
             <IconButton
               icon={<Settings size={14} />}
-              aria-label="Ticket settings"
+              aria-label="Edit ticket type"
               variant="ghost"
               size="sm"
-              title="Settings"
+              title="Edit"
+              onClick={() => setEditingTier(row)}
             />
             <IconButton
               icon={<Trash2 size={14} />}
@@ -524,6 +866,17 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
         onSave={async (form) => {
           await addTier(form);
           setModalOpen(false);
+        }}
+      />
+
+      {/* Edit Modal */}
+      <EditTicketModal
+        tier={editingTier}
+        saving={editMutationPending}
+        onClose={() => setEditingTier(null)}
+        onSave={async (tierId, form) => {
+          await editTier(tierId, form);
+          setEditingTier(null);
         }}
       />
     </div>

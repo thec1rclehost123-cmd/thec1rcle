@@ -41,6 +41,9 @@ export function IdentityStep({
 
         {/* Event Title — bare border-bottom input */}
         <div>
+          <label className="block text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-1.5">
+            Event Title *
+          </label>
           <input
             type="text"
             placeholder="Give your event a memorable name"
@@ -79,7 +82,7 @@ export function IdentityStep({
         {/* Description */}
         <div>
           <label className="block text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-1.5">
-            Description
+            Description (Optional)
           </label>
           <textarea
             placeholder="Tell people what your event is about, who's performing, what to expect..."
@@ -95,7 +98,7 @@ export function IdentityStep({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-1.5">
-              Category
+              Category (Optional)
             </label>
             <select
               value={formData.category}
@@ -120,7 +123,7 @@ export function IdentityStep({
           </div>
           <div>
             <label className="block text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-1.5">
-              City / Hub
+              City / Hub (Optional)
             </label>
             <select
               value={formData.city}
@@ -144,7 +147,7 @@ export function IdentityStep({
           <div className="flex items-center gap-2 mb-2">
             <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
             <span className="text-[10px] font-black uppercase tracking-widest text-orange-500">
-              Capacity
+              Capacity (Optional)
             </span>
           </div>
           <div className="relative">

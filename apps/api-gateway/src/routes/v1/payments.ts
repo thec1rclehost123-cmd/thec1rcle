@@ -66,6 +66,19 @@ function buildWebhookRawBody(request: any): string {
   return JSON.stringify(request.body || {});
 }
 
+/**
+ * Constant-time comparison of two hex signatures. Returns false on any length
+ * mismatch instead of letting timingSafeEqual throw, and avoids the early-exit
+ * timing leak of `!==`.
+ */
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 export default async function paymentRoutes(fastify: FastifyInstance) {
   fastify.addContentTypeParser(
     'application/json',
@@ -224,7 +237,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
               .createHmac('sha256', razorpayKeySecret)
               .update(data)
               .digest('hex');
-            if (expected !== razorpay_signature) {
+            if (!timingSafeEqualHex(expected, razorpay_signature)) {
               logPaymentEvent(request as any, 'SIGNATURE_MISMATCH', {
                 orderId,
                 razorpayOrderId: razorpay_order_id,
@@ -344,7 +357,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
     }
 
     const expected = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
-    if (!signature || expected !== signature) {
+    if (!signature || !timingSafeEqualHex(expected, signature)) {
       logPaymentEvent(request, 'SIGNATURE_MISMATCH', {});
       return reply
         .status(401)
@@ -467,42 +480,46 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         }
 
         const ref = fastify.db.collection('payout_requests').doc(requestId);
-        const doc = await ref.get();
-        if (!doc.exists) {
-          return { success: true, ignored: true, reason: 'payout_request_not_found' };
-        }
 
-        const data = doc.data() as any;
-        if (data.status === 'completed') {
-          return { success: true, alreadyProcessed: true };
-        }
+        // Transaction so two concurrent payout.processed deliveries can't both
+        // pass the status check and double-write the ledger.
+        const payoutResult = await fastify.db.runTransaction(async (t: any) => {
+          const snap = await t.get(ref);
+          if (!snap.exists) {
+            return { success: true, ignored: true, reason: 'payout_request_not_found' };
+          }
+          const data = snap.data() as any;
+          if (data.status === 'completed') {
+            return { success: true, alreadyProcessed: true };
+          }
 
-        const batch = fastify.db.batch();
-        batch.update(ref, { status: 'completed', completedAt: new Date().toISOString() });
+          t.update(ref, { status: 'completed', completedAt: new Date().toISOString() });
 
-        const ledgerRef = fastify.db.collection('partner_ledger').doc();
-        batch.set(ledgerRef, {
-          toPartnerId: data.promoterId,
-          type: 'payout',
-          amount: -data.amountPaise,
-          currency: 'INR',
-          status: 'settled',
-          referenceId: requestId,
-          createdAt: new Date().toISOString(),
+          const ledgerRef = fastify.db.collection('partner_ledger').doc();
+          t.set(ledgerRef, {
+            toPartnerId: data.promoterId,
+            type: 'payout',
+            amount: -data.amountPaise,
+            currency: 'INR',
+            status: 'settled',
+            referenceId: requestId,
+            createdAt: new Date().toISOString(),
+          });
+
+          const auditRef = fastify.db.collection('promoter_audit_logs').doc();
+          t.set(auditRef, {
+            promoterId: data.promoterId,
+            action: 'PAYOUT_PROCESSED',
+            targetId: requestId,
+            amountPaise: data.amountPaise,
+            timestamp: new Date().toISOString(),
+            performedBy: 'system_webhook',
+          });
+
+          return { success: true, requestId, status: 'completed' };
         });
 
-        const auditRef = fastify.db.collection('promoter_audit_logs').doc();
-        batch.set(auditRef, {
-          promoterId: data.promoterId,
-          action: 'PAYOUT_PROCESSED',
-          targetId: requestId,
-          amountPaise: data.amountPaise,
-          timestamp: new Date().toISOString(),
-          performedBy: 'system_webhook',
-        });
-
-        await batch.commit();
-        return { success: true, requestId, status: 'completed' };
+        return payoutResult;
       }
 
       if ((eventType === 'payout.failed' || eventType === 'payout.reversed') && payoutEntity) {

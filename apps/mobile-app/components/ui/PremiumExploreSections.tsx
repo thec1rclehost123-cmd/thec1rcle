@@ -135,7 +135,7 @@ function HypeCashPill() {
     <Pressable
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        router.push({ pathname: '/events/feed', params: { type: 'free' } });
+        router.push({ pathname: '/events/feed' as any, params: { type: 'free' } });
       }}
       style={styles.hypeCashPill}
     >
@@ -162,7 +162,7 @@ export function ScenesWorthIt({ events }: { events: Event[] }) {
     <View style={styles.section}>
       <SectionHeader
         title="Worth The Hype"
-        onViewAll={() => router.push({ pathname: '/events/feed', params: { type: 'free' } })}
+        onViewAll={() => router.push({ pathname: '/events/feed' as any, params: { type: 'free' } })}
       />
       <HypeCashPill />
       <FlatList
@@ -269,7 +269,9 @@ export function TrendingRightNow({ events }: { events: Event[] }) {
     <View style={styles.section}>
       <SectionHeader
         title="Hottest Scenes"
-        onViewAll={() => router.push({ pathname: '/events/feed', params: { type: 'trending' } })}
+        onViewAll={() =>
+          router.push({ pathname: '/events/feed' as any, params: { type: 'trending' } })
+        }
       />
       <ScrollView
         horizontal
@@ -294,7 +296,9 @@ export function ComingUpThisWeek({ events }: { events: Event[] }) {
     <View style={styles.section}>
       <SectionHeader
         title="The Weekly Lineup"
-        onViewAll={() => router.push({ pathname: '/events/feed', params: { type: 'this-week' } })}
+        onViewAll={() =>
+          router.push({ pathname: '/events/feed' as any, params: { type: 'this-week' } })
+        }
       />
       <FlatList
         bounces={false}

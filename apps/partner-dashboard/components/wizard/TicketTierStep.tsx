@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { ScheduledPricing } from './components/ScheduledPricing';
 import { PromoCodeManager } from './components/PromoCodeManager';
+import { useToast } from '@/components/ui/Toast';
 
 interface ScheduledPrice {
   id: string;
@@ -295,7 +296,7 @@ function CoverChargeConfig({
               {/* Wallet Amount */}
               <div className="space-y-1">
                 <AppleInput
-                  label="Wallet Credit Amount"
+                  label="Wallet Credit Amount (Optional)"
                   type="number"
                   prefix="₹"
                   value={cfg.walletAmountPaise === 0 ? '' : String(cfg.walletAmountPaise)}
@@ -315,7 +316,7 @@ function CoverChargeConfig({
               {/* Termination Hour */}
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
-                  Wallet Expires At
+                  Wallet Expires At (Optional)
                 </label>
                 <select
                   value={cfg.terminationHour}
@@ -333,7 +334,7 @@ function CoverChargeConfig({
               {/* Termination Policy */}
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
-                  Unspent Balance Policy
+                  Unspent Balance Policy (Optional)
                 </label>
                 <div className="flex gap-2">
                   {(
@@ -687,7 +688,7 @@ const TicketTierCard = forwardRef<
                   {!isRSVP ? (
                     <div className="space-y-1">
                       <AppleInput
-                        label="Price"
+                        label="Price *"
                         type="number"
                         prefix="₹"
                         value={tier.price}
@@ -715,7 +716,7 @@ const TicketTierCard = forwardRef<
                     </div>
                   )}
                   <AppleInput
-                    label="Quantity"
+                    label="Quantity *"
                     type="number"
                     value={tier.quantity}
                     onChange={(e: any) =>
@@ -1004,16 +1005,33 @@ export function TicketTierStep({
   updateFormData,
   validationErrors,
 }: TicketTierStepProps) {
+  const { warning: toastWarning } = useToast();
   const [activeTab, setActiveTab] = useState<ActiveTab>('tiers');
 
   const tickets: TicketTier[] = formData.tickets || [];
   const capacity = formData.capacity || 500;
-  // Calculations moved to backend
-  const totalTickets = 0;
-  const inventoryValue = 0;
-  const capacityUsage = 0;
+  const totalTickets = tickets.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
+  const inventoryValue = tickets.reduce(
+    (sum, t) => sum + (Number(t.price) || 0) * (Number(t.quantity) || 0),
+    0,
+  );
+  const capacityUsage = capacity > 0 ? (totalTickets / capacity) * 100 : 0;
 
   const updateTicket = (index: number, updates: Partial<TicketTier>) => {
+    if (updates.quantity !== undefined) {
+      const newQty = Number(updates.quantity) || 0;
+      const otherTicketsTotal = tickets.reduce(
+        (sum, t, idx) => (idx === index ? sum : sum + (Number(t.quantity) || 0)),
+        0,
+      );
+      if (otherTicketsTotal + newQty > capacity) {
+        toastWarning(
+          'Capacity Exceeded',
+          `Quantity is exceeding the decided capacity (${otherTicketsTotal + newQty}/${capacity})`,
+        );
+        updates.quantity = Math.max(0, capacity - otherTicketsTotal);
+      }
+    }
     const newTickets = [...tickets];
     newTickets[index] = { ...newTickets[index], ...updates };
     updateFormData({ tickets: newTickets });
@@ -1024,13 +1042,22 @@ export function TicketTierStep({
   };
 
   const addTicket = () => {
+    let defaultQty = 50;
+    if (totalTickets + defaultQty > capacity) {
+      const remaining = Math.max(0, capacity - totalTickets);
+      toastWarning(
+        'Capacity Exceeded',
+        `Quantity is exceeding the decided capacity. Capped new tier quantity at ${remaining}`,
+      );
+      defaultQty = remaining;
+    }
     const newTicket: TicketTier = {
       id: Date.now().toString(),
       name: '',
       entryType: 'stag',
       genderRequirement: 'male',
       price: formData.isRSVP ? 0 : 0,
-      quantity: 50,
+      quantity: defaultQty,
       minPerOrder: 1,
       maxPerOrder: 10,
       promoterEnabled: true,
@@ -1237,6 +1264,15 @@ export function TicketTierStep({
         )}
       </div>
 
+      {totalTickets > capacity && (
+        <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-[12px] text-red-500 font-bold">
+          <AlertCircle className="w-4.5 h-4.5 flex-shrink-0" />
+          <span>
+            Quantity is exceeding the decided capacity ({totalTickets}/{capacity})
+          </span>
+        </div>
+      )}
+
       {/* ─── Tab Bar ─── */}
       <div className="flex items-center gap-1 bg-surface-secondary border border-border-subtle rounded-xl p-1">
         {TABS.map((tab) => {
@@ -1326,7 +1362,28 @@ export function TicketTierStep({
                   <button
                     key={preset.label}
                     onClick={() => {
-                      const newTickets = preset.tiers.map((t, i) => ({
+                      const presetTotal = (preset.tiers as any[]).reduce(
+                        (sum: number, t: any) => sum + t.quantity,
+                        0,
+                      );
+                      let adjustedTiers: any[] = preset.tiers;
+                      if (presetTotal > capacity) {
+                        toastWarning(
+                          'Preset Capacity Adjusted',
+                          `The selected preset's total quantity (${presetTotal}) exceeds the decided capacity (${capacity}). Quantities have been scaled down to fit.`,
+                        );
+                        let allocated = 0;
+                        adjustedTiers = preset.tiers.map((t: any, idx) => {
+                          const isLast = idx === preset.tiers.length - 1;
+                          const qty = isLast
+                            ? Math.max(0, capacity - allocated)
+                            : Math.floor(t.quantity * (capacity / presetTotal));
+                          allocated += qty;
+                          return { ...t, quantity: qty };
+                        });
+                      }
+
+                      const newTickets = adjustedTiers.map((t: any, i) => ({
                         id: `preset-${Date.now()}-${i}`,
                         ...t,
                         minPerOrder: 1,

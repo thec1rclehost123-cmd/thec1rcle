@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 // @ts-ignore
 import { getPromoterByUsername } from '@c1rcle/core/promoter-engine';
 import { buildErrorResponse } from '../lib/api-contracts';
-import { config } from '../config';
+import { config } from '../config/index';
 
 function getBaseUrl() {
   const candidates = String(config.FRONTEND_URLS || '')

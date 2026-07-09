@@ -2,6 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
+import { generateTemporaryPassword, sendInvitationEmail } from '../../../lib/email.js';
+import {
+  getPartnerProfileSummary,
+  getConnectionForViewer,
+} from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { VenueService } from '../../../services/unified/venue-service.js';
 import { SchedulingService } from '../../../services/unified/scheduling-service.js';
@@ -74,9 +79,45 @@ function asArray<T = PlainRecord>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+import { encrypt, decrypt } from '../../../lib/encryption.js';
+
 function toNumber(value: any): number {
   const amount = Number(value ?? 0);
   return Number.isFinite(amount) ? amount : 0;
+}
+
+async function sendPushToUsers(
+  db: any,
+  userIds: string[],
+  title: string,
+  body: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  if (!userIds.length) return;
+  const tokens: string[] = [];
+  for (let i = 0; i < userIds.length; i += 30) {
+    const batch = userIds.slice(i, i + 30);
+    const snap = await db
+      .collection('users')
+      .where('__name__', 'in', batch)
+      .get()
+      .catch(() => ({ docs: [] as any[] }));
+    (snap as any).docs.forEach((d: any) => {
+      const ud = (d.data() as Record<string, any>) || {};
+      if (Array.isArray(ud.pushTokens)) tokens.push(...ud.pushTokens);
+    });
+  }
+  if (!tokens.length) return;
+  const messages = tokens.map((token) => ({ to: token, sound: 'default', title, body, data }));
+  for (let i = 0; i < messages.length; i += 100) {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(messages.slice(i, i + 100)),
+    }).catch(() => {
+      /* fire-and-forget — never fail the request */
+    });
+  }
 }
 
 function mapByAnyId(items: PlainRecord[], candidates: string[]) {
@@ -148,6 +189,11 @@ function mergeVenueEvents(legacyItems: PlainRecord[], unifiedItems: PlainRecord[
       ticketsSold: toNumber(unifiedItem.ticketsSold),
       revenue: toNumber(unifiedItem.revenue),
       capacity: toNumber(unifiedItem.capacity),
+      host: (unifiedItem as any).host ?? '',
+      hostName: (unifiedItem as any).hostName ?? '',
+      hostId: (unifiedItem as any).hostId ?? '',
+      creatorId: (unifiedItem as any).creatorId ?? '',
+      creatorRole: (unifiedItem as any).creatorRole ?? '',
     });
   }
 
@@ -345,9 +391,14 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
       fastify.db
         .collection('availability_slots')
         .where('venueId', '==', venueId)
-        .where('date', '>=', startDate)
-        .where('date', '<=', endDate)
         .get()
+        .then((snap) => {
+          const docs = snap.docs.filter((doc) => {
+            const d = String(doc.data()?.date || '');
+            return d >= startDate && d <= endDate;
+          });
+          return { docs };
+        })
         .catch(() => ({ docs: [] as any[] })),
     ]);
     const allEvents = ((eventsSnap as any).docs || []).map((doc: any) => ({
@@ -365,11 +416,30 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
       );
       const daySlots = allSlots.filter((slot: any) => String(slot.date || '') === dateKey);
       const block = daySlots.find((slot: any) => isVenueBlock(slot)) || null;
+
+      // Filter for confirmed/booked events (exclude draft, deleted, cancelled, denied)
+      const bookedEvents = dayEvents.filter((event: any) => {
+        const lifecycle = String(event.lifecycle || event.status || 'draft').toLowerCase();
+        return (
+          lifecycle !== 'draft' &&
+          lifecycle !== 'deleted' &&
+          lifecycle !== 'cancelled' &&
+          lifecycle !== 'denied'
+        );
+      });
+
+      // Count drafts at the media or review creation steps as pending status
+      const pendingDraftsCount = dayEvents.filter((event: any) => {
+        const lifecycle = String(event.lifecycle || event.status || 'draft').toLowerCase();
+        const lastStep = String(event.draftMeta?.lastStep || '').toLowerCase();
+        return lifecycle === 'draft' && (lastStep === 'media' || lastStep === 'review');
+      }).length;
+
       dates.push({
         date: dateKey,
         state: block
           ? 'blocked'
-          : dayEvents.length > 0
+          : bookedEvents.length > 0
             ? 'booked'
             : daySlots.length > 0
               ? 'available'
@@ -378,10 +448,10 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         slots: daySlots,
         block,
         stats: {
-          eventCount: dayEvents.length,
-          pendingSlots: daySlots.filter(
-            (slot: any) => String(slot.status || '').toLowerCase() === 'pending',
-          ).length,
+          eventCount: bookedEvents.length,
+          pendingSlots:
+            daySlots.filter((slot: any) => String(slot.status || '').toLowerCase() === 'pending')
+              .length + pendingDraftsCount,
         },
       });
       cur.setUTCDate(cur.getUTCDate() + 1);
@@ -583,7 +653,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   // ── Overview ───────────────────────────────────────────────────────────────
 
   fastify.get(
-    '/partners/venues/overview',
+    '/partners/venues/overview/summary',
     {
       preHandler: [fastify.requireAuth],
     },
@@ -632,7 +702,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           _meta: {
             ...asRecord((legacyBody as any)._meta),
             partnerId: ctx.partnerId,
-            source: 'partners/venues/overview',
+            source: 'partners/venues/overview/summary',
           },
         };
 
@@ -641,7 +711,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
       } catch (err: any) {
         fastify.log.error(
           { err: err.message, partnerId: ctx.partnerId },
-          'partners/venues/overview error',
+          'partners/venues/overview/summary error',
         );
         if (err.statusCode)
           return reply
@@ -680,8 +750,106 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
       try {
         requireType(ctx, 'venue');
-        return reply.send(
-          await buildLegacyCalendar(ctx.partnerId, request.query.startDate, request.query.endDate),
+        return reply
+          .header('Cache-Control', 'no-store, no-cache, must-revalidate')
+          .send(
+            await buildLegacyCalendar(
+              ctx.partnerId,
+              request.query.startDate,
+              request.query.endDate,
+            ),
+          );
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply
+            .status(err.statusCode)
+            .send(
+              buildErrorResponse({ code: err.code, message: err.message, requestId: request.id }),
+            );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    '/partners/venues/calendar',
+    {
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      const ctx = await resolvePartnerContext(fastify.db, request);
+      if (!ctx)
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'FORBIDDEN',
+            message: 'No partner identity found',
+            requestId: request.id,
+          }),
+        );
+
+      try {
+        requireType(ctx, 'venue');
+        const { action, date, startTime, endTime, reason, slotId } = request.body as any;
+        const normalizedAction = String(action || '').toLowerCase();
+        const now = new Date().toISOString();
+
+        if (normalizedAction === 'block') {
+          const blockRef = await fastify.db.collection('availability_slots').add({
+            venueId: ctx.partnerId,
+            date,
+            requestedDate: date,
+            startTime: startTime || null,
+            endTime: endTime || null,
+            requestedStartTime: startTime || null,
+            requestedEndTime: endTime || null,
+            reason: reason || null,
+            source: 'venue_block',
+            status: 'blocked',
+            createdAt: now,
+            updatedAt: now,
+          });
+          return reply.status(201).send({ success: true, slotId: blockRef.id });
+        }
+
+        if (normalizedAction === 'unblock') {
+          const batch = fastify.db.batch();
+          let docs: any[] = [];
+
+          if (slotId) {
+            const blockDoc = await fastify.db.collection('availability_slots').doc(slotId).get();
+            if (blockDoc.exists) docs = [blockDoc];
+          } else {
+            const snapshot = await fastify.db
+              .collection('availability_slots')
+              .where('venueId', '==', ctx.partnerId)
+              .where('date', '==', date)
+              .where('source', '==', 'venue_block')
+              .get();
+            docs = snapshot.docs.filter((doc: any) => {
+              const data = doc.data() as Record<string, any>;
+              if (startTime && data.startTime && data.startTime !== startTime) return false;
+              if (endTime && data.endTime && data.endTime !== endTime) return false;
+              return true;
+            });
+          }
+
+          docs.forEach((doc: any) => batch.delete(doc.ref));
+          await batch.commit();
+          return reply.send({ success: true, removedCount: docs.length });
+        }
+
+        return reply.status(400).send(
+          buildErrorResponse({
+            code: 'BAD_REQUEST',
+            message: 'action must be block or unblock',
+            requestId: request.id,
+          }),
         );
       } catch (err: any) {
         if (err.statusCode)
@@ -1194,7 +1362,55 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
-          return reply.send({ venue: { id: doc.id, ...(doc.data() || {}) } });
+          const data = doc.data() || {};
+          return reply.send({
+            venue: { id: doc.id, ...data },
+            profile: { id: doc.id, ...data },
+          });
+        }
+
+        if (rest === 'promoters/connections' && request.method === 'GET') {
+          const status = (query.status as string) || 'approved';
+          const snap = await fastify.db
+            .collection('promoter_connections')
+            .where('venueId', '==', ctx.partnerId)
+            .get();
+
+          const connections = snap.docs
+            .map((doc: any) => ({ id: doc.id, ...doc.data() }))
+            .filter((c: any) => !status || c.status === status);
+
+          const promoterIds = [
+            ...new Set(connections.map((c: any) => c.promoterId).filter(Boolean)),
+          ];
+          const promoterProfiles = new Map();
+          if (promoterIds.length > 0) {
+            for (let i = 0; i < promoterIds.length; i += 30) {
+              const batch = promoterIds.slice(i, i + 30);
+              const profileSnap = await fastify.db
+                .collection('promoters')
+                .where('__name__', 'in', batch)
+                .get();
+              profileSnap.docs.forEach((d: any) => promoterProfiles.set(d.id, d.data()));
+            }
+          }
+
+          const result = connections.map((c: any) => {
+            const profile = promoterProfiles.get(c.promoterId);
+            return {
+              id: c.id,
+              promoterId: c.promoterId,
+              promoterName:
+                profile?.displayName || profile?.name || c.promoterName || 'Unknown Promoter',
+              promoterEmail: profile?.email || c.promoterEmail || '',
+              promoterPhone: profile?.phone || c.promoterPhone || '',
+              promoterInstagram: profile?.instagram || c.promoterInstagram || '',
+              status: c.status,
+              createdAt: c.createdAt || null,
+            };
+          });
+
+          return reply.send({ connections: result });
         }
 
         if (rest === 'finance/reports/pdf' && request.method === 'GET') {
@@ -1225,6 +1441,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         if (rest === 'profile' && request.method === 'PATCH') {
           const allowedFields = [
             'name',
+            'displayName',
+            'venueType',
             'description',
             'bio',
             'tagline',
@@ -1239,6 +1457,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             'photoURL',
             'logo',
             'coverURL',
+            'backdropURL',
+            'website',
             'contactEmail',
             'contactPhone',
             'socialLinks',
@@ -1249,44 +1469,99 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             'youtubeHandle',
             'spotifyHandle',
           ];
-          const patch = asRecord(body.patch);
+          const patch = asRecord(body.patch || body.updates);
           const safe: PlainRecord = {};
           for (const key of allowedFields) if (patch[key] !== undefined) safe[key] = patch[key];
           // Normalize image fields so discovery engine reads them correctly
+          if (safe.photoURL) {
+            safe.profileImage = safe.photoURL;
+            safe.logo = safe.photoURL;
+          }
           if (safe.profileImage) {
             safe.photoURL = safe.profileImage;
             safe.logo = safe.profileImage;
           }
+          if (safe.logo) {
+            safe.photoURL = safe.logo;
+            safe.profileImage = safe.logo;
+          }
+          if (safe.backdropURL) {
+            safe.coverURL = safe.backdropURL;
+            safe.coverImage = safe.backdropURL;
+          }
+          if (safe.coverURL) {
+            safe.coverImage = safe.coverURL;
+            safe.backdropURL = safe.coverURL;
+          }
           if (safe.coverImage) {
             safe.coverURL = safe.coverImage;
+            safe.backdropURL = safe.coverImage;
           }
           safe.updatedAt = new Date().toISOString();
           await fastify.db.collection('venues').doc(ctx.partnerId).set(safe, { merge: true });
           await fastify.publicDiscoveryService.syncVenueReadModels(ctx.partnerId).catch(() => {});
           await fastify.invalidatePublicDiscovery('all').catch(() => {});
           const doc = await fastify.db.collection('venues').doc(ctx.partnerId).get();
-          return reply.send({ venue: { id: doc.id, ...(doc.data() || {}) } });
+          const data = doc.data() || {};
+          return reply.send({
+            venue: { id: doc.id, ...data },
+            profile: { id: doc.id, ...data },
+          });
         }
 
         if (rest === 'notifications' && request.method === 'GET') {
-          const snap = await fastify.db
-            .collection('notifications')
-            .where('recipientId', '==', ctx.partnerId)
-            .limit(100)
-            .get()
-            .catch(() => ({ docs: [] as any[] }));
-          const notifications = ((snap as any).docs || []).map((doc: any) => ({
-            id: doc.id,
-            ...(doc.data() || {}),
-          }));
-          notifications.sort(
-            (a: any, b: any) =>
-              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
-          );
-          return reply.send({ notifications: notifications.slice(0, 50) });
+          const limit = Math.min(parseInt(String(query.limit || '50'), 10) || 50, 100);
+          let snap: any;
+          try {
+            snap = await fastify.db
+              .collection('notifications')
+              .where('recipientId', '==', ctx.partnerId)
+              .orderBy('createdAt', 'desc')
+              .limit(limit)
+              .get();
+          } catch (err: any) {
+            if (
+              err.code === 9 ||
+              String(err).includes('requires an index') ||
+              String(err).includes('FAILED_PRECONDITION')
+            ) {
+              fastify.log.warn(
+                { partnerId: ctx.partnerId },
+                'Firestore index missing for venue notifications query. Falling back to in-memory sort.',
+              );
+              const fallbackQ = await fastify.db
+                .collection('notifications')
+                .where('recipientId', '==', ctx.partnerId)
+                .limit(limit * 2)
+                .get()
+                .catch(() => ({ docs: [] as any[] }));
+              const sortedDocs = [...((fallbackQ as any).docs || [])].sort((a: any, b: any) => {
+                const aTime = new Date(a.data()?.createdAt || 0).getTime();
+                const bTime = new Date(b.data()?.createdAt || 0).getTime();
+                return bTime - aTime;
+              });
+              snap = { docs: sortedDocs.slice(0, limit) };
+            } else {
+              request.log.error(
+                { err, partnerId: ctx.partnerId },
+                'Failed to fetch venue notifications',
+              );
+              snap = { docs: [] as any[] };
+            }
+          }
+          const notifications = ((snap as any).docs || []).map((doc: any) => {
+            const data = doc.data() || {};
+            return {
+              id: doc.id,
+              ...data,
+              title: decrypt(data.title),
+              message: decrypt(data.message),
+            };
+          });
+          return reply.send({ notifications });
         }
 
-        if (rest === 'notifications/read' && request.method === 'PATCH') {
+        if (rest === 'notifications' && request.method === 'PATCH') {
           const notificationId = String(body.notificationId || '');
           const markAllRead = body.markAllRead === true;
           if (markAllRead) {
@@ -1294,11 +1569,12 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .collection('notifications')
               .where('recipientId', '==', ctx.partnerId)
               .where('read', '==', false)
-              .get();
+              .get()
+              .catch(() => ({ docs: [] as any[] }));
             const batch = fastify.db.batch();
-            snap.docs.forEach((doc: any) => batch.update(doc.ref, { read: true }));
-            await batch.commit();
-            return reply.send({ success: true, markedCount: snap.size });
+            (snap as any).docs.forEach((doc: any) => batch.update(doc.ref, { read: true }));
+            await batch.commit().catch(() => {});
+            return reply.send({ success: true, markedCount: (snap as any).docs.length });
           }
           if (!notificationId)
             return reply.status(400).send(
@@ -1308,7 +1584,11 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
-          await fastify.db.collection('notifications').doc(notificationId).update({ read: true });
+          await fastify.db
+            .collection('notifications')
+            .doc(notificationId)
+            .update({ read: true })
+            .catch(() => {});
           return reply.send({ success: true, markedCount: 1 });
         }
 
@@ -1767,17 +2047,103 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         }
 
         if (rest === 'staff' && request.method === 'POST') {
+          const emailRecipient = String(body.email || '')
+            .toLowerCase()
+            .trim();
+          if (!emailRecipient) {
+            return reply.status(400).send(
+              buildErrorResponse({
+                code: 'BAD_REQUEST',
+                message: 'Email is required',
+                requestId: request.id,
+              }),
+            );
+          }
+
+          // Check if an invitation/active/removed staff already exists
+          const existingStaffSnap = await fastify.db
+            .collection('venue_staff')
+            .where('venueId', '==', ctx.partnerId)
+            .where('email', '==', emailRecipient)
+            .get();
+
+          if (!existingStaffSnap.empty) {
+            const existingStaff = existingStaffSnap.docs[0].data();
+            const existingStaffDoc = existingStaffSnap.docs[0];
+            if (existingStaff.status === 'active') {
+              return reply.status(400).send(
+                buildErrorResponse({
+                  code: 'BAD_REQUEST',
+                  message: 'This team member is already active in this venue',
+                  requestId: request.id,
+                }),
+              );
+            } else if (existingStaff.status === 'invited') {
+              return reply.status(400).send(
+                buildErrorResponse({
+                  code: 'BAD_REQUEST',
+                  message: 'A pending invitation already exists for this email',
+                  requestId: request.id,
+                }),
+              );
+            } else if (existingStaff.status === 'removed') {
+              // Delete the old 'removed' staff record so a fresh one can be created
+              await existingStaffDoc.ref.delete();
+            }
+          }
+
           const now = new Date().toISOString();
+          const tempPassword = generateTemporaryPassword();
+          const inviteToken = randomUUID();
+          const inviteExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+          const venueDoc = await fastify.db.collection('venues').doc(ctx.partnerId).get();
+          const venueName = venueDoc.exists ? venueDoc.data()?.name || 'Venue' : 'Venue';
+
+          let origin = 'http://localhost:3001';
+          if (request.headers.referer) {
+            try {
+              origin = new URL(request.headers.referer).origin;
+            } catch {
+              if (request.headers.origin) origin = request.headers.origin;
+            }
+          } else if (request.headers.origin) {
+            origin = request.headers.origin;
+          }
+
+          const acceptLink = `${origin}/auth/staff-invite?code=${inviteToken}&venue=${ctx.partnerId}`;
+          const setPasswordLink = `${origin}/auth/change-password?code=${inviteToken}&venue=${ctx.partnerId}`;
+
+          const roleLabels: Record<string, string> = {
+            MANAGER: 'Manager',
+            FINANCE_ADMIN: 'Finance',
+            SECURITY: 'Security',
+            DOOR: 'Door',
+            STAFF: 'Staff',
+          };
+          const roleLabel = roleLabels[body.role] || body.role;
+
+          await sendInvitationEmail({
+            recipient: emailRecipient,
+            name: body.name || 'Team Member',
+            roleLabel,
+            venueName,
+            tempPassword,
+            acceptLink,
+            setPasswordLink,
+          });
+
           const res = await fastify.db.collection('venue_staff').add({
             venueId: ctx.partnerId,
-            email: String(body.email || '')
-              .toLowerCase()
-              .trim(),
+            email: emailRecipient,
             name: body.name || '',
             role: body.role,
             status: 'invited',
             verified: false,
             isActive: true,
+            tempPassword,
+            inviteToken,
+            inviteExpires,
             createdAt: now,
             updatedAt: now,
           });
@@ -1804,16 +2170,62 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
+          const staffData = doc.data();
           const now = new Date().toISOString();
+
+          if (body.action === 'remove') {
+            await ref.update({
+              status: 'removed',
+              isActive: false,
+              updatedAt: now,
+            });
+            if (staffData?.userId) {
+              const membershipsSnap = await fastify.db
+                .collection('partner_memberships')
+                .where('partnerId', '==', ctx.partnerId)
+                .where('uid', '==', staffData.userId)
+                .get();
+
+              for (const membershipDoc of membershipsSnap.docs) {
+                await membershipDoc.ref.update({
+                  isActive: false,
+                  updatedAt: now,
+                });
+              }
+            }
+            return reply.send({ success: true });
+          }
+
           const updates: any = { updatedAt: now };
-          if (body.action === 'suspend')
-            ((updates.status = 'suspended'), (updates.isActive = false));
-          if (body.action === 'reactivate')
-            ((updates.status = 'active'), (updates.isActive = true));
+          if (body.action === 'suspend') {
+            updates.status = 'suspended';
+            updates.isActive = false;
+          } else if (body.action === 'reactivate') {
+            updates.status = 'active';
+            updates.isActive = true;
+          }
+
           if (body.action === 'verify') updates.verified = true;
           if (body.role !== undefined) updates.role = body.role;
           if (body.isActive !== undefined) updates.isActive = body.isActive;
+
           await ref.update(updates);
+
+          if (staffData?.userId) {
+            const membershipsSnap = await fastify.db
+              .collection('partner_memberships')
+              .where('partnerId', '==', ctx.partnerId)
+              .where('uid', '==', staffData.userId)
+              .get();
+
+            for (const membershipDoc of membershipsSnap.docs) {
+              await membershipDoc.ref.update({
+                isActive: body.action === 'reactivate',
+                updatedAt: now,
+              });
+            }
+          }
+
           return reply.send({ success: true });
         }
 
@@ -1837,11 +2249,30 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
+
+          const staffData = doc.data();
+          const now = new Date().toISOString();
           await ref.update({
-            isActive: false,
             status: 'removed',
-            updatedAt: new Date().toISOString(),
+            isActive: false,
+            updatedAt: now,
           });
+
+          if (staffData?.userId) {
+            const membershipsSnap = await fastify.db
+              .collection('partner_memberships')
+              .where('partnerId', '==', ctx.partnerId)
+              .where('uid', '==', staffData.userId)
+              .get();
+
+            for (const membershipDoc of membershipsSnap.docs) {
+              await membershipDoc.ref.update({
+                isActive: false,
+                updatedAt: now,
+              });
+            }
+          }
+
           return reply.send({ success: true });
         }
 
@@ -2052,12 +2483,21 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .where('eventId', '==', evtId)
               .where('status', 'in', ['confirmed', 'paid'])
               .get()
-              .catch(() => ({ docs: [] as any[] })),
+              .catch((err: any) => {
+                request.log.error({ err, eventId: evtId }, 'Failed to query orders for overview');
+                return { docs: [] as any[] };
+              }),
             fastify.db
               .collection('check_ins')
               .where('eventId', '==', evtId)
               .get()
-              .catch(() => ({ size: 0 })),
+              .catch((err: any) => {
+                request.log.error(
+                  { err, eventId: evtId },
+                  'Failed to query check_ins for overview',
+                );
+                return { size: 0 };
+              }),
             fastify.db
               .collection('event_views')
               .doc(evtId)
@@ -2135,6 +2575,47 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             toNumber(viewsData.count || 0) > 0
               ? Math.round((ticketsSold / toNumber(viewsData.count)) * 100)
               : 0;
+
+          // Build sales timeline from order dates
+          const salesByDate = new Map<string, { tickets: number; revenue: number }>();
+          for (const d of orderDocs) {
+            const o = d.data();
+            const date = (o.createdAt || '').split('T')[0];
+            if (!date) continue;
+            if (!salesByDate.has(date)) salesByDate.set(date, { tickets: 0, revenue: 0 });
+            const entry = salesByDate.get(date)!;
+            entry.tickets += toNumber(o.ticketCount || 1);
+            entry.revenue += toNumber(o.totalPaise || 0) / 100;
+          }
+          const salesTimeline = Array.from(salesByDate.entries())
+            .map(([date, data]) => ({ date, tickets: data.tickets, revenue: data.revenue }))
+            .sort((a, b) => a.date.localeCompare(b.date));
+
+          // Build hourly check-in timeline
+          const hourlyMap = new Map<string, number>();
+          const checkInDocs = (checkinsSnap as any).docs || [];
+          for (const d of checkInDocs) {
+            const o = d.data();
+            const ts = o.checkedInAt || o.createdAt;
+            if (!ts) continue;
+            const hour = String(ts).split('T')[1]?.split(':')[0];
+            if (!hour) continue;
+            hourlyMap.set(hour, (hourlyMap.get(hour) || 0) + 1);
+          }
+          const hourlyTimeline = Array.from(hourlyMap.entries())
+            .map(([hour, count]) => ({ hour: Number(hour), label: `${hour}:00`, checkIns: count }))
+            .sort((a, b) => a.hour - b.hour);
+
+          // Derive peak hours from timelines
+          const peakSalesEntry =
+            salesTimeline.length > 0
+              ? salesTimeline.reduce((a, b) => (a.revenue > b.revenue ? a : b))
+              : null;
+          const peakCheckInEntry =
+            hourlyTimeline.length > 0
+              ? hourlyTimeline.reduce((a, b) => (a.checkIns > b.checkIns ? a : b))
+              : null;
+
           return reply.send({
             ticketsSold,
             grossRevenue,
@@ -2156,10 +2637,22 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             topPromoter: null,
             views: toNumber(viewsData.count || 0),
             saves: toNumber(viewsData.saves || 0),
-            salesTimeline: [],
-            hourlyTimeline: [],
-            peakSalesHour: null,
-            peakCheckInHour: null,
+            salesTimeline,
+            hourlyTimeline,
+            peakSalesHour: peakSalesEntry
+              ? {
+                  date: peakSalesEntry.date,
+                  revenue: peakSalesEntry.revenue,
+                  tickets: peakSalesEntry.tickets,
+                }
+              : null,
+            peakCheckInHour: peakCheckInEntry
+              ? {
+                  hour: peakCheckInEntry.hour,
+                  label: peakCheckInEntry.label,
+                  checkIns: peakCheckInEntry.checkIns,
+                }
+              : null,
             timeZone: event.timeZone || 'Asia/Kolkata',
           });
         }
@@ -2174,13 +2667,22 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .where('eventId', '==', evtId)
               .where('status', 'in', ['confirmed', 'paid'])
               .get()
-              .catch(() => ({ docs: [] as any[] })),
+              .catch((err: any) => {
+                request.log.error({ err, eventId: evtId }, 'Failed to query orders for finance');
+                return { docs: [] as any[] };
+              }),
             fastify.db
               .collection('walk_in_entries')
               .doc(evtId)
               .collection('logs')
               .get()
-              .catch(() => ({ docs: [] as any[] })),
+              .catch((err: any) => {
+                request.log.error(
+                  { err, eventId: evtId },
+                  'Failed to query walk_in_entries for finance',
+                );
+                return { docs: [] as any[] };
+              }),
           ]);
           if (!eventDoc.exists)
             return reply.status(404).send(
@@ -2440,7 +2942,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const paged = orderDocs.slice((page - 1) * limit, page * limit);
           const attendees = paged.map((doc: any) => {
             const o = doc.data() || {};
-            const rawName = o.buyerName || 'Guest';
+            const rawName = o.buyerName || o.customerName || o.name || 'Guest';
             return {
               id: doc.id,
               attendeeId: doc.id,
@@ -2450,8 +2952,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               instagram: o.instagram || '',
               ticketTier: o.tierName || '',
               tierId: o.tierId || '',
-              quantity: toNumber(o.ticketCount || 1),
-              totalSpend: toNumber(o.totalPaise || 0) / 100,
+              quantity: toNumber(o.ticketCount || o.quantity || 1),
+              totalSpend:
+                toNumber(o.totalPaise || Math.round((o.amount || o.totalAmount || 0) * 100)) / 100,
               source: o.source || 'online',
               status: o.checkedInAt ? 'checked_in' : 'paid',
               purchasedAt: o.createdAt || null,
@@ -2461,7 +2964,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               isVip: !!o.isVip,
               tags: o.tags || [],
               orderId: doc.id,
-              orderSummary: `${o.ticketCount || 1} ticket(s)`,
+              orderSummary: `${o.ticketCount || o.quantity || 1} ticket(s)`,
             };
           });
           const rawTiers = asArray(event.ticketTiers || event.tiers || []);
@@ -2501,7 +3004,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
-          const [assignmentsSnap, settingsDoc] = await Promise.all([
+          const [assignmentsSnap, settingsDoc, connectionsSnap] = await Promise.all([
             fastify.db
               .collection('promoter_assignments')
               .where('eventId', '==', evtId)
@@ -2512,12 +3015,13 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .doc(evtId)
               .get()
               .catch(() => null),
+            fastify.db
+              .collection('promoter_connections')
+              .where('venueId', '==', ctx.partnerId)
+              .where('status', 'in', ['approved', 'active'])
+              .get()
+              .catch(() => ({ docs: [] as any[] })),
           ]);
-          const promoters = ((assignmentsSnap as any).docs || []).map((doc: any) => ({
-            assignmentId: doc.id,
-            ...(doc.data() || {}),
-            id: doc.id,
-          }));
           const settingsData =
             settingsDoc && (settingsDoc as any).exists ? (settingsDoc as any).data() || {} : {};
           const promoterSettings = {
@@ -2525,8 +3029,44 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             commissionRate: settingsData.commissionRate || 10,
             ...settingsData,
           };
+          const assignedPromoters = ((assignmentsSnap as any).docs || []).map((doc: any) => {
+            const data = doc.data() || {};
+            return {
+              assignmentId: doc.id,
+              ...data,
+              id: doc.id,
+              promoterId: data.promoterId || '',
+            };
+          });
+          const assignedIds = new Set(
+            assignedPromoters.map((p: any) => p.promoterId).filter(Boolean),
+          );
+          const unassignedPromoters = ((connectionsSnap as any).docs || [])
+            .map((doc: any) => {
+              const conn = doc.data() || {};
+              const promoterId = conn.promoterId;
+              if (!promoterId || assignedIds.has(promoterId)) return null;
+              return {
+                assignmentId: null,
+                id: promoterId,
+                promoterId,
+                promoterName: conn.promoterName || 'Promoter',
+                avatar: conn.promoterAvatar || conn.avatarUrl || null,
+                status: 'disabled',
+                isActive: false,
+                shortCode: null,
+                sales: 0,
+                revenue: 0,
+                clicks: 0,
+                commissionRate: promoterSettings.commissionRate || 10,
+              };
+            })
+            .filter(Boolean);
+          const promoters = [...assignedPromoters, ...unassignedPromoters];
           const totalPromoters = promoters.length;
-          const activePromoters = promoters.filter((p: any) => p.isActive !== false).length;
+          const activePromoters = promoters.filter(
+            (p: any) => p.isActive !== false && p.status === 'active',
+          ).length;
           const disabledPromoters = totalPromoters - activePromoters;
           const ticketsSold = promoters.reduce(
             (s: number, p: any) => s + toNumber(p.ticketsSold || 0),
@@ -2548,6 +3088,88 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             },
           });
         }
+
+        async function ensurePromoterLink(
+          db: any,
+          promoterId: string,
+          eventId: string,
+          eventTitle: string,
+          commissionRate: number,
+        ): Promise<string> {
+          try {
+            const promoterRef = db.collection('promoters').doc(promoterId);
+            const promoterDoc = await promoterRef.get();
+            let trackingCode = promoterDoc.exists ? promoterDoc.data()?.trackingCode : null;
+
+            if (!trackingCode) {
+              const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+              let base = (
+                promoterDoc.exists
+                  ? promoterDoc.data()?.displayName || promoterDoc.data()?.name || 'promo'
+                  : 'promo'
+              )
+                .toLowerCase()
+                .replace(/[^a-z0-9]/g, '');
+              if (base.length > 10) base = base.substring(0, 10);
+              if (base.length < 3) base = 'promo';
+
+              let isUnique = false;
+              let newCode = '';
+              while (!isUnique) {
+                const suffix = Array.from(
+                  { length: 3 },
+                  () => chars[Math.floor(Math.random() * chars.length)],
+                ).join('');
+                newCode = `${base}${suffix}`;
+                const existingGlobal = await db
+                  .collection('promoters')
+                  .where('trackingCode', '==', newCode)
+                  .limit(1)
+                  .get();
+                if (existingGlobal.empty) {
+                  isUnique = true;
+                }
+              }
+              trackingCode = newCode;
+              await promoterRef.set({ trackingCode }, { merge: true });
+            }
+
+            const linkId = `${promoterId}_${eventId}`;
+            const linkRef = db.collection('promoter_links').doc(linkId);
+            const linkDoc = await linkRef.get();
+
+            if (!linkDoc.exists) {
+              const now = new Date().toISOString();
+              await linkRef.set({
+                id: linkId,
+                promoterId,
+                promoterName: promoterDoc.exists
+                  ? promoterDoc.data()?.displayName || promoterDoc.data()?.name || ''
+                  : '',
+                eventId,
+                eventTitle,
+                campaignLabel: 'assigned',
+                ticketTierIds: [],
+                commissionRate,
+                commissionType: 'percentage',
+                code: trackingCode,
+                clicks: 0,
+                conversions: 0,
+                revenue: 0,
+                commission: 0,
+                isActive: true,
+                createdAt: now,
+                updatedAt: now,
+              });
+            }
+
+            return trackingCode || '';
+          } catch (err: any) {
+            console.error(`[ensurePromoterLink] Error: ${err.message}`);
+            return '';
+          }
+        }
+
         if (eventPromotersMatch && request.method === 'PATCH') {
           const evtId = eventPromotersMatch[1];
           const eventDoc = await fastify.db.collection('events').doc(evtId).get();
@@ -2568,6 +3190,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
+
           await fastify.db
             .collection('event_promoter_settings')
             .doc(evtId)
@@ -2580,7 +3203,274 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               },
               { merge: true },
             );
+
+          // Create / update promoter_assignments and notifications (fire-and-forget)
+          (async () => {
+            try {
+              // If event is a draft, do not assign or notify promoters
+              if (event.lifecycle === 'draft' || event.status === 'draft') {
+                return;
+              }
+
+              const eventName: string = event.title ?? 'Untitled Event';
+              const venueName: string = event.venueName ?? '';
+              const commissionRate: number =
+                body?.defaultCommission ?? event.promoterSettings?.commissionRate ?? 10;
+              const now = new Date().toISOString();
+
+              const nextIds: string[] = Array.isArray(body?.allowedPromoterIds)
+                ? body.allowedPromoterIds
+                : [];
+              const isEnabled: boolean = body?.enabled !== false;
+
+              // Query promoter_assignments for active assignments to find the previous state
+              const activeAssignmentsSnap = await fastify.db
+                .collection('promoter_assignments')
+                .where('eventId', '==', evtId)
+                .where('status', '==', 'active')
+                .get()
+                .catch(() => null);
+              const prevIds: string[] =
+                activeAssignmentsSnap?.docs.map((d: any) => d.data().promoterId) ?? [];
+
+              const newlyAdded = nextIds.filter((id: string) => !prevIds.includes(id));
+              const removed = prevIds.filter((id: string) => !nextIds.includes(id));
+
+              // Encrypt event data to be stored securely
+              const encryptedEventName = encrypt(eventName);
+              const encryptedVenueName = encrypt(venueName);
+
+              // Create assignment docs for newly added promoters
+              await Promise.all(
+                newlyAdded.map(async (promoterId: string) => {
+                  const trackingCode = await ensurePromoterLink(
+                    fastify.db,
+                    promoterId,
+                    evtId,
+                    eventName,
+                    commissionRate,
+                  );
+                  const assignId = `${promoterId}_${evtId}`;
+                  await fastify.db
+                    .collection('promoter_assignments')
+                    .doc(assignId)
+                    .set(
+                      {
+                        id: assignId,
+                        promoterId,
+                        eventId: evtId,
+                        eventName: encryptedEventName,
+                        venueName: encryptedVenueName,
+                        status: 'active',
+                        commissionRate,
+                        linkCode: trackingCode || null,
+                        totalSales: 0,
+                        totalRevenue: 0,
+                        totalCommission: 0,
+                        guestlistAllowance: 0,
+                        guestlistUsed: 0,
+                        guests: [],
+                        assignedAt: now,
+                        createdAt: now,
+                        updatedAt: now,
+                      },
+                      { merge: true },
+                    );
+                }),
+              );
+
+              // Mark removed promoters as inactive
+              await Promise.all(
+                removed.map(async (promoterId: string) => {
+                  const assignId = `${promoterId}_${evtId}`;
+                  await fastify.db
+                    .collection('promoter_assignments')
+                    .doc(assignId)
+                    .set({ status: 'inactive', updatedAt: now }, { merge: true });
+                }),
+              );
+
+              // If all disabled, mark all as inactive
+              if (!isEnabled && nextIds.length === 0 && prevIds.length > 0) {
+                await Promise.all(
+                  prevIds.map(async (promoterId: string) => {
+                    const assignId = `${promoterId}_${evtId}`;
+                    await fastify.db
+                      .collection('promoter_assignments')
+                      .doc(assignId)
+                      .set({ status: 'inactive', updatedAt: now }, { merge: true });
+                  }),
+                );
+              }
+
+              // Send notifications to newly added promoters
+              if (newlyAdded.length > 0) {
+                // Encrypt notification title and message
+                const rawTitle = "You've been added to an event!";
+                const rawMessage = `${eventName} is live — start sharing your link`;
+                const encryptedTitle = encrypt(rawTitle);
+                const encryptedMessage = encrypt(rawMessage);
+
+                await Promise.all([
+                  ...newlyAdded.map((promoterId: string) =>
+                    fastify.db.collection('notifications').add({
+                      recipientId: promoterId,
+                      recipientType: 'promoter',
+                      type: 'promoter_assignment',
+                      title: encryptedTitle,
+                      message: encryptedMessage,
+                      read: false,
+                      createdAt: now,
+                      data: {
+                        eventId: evtId,
+                        type: 'promoter_assignment',
+                      },
+                    }),
+                  ),
+                  sendPushToUsers(fastify.db, newlyAdded, rawTitle, rawMessage, {
+                    eventId: evtId,
+                    type: 'promoter_assignment',
+                  }),
+                ]);
+              }
+            } catch (err: any) {
+              fastify.log.error(`[Promoter] Assignment sync error: ${err.message}`);
+            }
+          })();
+
           return reply.send({ success: true });
+        }
+
+        const eventMatch = rest.match(/^events\/([^/]+)$/);
+        if (eventMatch && request.method === 'GET') {
+          const evtId = eventMatch[1];
+          const eventDoc = await fastify.db.collection('events').doc(evtId).get();
+          if (!eventDoc.exists) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Event not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          const event = eventDoc.data() as PlainRecord;
+          if (event.venueId !== ctx.partnerId) {
+            return reply.status(403).send(
+              buildErrorResponse({
+                code: 'FORBIDDEN',
+                message: 'Not your event',
+                requestId: request.id,
+              }),
+            );
+          }
+
+          const rawTiers = asArray(event.ticketTiers || event.tiers || event.tickets || []);
+          const tiers = rawTiers.map((t: any, index: number) => ({
+            tierId: String(t.tierId || t.id || index),
+            name: String(t.name || ''),
+            price: Number(t.price || 0),
+            capacity: Number(t.capacity || t.quantity || 0),
+            sold: Number(t.sold || 0),
+          }));
+
+          const attributions = Array.isArray(event.promoterAttributions)
+            ? event.promoterAttributions.map((a: any) => ({
+                promoterId: String(a.promoterId || ''),
+                linkId: String(a.linkId || ''),
+                commissionRate: Number(a.commissionRate || 0),
+              }))
+            : [];
+
+          const venueName = String(
+            event.venueName ||
+              (typeof event.venue === 'string' ? event.venue : event.venue?.name) ||
+              '',
+          );
+
+          const eventDetail = {
+            eventId: eventDoc.id,
+            title: String(event.title || event.name || ''),
+            startDate: event.startDate ? new Date(event.startDate).toISOString() : null,
+            endDate: event.endDate ? new Date(event.endDate).toISOString() : null,
+            venueId: String(event.venueId || ''),
+            venueName,
+            status: event.lifecycle ?? event.status ?? 'draft',
+            submissionStatus: event.submissionStatus ?? 'not_submitted',
+            coverImage: event.coverImage ?? event.image ?? null,
+            ticketsSold: Number(event.ticketsSold ?? event.totalTicketsSold ?? 0),
+            revenue: Number(event.revenue ?? event.totalRevenue ?? 0),
+            capacity: Number(event.capacity ?? event.totalCapacity ?? 0),
+            description: String(event.description || ''),
+            ticketTiers: tiers,
+            promoterAttributions: attributions,
+            ownerPartnerId: String(event.creatorId || event.hostId || event.ownerPartnerId || ''),
+            createdAt: event.createdAt ? new Date(event.createdAt).toISOString() : null,
+            updatedAt: event.updatedAt ? new Date(event.updatedAt).toISOString() : null,
+            id: eventDoc.id,
+            lifecycle: String(event.lifecycle || event.status || 'draft'),
+            venue: venueName,
+            slug: event.slug ?? null,
+            hostId: String(event.hostId || event.creatorId || ''),
+            hostName: String(event.hostName || ''),
+            venueAddress: String(event.venueAddress || ''),
+            city: String(event.city || ''),
+            eventUrl: String(event.eventUrl || event.url || ''),
+            shortDescription: String(event.shortDescription || ''),
+            tags: Array.isArray(event.tags) ? event.tags : [],
+            settings: event.settings ?? {},
+            promoterSettings: event.promoterSettings ?? { enabled: false, allowedPromoterIds: [] },
+            image: event.image ?? null,
+            stats: event.stats ?? {},
+          };
+
+          return reply.send({ event: eventDetail });
+        }
+
+        if (eventMatch && request.method === 'PATCH') {
+          const evtId = eventMatch[1];
+          const eventDoc = await fastify.db.collection('events').doc(evtId).get();
+          if (!eventDoc.exists) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Event not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          const event = eventDoc.data() as PlainRecord;
+          if (event.venueId !== ctx.partnerId) {
+            return reply.status(403).send(
+              buildErrorResponse({
+                code: 'FORBIDDEN',
+                message: 'Not your event',
+                requestId: request.id,
+              }),
+            );
+          }
+
+          const patchFields =
+            body.updates && typeof body.updates === 'object' ? body.updates : body;
+
+          await fastify.db
+            .collection('events')
+            .doc(evtId)
+            .update({
+              ...patchFields,
+              updatedAt: new Date().toISOString(),
+            });
+
+          await fastify.cache.delete('events:detail', evtId).catch(() => {});
+          if (event.slug) {
+            await fastify.cache
+              .delete('events:detail', `${event.slug}:${ctx.partnerId}`)
+              .catch(() => {});
+          }
+
+          await fastify.publicDiscoveryService.syncEventReadModels(evtId).catch(() => {});
+
+          return reply.send({ success: true, id: evtId });
         }
 
         const orderActionVenueMatch = rest.match(/^orders\/([^/]+)\/(cancel|resend-receipt)$/);
@@ -3460,43 +4350,64 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         if (rest === 'walk-ins' && request.method === 'GET') {
           const filterEventId = String(query.eventId || '');
           const pageSize = Math.min(parseInt(String(query.limit || '200'), 10) || 200, 500);
+          console.log(
+            `[API Gateway GET Walk-ins] Query Params: venueId=${ctx.partnerId}, eventId=${filterEventId}, limit=${pageSize}`,
+          );
           // Walk-in entries are stored in door_sales (created via door/sell POST)
           let q: any = fastify.db.collection('door_sales').where('venueId', '==', ctx.partnerId);
           if (filterEventId) q = q.where('eventId', '==', filterEventId);
           const snap = await q
             .limit(pageSize)
             .get()
-            .catch(() => ({ docs: [] as any[] }));
+            .catch((err: any) => {
+              console.error('[API Gateway GET Walk-ins] Firestore query error:', err);
+              return { docs: [] as any[] };
+            });
+
+          console.log(
+            `[API Gateway GET Walk-ins] Firestore returned ${snap.docs?.length ?? 0} total door_sales documents`,
+          );
+
           const entries = ((snap as any).docs || [])
             .map((doc: any) => {
               const d = doc.data() || {};
-              const purpose = String(d.purpose || 'party');
-              if (purpose === 'dinein') return null;
+              const category = String(d.category || 'walkin');
+              if (category === 'dinein') return null;
               return {
                 id: doc.id,
                 guestName: d.guestName || '',
                 phoneFull: d.contact || d.phone || '',
                 phoneHash: d.contact || d.phone || '',
                 gender: d.gender || null,
-                guestAge: d.age ?? null,
-                partySize: toNumber(d.partySize || 1),
+                guestAge: d.age ?? d.guestAge ?? null,
+                partySize: toNumber(d.totalGuests || d.partySize || 1),
                 eventId: d.eventId || filterEventId || '',
-                addedAt: d.soldAt || d.createdAt || d.addedAt || '',
+                addedAt: d.addedAt || d.soldAt || d.createdAt || '',
                 source: 'walkins',
               };
             })
             .filter(Boolean);
           entries.sort((a: any, b: any) => b.addedAt.localeCompare(a.addedAt));
-          return reply.send({ entries: entries.slice(0, 100) });
+          const page = entries.slice(0, 100);
+          const totals = {
+            count: page.length,
+            totalPaise: page.reduce((s: number, e: any) => s + (Number(e.amountPaise) || 0), 0),
+            totalGuests: page.reduce((s: number, e: any) => s + (Number(e.partySize) || 1), 0),
+          };
+          console.log(
+            `[API Gateway GET Walk-ins] Returning ${page.length} entries. Totals:`,
+            totals,
+          );
+          return reply.send({ entries: page, totals });
         }
 
         const walkInEventMatch = rest.match(/^walk-ins\/([^/]+)$/);
         if (walkInEventMatch && request.method === 'GET') {
           const evtId = walkInEventMatch[1];
           const snap = await fastify.db
-            .collection('walk_in_entries')
-            .doc(evtId)
-            .collection('logs')
+            .collection('door_sales')
+            .where('eventId', '==', evtId)
+            .where('category', '==', 'walkin')
             .limit(200)
             .get()
             .catch(() => ({ docs: [] as any[] }));
@@ -3506,24 +4417,26 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           }));
           logs.sort(
             (a: any, b: any) =>
-              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+              new Date(b.addedAt || b.createdAt || 0).getTime() -
+              new Date(a.addedAt || a.createdAt || 0).getTime(),
           );
           return reply.send({ logs: logs.slice(0, 100) });
         }
         if (walkInEventMatch && request.method === 'POST') {
           const evtId = walkInEventMatch[1];
           const now = new Date().toISOString();
-          const ref = await fastify.db
-            .collection('walk_in_entries')
-            .doc(evtId)
-            .collection('logs')
-            .add({
-              ...body,
-              eventId: evtId,
-              venueId: ctx.partnerId,
-              recordedBy: ctx.uid,
-              createdAt: now,
-            });
+          const ref = await fastify.db.collection('door_sales').add({
+            ...body,
+            eventId: evtId,
+            venueId: ctx.partnerId,
+            addedBy: ctx.uid,
+            addedByName: 'User',
+            addedAt: now,
+            category: 'walkin',
+            paymentMode: 'cash',
+            source: 'manual',
+            status: 'active',
+          });
           return reply.send({ success: true, id: ref.id });
         }
         if (walkInEventMatch && request.method === 'DELETE') {
@@ -3537,12 +4450,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
-          await fastify.db
-            .collection('walk_in_entries')
-            .doc(evtId)
-            .collection('logs')
-            .doc(logId)
-            .delete();
+          await fastify.db.collection('door_sales').doc(logId).delete();
           return reply.send({ success: true });
         }
 
@@ -3613,8 +4521,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const pageSize = Math.min(toNumber(query.limit) || 50, 200);
           const filterEventId = String(query.eventId || '');
           let q: any = fastify.db
-            .collection('dinein_sessions')
+            .collection('door_sales')
             .where('venueId', '==', ctx.partnerId)
+            .where('category', '==', 'dinein')
             .where('status', '==', 'active');
           if (filterEventId && !filterEventId.startsWith('venue_'))
             q = q.where('eventId', '==', filterEventId);
@@ -3628,20 +4537,12 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             const d = doc.data() || {};
             return {
               id: doc.id,
-              eventId: d.eventId || '',
-              venueId: d.venueId || ctx.partnerId,
-              guestName: d.guestName || '',
-              partySize: toNumber(d.partySize) || 1,
-              gender: d.gender || null,
-              age: toNumber(d.age) || null,
-              addedBy: d.createdBy || '',
-              addedByName: d.addedByName || '',
-              addedAt: d.createdAt || d.addedAt || '',
+              ...d,
             };
           });
           const totals = {
             count: entries.length,
-            partySize: entries.reduce((s: number, e: any) => s + (e.partySize || 1), 0),
+            partySize: entries.reduce((s: number, e: any) => s + (e.totalGuests || 1), 0),
           };
           return reply.send({
             entries,
@@ -3652,23 +4553,41 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         }
         if (rest === 'door/dinein' && request.method === 'POST') {
           const now = new Date().toISOString();
-          const ref = await fastify.db.collection('dinein_sessions').add({
+          const ref = await fastify.db.collection('door_sales').add({
             ...body,
             venueId: ctx.partnerId,
+            category: 'dinein',
+            paymentMode: 'cash',
+            source: 'manual',
             status: 'active',
-            createdAt: now,
-            createdBy: ctx.uid,
+            addedAt: now,
+            addedBy: ctx.uid,
+            addedByName: 'User',
           });
           return reply.send({ success: true, id: ref.id, entryId: ref.id });
         }
 
         if (rest === 'door/sell' && request.method === 'POST') {
+          console.log('[API Gateway POST door/sell] Received body payload:', body);
           const now = new Date().toISOString();
           const purpose = String(body.purpose || 'party');
+          const category = purpose === 'dinein' ? 'dinein' : 'walkin';
           const eventId = String(body.eventId || '');
-          const ref = await fastify.db
-            .collection('door_sales')
-            .add({ ...body, venueId: ctx.partnerId, soldAt: now, soldBy: ctx.uid });
+          const entry = {
+            ...body,
+            venueId: ctx.partnerId,
+            category,
+            status: 'active',
+            source: 'manual',
+            paymentMode: body.paymentMode || 'cash',
+            addedAt: now,
+            addedBy: ctx.uid,
+            addedByName: 'Venue Dashboard',
+          };
+          delete (entry as any).purpose;
+          console.log('[API Gateway POST door/sell] Mapped Firestore document payload:', entry);
+          const ref = await fastify.db.collection('door_sales').add(entry);
+          console.log('[API Gateway POST door/sell] Firestore record created with ID:', ref.id);
           // Compute remaining capacity after sale for real-time UI update
           let remainingCapacity: number | null = null;
           if (eventId) {
@@ -3699,6 +4618,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               );
               const doorWalkInCount = (walkInsSnap as any).size || 0;
               remainingCapacity = Math.max(0, total - soldCount - doorWalkInCount);
+              console.log(
+                `[API Gateway POST door/sell] Capacity computed: total=${total}, sold=${soldCount}, walkins=${doorWalkInCount}, remaining=${remainingCapacity}`,
+              );
             }
           }
           return reply.send({ success: true, entryId: ref.id, purpose, remainingCapacity });
@@ -4711,6 +5633,34 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             hasMore: false,
             nextCursor: null,
           });
+        }
+
+        if (rest.startsWith('partners/') && request.method === 'GET') {
+          const partnerId = rest.slice('partners/'.length);
+          const profile = await getPartnerProfileSummary(fastify.db, partnerId);
+          if (!profile) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Partner profile not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          const connection = await getConnectionForViewer(fastify.db, {
+            viewerRole: ctx.type,
+            viewerId: ctx.partnerId,
+            partnerId,
+            partnerType: profile.type,
+          });
+          if (connection && (connection.status === 'active' || connection.status === 'approved')) {
+            if ((profile as any)._pii) {
+              (profile as any).email = (profile as any)._pii.email;
+              (profile as any).phone = (profile as any)._pii.phone;
+            }
+          }
+          delete (profile as any)._pii;
+          return reply.send({ profile, connection });
         }
 
         return reply.status(404).send(

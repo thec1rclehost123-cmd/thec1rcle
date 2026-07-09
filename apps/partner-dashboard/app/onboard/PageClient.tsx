@@ -113,7 +113,12 @@ async function apiVerifyOtp(type: 'email' | 'phone', recipient: string, code: st
 function OnboardingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user: authUser, profile: authProfile, signOut } = useDashboardAuth();
+  const {
+    user: authUser,
+    profile: authProfile,
+    signOut,
+    loading: authLoading,
+  } = useDashboardAuth();
 
   const [step, setStep] = useState<OnboardingStep>('role');
   const [partnerType, setPartnerType] = useState<PartnerType>('venue');
@@ -130,54 +135,10 @@ function OnboardingContent() {
   const [kycSubmitting, setKycSubmitting] = useState(false);
   const [kycError, setKycError] = useState('');
 
-  // ── Save onboarding progress so the user can resume mid-form ─────────
-  const saveProgress = useCallback(
-    async (currentStep: OnboardingStep) => {
-      const auth = getFirebaseAuth();
-      if (!auth.currentUser) return;
-      try {
-        const token = await auth.currentUser.getIdToken();
-        await fetch('/api/auth/onboarding-progress', {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            onboardingStep: currentStep,
-            entityType: entityType || undefined,
-          }),
-        });
-      } catch {
-        /* silent — non-critical */
-      }
-    },
-    [entityType],
-  );
-
-  // Dynamic sequence depends on entity type chosen at step 4
-  const stepSequence = getStepSequence(entityType);
-
-  // ── Resume from saved onboarding step if user is returning ───────────
-  const initialised = useRef(false);
-  useEffect(() => {
-    if (!authUser) return;
-    const savedStep = (authProfile as any)?.onboardingStep;
-    const savedEntity = (authProfile as any)?.entityType;
-    if (savedStep && !initialised.current && stepSequence.includes(savedStep)) {
-      initialised.current = true;
-      if (savedEntity === 'business' || savedEntity === 'individual') {
-        setEntityType(savedEntity);
-      }
-      setCreatedUid(authUser.uid);
-      // Jump ahead if the saved step is past the early steps
-      if (['kyc_identity', 'kyc_business', 'kyc_signatory'].includes(savedStep)) {
-        setStep(savedStep);
-      } else if (savedStep === 'details') {
-        setStep(savedStep);
-      }
-    }
-  }, [authUser, authProfile, stepSequence]);
+  // Existing user detection state
+  const [emailExists, setEmailExists] = useState(false);
+  const [loginPassword, setLoginPassword] = useState('');
+  const [checkingEmail, setCheckingEmail] = useState(false);
 
   // OTP state — provider-agnostic; only verification.js changes per provider
   const [otpEmail, setOtpEmail] = useState('');
@@ -216,6 +177,109 @@ function OnboardingContent() {
     registrationNumber: '',
   });
 
+  // ── Save onboarding progress so the user can resume mid-form ─────────
+  const saveProgress = useCallback(
+    async (currentStep: OnboardingStep) => {
+      const auth = getFirebaseAuth();
+      if (!auth.currentUser) return;
+      try {
+        const token = await auth.currentUser.getIdToken();
+        await fetch('/api/auth/onboarding-progress', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            onboardingStep: currentStep,
+            entityType: entityType || undefined,
+            name: formData.name || undefined,
+            contactPerson: formData.contactPerson || undefined,
+            city: formData.city || undefined,
+            area: formData.area || undefined,
+            website: formData.website || undefined,
+            capacity: formData.capacity || undefined,
+            plan: formData.plan || undefined,
+            role: formData.role || undefined,
+            association: formData.association || undefined,
+            associatedHostId: formData.associatedHostId || undefined,
+            instagram: formData.instagram || undefined,
+            bio: formData.bio || undefined,
+            upcomingEventsText: formData.upcomingEventsText || undefined,
+            pastEventsText: formData.pastEventsText || undefined,
+            businessType: formData.businessType || undefined,
+            registrationNumber: formData.registrationNumber || undefined,
+          }),
+        });
+      } catch {
+        /* silent — non-critical */
+      }
+    },
+    [entityType, formData],
+  );
+
+  // Dynamic sequence depends on entity type chosen at step 4
+  const stepSequence = getStepSequence(entityType);
+
+  // ── Resume from saved onboarding step if user is returning ───────────
+  const initialised = useRef(false);
+  useEffect(() => {
+    if (!authUser || !authProfile) return;
+    const savedStep = (authProfile as any)?.onboardingStep;
+    const savedEntity = (authProfile as any)?.entityType;
+    const ALL_ONBOARDING_STEPS: OnboardingStep[] = [
+      'role',
+      'email_verify',
+      'phone_verify',
+      'entity_type',
+      'details',
+      'kyc_identity',
+      'kyc_business',
+      'kyc_signatory',
+      'success',
+    ];
+    if (savedStep && !initialised.current && ALL_ONBOARDING_STEPS.includes(savedStep)) {
+      initialised.current = true;
+      if (savedEntity === 'business' || savedEntity === 'individual') {
+        setEntityType(savedEntity);
+      }
+      setCreatedUid(authUser.uid);
+
+      const p = authProfile as any;
+      setFormData((prev) => ({
+        ...prev,
+        email: authUser.email || prev.email,
+        name: p.name || prev.name,
+        contactPerson: p.contactPerson || prev.contactPerson,
+        phone: p.phone || prev.phone,
+        city: p.city || prev.city,
+        area: p.area || prev.area,
+        website: p.website || prev.website,
+        capacity: p.capacity || prev.capacity,
+        plan: p.plan || prev.plan,
+        role: p.role || prev.role,
+        association: p.association || prev.association,
+        associatedHostId: p.associatedHostId || prev.associatedHostId,
+        instagram: p.instagram || prev.instagram,
+        bio: p.bio || prev.bio,
+        upcomingEventsText: p.upcomingEventsText || prev.upcomingEventsText,
+        pastEventsText: p.pastEventsText || prev.pastEventsText,
+        businessType: p.businessType || prev.businessType,
+        registrationNumber: p.registrationNumber || prev.registrationNumber,
+      }));
+      if (p.phone) {
+        setOtpPhone(p.phone);
+      }
+
+      // Jump ahead if the saved step is past the early steps
+      if (['kyc_identity', 'kyc_business', 'kyc_signatory'].includes(savedStep)) {
+        setStep(savedStep);
+      } else if (savedStep === 'details') {
+        setStep(savedStep);
+      }
+    }
+  }, [authUser, authProfile, stepSequence]);
+
   // Pre-fill from URL params (existing behaviour kept)
   useEffect(() => {
     const type = searchParams.get('type') as PartnerType;
@@ -229,17 +293,106 @@ function OnboardingContent() {
     if (hostId) setFormData((prev) => ({ ...prev, associatedHostId: hostId }));
   }, [searchParams]);
 
-  // If already signed in, skip role+email verify
-  useEffect(() => {
-    if (authUser && (step === 'role' || step === 'email_verify')) {
-      setOtpEmail(authUser.email || '');
-      setFormData((prev) => ({ ...prev, email: authUser.email || '' }));
-      setCreatedUid(authUser.uid);
-      setStep('phone_verify');
-    }
-  }, [authUser]);
+  // ── Clean up session and enforce Step 1 on fresh load/reload ──────────
+  const initialChecked = useRef(false);
 
-  // Approval polling (unchanged from original)
+  useEffect(() => {
+    if (authLoading) return;
+    if (initialChecked.current) return;
+
+    const checkInitialState = async () => {
+      initialChecked.current = true;
+      if (authUser) {
+        try {
+          const token = await authUser.getIdToken();
+          const res = await fetch('/api/auth/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const meData = await res.json();
+            const onboardingRequest = meData.onboarding?.onboardingRequest || null;
+            const onboardingComplete = meData.onboarding?.onboardingComplete === true;
+            const profileObj = meData.profile || {};
+            const userObj = meData.user || {};
+            const savedStep = profileObj.onboardingStep || userObj.onboardingStep;
+
+            if (onboardingRequest || onboardingComplete) {
+              if (onboardingRequest) {
+                setSubmittedRequestId(onboardingRequest.id);
+                const reqStatus = onboardingRequest.status?.toLowerCase();
+                if (
+                  reqStatus === 'approved' ||
+                  reqStatus === 'verified' ||
+                  meData.user?.isApproved === true ||
+                  meData.profile?.isApproved === true
+                ) {
+                  setApprovalStatus('verified');
+                } else {
+                  setApprovalStatus('pending');
+                }
+              } else if (onboardingComplete) {
+                const isApproved =
+                  meData.user?.isApproved === true || meData.profile?.isApproved === true;
+                setApprovalStatus(isApproved ? 'verified' : 'pending');
+              }
+              setStep('success');
+              initialised.current = true;
+              return;
+            } else if (savedStep) {
+              const savedEntity = profileObj.entityType || userObj.entityType;
+              if (savedEntity === 'business' || savedEntity === 'individual') {
+                setEntityType(savedEntity);
+              }
+              setCreatedUid(authUser.uid);
+
+              setFormData((prev) => ({
+                ...prev,
+                email: authUser.email || prev.email,
+                name: profileObj.name || prev.name,
+                contactPerson: profileObj.contactPerson || prev.contactPerson,
+                phone: profileObj.phone || prev.phone,
+                city: profileObj.city || prev.city,
+                area: profileObj.area || prev.area,
+                website: profileObj.website || prev.website,
+                capacity: profileObj.capacity || prev.capacity,
+                plan: profileObj.plan || prev.plan,
+                role: profileObj.role || prev.role,
+                association: profileObj.association || prev.association,
+                associatedHostId: profileObj.associatedHostId || prev.associatedHostId,
+                instagram: profileObj.instagram || prev.instagram,
+                bio: profileObj.bio || prev.bio,
+                upcomingEventsText: profileObj.upcomingEventsText || prev.upcomingEventsText,
+                pastEventsText: profileObj.pastEventsText || prev.pastEventsText,
+                businessType: profileObj.businessType || prev.businessType,
+                registrationNumber: profileObj.registrationNumber || prev.registrationNumber,
+              }));
+              if (profileObj.phone) {
+                setOtpPhone(profileObj.phone);
+              }
+
+              setStep(savedStep);
+              initialised.current = true;
+              return;
+            }
+          }
+        } catch (err) {
+          console.error('Error checking initial onboarding state:', err);
+        }
+        // If onboarding is not complete and no saved step or request has been found,
+        // sign the user out to start fresh from Step 1.
+        try {
+          await signOut();
+        } catch (e) {
+          console.error('Error signing out on reload:', e);
+        }
+      }
+      setStep('role');
+    };
+
+    checkInitialState();
+  }, [authLoading, authUser, signOut]);
+
+  // Approval polling (fixed to read request.status)
   useEffect(() => {
     if (step !== 'success' || !submittedRequestId) return;
     const auth = getFirebaseAuth();
@@ -254,8 +407,13 @@ function OnboardingContent() {
         );
         if (!res.ok) return;
         const data = await res.json();
-        const status = (data.status as string | undefined)?.toLowerCase();
-        if (status === 'verified' || status === 'approved') setApprovalStatus('verified');
+        const reqObj = data.request || data;
+        const status = (reqObj.status as string | undefined)?.toLowerCase();
+        if (status === 'verified' || status === 'approved') {
+          setApprovalStatus('verified');
+        } else {
+          setApprovalStatus('pending');
+        }
       } catch {
         /* silent */
       }
@@ -288,6 +446,177 @@ function OnboardingContent() {
   }
 
   // ── Email OTP ─────────────────────────────────────────────────────────────
+  const handleEmailSubmit = async () => {
+    setError('');
+    if (!otpEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(otpEmail)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    setLoading(true);
+    try {
+      // Check if email exists
+      const checkRes = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: otpEmail }),
+      });
+      if (!checkRes.ok) {
+        throw new Error('Failed to verify email existence. Please try again.');
+      }
+      const checkData = await checkRes.json();
+      if (checkData.exists) {
+        setEmailExists(true);
+      } else {
+        // Normal flow: send OTP
+        await apiSendOtp('email', otpEmail);
+        setOtpEmailSent(true);
+        setFormData((prev) => ({ ...prev, email: otpEmail }));
+        startCooldown(setEmailCooldown, emailCooldownRef);
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExistingUserLogin = async () => {
+    setError('');
+    if (!loginPassword) {
+      setError('Please enter your password.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const auth = getFirebaseAuth();
+      const userCredential = await signInWithEmailAndPassword(auth, otpEmail, loginPassword);
+      const token = await userCredential.user.getIdToken();
+
+      const meRes = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!meRes.ok) {
+        throw new Error('Failed to fetch account details. Please try logging in again.');
+      }
+      const meData = await meRes.json();
+      console.log('Fetched existing user registration data:', meData);
+
+      // Check if onboarding is already completed / submitted (KYC is completed/pending review)
+      const onboardingRequest = meData.onboarding?.onboardingRequest || null;
+      const onboardingComplete = meData.onboarding?.onboardingComplete === true;
+
+      if (onboardingRequest || onboardingComplete) {
+        if (onboardingRequest) {
+          setSubmittedRequestId(onboardingRequest.id);
+          const reqStatus = onboardingRequest.status?.toLowerCase();
+          if (
+            reqStatus === 'approved' ||
+            reqStatus === 'verified' ||
+            meData.user?.isApproved === true ||
+            meData.profile?.isApproved === true
+          ) {
+            setApprovalStatus('verified');
+          } else {
+            setApprovalStatus('pending');
+          }
+        } else if (onboardingComplete) {
+          const isApproved =
+            meData.user?.isApproved === true || meData.profile?.isApproved === true;
+          setApprovalStatus(isApproved ? 'verified' : 'pending');
+        }
+        initialised.current = true;
+        setStep('success');
+        setLoading(false);
+        return;
+      }
+
+      const userObj = meData.user || {};
+      const profileObj = meData.profile || {};
+
+      // Determine entityType
+      const savedEntity = userObj.entityType || profileObj.entityType || 'individual';
+      const isBusiness = savedEntity === 'business';
+      setEntityType(isBusiness ? 'business' : 'individual');
+
+      // Pre-populate formData from the database profile
+      setFormData((prev) => ({
+        ...prev,
+        email: userObj.email || otpEmail,
+        name: profileObj.name || userObj.displayName || prev.name,
+        contactPerson: profileObj.contactPerson || prev.contactPerson,
+        phone: profileObj.phone || userObj.phone || prev.phone,
+        city: profileObj.city || prev.city,
+        area: profileObj.area || prev.area,
+        website: profileObj.website || prev.website,
+        capacity: profileObj.capacity || prev.capacity,
+        plan: profileObj.plan || prev.plan,
+        role: profileObj.role || prev.role,
+        association: profileObj.association || prev.association,
+        associatedHostId: profileObj.associatedHostId || prev.associatedHostId,
+        instagram: profileObj.instagram || prev.instagram,
+        bio: profileObj.bio || prev.bio,
+        upcomingEventsText: profileObj.upcomingEventsText || prev.upcomingEventsText,
+        pastEventsText: profileObj.pastEventsText || prev.pastEventsText,
+        businessType: profileObj.businessType || prev.businessType,
+        registrationNumber: profileObj.registrationNumber || prev.registrationNumber,
+      }));
+
+      if (profileObj.phone || userObj.phone) {
+        setOtpPhone(profileObj.phone || userObj.phone);
+      }
+      setCreatedUid(userObj.uid);
+
+      // Determine Step 6 based on entity type: kyc_business for business, kyc_identity for individual
+      const nextStep = isBusiness ? 'kyc_business' : 'kyc_identity';
+
+      // Navigate to Step 6
+      initialised.current = true;
+      setStep(nextStep);
+
+      // Save progress so database records this step transition
+      await fetch('/api/auth/onboarding-progress', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          onboardingStep: nextStep,
+          entityType: isBusiness ? 'business' : 'individual',
+          name: profileObj.name || userObj.displayName || undefined,
+          contactPerson: profileObj.contactPerson || undefined,
+          city: profileObj.city || undefined,
+          area: profileObj.area || undefined,
+          website: profileObj.website || undefined,
+          capacity: profileObj.capacity || undefined,
+          plan: profileObj.plan || undefined,
+          role: profileObj.role || undefined,
+          association: profileObj.association || undefined,
+          associatedHostId: profileObj.associatedHostId || undefined,
+          instagram: profileObj.instagram || undefined,
+          bio: profileObj.bio || undefined,
+          upcomingEventsText: profileObj.upcomingEventsText || undefined,
+          pastEventsText: profileObj.pastEventsText || undefined,
+          businessType: profileObj.businessType || undefined,
+          registrationNumber: profileObj.registrationNumber || undefined,
+        }),
+      });
+    } catch (err: any) {
+      console.error('Existing user login error:', err);
+      let msg = err.message || 'Verification failed. Please try again.';
+      if (
+        msg.includes('auth/invalid-credential') ||
+        msg.includes('auth/wrong-password') ||
+        msg.includes('INVALID_LOGIN_CREDENTIALS')
+      ) {
+        msg = 'Incorrect password. Please try again.';
+      }
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSendEmailOtp = async () => {
     setError('');
     if (!otpEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(otpEmail)) {
@@ -434,6 +763,28 @@ function OnboardingContent() {
             return;
           }
         }
+        // Log the details being saved during account creation
+        // console.log('Data going to be saved in database during account creation:', {
+        // email: formData.email,
+        // phone: createPhone || undefined,
+        // name: formData.name,
+        // contactPerson: formData.contactPerson,
+        // city: formData.city,
+        // area: formData.area,
+        // website: formData.website,
+        // capacity: formData.capacity,
+        // plan: formData.plan,
+        // role: formData.role,
+        // association: formData.association,
+        // associatedHostId: formData.associatedHostId,
+        // instagram: formData.instagram,
+        // bio: formData.bio,
+        // upcomingEventsText: formData.upcomingEventsText,
+        // pastEventsText: formData.pastEventsText,
+        // businessType: formData.businessType,
+        // registrationNumber: formData.registrationNumber,
+        // entityType: entityType,
+        // });
         // Create account server-side (Admin SDK) — avoids client Firebase Auth connectivity issues
         const res = await fetch('/api/auth/create-account', {
           method: 'POST',
@@ -442,6 +793,23 @@ function OnboardingContent() {
             email: formData.email,
             password: formData.password,
             phone: createPhone || undefined,
+            name: formData.name,
+            contactPerson: formData.contactPerson,
+            city: formData.city,
+            area: formData.area,
+            website: formData.website,
+            capacity: formData.capacity,
+            plan: formData.plan,
+            role: formData.role,
+            association: formData.association,
+            associatedHostId: formData.associatedHostId,
+            instagram: formData.instagram,
+            bio: formData.bio,
+            upcomingEventsText: formData.upcomingEventsText,
+            pastEventsText: formData.pastEventsText,
+            businessType: formData.businessType,
+            registrationNumber: formData.registrationNumber,
+            entityType: entityType,
           }),
         });
         const data = await res.json();
@@ -679,8 +1047,12 @@ function OnboardingContent() {
               <StepHeader
                 step="02"
                 label="Verify Email"
-                title="Confirm Your Email"
-                description="Enter the email address you want to register with. We'll send a 6-digit verification code."
+                title={emailExists ? 'Welcome Back' : 'Confirm Your Email'}
+                description={
+                  emailExists
+                    ? 'Your email is already registered. Enter your password to resume onboarding.'
+                    : "Enter the email address you want to register with. We'll send a 6-digit verification code."
+                }
               />
               <ErrorBanner error={error} />
               <div className="space-y-5">
@@ -691,11 +1063,56 @@ function OnboardingContent() {
                   value={otpEmail}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOtpEmail(e.target.value)}
                   placeholder="you@company.com"
-                  disabled={otpEmailSent}
+                  disabled={otpEmailSent || emailExists}
                 />
-                {!otpEmailSent ? (
-                  <ActionButton onClick={handleSendEmailOtp} loading={loading}>
-                    Send Verification Code <ChevronRight className="h-5 w-5" />
+                {emailExists ? (
+                  <>
+                    <div className="relative">
+                      <FormInput
+                        label="Password"
+                        icon={Lock}
+                        type={showPassword ? 'text' : 'password'}
+                        value={loginPassword}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          setLoginPassword(e.target.value)
+                        }
+                        placeholder="Enter your password"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-[42px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
+                    <ActionButton
+                      onClick={handleExistingUserLogin}
+                      loading={loading}
+                      loadingText="AUTHORIZING ACCESS..."
+                    >
+                      Verify & Login <ChevronRight className="h-5 w-5" />
+                    </ActionButton>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmailExists(false);
+                        setLoginPassword('');
+                        setError('');
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 text-[12px] font-semibold text-[var(--text-tertiary)] hover:text-[var(--accent-primary)] transition-colors"
+                    >
+                      Use a different email
+                    </button>
+                  </>
+                ) : !otpEmailSent ? (
+                  <ActionButton onClick={handleEmailSubmit} loading={loading}>
+                    Continue <ChevronRight className="h-5 w-5" />
                   </ActionButton>
                 ) : (
                   <>
@@ -1055,14 +1472,25 @@ function OnboardingContent() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <FormInput
+                    <FormSelect
                       label="City"
-                      icon={MapPin}
                       name="city"
                       value={formData.city}
                       onChange={handleInputChange}
                       required
-                      placeholder="e.g. Mumbai"
+                      options={[
+                        { value: '', label: 'Select a city' },
+                        { value: 'Pune', label: 'Pune' },
+                        { value: 'Mumbai', label: 'Mumbai' },
+                        { value: 'Goa', label: 'Goa' },
+                        { value: 'Bengaluru', label: 'Bengaluru' },
+                        { value: 'Delhi', label: 'Delhi' },
+                        { value: 'Hyderabad', label: 'Hyderabad' },
+                        { value: 'Chennai', label: 'Chennai' },
+                        { value: 'Kolkata', label: 'Kolkata' },
+                        { value: 'Jaipur', label: 'Jaipur' },
+                        { value: 'Ahmedabad', label: 'Ahmedabad' },
+                      ]}
                     />
                     <FormInput
                       label="Area / Locality"
@@ -1532,10 +1960,12 @@ function OtpInput({
 function ActionButton({
   onClick,
   loading = false,
+  loadingText = 'Processing...',
   children,
 }: {
   onClick?: () => void;
   loading?: boolean;
+  loadingText?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -1548,7 +1978,7 @@ function ActionButton({
       {loading ? (
         <>
           <span className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          Processing...
+          {loadingText}
         </>
       ) : (
         children

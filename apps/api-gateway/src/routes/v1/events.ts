@@ -1,7 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 import { resolvePartnerContext } from '../../lib/partner-context.js';
+import { encrypt } from '../../lib/encryption.js';
 import { applyPublicCacheHeaders, buildVersionedPublicCacheKey } from '../../utils/public-cache';
 import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
 import {
@@ -30,7 +32,7 @@ import {
 
 const ExploreEventListQuery = z
   .object({
-    limit: z.coerce.number().int().min(1).max(24).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
     cursor: z.string().min(1).max(500).optional(),
     lastId: z.string().min(1).max(500).optional(),
     sort: z.string().trim().max(64).optional(),
@@ -58,6 +60,8 @@ const ExploreEventListQuery = z
     venue: z.string().trim().max(120).optional(),
     venueId: z.string().trim().max(120).optional(),
     venueSlug: z.string().trim().max(120).optional(),
+    lifecycle: z.string().trim().max(120).optional(),
+    creatorId: z.string().trim().max(120).optional(),
   })
   .strict();
 
@@ -356,6 +360,279 @@ async function enrichPartnerSnapshots(db: any, event: Record<string, any>) {
   return enriched;
 }
 
+async function sendPushToUsers(
+  db: any,
+  userIds: string[],
+  title: string,
+  body: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  if (!userIds.length) return;
+  const tokens: string[] = [];
+  for (let i = 0; i < userIds.length; i += 30) {
+    const batch = userIds.slice(i, i + 30);
+    const snap = await db
+      .collection('users')
+      .where('__name__', 'in', batch)
+      .get()
+      .catch(() => ({ docs: [] as any[] }));
+    (snap as any).docs.forEach((d: any) => {
+      const ud = (d.data() as Record<string, any>) || {};
+      if (Array.isArray(ud.pushTokens)) tokens.push(...ud.pushTokens);
+    });
+  }
+  if (!tokens.length) return;
+  const messages = tokens.map((token) => ({ to: token, sound: 'default', title, body, data }));
+  for (let i = 0; i < messages.length; i += 100) {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(messages.slice(i, i + 100)),
+    }).catch(() => {
+      /* fire-and-forget — never fail the request */
+    });
+  }
+}
+
+async function ensurePromoterLink(
+  db: any,
+  promoterId: string,
+  eventId: string,
+  eventTitle: string,
+  commissionRate: number,
+): Promise<string> {
+  try {
+    const promoterRef = db.collection('promoters').doc(promoterId);
+    const promoterDoc = await promoterRef.get();
+    let trackingCode = promoterDoc.exists ? promoterDoc.data()?.trackingCode : null;
+
+    if (!trackingCode) {
+      const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+      let base = (
+        promoterDoc.exists
+          ? promoterDoc.data()?.displayName || promoterDoc.data()?.name || 'promo'
+          : 'promo'
+      )
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+      if (base.length > 10) base = base.substring(0, 10);
+      if (base.length < 3) base = 'promo';
+
+      let isUnique = false;
+      let newCode = '';
+      while (!isUnique) {
+        const suffix = Array.from(
+          { length: 3 },
+          () => chars[Math.floor(Math.random() * chars.length)],
+        ).join('');
+        newCode = `${base}${suffix}`;
+        const existingGlobal = await db
+          .collection('promoters')
+          .where('trackingCode', '==', newCode)
+          .limit(1)
+          .get();
+        if (existingGlobal.empty) {
+          isUnique = true;
+        }
+      }
+      trackingCode = newCode;
+      await promoterRef.set({ trackingCode }, { merge: true });
+    }
+
+    const linkId = `${promoterId}_${eventId}`;
+    const linkRef = db.collection('promoter_links').doc(linkId);
+    const linkDoc = await linkRef.get();
+
+    if (!linkDoc.exists) {
+      const now = new Date().toISOString();
+      await linkRef.set({
+        id: linkId,
+        promoterId,
+        promoterName: promoterDoc.exists
+          ? promoterDoc.data()?.displayName || promoterDoc.data()?.name || ''
+          : '',
+        eventId,
+        eventTitle,
+        campaignLabel: 'assigned',
+        ticketTierIds: [],
+        commissionRate,
+        commissionType: 'percentage',
+        code: trackingCode,
+        clicks: 0,
+        conversions: 0,
+        revenue: 0,
+        commission: 0,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    return trackingCode || '';
+  } catch (err: any) {
+    console.error(`[ensurePromoterLink] Error: ${err.message}`);
+    return '';
+  }
+}
+
+async function syncEventPromoters(
+  db: any,
+  eventId: string,
+  eventName: string,
+  venueName: string,
+  promoterIds: string[],
+  promotersEnabled: boolean,
+  commissionRate: number,
+  creatorRole: string,
+): Promise<void> {
+  try {
+    const isEnabled = promotersEnabled !== false;
+    const nextIds = isEnabled ? (Array.isArray(promoterIds) ? promoterIds : []) : [];
+
+    // 1. Update event_promoter_settings
+    const settingsRef = db.collection('event_promoter_settings').doc(eventId);
+    await settingsRef.set(
+      {
+        eventId,
+        enabled: isEnabled,
+        allowedPromoterIds: nextIds,
+        defaultCommission: commissionRate,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+
+    // Fetch the event status/lifecycle to check if it's a draft
+    const eventDoc = await db
+      .collection('events')
+      .doc(eventId)
+      .get()
+      .catch(() => null);
+    const eventData = eventDoc?.exists ? eventDoc.data() : null;
+    const isDraft = eventData
+      ? eventData.lifecycle === 'draft' || eventData.status === 'draft'
+      : true;
+
+    // If the event is a draft, do not assign promoters or notify them yet
+    if (isDraft) {
+      return;
+    }
+
+    // Get currently active assignments in the database for this event
+    const activeAssignmentsSnap = await db
+      .collection('promoter_assignments')
+      .where('eventId', '==', eventId)
+      .where('status', '==', 'active')
+      .get()
+      .catch(() => null);
+    const prevIds: string[] =
+      activeAssignmentsSnap?.docs.map((d: any) => d.data().promoterId) ?? [];
+
+    // 2. Diff newly added / removed promoters
+    const newlyAdded = nextIds.filter((id) => !prevIds.includes(id));
+    const removed = prevIds.filter((id) => !nextIds.includes(id));
+    const now = new Date().toISOString();
+
+    const encryptedEventName = encrypt(eventName);
+    const encryptedVenueName = encrypt(venueName);
+
+    // 3. Create assignments for newly added promoters
+    await Promise.all(
+      newlyAdded.map(async (promoterId) => {
+        const trackingCode = await ensurePromoterLink(
+          db,
+          promoterId,
+          eventId,
+          eventName,
+          commissionRate,
+        );
+        const assignId = `${promoterId}_${eventId}`;
+        await db
+          .collection('promoter_assignments')
+          .doc(assignId)
+          .set(
+            {
+              id: assignId,
+              promoterId,
+              eventId,
+              eventName: encryptedEventName,
+              venueName: encryptedVenueName,
+              status: 'active',
+              commissionRate,
+              linkCode: trackingCode || null,
+              totalSales: 0,
+              totalRevenue: 0,
+              totalCommission: 0,
+              guestlistAllowance: 0,
+              guestlistUsed: 0,
+              guests: [],
+              assignedAt: now,
+              createdAt: now,
+              updatedAt: now,
+            },
+            { merge: true },
+          );
+      }),
+    );
+
+    // 4. Mark removed promoters as inactive
+    await Promise.all(
+      removed.map(async (promoterId) => {
+        const assignId = `${promoterId}_${eventId}`;
+        await db
+          .collection('promoter_assignments')
+          .doc(assignId)
+          .set({ status: 'inactive', updatedAt: now }, { merge: true });
+      }),
+    );
+
+    // 5. If overall disabled, deactivate any existing ones
+    if (!isEnabled && prevIds.length > 0) {
+      await Promise.all(
+        prevIds.map(async (promoterId) => {
+          const assignId = `${promoterId}_${eventId}`;
+          await db
+            .collection('promoter_assignments')
+            .doc(assignId)
+            .set({ status: 'inactive', updatedAt: now }, { merge: true });
+        }),
+      );
+    }
+
+    // 6. Send notifications to newly added promoters
+    if (newlyAdded.length > 0) {
+      const rawTitle = "You've been added to an event!";
+      const rawMessage = `${eventName} is live — start sharing your link`;
+      const encryptedTitle = encrypt(rawTitle);
+      const encryptedMessage = encrypt(rawMessage);
+
+      await Promise.all([
+        ...newlyAdded.map((promoterId) =>
+          db.collection('notifications').add({
+            recipientId: promoterId,
+            recipientType: 'promoter',
+            type: 'promoter_assignment',
+            title: encryptedTitle,
+            message: encryptedMessage,
+            read: false,
+            createdAt: now,
+            data: {
+              eventId,
+              initiatedBy: creatorRole === 'host' ? 'host' : 'venue',
+            },
+          }),
+        ),
+        sendPushToUsers(db, newlyAdded, rawTitle, rawMessage, {
+          type: 'promoter_assignment',
+          eventId,
+        }),
+      ]);
+    }
+  } catch (err: any) {
+    console.error(`[syncEventPromoters] Error: ${err.message}`);
+  }
+}
+
 export default async function eventRoutes(fastify: FastifyInstance) {
   /**
    * GET /api/v1/events
@@ -366,6 +643,72 @@ export default async function eventRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.validate({ querystring: ExploreEventListQuery })] },
     async (request: any, reply) => {
       try {
+        const { lifecycle, creatorId, venueId } = request.query || {};
+
+        // If query is for partner/draft list (e.g. from partner dashboard)
+        if (lifecycle || creatorId) {
+          const userId = request.user?.uid;
+          if (!userId) {
+            return reply.status(401).send(
+              buildErrorResponse({
+                code: 'UNAUTHORIZED',
+                message: 'Unauthorized',
+                requestId: request.id,
+              }),
+            );
+          }
+
+          let q: any = fastify.db.collection('events');
+          if (creatorId) {
+            q = q.where('creatorId', '==', creatorId);
+          } else if (venueId) {
+            q = q.where('venueId', '==', venueId);
+          }
+
+          if (lifecycle) {
+            const lifecycles = lifecycle
+              .split(',')
+              .map((s: string) => s.trim())
+              .filter(Boolean);
+            if (lifecycles.length > 0) {
+              q = q.where('lifecycle', 'in', lifecycles);
+            }
+          }
+
+          const limit = Math.min(Number(request.query.limit) || 20, 100);
+          let snap;
+          let sortedInMemory = false;
+          try {
+            snap = await q.orderBy('startDate', 'desc').limit(limit).get();
+          } catch (err: any) {
+            fastify.log.warn(
+              `Firestore query with orderBy failed (likely missing index): ${err.message}. Retrying without orderBy and sorting in memory.`,
+            );
+            snap = await q.get();
+            sortedInMemory = true;
+          }
+
+          let events = snap.docs.map((doc: any) => {
+            const data = doc.data();
+            return {
+              ...data,
+              id: doc.id,
+              eventId: doc.id,
+            };
+          });
+
+          if (sortedInMemory) {
+            events.sort((a: any, b: any) => {
+              const dateA = a.startDate || '';
+              const dateB = b.startDate || '';
+              return dateB.localeCompare(dateA);
+            });
+            events = events.slice(0, limit);
+          }
+
+          return { events, success: true };
+        }
+
         await enforcePublicRateLimit(fastify, request, 'events:explore', 120, 60);
         applyPublicCacheHeaders(reply, 60);
 
@@ -930,7 +1273,56 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         const cached = await fastify.cache.get('public-discovery', cacheKey);
         if (cached) return cached;
 
-        const detail = await fastify.publicDiscoveryService.getEventDetail(id);
+        let detail = await fastify.publicDiscoveryService.getEventDetail(id);
+        let isPrivateOrDraft = false;
+
+        if (!detail) {
+          // Check if this is a draft or private event that the user owns/has access to
+          const eventSnap = await fastify.db.collection('events').doc(id).get();
+          if (eventSnap.exists) {
+            const eventData = eventSnap.data() as any;
+            const uid = request.user?.uid;
+            let hasAccess = false;
+
+            if (uid) {
+              const activePartnerId = request.user?.activeMembership?.partnerId;
+              if (
+                eventData.creatorId === uid ||
+                eventData.hostId === uid ||
+                (activePartnerId &&
+                  (eventData.hostId === activePartnerId || eventData.venueId === activePartnerId))
+              ) {
+                hasAccess = true;
+              } else {
+                if (eventData.hostId) {
+                  hasAccess = await fastify
+                    .verifyPartnerAccess(request, eventData.hostId)
+                    .catch(() => false);
+                }
+                if (!hasAccess && eventData.venueId) {
+                  hasAccess = await fastify
+                    .verifyPartnerAccess(request, eventData.venueId)
+                    .catch(() => false);
+                }
+              }
+            }
+
+            if (hasAccess) {
+              isPrivateOrDraft = true;
+              detail = {
+                event: {
+                  ...eventData,
+                  id: eventSnap.id,
+                },
+                interestedData: {
+                  count: 0,
+                  users: [],
+                },
+              };
+            }
+          }
+        }
+
         if (!detail)
           return reply.status(404).send(
             buildErrorResponse({
@@ -940,7 +1332,9 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             }),
           );
 
-        await fastify.cache.set('public-discovery', cacheKey, detail, 60);
+        if (!isPrivateOrDraft) {
+          await fastify.cache.set('public-discovery', cacheKey, detail, 60);
+        }
         return detail;
       } catch (error: any) {
         if (error.message === 'RATE_LIMITED')
@@ -1010,6 +1404,20 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         }
       }
 
+      if (request.body.startDate && request.body.endDate) {
+        const start = new Date(request.body.startDate);
+        const end = new Date(request.body.endDate);
+        if (end.getTime() <= start.getTime()) {
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'BAD_REQUEST',
+              message: 'End date must be after start date',
+              requestId: request.id,
+            }),
+          );
+        }
+      }
+
       try {
         const event = await fastify.eventService.createEvent(request.body, actorId, workspaceId);
 
@@ -1032,6 +1440,23 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
         await fastify.invalidatePublicDiscovery('all');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
+
+        // Sync promoters (fire-and-forget)
+        const bodyPromoters = Array.isArray(request.body.promoters) ? request.body.promoters : [];
+        const bodyPromotersEnabled = request.body.promotersEnabled ?? false;
+        const commissionRate = request.body.commission ?? 10;
+
+        syncEventPromoters(
+          fastify.db,
+          event.id,
+          event.title || 'Untitled Event',
+          event.venueName || event.venue || '',
+          bodyPromoters,
+          bodyPromotersEnabled,
+          commissionRate,
+          request.body.creatorRole || 'venue',
+        );
+
         return { success: true, id: event.id };
       } catch (error: any) {
         fastify.log.error(`Error in POST /events: ${error.message}`);
@@ -1152,6 +1577,43 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
         await fastify.invalidatePublicDiscovery('all');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
+
+        const isPublishing =
+          patchFields.lifecycle === 'scheduled' || patchFields.lifecycle === 'submitted';
+        if (
+          patchFields.promoters !== undefined ||
+          patchFields.promotersEnabled !== undefined ||
+          patchFields.commission !== undefined ||
+          isPublishing
+        ) {
+          const settingsDoc = await fastify.db
+            .collection('event_promoter_settings')
+            .doc(id)
+            .get()
+            .catch(() => null);
+          const prevIds: string[] =
+            (settingsDoc?.exists ? (settingsDoc.data() as any)?.allowedPromoterIds : null) ?? [];
+
+          const bodyPromoters = Array.isArray(patchFields.promoters)
+            ? patchFields.promoters
+            : prevIds;
+          const bodyPromotersEnabled =
+            patchFields.promotersEnabled ?? event.promotersEnabled ?? false;
+          const commissionRate =
+            patchFields.commission ?? event.promoterSettings?.commissionRate ?? 10;
+
+          syncEventPromoters(
+            fastify.db,
+            id,
+            event.title || 'Untitled Event',
+            event.venueName || event.venue || '',
+            bodyPromoters,
+            bodyPromotersEnabled,
+            commissionRate,
+            event.creatorRole || 'venue',
+          );
+        }
+
         return { success: true, id: event.id };
       } catch (error: any) {
         fastify.log.error(`Error in PATCH /events/:id: ${error.message}`);
@@ -1337,6 +1799,41 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         }
       }
 
+      // --- Validate end time is after start time ---
+      if (!isDraft && body.startDate) {
+        const sTime = body.startTime || '00:00';
+        const eTime = body.endTime || '00:00';
+        const sDate = body.startDate;
+        const eDate = body.endDate || sDate;
+
+        const [sYr, sMon, sDay] = sDate.split('-').map(Number);
+        const [sHr, sMin] = sTime.split(':').map(Number);
+        const startDt = new Date(sYr, sMon - 1, sDay, sHr, sMin);
+
+        const [eYr, eMon, eDay] = eDate.split('-').map(Number);
+        const [eHr, eMin] = eTime.split(':').map(Number);
+        const endDt = new Date(eYr, eMon - 1, eDay, eHr, eMin);
+
+        const isSameDayOrUnspecified = !body.endDate || body.endDate === sDate;
+        if (isSameDayOrUnspecified && body.startTime && body.endTime) {
+          const startMinutes = sHr * 60 + sMin;
+          const endMinutes = eHr * 60 + eMin;
+          if (endMinutes < startMinutes) {
+            endDt.setDate(endDt.getDate() + 1);
+          }
+        }
+
+        if (endDt.getTime() <= startDt.getTime()) {
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'BAD_REQUEST',
+              message: 'End time of event must be after the start time',
+              requestId: request.id,
+            }),
+          );
+        }
+      }
+
       // --- Scheduling availability checks (single source: availability_slots) ---
       if (!isDraft && body.venueId && body.startDate) {
         const slotsSnap = await fastify.db
@@ -1394,12 +1891,17 @@ export default async function eventRoutes(fastify: FastifyInstance) {
       }
 
       try {
-        const event = buildEvent({
+        const built = buildEvent({
           ...body,
           creatorId: hostId,
           workspaceId: hostId,
         }) as Record<string, any>;
-        event.workspaceId = hostId;
+        // Preserve all wizard-specific fields that buildEvent doesn't output
+        const event: any = {
+          ...body,
+          ...built,
+          workspaceId: hostId,
+        };
         const eventRecord = await enrichPartnerSnapshots(fastify.db, event);
 
         const slotRecord =
@@ -1463,6 +1965,22 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         await fastify.cache.invalidateNamespace('events:nearby');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id);
         await fastify.invalidatePublicDiscovery('all');
+
+        // Sync promoters (fire-and-forget)
+        const bodyPromoters = Array.isArray(body.promoters) ? body.promoters : [];
+        const bodyPromotersEnabled = body.promotersEnabled ?? false;
+        const commissionRate = body.commission ?? 10;
+
+        syncEventPromoters(
+          fastify.db,
+          event.id,
+          eventRecord.title || 'Untitled Event',
+          eventRecord.venueName || eventRecord.venue || '',
+          bodyPromoters,
+          bodyPromotersEnabled,
+          commissionRate,
+          body.creatorRole || 'venue',
+        );
 
         return reply.status(201).send({ success: true, event: { id: event.id } });
       } catch (error: any) {

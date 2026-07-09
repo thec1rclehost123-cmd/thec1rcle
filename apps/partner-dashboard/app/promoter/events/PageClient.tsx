@@ -171,6 +171,7 @@ export default function PromoterEventsPage() {
 
   const [events, setEvents] = useState<PromoterEvent[]>([]);
   const [myLinks, setMyLinks] = useState<PromoterLink[]>([]);
+  const [assignments, setAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -210,6 +211,7 @@ export default function PromoterEventsPage() {
         const eventsData = await eventsRes.json();
         const linksData = await linksRes.json();
         setEvents(Array.isArray(eventsData.events) ? eventsData.events : []);
+        setAssignments(Array.isArray(eventsData.assignments) ? eventsData.assignments : []);
         setNextCursor(eventsData.discoverCursor || null);
         setMyLinks(Array.isArray(linksData.links) ? linksData.links : []);
         setFetchError(null);
@@ -265,16 +267,23 @@ export default function PromoterEventsPage() {
     [myLinks],
   );
 
+  const assignedEventIds = useMemo(() => {
+    return new Set((assignments || []).map((a) => String(a.eventId || '')));
+  }, [assignments]);
+
   const filteredEvents = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     const cityLower = selectedCity.trim().toLowerCase();
 
     return events.filter((event) => {
       const hasLink = Boolean(getActiveLink(event.id));
+      const isAssigned = assignedEventIds.has(String(event.id));
+      const isLinkedOrAssigned = hasLink || isAssigned;
+
       const matchesTab =
         activeTab === 'all' ||
-        (activeTab === 'linked' && hasLink) ||
-        (activeTab === 'available' && !hasLink);
+        (activeTab === 'linked' && isLinkedOrAssigned) ||
+        (activeTab === 'available' && !isLinkedOrAssigned);
 
       const matchesSearch =
         !query ||
@@ -290,16 +299,20 @@ export default function PromoterEventsPage() {
 
       return matchesTab && matchesSearch && matchesCity;
     });
-  }, [activeTab, events, getActiveLink, searchQuery, selectedCity]);
+  }, [activeTab, events, getActiveLink, assignedEventIds, searchQuery, selectedCity]);
 
   const counts = useMemo(() => {
-    const linked = events.filter((event) => Boolean(getActiveLink(event.id))).length;
+    const linked = events.filter((event) => {
+      const hasLink = Boolean(getActiveLink(event.id));
+      const isAssigned = assignedEventIds.has(String(event.id));
+      return hasLink || isAssigned;
+    }).length;
     return {
       all: events.length,
       linked,
       available: Math.max(events.length - linked, 0),
     };
-  }, [events, getActiveLink]);
+  }, [events, getActiveLink, assignedEventIds]);
 
   const copyLink = async (link: PromoterLink) => {
     await navigator.clipboard.writeText(buildLinkUrl(link));

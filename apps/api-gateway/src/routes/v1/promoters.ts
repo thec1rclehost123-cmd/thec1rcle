@@ -9,6 +9,7 @@ import {
 } from '@c1rcle/core/promoter-engine';
 import { z } from 'zod';
 import { normalizePromoterCommissionRate } from '../../lib/partner-hardening.js';
+import { decrypt } from '../../lib/encryption.js';
 
 const ConnectionsQuery = z
   .object({
@@ -971,11 +972,11 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
           name: pickString(
             event.title,
             event.name,
-            assignment.eventName,
-            assignment.eventTitle,
+            decrypt(assignment.eventName),
+            decrypt(assignment.eventTitle),
             'Event',
           ),
-          venue: pickString(event.venueName, event.venue, assignment.venueName),
+          venue: pickString(event.venueName, event.venue, decrypt(assignment.venueName)),
           date: toIso(
             event.startDate ||
               event.date ||
@@ -1152,19 +1153,52 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
 
       const id = randomUUID();
       const now = new Date().toISOString();
-      const connection = {
+      const targetType = pickString(body.targetType, 'venue');
+      const targetId = String(body.targetId || '');
+      const connection: any = {
         id,
         promoterId,
-        targetId: String(body.targetId || ''),
-        targetType: pickString(body.targetType, 'venue'),
+        targetId,
+        targetType,
         targetName: pickString(body.targetName),
         status: 'pending',
         message: pickString(body.message),
+        initiatedBy: 'promoter',
+        fromPartnerId: promoterId,
+        toPartnerId: targetId,
         createdAt: now,
         updatedAt: now,
       };
 
+      if (targetType === 'host') {
+        connection.hostId = targetId;
+        connection.hostName = connection.targetName;
+      } else if (targetType === 'venue') {
+        connection.venueId = targetId;
+        connection.venueName = connection.targetName;
+      }
+
       await fastify.db.collection('promoter_connections').doc(id).set(connection);
+
+      // Write notification for the target partner
+      const senderName = connection.promoterName || 'A promoter';
+      await fastify.db.collection('notifications').add({
+        recipientId: targetId,
+        recipientType: targetType,
+        type: 'promoter_request',
+        title: 'New Connection Request',
+        message: `${senderName} wants to connect with you.`,
+        read: false,
+        createdAt: now,
+        data: {
+          connectionId: id,
+          promoterId,
+          targetId,
+          targetType,
+          initiatedBy: 'promoter',
+        },
+      });
+
       return reply.status(201).send({ connection });
     },
   );

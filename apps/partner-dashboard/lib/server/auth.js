@@ -62,12 +62,12 @@ export async function verifyElevatedRole(request) {
     const { getAdminDb } = await import('../firebase/admin');
     const db = getAdminDb();
 
-    const clubSnap = await db
-      .collection('venues')
-      .where('ownerId', '==', decodedToken.uid)
-      .limit(1)
-      .get();
-    if (!clubSnap.empty) return true;
+    // QA-3 fix: run both ownership queries in parallel
+    const [clubSnap, clubSnapUid] = await Promise.all([
+      db.collection('venues').where('ownerId', '==', decodedToken.uid).limit(1).get(),
+      db.collection('venues').where('ownerUid', '==', decodedToken.uid).limit(1).get(),
+    ]);
+    if (!clubSnap.empty || !clubSnapUid.empty) return true;
 
     const adminDoc = await db.collection('admins').doc(decodedToken.uid).get();
     if (adminDoc.exists) return true;
@@ -99,11 +99,24 @@ export async function verifyPartnerAccess(request, partnerId) {
 
     // 1. Direct ownership — venue
     const venueDoc = await db.collection('venues').doc(partnerId).get();
-    if (venueDoc.exists && venueDoc.data()?.ownerId === uid) return true;
+    if (venueDoc.exists) {
+      const data = venueDoc.data();
+      if (data?.ownerId === uid || data?.ownerUid === uid) return true;
+    }
 
     // 2. Direct ownership — host
     const hostDoc = await db.collection('hosts').doc(partnerId).get();
-    if (hostDoc.exists && hostDoc.data()?.ownerId === uid) return true;
+    if (hostDoc.exists) {
+      const data = hostDoc.data();
+      if (
+        data?.ownerUid === uid ||
+        data?.userId === uid ||
+        data?.identityUid === uid ||
+        data?.ownerId === uid
+      ) {
+        return true;
+      }
+    }
 
     // 3. Active staff membership with management role
     const membershipSnap = await db
@@ -117,6 +130,7 @@ export async function verifyPartnerAccess(request, partnerId) {
       const m = membershipSnap.docs[0].data();
       const isActive = m.isActive === true || m.status === 'active';
       const role = (m.role || '').toLowerCase();
+      // SEC-6 fix: 'promoter' removed — promoters are third-party collaborators, not managers
       const managementRoles = ['manager', 'ops', 'owner'];
       if (isActive && managementRoles.includes(role)) return true;
     }

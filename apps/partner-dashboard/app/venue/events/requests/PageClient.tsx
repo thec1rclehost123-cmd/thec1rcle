@@ -195,23 +195,18 @@ export default function VenueEventRequestsPage() {
           action === 'reject' ||
           (action === 'approve' && actionModal.request.lifecycle === EVENT_LIFECYCLE.SUBMITTED)
         ) {
-          const eventAction = action === 'approve' ? 'approve' : 'deny';
-          const res = await fetch(`/api/events/${eventId}`, {
+          const res = await fetch(`/api/venue/events?venueId=${venueId}`, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
               ...headers,
             },
             body: JSON.stringify({
-              action: eventAction,
-              notes: actionNotes,
-              actor: {
-                uid: profile?.uid,
-                role: profile?.activeMembership?.role || 'venue',
-                name: profile?.displayName,
-                partnerId: profile?.activeMembership?.partnerId,
+              eventId,
+              action: action === 'approve' ? 'approve' : 'reject',
+              data: {
+                notes: actionNotes,
               },
-              venueId: profile?.activeMembership?.partnerId,
             }),
           });
 

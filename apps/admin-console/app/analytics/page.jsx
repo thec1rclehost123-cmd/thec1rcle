@@ -2,28 +2,31 @@
 
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useEffect, useState } from 'react';
-import { BarChart3, TrendingUp, Users, Ticket, Download } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, Ticket, Download, RotateCw } from 'lucide-react';
 
 export default function AdminAnalytics() {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshedAt, setRefreshedAt] = useState(new Date());
+
+  const fetchAnalytics = async () => {
+    setLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/snapshot', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      setStats(json.snapshot);
+    } catch (err) {
+      console.error('Failed to fetch analytics', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchAnalytics() {
-      try {
-        const token = await user.getIdToken();
-        const res = await fetch('/api/snapshot', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const json = await res.json();
-        setStats(json.snapshot);
-      } catch (err) {
-        console.error('Failed to fetch analytics', err);
-      } finally {
-        setLoading(false);
-      }
-    }
     if (user) fetchAnalytics();
   }, [user]);
 
@@ -78,6 +81,31 @@ export default function AdminAnalytics() {
         >
           <Download className="h-4 w-4" />
           Download Report
+        </button>
+      </div>
+
+      {/* Refresh Bar */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[#A1A1AA]">
+          Last updated{' '}
+          {refreshedAt
+            ? refreshedAt.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })
+            : '—'}
+        </span>
+        <button
+          onClick={() => {
+            fetchAnalytics();
+            setRefreshedAt(new Date());
+          }}
+          disabled={loading}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"
+        >
+          <RotateCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          REFRESH
         </button>
       </div>
 

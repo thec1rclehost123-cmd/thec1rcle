@@ -8,7 +8,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
   const { searchParams } = new URL(req.url);
   searchParams.set('promoterId', ctx.promoterId);
-  return proxyToGateway(req, `${GATEWAY_URL}/api/v1/promoter/notifications?${searchParams}`, {});
+  return proxyToGateway(
+    req,
+    `${GATEWAY_URL}/api/v1/partners/promoters/notifications?${searchParams}`,
+    {},
+  );
 }
 
 export async function PATCH(req: NextRequest) {
@@ -16,7 +20,7 @@ export async function PATCH(req: NextRequest) {
   if ('error' in ctx)
     return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
   const body = await req.json().catch(() => ({}));
-  return proxyToGateway(req, `${GATEWAY_URL}/api/v1/promoter/notifications`, {
+  return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/promoters/notifications`, {
     method: 'PATCH',
     body: JSON.stringify({ promoterId: ctx.promoterId, ...body }),
   });

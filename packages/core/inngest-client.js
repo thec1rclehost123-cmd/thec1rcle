@@ -98,7 +98,7 @@ export async function sendEvent(eventName, data, options = {}) {
           id: data.orderId,
           userId: data.userId,
           eventId: data.eventId,
-          isRSVP: data.totalAmount === 0,
+          isRSVP: false,
         };
         const items = (data.tickets || []).map((t) => ({
           ticketId: t.tierId || t.ticketId,
@@ -116,6 +116,60 @@ export async function sendEvent(eventName, data, options = {}) {
           fulfilledAt: new Date().toISOString(),
           fulfillmentStatus: 'completed_fallback',
         });
+
+        // Update stats and analytics as part of the dev fallback
+        const { FieldValue } = await import('firebase-admin/firestore');
+        const count = issuedEntitlements.length;
+        const totalAmount = data.totalAmount || 0;
+
+        // 1. Update event document stats
+        await db
+          .collection('events')
+          .doc(data.eventId)
+          .update({
+            'stats.ticketsSold': FieldValue.increment(count),
+            'stats.totalRevenue': FieldValue.increment(totalAmount),
+          })
+          .catch((err) => telemetry.error(`[Fallback] Failed to update event stats`, err));
+
+        // 2. Update real-time analytics
+        const dateKey = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        await db
+          .collection('event_analytics')
+          .doc(`${data.eventId}_${dateKey}`)
+          .set(
+            {
+              eventId: data.eventId,
+              date: dateKey,
+              ticketsSold: FieldValue.increment(count),
+              revenue: FieldValue.increment(totalAmount),
+              ordersCount: FieldValue.increment(1),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          )
+          .catch((err) => telemetry.error(`[Fallback] Failed to update event_analytics`, err));
+
+        // 3. Update host statistics if hostId is found
+        const eventDoc = await db.collection('events').doc(data.eventId).get();
+        if (eventDoc.exists) {
+          const eventData = eventDoc.data();
+          const hostId = eventData.creatorId || eventData.hostId;
+          if (hostId) {
+            await db
+              .collection('host_stats')
+              .doc(hostId)
+              .set(
+                {
+                  totalTicketsSold: FieldValue.increment(count),
+                  totalRevenue: FieldValue.increment(totalAmount),
+                  lastUpdatedAt: new Date().toISOString(),
+                },
+                { merge: true },
+              )
+              .catch((err) => telemetry.error(`[Fallback] Failed to update host stats`, err));
+          }
+        }
 
         telemetry.track('INNGEST_FALLBACK_SUCCESS', {
           orderId: data.orderId,

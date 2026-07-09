@@ -16,6 +16,7 @@ import {
   Filter,
   ArrowUpRight,
   Star,
+  RotateCw,
 } from 'lucide-react';
 import { mapEventForClient } from '@c1rcle/core/events';
 import { DataTable } from '@/components/ui/DataTable';
@@ -33,6 +34,7 @@ export default function AdminEvents() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showOnlyLive, setShowOnlyLive] = useState(false);
   const [featuredIds, setFeaturedIds] = useState([]);
+  const [refreshedAt, setRefreshedAt] = useState(new Date());
 
   const fetchSpotlights = async () => {
     try {
@@ -128,16 +130,14 @@ export default function AdminEvents() {
   const columns = useMemo(
     () => [
       {
-        header: 'Experience',
-        accessorKey: 'title',
-        cell: ({ row }) => (
+        key: 'title',
+        label: 'Experience',
+        sortable: true,
+        render: (val, row) => (
           <div className="flex items-center gap-4">
             <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-white/5 overflow-hidden flex-shrink-0">
-              {row.original.poster || row.original.image ? (
-                <img
-                  src={row.original.poster || row.original.image}
-                  className="h-full w-full object-cover"
-                />
+              {row.poster || row.image ? (
+                <img src={row.poster || row.image} className="h-full w-full object-cover" />
               ) : (
                 <div className="h-full w-full flex items-center justify-center">
                   <Activity className="h-4 w-4 text-zinc-800" />
@@ -146,71 +146,71 @@ export default function AdminEvents() {
             </div>
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-semibold text-white truncate uppercase tracking-tight">
-                {row.original.title}
+                {row.title}
               </span>
               <span className="text-[10px] text-zinc-600 font-mono tracking-tighter">
-                ID: {row.original.id.slice(0, 12)}
+                ID: {row.id.slice(0, 12)}
               </span>
             </div>
           </div>
         ),
       },
       {
-        header: 'Status',
-        accessorKey: 'status',
-        cell: ({ getValue }) => {
-          const status = getValue();
-          return (
-            <div
-              className={`inline-flex px-2.5 py-1 rounded border text-[9px] font-bold uppercase tracking-widest ${status === 'live' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-iris/10 border-iris/20 text-iris'}`}
-            >
-              {status}
-            </div>
-          );
-        },
+        key: 'status',
+        label: 'Status',
+        sortable: true,
+        render: (val) => (
+          <div
+            className={`inline-flex px-2.5 py-1 rounded border text-[9px] font-bold uppercase tracking-widest ${val === 'live' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-iris/10 border-iris/20 text-iris'}`}
+          >
+            {val}
+          </div>
+        ),
       },
       {
-        header: 'Performance',
-        accessorKey: 'ticketsSold',
-        cell: ({ row }) => (
+        key: 'ticketsSold',
+        label: 'Performance',
+        sortable: true,
+        render: (val, row) => (
           <div className="flex items-center gap-3 text-zinc-400 text-[10px] font-bold uppercase tracking-widest font-mono-numbers">
             <span className="flex items-center gap-1.5">
-              <Ticket className="h-3 w-3 text-zinc-700" /> {row.original.ticketsSold || 0}
+              <Ticket className="h-3 w-3 text-zinc-700" /> {row.ticketsSold || 0}
             </span>
           </div>
         ),
       },
       {
-        header: 'Discovery',
-        accessorKey: 'discoveryWeight',
-        cell: ({ getValue }) => (
+        key: 'discoveryWeight',
+        label: 'Discovery',
+        sortable: true,
+        render: (val) => (
           <div className="flex items-center gap-1.5 text-zinc-500 font-mono-numbers text-[10px] font-bold uppercase tracking-widest">
             <TrendingUp className="h-3 w-3 text-zinc-700" />
-            Weight: {getValue() || 0}
+            Weight: {val || 0}
           </div>
         ),
       },
       {
-        header: 'Featured',
-        id: 'featured',
-        cell: ({ row }) => (
+        key: 'featured',
+        label: 'Featured',
+        render: (val, row) => (
           <div className="flex items-center justify-center">
             <Star
-              className={`h-4 w-4 ${featuredIds.includes(row.original.id) ? 'text-amber-400 fill-amber-400' : 'text-zinc-700'}`}
+              className={`h-4 w-4 ${featuredIds.includes(row.id) ? 'text-amber-400 fill-amber-400' : 'text-zinc-700'}`}
               strokeWidth={1.5}
             />
           </div>
         ),
       },
       {
-        header: '',
-        id: 'actions',
-        cell: ({ row }) => (
+        key: 'actions',
+        label: '',
+        render: (val, row) => (
           <div className="flex justify-end">
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setSelectedEvent(row.original);
+                setSelectedEvent(row);
                 setIsDrawerOpen(true);
               }}
               className="p-2 hover:bg-white/5 rounded-lg text-zinc-600 hover:text-white transition-colors"
@@ -284,6 +284,32 @@ export default function AdminEvents() {
             Export
           </button>
         </div>
+      </div>
+
+      {/* Refresh Bar */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[#A1A1AA]">
+          Last updated{' '}
+          {refreshedAt
+            ? refreshedAt.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })
+            : '—'}
+        </span>
+        <button
+          onClick={async () => {
+            await fetchEvents();
+            await fetchSpotlights();
+            setRefreshedAt(new Date());
+          }}
+          disabled={loading}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"
+        >
+          <RotateCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          REFRESH
+        </button>
       </div>
 
       <div className="space-y-6">

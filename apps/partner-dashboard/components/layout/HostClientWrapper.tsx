@@ -33,7 +33,7 @@ const MENU_SECTIONS = [
       { icon: Zap, label: 'Events', href: '/host/events' },
       { icon: Inbox, label: 'Requests', href: '/host/events/requests' },
       { icon: Calendar, label: 'Calendar', href: '/host/calendar' },
-      { icon: Network, label: 'Partners', href: '/host/network' },
+      { icon: Network, label: 'Partners', href: '/host/partners' },
       { icon: Users, label: 'Audience', href: '/host/audience' },
       { icon: BarChart2, label: 'Analytics', href: '/host/analytics' },
       {

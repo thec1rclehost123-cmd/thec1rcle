@@ -139,7 +139,7 @@ export function LocationStep({
         </div>
 
         <AppleInput
-          label="Full Address"
+          label="Full Address (Optional)"
           icon={MapPin}
           placeholder="Street address, building name, floor/unit"
           value={formData.address}
@@ -167,7 +167,7 @@ export function LocationStep({
             onChange={(e) => updateFormData({ city: e.target.value })}
           />
           <AppleInput
-            label="Pincode"
+            label="Pincode (Optional)"
             placeholder="411001"
             value={formData.pincode}
             onChange={(e) => updateFormData({ pincode: e.target.value })}

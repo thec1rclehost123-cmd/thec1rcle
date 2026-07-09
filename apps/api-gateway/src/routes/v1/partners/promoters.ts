@@ -4,6 +4,10 @@ import { randomUUID } from 'node:crypto';
 import { getPromoterStats, listConnections, manageConnection } from '@c1rcle/core/promoter-engine';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
+import {
+  getPartnerProfileSummary,
+  getConnectionForViewer,
+} from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { PromoterService } from '../../../services/unified/promoter-service.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
@@ -11,6 +15,7 @@ import {
   buildPayoutAccountRecord,
   normalizePromoterCommissionRate,
 } from '../../../lib/partner-hardening.js';
+import { encrypt, decrypt } from '../../../lib/encryption.js';
 
 const AnalyticsQuerySchema = z
   .object({
@@ -111,24 +116,9 @@ const UploadSchema = z
   })
   .passthrough();
 
-const UpdateIdentitySchema = z
-  .object({
-    displayName: z.string().optional(),
-    bio: z.string().optional(),
-    instagramHandle: z.string().optional(),
-    twitterHandle: z.string().optional(),
-    website: z.string().optional(),
-    city: z.string().optional(),
-    genres: z.array(z.string()).optional(),
-  })
-  .passthrough();
+const UpdateIdentitySchema = z.object({}).passthrough();
 
-const UpdateNotificationsSchema = z
-  .object({
-    notificationsEnabled: z.boolean().optional(),
-    marketingEmails: z.boolean().optional(),
-  })
-  .passthrough();
+const UpdateNotificationsSchema = z.object({}).passthrough();
 
 const SettingsVerificationSchema = z
   .object({
@@ -305,6 +295,18 @@ function normalizePromoterConnection(
     updatedAt:
       legacyConnection.updatedAt ?? unifiedConnection.updatedAt ?? toIso(rawConnection.updatedAt),
     message: legacyConnection.message ?? rawConnection.message ?? '',
+    otherIsVerified:
+      legacyConnection.otherIsVerified ??
+      rawConnection.otherIsVerified ??
+      unifiedConnection.otherIsVerified ??
+      false,
+    photoURL:
+      legacyConnection.photoURL ?? rawConnection.photoURL ?? unifiedConnection.photoURL ?? null,
+    initiatedBy:
+      legacyConnection.initiatedBy ??
+      rawConnection.initiatedBy ??
+      unifiedConnection.initiatedBy ??
+      null,
   };
 }
 
@@ -540,6 +542,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         id: assignmentRef.id,
         promoterId,
         eventId,
+        eventName: encrypt(event.title || event.name || 'Event'),
+        venueName: encrypt(event.venueName || event.venue || ''),
         status: 'active',
         commissionRate: event.promoterSettings?.commissionRate || event.commissionRate || 0,
         createdAt: new Date().toISOString(),
@@ -712,7 +716,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     let eventsQuery = fastify.db
       .collection('events')
       .where('promotersEnabled', '==', true)
-      .where('status', 'in', ['published', 'active']);
+      .where('status', 'in', ['published', 'active', 'scheduled', 'live', 'submitted', 'upcoming']);
 
     if (query.cursor) {
       const cursorDoc = await fastify.db
@@ -725,7 +729,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const [eventsSnap, linksSnap] = await Promise.all([
+    const [eventsSnap, linksSnap, assignmentsSnap] = await Promise.all([
       eventsQuery
         .limit(pageSize * 2)
         .get()
@@ -734,6 +738,12 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         .collection('promoter_links')
         .where('promoterId', '==', promoterId)
         .limit(200)
+        .get()
+        .catch(() => ({ docs: [] as any[] })),
+      fastify.db
+        .collection('promoter_assignments')
+        .where('promoterId', '==', promoterId)
+        .limit(100)
         .get()
         .catch(() => ({ docs: [] as any[] })),
     ]);
@@ -750,13 +760,67 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       }
     }
 
+    const assignedEventIds: string[] = Array.from(
+      new Set(
+        ((assignmentsSnap as any).docs || [])
+          .map((doc: any) => String(doc.data()?.eventId || ''))
+          .filter(Boolean),
+      ),
+    );
+
+    const existingSnapIds = new Set<string>(
+      ((eventsSnap as any).docs || []).map((doc: any) => String(doc?.id || '')),
+    );
+    const missingEventIds: string[] = assignedEventIds.filter(
+      (id: string) => !existingSnapIds.has(id),
+    );
+
+    let fetchedAssignedEvents: any[] = [];
+    if (!query.cursor && missingEventIds.length > 0) {
+      const docs = await Promise.all(
+        missingEventIds.map((eventId: string) =>
+          fastify.db
+            .collection('events')
+            .doc(eventId)
+            .get()
+            .catch(() => null),
+        ),
+      );
+      fetchedAssignedEvents = docs
+        .filter((doc) => doc && doc.exists)
+        .map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }));
+    }
+
+    const publicEvents = (eventsSnap as any).docs.map((doc: any) => ({
+      id: doc.id,
+      ...(doc.data() || {}),
+    }));
+    const allEvents = [...fetchedAssignedEvents, ...publicEvents];
+    const seenEventIds = new Set<string>();
+    const uniqueEvents: any[] = [];
+    for (const event of allEvents) {
+      const evId = String(event.id);
+      if (!seenEventIds.has(evId)) {
+        seenEventIds.add(evId);
+        uniqueEvents.push(event);
+      }
+    }
+
+    uniqueEvents.sort((a, b) => {
+      const aAssigned = assignedEventIds.includes(String(a.id));
+      const bAssigned = assignedEventIds.includes(String(b.id));
+      if (aAssigned && !bAssigned) return -1;
+      if (!aAssigned && bAssigned) return 1;
+      return 0;
+    });
+
     const validEvents: Record<string, any>[] = [];
     let nextCursor: string | null = null;
 
-    for (const doc of (eventsSnap as any).docs || []) {
-      const event = { id: doc.id, ...(doc.data() || {}) };
+    for (const event of uniqueEvents) {
+      const isAssigned = assignedEventIds.includes(String(event.id));
 
-      if (!isPromoterAllowedForEvent(event, promoterId)) continue;
+      if (!isAssigned && !isPromoterAllowedForEvent(event, promoterId)) continue;
 
       if (query.city) {
         const cityStr = pickString(event.city, event.cityName).toLowerCase();
@@ -764,7 +828,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       }
 
       validEvents.push(event);
-      nextCursor = doc.id;
+      nextCursor = event.id;
 
       if (validEvents.length >= pageSize) break;
     }
@@ -847,11 +911,11 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           name: pickString(
             event.title,
             event.name,
-            assignment.eventName,
-            assignment.eventTitle,
+            decrypt(assignment.eventName),
+            decrypt(assignment.eventTitle),
             'Event',
           ),
-          venue: pickString(event.venueName, event.venue, assignment.venueName),
+          venue: pickString(event.venueName, event.venue, decrypt(assignment.venueName)),
           date: toIso(
             event.startDate ||
               event.date ||
@@ -937,18 +1001,75 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   const createLegacyConnection = async (promoterId: string, body: Record<string, any>) => {
     const id = randomUUID();
     const now = new Date().toISOString();
-    const connection = {
+    const targetType = pickString(body.targetType, 'venue');
+    const targetId = String(body.targetId || body.targetPartnerId || '');
+    const initiatedBy = String(body.initiatedBy || 'promoter');
+
+    let promoterName = '';
+    let promoterEmail = '';
+    try {
+      const promoterDoc = await fastify.db.collection('promoters').doc(promoterId).get();
+      if (promoterDoc.exists) {
+        promoterName = promoterDoc.data()?.displayName || promoterDoc.data()?.name || '';
+        promoterEmail = promoterDoc.data()?.email || '';
+      }
+    } catch (err) {
+      fastify.log.error(`Failed to fetch promoter info: ${err}`);
+    }
+
+    const connection: any = {
       id,
       promoterId,
-      targetId: String(body.targetId || body.targetPartnerId || ''),
-      targetType: pickString(body.targetType, 'venue'),
+      promoterName: promoterName || pickString(body.promoterName),
+      promoterEmail: promoterEmail || pickString(body.promoterEmail),
+      targetId,
+      targetType,
       targetName: pickString(body.targetName),
       status: 'pending',
+      initiatedBy,
       message: pickString(body.message),
+      fromPartnerId: promoterId,
+      toPartnerId: targetId,
       createdAt: now,
       updatedAt: now,
     };
+
+    if (targetType === 'host') {
+      connection.hostId = targetId;
+      connection.hostName = connection.targetName;
+    } else if (targetType === 'venue') {
+      connection.venueId = targetId;
+      connection.venueName = connection.targetName;
+    }
+
     await fastify.db.collection('promoter_connections').doc(id).set(connection);
+
+    // Write notification for the recipient partner
+    const isPromoterInitiated = initiatedBy === 'promoter';
+    const recipientId = isPromoterInitiated ? targetId : promoterId;
+    const recipientType = isPromoterInitiated ? targetType : 'promoter';
+    const senderName = isPromoterInitiated
+      ? connection.promoterName || 'A promoter'
+      : connection.targetName || 'A partner';
+    const notifType = isPromoterInitiated ? 'promoter_request' : 'connection_request';
+
+    await fastify.db.collection('notifications').add({
+      recipientId,
+      recipientType,
+      type: notifType,
+      title: 'New Connection Request',
+      message: `${senderName} wants to connect with you.`,
+      read: false,
+      createdAt: now,
+      data: {
+        connectionId: id,
+        promoterId,
+        targetId,
+        targetType,
+        initiatedBy,
+      },
+    });
+
     return { connection };
   };
 
@@ -982,14 +1103,31 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     }
     const current = doc.data() as Record<string, any>;
 
-    const isSender = String(current.promoterId || current.fromPartnerId || '') === promoterId;
-    const isTarget = String(current.targetId || current.toPartnerId || '') === promoterId;
+    // Guard against an empty promoterId matching a document that stored neither
+    // party field (the `|| ''` fallbacks would otherwise make '' === '' pass).
+    const partySender = String(current.promoterId || current.fromPartnerId || '');
+    const partyTarget = String(current.targetId || current.toPartnerId || '');
+    const isParty = !!promoterId && (partySender === promoterId || partyTarget === promoterId);
 
-    if (!isSender && !isTarget) {
+    if (!isParty) {
       const err: any = new Error('Forbidden');
       err.statusCode = 403;
       err.code = 'FORBIDDEN';
       throw err;
+    }
+
+    // Prefer party identity over the initiatedBy flag: legacy venue-initiated
+    // documents often lack `initiatedBy`, and defaulting them to 'promoter'
+    // wrongly blocks the promoter (the actual recipient) from approving.
+    let isSender: boolean;
+    let isTarget: boolean;
+    if (current.fromPartnerId || current.toPartnerId) {
+      isSender = String(current.fromPartnerId || '') === promoterId;
+      isTarget = String(current.toPartnerId || '') === promoterId;
+    } else {
+      const initiatedBy = current.initiatedBy || 'promoter';
+      isSender = initiatedBy === 'promoter';
+      isTarget = initiatedBy !== 'promoter';
     }
 
     if (isSender && ['approve', 'reject'].includes(action)) {
@@ -1097,8 +1235,55 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const snap = await query.get();
-    const allDocs = snap.docs;
+    let snap;
+    let fallbackUsed = false;
+    try {
+      snap = await query.get();
+    } catch (err: any) {
+      const errMsg = String(err.message || err.details || '');
+      if (err.code === 9 || errMsg.includes('index') || errMsg.includes('FAILED_PRECONDITION')) {
+        const url =
+          errMsg.match(/https:\/\/console\.firebase\.google\.com\S+/)?.[0] ||
+          'Check Firebase Console';
+        fastify.log.warn(
+          `[resolvePromoterGuests] Missing Firestore composite index. You can create it here: ${url}`,
+        );
+
+        let fallbackQuery = fastify.db.collection('orders').where('promoterCode', 'in', codes);
+        if (eventId) {
+          fallbackQuery = fallbackQuery.where('eventId', '==', eventId);
+        }
+        if (status === 'checked_in') {
+          fallbackQuery = fallbackQuery.where('status', '==', 'checked_in');
+        } else if (status === 'pending') {
+          fallbackQuery = fallbackQuery.where('status', '==', 'confirmed');
+        }
+
+        snap = await fallbackQuery.limit(500).get();
+        fallbackUsed = true;
+      } else {
+        throw err;
+      }
+    }
+
+    let allDocs = snap.docs;
+    if (fallbackUsed) {
+      // Sort in-memory by createdAt desc
+      allDocs.sort((a: any, b: any) => {
+        const dateA = a.data().createdAt ? new Date(a.data().createdAt).getTime() : 0;
+        const dateB = b.data().createdAt ? new Date(b.data().createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      // Handle cursor pagination in-memory
+      if (cursor) {
+        const cursorIndex = allDocs.findIndex((d: any) => d.id === cursor);
+        if (cursorIndex !== -1) {
+          allDocs = allDocs.slice(cursorIndex + 1);
+        }
+      }
+    }
+
     const hasMore = allDocs.length > limit;
     const orderDocs = allDocs.slice(0, limit);
 
@@ -1605,7 +1790,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           };
           return normalizePromoterLink(legacyFormat, unifiedById.get(String(link.linkId || '')));
         });
-        return reply.header('Cache-Control', 'private, max-age=60').send({
+        return reply.header('Cache-Control', 'no-store, no-cache, must-revalidate').send({
           links,
           data: links,
           hasMore: Boolean(result.hasMore),
@@ -1844,7 +2029,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           getLegacyEvents(ctx.partnerId, request.query),
           buildLegacyAssignments(ctx.partnerId, request.query.status),
         ]);
-        return reply.header('Cache-Control', 'private, max-age=60').send({
+        return reply.header('Cache-Control', 'no-store, no-cache, must-revalidate').send({
           ...legacyEventsBody,
           assignments: legacyAssignments,
           events: asArray(legacyEventsBody.events),
@@ -1908,7 +2093,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             }),
           );
         }
-        return reply.header('Cache-Control', 'private, max-age=60').send({
+        return reply.header('Cache-Control', 'no-store, no-cache, must-revalidate').send({
           assignment,
         });
       } catch (err: any) {
@@ -1952,19 +2137,54 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         requireType(ctx, 'promoter');
         const connections = await promoterService.getConnections(ctx, request.query.status as any);
         const unifiedById = mapByAnyId(asArray(connections), ['connectionId', 'id']);
+
+        const uniqueTargetIds = Array.from(
+          new Set(
+            asArray(connections)
+              .map((conn: any) => {
+                const isSender = conn.fromPartnerId === ctx.partnerId;
+                return isSender ? conn.toPartnerId : conn.fromPartnerId;
+              })
+              .filter(Boolean),
+          ),
+        );
+
+        const profilesMap = new Map();
+        await Promise.all(
+          uniqueTargetIds.map(async (tid: any) => {
+            try {
+              const profile = await getPartnerProfileSummary(fastify.db, tid);
+              if (profile) {
+                profilesMap.set(tid, profile);
+              }
+            } catch (err) {
+              fastify.log.error(
+                err,
+                `Failed to fetch partner profile for connection target ${tid}`,
+              );
+            }
+          }),
+        );
+
         const mergedConnections = asArray(connections).map((conn: any) => {
           const isSender = conn.fromPartnerId === ctx.partnerId;
           const targetId = isSender ? conn.toPartnerId : conn.fromPartnerId;
+          const targetProfile = profilesMap.get(targetId);
+
           const legacyFormat = {
             id: conn.connectionId,
             promoterId: ctx.partnerId,
             status: conn.status,
             targetId: targetId,
             otherId: targetId,
-            targetName: 'Partner',
-            otherName: 'Partner',
-            targetType: 'venue',
-            otherType: 'venue',
+            targetName: targetProfile?.name || 'Partner',
+            otherName: targetProfile?.name || 'Partner',
+            targetType: targetProfile?.type || 'venue',
+            otherType: targetProfile?.type || 'venue',
+            otherIsVerified: targetProfile?.isVerified ?? false,
+            photoURL: targetProfile?.avatarUrl || null,
+            initiatedBy:
+              conn.initiatedBy || (isSender ? 'promoter' : targetProfile?.type || 'venue'),
             createdAt: conn.createdAt || null,
             updatedAt: conn.updatedAt || null,
             message: '',
@@ -2017,10 +2237,26 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         const rawConnection = await loadRawConnection(
           String(asRecord(legacyBody.connection).id || ''),
         );
+
+        // Resolve profile for the target partner
+        const targetId = rawConnection.toPartnerId || rawConnection.targetId;
+        const targetProfile = targetId
+          ? await getPartnerProfileSummary(fastify.db, targetId).catch(() => null)
+          : null;
+
+        const extraLegacy = {
+          targetName: targetProfile?.name || 'Partner',
+          otherName: targetProfile?.name || 'Partner',
+          targetType: targetProfile?.type || 'venue',
+          otherType: targetProfile?.type || 'venue',
+          otherIsVerified: targetProfile?.isVerified ?? false,
+          photoURL: targetProfile?.avatarUrl || null,
+        };
+
         return reply.status(201).send({
           ...legacyBody,
           connection: normalizePromoterConnection(
-            asRecord(legacyBody.connection),
+            { ...asRecord(legacyBody.connection), ...extraLegacy },
             {},
             rawConnection,
           ),
@@ -2067,9 +2303,26 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           asRecord(request.body),
         );
         const rawConnection = await loadRawConnection(request.params.connectionId);
+
+        // Resolve profile for the other partner
+        const isSender = rawConnection.fromPartnerId === ctx.partnerId;
+        const targetId = isSender ? rawConnection.toPartnerId : rawConnection.fromPartnerId;
+        const targetProfile = targetId
+          ? await getPartnerProfileSummary(fastify.db, targetId).catch(() => null)
+          : null;
+
+        const extraLegacy = {
+          targetName: targetProfile?.name || 'Partner',
+          otherName: targetProfile?.name || 'Partner',
+          targetType: targetProfile?.type || 'venue',
+          otherType: targetProfile?.type || 'venue',
+          otherIsVerified: targetProfile?.isVerified ?? false,
+          photoURL: targetProfile?.avatarUrl || null,
+        };
+
         return reply.send({
           ...legacyBody,
-          connection: normalizePromoterConnection({}, {}, rawConnection),
+          connection: normalizePromoterConnection(extraLegacy, {}, rawConnection),
         });
       } catch (err: any) {
         if (err.statusCode)
@@ -2393,15 +2646,76 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           if (cursorDoc.exists) q = q.startAfter(cursorDoc);
         }
 
-        const snap = await q.get().catch(() => ({ docs: [] as any[] }));
-        const allDocs = snap.docs || [];
-        const hasMore = allDocs.length > limit;
-        const docsToReturn = allDocs.slice(0, limit);
+        let snap;
+        let fallbackUsed = process.env.NODE_ENV === 'development';
+        if (fallbackUsed) {
+          const fallbackQ = fastify.db
+            .collection('notifications')
+            .where('recipientId', '==', ctx.partnerId)
+            .limit(200);
+          const tempSnap = await fallbackQ.get().catch(() => ({ docs: [] as any[] }));
+          const sortedDocs = [...(tempSnap.docs || [])].sort((a: any, b: any) => {
+            const aTime = new Date(a.data()?.createdAt || a.data()?.timestamp || 0).getTime();
+            const bTime = new Date(b.data()?.createdAt || b.data()?.timestamp || 0).getTime();
+            return bTime - aTime;
+          });
+          snap = { docs: sortedDocs };
+        } else {
+          try {
+            snap = await q.get();
+          } catch (err: any) {
+            if (
+              err.code === 9 ||
+              String(err).includes('requires an index') ||
+              String(err).includes('FAILED_PRECONDITION')
+            ) {
+              fastify.log.warn(
+                'Firestore index missing for promoter notifications query. Falling back to in-memory sort.',
+              );
+              fallbackUsed = true;
+              const fallbackQ = fastify.db
+                .collection('notifications')
+                .where('recipientId', '==', ctx.partnerId)
+                .limit(200);
+              const tempSnap = await fallbackQ.get().catch(() => ({ docs: [] as any[] }));
+              const sortedDocs = [...(tempSnap.docs || [])].sort((a: any, b: any) => {
+                const aTime = new Date(a.data()?.createdAt || a.data()?.timestamp || 0).getTime();
+                const bTime = new Date(b.data()?.createdAt || b.data()?.timestamp || 0).getTime();
+                return bTime - aTime;
+              });
+              snap = { docs: sortedDocs };
+            } else {
+              throw err;
+            }
+          }
+        }
 
-        const notifications = docsToReturn.map((doc: any) => ({
-          id: doc.id,
-          ...(doc.data() || {}),
-        }));
+        const allDocs = snap.docs || [];
+        let docsToReturn;
+        let hasMore = false;
+
+        if (fallbackUsed) {
+          let startIndex = 0;
+          if (query.cursor) {
+            const idx = allDocs.findIndex((doc: any) => doc.id === query.cursor);
+            if (idx !== -1) startIndex = idx + 1;
+          }
+          docsToReturn = allDocs.slice(startIndex, startIndex + limit);
+          hasMore = allDocs.length > startIndex + limit;
+        } else {
+          hasMore = allDocs.length > limit;
+          docsToReturn = allDocs.slice(0, limit);
+        }
+
+        const notifications = docsToReturn.map((doc: any) => {
+          const data = doc.data() || {};
+          return {
+            id: doc.id,
+            ...data,
+            title: decrypt(data.title),
+            message: decrypt(data.message),
+          };
+        });
         const nextCursor = hasMore ? (notifications[notifications.length - 1]?.id ?? null) : null;
 
         return reply.send({ notifications, nextCursor, hasMore });
@@ -2414,6 +2728,62 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
               requestId: request.id,
             }),
           );
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.patch(
+    '/partners/promoters/notifications',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+
+        const body = asRecord(request.body);
+        const notificationId = String(body.notificationId || '');
+        const markAllRead = body.markAllRead === true;
+
+        if (markAllRead) {
+          const snap = await fastify.db
+            .collection('notifications')
+            .where('recipientId', '==', ctx.partnerId)
+            .where('read', '==', false)
+            .get();
+          const batch = fastify.db.batch();
+          snap.docs.forEach((doc: any) => batch.update(doc.ref, { read: true }));
+          await batch.commit();
+          return reply.send({ success: true, markedCount: snap.size });
+        }
+
+        if (!notificationId) {
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'BAD_REQUEST',
+              message: 'notificationId or markAllRead required',
+              requestId: request.id,
+            }),
+          );
+        }
+
+        await fastify.db.collection('notifications').doc(notificationId).update({ read: true });
+        return reply.send({ success: true, markedCount: 1 });
+      } catch (err: any) {
         if (err.statusCode)
           return reply.status(err.statusCode).send(
             buildErrorResponse({
@@ -2978,33 +3348,30 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
         const partnerId = String(request.params.id || '');
-        const [venueDoc, hostDoc] = await Promise.all([
-          fastify.db
-            .collection('venues')
-            .doc(partnerId)
-            .get()
-            .catch(() => null),
-          fastify.db
-            .collection('hosts')
-            .doc(partnerId)
-            .get()
-            .catch(() => null),
-        ]);
-        if (venueDoc && venueDoc.exists)
-          return reply.send({
-            partner: { id: venueDoc.id, type: 'venue', ...(venueDoc.data() || {}) },
-          });
-        if (hostDoc && hostDoc.exists)
-          return reply.send({
-            partner: { id: hostDoc.id, type: 'host', ...(hostDoc.data() || {}) },
-          });
-        return reply.status(404).send(
-          buildErrorResponse({
-            code: 'NOT_FOUND',
-            message: 'Partner not found',
-            requestId: request.id,
-          }),
-        );
+        const profile = await getPartnerProfileSummary(fastify.db, partnerId);
+        if (!profile) {
+          return reply.status(404).send(
+            buildErrorResponse({
+              code: 'NOT_FOUND',
+              message: 'Partner not found',
+              requestId: request.id,
+            }),
+          );
+        }
+        const connection = await getConnectionForViewer(fastify.db, {
+          viewerRole: ctx.type,
+          viewerId: ctx.partnerId,
+          partnerId,
+          partnerType: profile.type,
+        });
+        if (connection && (connection.status === 'active' || connection.status === 'approved')) {
+          if ((profile as any)._pii) {
+            (profile as any).email = (profile as any)._pii.email;
+            (profile as any).phone = (profile as any)._pii.phone;
+          }
+        }
+        delete (profile as any)._pii;
+        return reply.send({ profile, connection });
       } catch (err: any) {
         if (err.statusCode)
           return reply.status(err.statusCode).send(
@@ -3046,6 +3413,24 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             language: data.language || 'en',
             timezone: data.timezone || 'Asia/Kolkata',
           },
+          identity: {
+            promoterId: ctx.partnerId,
+            legalName: data.legalName || '',
+            brandName: data.brandName || data.displayName || data.name || '',
+            phone: data.phone || data.contactPhone || '',
+            city: data.city || '',
+            logoUrl: data.profileImage || data.photoURL || null,
+          },
+          preferences: {
+            notifications: data.notifications || {
+              notifyNewSale: data.notifyNewSale ?? true,
+              notifyCheckIn: data.notifyCheckIn ?? true,
+              notifyPayout: data.notifyPayout ?? true,
+              notifyPartnership: data.notifyPartnership ?? true,
+              notifyWeeklyReport: data.notifyWeeklyReport ?? true,
+              emailDigest: data.emailDigest ?? false,
+            },
+          },
         });
       } catch (err: any) {
         if (err.statusCode)
@@ -3075,21 +3460,39 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       try {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
-        const body = UpdateIdentitySchema.parse(asRecord(request.body));
+        const rawBody = asRecord(request.body);
+        const fields = asRecord(rawBody.fields || rawBody);
         const allowed = [
+          'legalName',
+          'brandName',
           'displayName',
+          'phone',
+          'city',
           'bio',
           'instagramHandle',
           'twitterHandle',
           'website',
-          'city',
           'genres',
         ];
         const patch: Record<string, any> = {};
-        for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];
+        for (const k of allowed) if (fields[k] !== undefined) patch[k] = fields[k];
+        if (patch.brandName) {
+          patch.displayName = patch.brandName;
+          patch.name = patch.brandName;
+        }
         patch.updatedAt = new Date().toISOString();
         await fastify.db.collection('promoters').doc(ctx.partnerId).set(patch, { merge: true });
-        return reply.send({ success: true });
+        const doc = await fastify.db.collection('promoters').doc(ctx.partnerId).get();
+        const data = doc.data() || {};
+        return reply.send({
+          promoterId: ctx.partnerId,
+          legalName: data.legalName || '',
+          brandName: data.brandName || data.displayName || data.name || '',
+          phone: data.phone || data.contactPhone || '',
+          city: data.city || '',
+          logoUrl: data.profileImage || data.photoURL || null,
+          updatedAt: data.updatedAt || new Date().toISOString(),
+        });
       } catch (err: any) {
         if (err instanceof z.ZodError)
           return reply.status(400).send(
@@ -3125,11 +3528,17 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       try {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
-        const body = UpdateNotificationsSchema.parse(asRecord(request.body));
+        const rawBody = asRecord(request.body);
+        const notifications = asRecord(rawBody.notifications || rawBody);
         const patch: Record<string, any> = { updatedAt: new Date().toISOString() };
-        if (body.notificationsEnabled !== undefined)
-          patch.notificationsEnabled = body.notificationsEnabled;
-        if (body.marketingEmails !== undefined) patch.marketingEmails = body.marketingEmails;
+        patch.notifications = {
+          notifyNewSale: notifications.notifyNewSale ?? true,
+          notifyCheckIn: notifications.notifyCheckIn ?? true,
+          notifyPayout: notifications.notifyPayout ?? true,
+          notifyPartnership: notifications.notifyPartnership ?? true,
+          notifyWeeklyReport: notifications.notifyWeeklyReport ?? true,
+          emailDigest: notifications.emailDigest ?? false,
+        };
         await fastify.db.collection('promoters').doc(ctx.partnerId).set(patch, { merge: true });
         return reply.send({ success: true });
       } catch (err: any) {

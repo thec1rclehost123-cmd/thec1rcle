@@ -49,6 +49,12 @@ const VENUE_ROLE_OPTIONS: Array<{ value: EditableVenueRole; label: string; descr
       label: 'Security',
       description: 'Best for door and safety staff focused on guest flow and incident awareness.',
     },
+    {
+      value: 'DOOR',
+      label: 'Door',
+      description:
+        'Best for door managers and check-in staff focused on guest entry and front-of-house flow.',
+    },
   ];
 
 const HOST_ROLE_OPTIONS: Array<{ value: EditableHostRole; label: string; description: string }> = [

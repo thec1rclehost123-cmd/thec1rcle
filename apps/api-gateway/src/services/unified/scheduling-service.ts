@@ -59,6 +59,10 @@ export class SchedulingService {
     const { startDate, endDate } = range;
     const startedAt = Date.now();
 
+    // Filter and order the date range in Firestore so we only read slots inside
+    // the requested window instead of scanning the venue's entire slot history.
+    // Requires the composite index (venueId ASC, date ASC) in
+    // firestore.indexes.json; the .catch below degrades gracefully while it builds.
     const snap = await this.db
       .collection(SLOTS_COLLECTION)
       .where('venueId', '==', venueId)
@@ -145,15 +149,26 @@ export class SchedulingService {
         const status = normalizeLegacyStatus(safeStr(d.status || d.slotStatus || 'open'));
         if (!['open', 'requested', 'approved', 'occupied', 'blocked'].includes(status)) continue;
 
-        const existingStart = safeStr(d.requestedStartTime || d.startTime);
-        const existingEnd = safeStr(d.requestedEndTime || d.endTime);
-        if (!existingStart || !existingEnd) continue;
-        if (!timesOverlap(input.startTime, input.endTime, existingStart, existingEnd)) continue;
+        const existingStart = d.requestedStartTime || d.startTime || null;
+        const existingEnd = d.requestedEndTime || d.endTime || null;
 
-        const err: any = new Error('Time slot conflict: another slot already covers this range');
-        err.statusCode = 409;
-        err.code = 'SLOT_CONFLICT';
-        throw err;
+        const isExistingFullDayBlock = status === 'blocked' && (!existingStart || !existingEnd);
+        const isInputFullDayBlock =
+          input.status === 'blocked' && (!input.startTime || !input.endTime);
+
+        let conflict = false;
+        if (isExistingFullDayBlock || isInputFullDayBlock) {
+          conflict = true;
+        } else if (existingStart && existingEnd && input.startTime && input.endTime) {
+          conflict = timesOverlap(input.startTime, input.endTime, existingStart, existingEnd);
+        }
+
+        if (conflict) {
+          const err: any = new Error('Time slot conflict: another slot already covers this range');
+          err.statusCode = 409;
+          err.code = 'SLOT_CONFLICT';
+          throw err;
+        }
       }
 
       const ref = this.db.collection(SLOTS_COLLECTION).doc();
@@ -244,17 +259,27 @@ export class SchedulingService {
           );
           if (!['approved', 'occupied', 'blocked'].includes(candidateStatus)) continue;
 
-          const candidateStart = safeStr(candidate.requestedStartTime || candidate.startTime);
-          const candidateEnd = safeStr(candidate.requestedEndTime || candidate.endTime);
-          if (!candidateStart || !candidateEnd) continue;
-          if (!timesOverlap(approvalStart, approvalEnd, candidateStart, candidateEnd)) continue;
+          const candidateStart = candidate.requestedStartTime || candidate.startTime || null;
+          const candidateEnd = candidate.requestedEndTime || candidate.endTime || null;
 
-          const err: any = new Error(
-            'Time slot conflict: another event is already scheduled at this time',
-          );
-          err.statusCode = 409;
-          err.code = 'SLOT_CONFLICT';
-          throw err;
+          const isCandidateFullDayBlock =
+            candidateStatus === 'blocked' && (!candidateStart || !candidateEnd);
+
+          let conflict = false;
+          if (isCandidateFullDayBlock) {
+            conflict = true;
+          } else if (candidateStart && candidateEnd && approvalStart && approvalEnd) {
+            conflict = timesOverlap(approvalStart, approvalEnd, candidateStart, candidateEnd);
+          }
+
+          if (conflict) {
+            const err: any = new Error(
+              'Time slot conflict: another event is already scheduled at this time',
+            );
+            err.statusCode = 409;
+            err.code = 'SLOT_CONFLICT';
+            throw err;
+          }
         }
 
         updates.approvedBy = ctx.partnerId;
@@ -350,9 +375,20 @@ export class SchedulingService {
         const d = doc.data() as Record<string, any>;
         const status = normalizeLegacyStatus(safeStr(d.status || d.slotStatus || 'open'));
         if (!['requested', 'approved', 'occupied', 'blocked'].includes(status)) continue;
-        if (
-          timesOverlap(input.startTime, input.endTime, safeStr(d.startTime), safeStr(d.endTime))
-        ) {
+
+        const existingStart = d.requestedStartTime || d.startTime || null;
+        const existingEnd = d.requestedEndTime || d.endTime || null;
+
+        const isExistingFullDayBlock = status === 'blocked' && (!existingStart || !existingEnd);
+
+        let conflict = false;
+        if (isExistingFullDayBlock) {
+          conflict = true;
+        } else if (existingStart && existingEnd && input.startTime && input.endTime) {
+          conflict = timesOverlap(input.startTime, input.endTime, existingStart, existingEnd);
+        }
+
+        if (conflict) {
           this.log.warn(
             {
               service: 'SchedulingService',

@@ -15,12 +15,10 @@ export interface WalkInEntry {
   venueId: string;
   guestName: string;
   /** Guest age — collected by scanner app */
-  guestAge?: number | null;
+  age?: number | null;
   /** E.164 partial — last 4 digits visible to staff, full to manager/owner */
-  phoneHash: string;
-  /** Full phone — only returned to OWNER/MANAGER */
-  phoneFull?: string;
-  partySize: number;
+  contact: string;
+  totalGuests: number;
   category: WalkInCategory;
   paymentMode: PaymentMode;
   /** In INR paise (integer) */
@@ -43,8 +41,8 @@ export interface WalkInEntry {
 
 export interface WalkInCreatePayload {
   guestName: string;
-  phone?: string;
-  partySize: number;
+  contact?: string;
+  totalGuests: number;
   category: WalkInCategory;
   paymentMode: PaymentMode;
   /** INR rupees (converted to paise server-side) */
@@ -53,7 +51,7 @@ export interface WalkInCreatePayload {
   idempotencyKey: string;
   gender?: WalkInGender;
   purpose?: WalkInPurpose;
-  guestAge?: number;
+  age?: number;
 }
 
 export interface WalkInSearchParams {
@@ -74,7 +72,7 @@ export interface WalkInListResponse {
   totals: {
     count: number;
     totalPaise: number;
-    partySize: number;
+    totalGuests: number;
   };
 }
 

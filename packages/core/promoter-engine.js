@@ -21,16 +21,68 @@ export async function manageConnection(
 
   if (action === 'request') {
     const id = connectionId || randomUUID();
+
+    // Resolve promoter and target names
+    let promoterName = '';
+    let targetName = '';
+
+    try {
+      const promoterDoc = await db
+        .collection('promoters')
+        .doc(promoterId)
+        .get()
+        .catch(() => null);
+      if (promoterDoc?.exists) {
+        promoterName = promoterDoc.data()?.displayName || promoterDoc.data()?.name || '';
+      }
+
+      if (targetType === 'host') {
+        const hostDoc = await db
+          .collection('hosts')
+          .doc(targetId)
+          .get()
+          .catch(() => null);
+        if (hostDoc?.exists) {
+          targetName = hostDoc.data()?.displayName || hostDoc.data()?.name || '';
+        }
+      } else if (targetType === 'venue') {
+        const venueDoc = await db
+          .collection('venues')
+          .doc(targetId)
+          .get()
+          .catch(() => null);
+        if (venueDoc?.exists) {
+          targetName = venueDoc.data()?.displayName || venueDoc.data()?.name || '';
+        }
+      }
+    } catch (err) {
+      console.error('[promoter-engine] Failed to resolve connection names:', err);
+    }
+
     const connectionData = {
       id,
       promoterId,
+      promoterName,
       targetId,
       targetType,
+      targetName,
       status: 'pending',
       message: reason,
+      initiatedBy: 'promoter',
+      fromPartnerId: promoterId,
+      toPartnerId: targetId,
       createdAt: now,
       updatedAt: now,
     };
+
+    if (targetType === 'host') {
+      connectionData.hostId = targetId;
+      connectionData.hostName = targetName;
+    } else if (targetType === 'venue') {
+      connectionData.venueId = targetId;
+      connectionData.venueName = targetName;
+    }
+
     await db.collection(CONNECTIONS_COLLECTION).doc(id).set(connectionData);
     return connectionData;
   }

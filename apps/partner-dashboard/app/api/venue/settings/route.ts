@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   searchParams.set('venueId', ctx.venueId);
   return proxyToGateway(
     req,
-    `${GATEWAY_URL}/api/v1/venue-settings/venue?${searchParams.toString()}`,
+    `${GATEWAY_URL}/api/v1/venue-settings/venue/settings?${searchParams.toString()}`,
     {},
   );
 }
@@ -25,8 +25,8 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body?.patch) return fail('patch required', 400);
 
-  return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue-settings/venue`, {
+  return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue-settings/venue/settings`, {
     method: 'PATCH',
-    body: JSON.stringify({ venueId: ctx.venueId, updates: body.patch }),
+    body: JSON.stringify({ venueId: ctx.venueId, patch: body.patch }),
   });
 }

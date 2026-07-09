@@ -1,423 +1,1121 @@
 {
   "indexes": [
     {
-      "collectionGroup": "events",
+      "collectionGroup": "availability_slots",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "lifecycle", "order": "ASCENDING" },
-        { "fieldPath": "startDate", "order": "ASCENDING" }
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "events",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "lifecycle",  "order": "ASCENDING" },
-        { "fieldPath": "city",       "order": "ASCENDING" },
-        { "fieldPath": "startDate",  "order": "ASCENDING" }
+        {
+          "fieldPath": "lifecycle",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startDate",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "lifecycle",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "city",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startDate",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "venue_daily_stats",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "venueId", "order": "ASCENDING" },
-        { "fieldPath": "date",    "order": "ASCENDING" }
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "latest_orders_feed",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "venueId",   "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "payout_requests",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "venueId",   "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "payout_requests",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "venueId",        "order": "ASCENDING" },
-        { "fieldPath": "idempotencyKey", "order": "ASCENDING" }
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "idempotencyKey",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "finance_ledger_entries",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "venueId",   "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "customer_stats",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "venueId",     "order": "ASCENDING" },
-        { "fieldPath": "lastOrderAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastOrderAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "message_deliveries",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "venueId",   "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "audit_logs",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "venueId",   "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "orders",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "eventId",   "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "orders",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "userId",    "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "rsvp_orders",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "userId",    "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "notifications",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "userId",    "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "notifications",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "userId",    "order": "ASCENDING" },
-        { "fieldPath": "isRead",    "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "recipientId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isRead",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "transfers",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "senderId",  "order": "ASCENDING" },
-        { "fieldPath": "status",    "order": "ASCENDING" }
+        {
+          "fieldPath": "senderId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "transfers",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "recipientEmail", "order": "ASCENDING" },
-        { "fieldPath": "status",         "order": "ASCENDING" }
+        {
+          "fieldPath": "recipientEmail",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "transfers",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "ticketId",  "order": "ASCENDING" },
-        { "fieldPath": "senderId",  "order": "ASCENDING" },
-        { "fieldPath": "status",    "order": "ASCENDING" }
+        {
+          "fieldPath": "ticketId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "senderId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "share_bundles",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "orderId",   "order": "ASCENDING" },
-        { "fieldPath": "tierId",    "order": "ASCENDING" }
+        {
+          "fieldPath": "orderId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tierId",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "entitlements",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "orderId",         "order": "ASCENDING" },
-        { "fieldPath": "metadata.tierId", "order": "ASCENDING" }
+        {
+          "fieldPath": "orderId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "metadata.tierId",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "entitlements",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "orderId",          "order": "ASCENDING" },
-        { "fieldPath": "metadata.tierId",  "order": "ASCENDING" },
-        { "fieldPath": "metadata.index",   "order": "ASCENDING" }
+        {
+          "fieldPath": "orderId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "metadata.tierId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "metadata.index",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "ticket_assignments",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "bundleId",   "order": "ASCENDING" },
-        { "fieldPath": "redeemerId", "order": "ASCENDING" }
+        {
+          "fieldPath": "bundleId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "redeemerId",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "couple_claims",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "token",     "order": "ASCENDING" },
-        { "fieldPath": "status",    "order": "ASCENDING" }
+        {
+          "fieldPath": "token",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "venue_bank_accounts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "removed",   "order": "ASCENDING" },
-        { "fieldPath": "venueId",   "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "removed",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "waitlist",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "eventId", "order": "ASCENDING" },
-        { "fieldPath": "status",  "order": "ASCENDING" }
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "waitlist",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "eventId", "order": "ASCENDING" },
-        { "fieldPath": "email",   "order": "ASCENDING" },
-        { "fieldPath": "status",  "order": "ASCENDING" }
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "email",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "waitlist",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "eventId",   "order": "ASCENDING" },
-        { "fieldPath": "status",    "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "userLikes",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "fromUserId", "order": "ASCENDING" },
-        { "fieldPath": "toUserId",   "order": "ASCENDING" }
+        {
+          "fieldPath": "fromUserId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "toUserId",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "userLikes",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "fromUserId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+        {
+          "fieldPath": "fromUserId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "userPasses",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "fromUserId", "order": "ASCENDING" },
-        { "fieldPath": "toUserId",   "order": "ASCENDING" }
+        {
+          "fieldPath": "fromUserId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "toUserId",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "userMatches",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "user1Id",   "order": "ASCENDING" },
-        { "fieldPath": "matchedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "user1Id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "matchedAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "userMatches",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "user2Id",   "order": "ASCENDING" },
-        { "fieldPath": "matchedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "user2Id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "matchedAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "venue_calendar",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "venueId", "order": "ASCENDING" },
-        { "fieldPath": "date",    "order": "ASCENDING" }
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "promoter_assignments",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "promoterId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+        {
+          "fieldPath": "promoterId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "orders",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status",    "order": "ASCENDING" },
-        { "fieldPath": "userId",    "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "likes",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "eventId",   "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "orders",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "hostId",    "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "hostId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "orders",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "venueId",   "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "promoter_links",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "promoterId", "order": "ASCENDING" },
-        { "fieldPath": "clicks",     "order": "DESCENDING" }
+        {
+          "fieldPath": "promoterId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "clicks",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "events",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "cityKey",    "order": "ASCENDING" },
-        { "fieldPath": "isDeleted",  "order": "ASCENDING" },
-        { "fieldPath": "lifecycle",  "order": "ASCENDING" },
-        { "fieldPath": "heatScore",  "order": "DESCENDING" }
+        {
+          "fieldPath": "cityKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isDeleted",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lifecycle",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "heatScore",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "rsvp_orders",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "venueId",   "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "events",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "lifecycle",   "order": "ASCENDING" },
-        { "fieldPath": "isFeatured",  "order": "ASCENDING" },
-        { "fieldPath": "heatScore",   "order": "DESCENDING" }
+        {
+          "fieldPath": "lifecycle",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isFeatured",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "heatScore",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "latest_orders_feed",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "venueId",   "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "promoter_links",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "promoterId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+        {
+          "fieldPath": "promoterId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "promoter_links",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "promoterId", "order": "ASCENDING" },
-        { "fieldPath": "active",     "order": "ASCENDING" },
-        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+        {
+          "fieldPath": "promoterId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "active",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "host_bank_accounts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "hostId",    "order": "ASCENDING" },
-        { "fieldPath": "removed",   "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "hostId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "removed",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "promoter_assignments",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "eventId",      "order": "ASCENDING" },
-        { "fieldPath": "totalRevenue", "order": "DESCENDING" }
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "totalRevenue",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "rsvp_orders",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "hostId",    "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "hostId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
-    { "collectionGroup": "events", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "venueId", "order": "ASCENDING" }, { "fieldPath": "startDate", "order": "DESCENDING" }] },
-    { "collectionGroup": "events", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "venueId", "order": "ASCENDING" }, { "fieldPath": "lifecycle", "order": "ASCENDING" }, { "fieldPath": "startDate", "order": "DESCENDING" }] },
-    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "startAt", "order": "ASCENDING" }] },
-    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
-    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "publishedAt", "order": "DESCENDING" }] },
-    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "searchText", "order": "ASCENDING" }] },
-    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "cityKey", "order": "ASCENDING" }, { "fieldPath": "startAt", "order": "ASCENDING" }] },
-    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "cityKey", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
-    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "cityKey", "order": "ASCENDING" }, { "fieldPath": "publishedAt", "order": "DESCENDING" }] },
-    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "hostId", "order": "ASCENDING" }, { "fieldPath": "startAt", "order": "ASCENDING" }] },
-    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "hostId", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
-    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "venueId", "order": "ASCENDING" }, { "fieldPath": "startAt", "order": "ASCENDING" }] },
-    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "venueId", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
-    { "collectionGroup": "host_summary", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
-    { "collectionGroup": "host_summary", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "cityKey", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
-    { "collectionGroup": "venue_summary", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
-    { "collectionGroup": "venue_summary", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "cityKey", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
-    { "collectionGroup": "orders", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "promoterCode", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
-    { "collectionGroup": "orders", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "promoterCode", "order": "ASCENDING" }, { "fieldPath": "eventId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
-    { "collectionGroup": "orders", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "promoterCode", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
-    { "collectionGroup": "orders", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "promoterCode", "order": "ASCENDING" }, { "fieldPath": "eventId", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] }
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startDate",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lifecycle",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startDate",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "event_card_index",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "event_card_index",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "heatScore",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "event_card_index",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "publishedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "event_card_index",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "searchText",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "event_card_index",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cityKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "event_card_index",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cityKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "heatScore",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "event_card_index",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cityKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "publishedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "event_card_index",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "hostId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "event_card_index",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "hostId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "heatScore",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "event_card_index",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "event_card_index",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "venueId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "heatScore",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "host_summary",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "heatScore",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "host_summary",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cityKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "heatScore",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "venue_summary",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "heatScore",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "venue_summary",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cityKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "heatScore",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "promoterCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "promoterCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "promoterCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "promoterCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "refund_requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    }
   ],
   "fieldOverrides": []
 }

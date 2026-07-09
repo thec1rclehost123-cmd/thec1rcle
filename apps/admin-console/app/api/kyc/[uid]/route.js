@@ -27,7 +27,7 @@ function deriveKycStatus(stepSequence, stepStatus) {
 // ── GET — admin reads full KYC state for a user ───────────────────────────────
 
 async function getHandler(req, { params }) {
-  const { uid } = params;
+  const { uid } = await params;
   const app = getAdminApp();
   const db = getFirestore(app);
 
@@ -39,15 +39,21 @@ async function getHandler(req, { params }) {
   const userData = userDoc.data();
   const entityType = userData.onboardingEntityType || 'individual';
 
-  const reqSnap = await db
-    .collection('onboarding_requests')
-    .where('uid', '==', uid)
-    .orderBy('submittedAt', 'desc')
-    .limit(1)
-    .get();
+  const reqSnap = await db.collection('onboarding_requests').where('uid', '==', uid).get();
 
-  const onboardingData = reqSnap.empty ? null : reqSnap.docs[0].data();
-  const onboardingDocId = reqSnap.empty ? null : reqSnap.docs[0].id;
+  let onboardingData = null;
+  let onboardingDocId = null;
+
+  if (!reqSnap.empty) {
+    const docs = reqSnap.docs.map((doc) => ({ id: doc.id, data: doc.data() }));
+    docs.sort((a, b) => {
+      const aTime = a.data.submittedAt?.toDate?.()?.getTime() || 0;
+      const bTime = b.data.submittedAt?.toDate?.()?.getTime() || 0;
+      return bTime - aTime;
+    });
+    onboardingData = docs[0].data;
+    onboardingDocId = docs[0].id;
+  }
 
   const stepSequence = STEP_SEQUENCES[entityType] ?? STEP_SEQUENCES.individual;
 
@@ -74,7 +80,7 @@ async function patchHandler(req, { params }) {
     return NextResponse.json({ error: 'Too many requests. Please slow down.' }, { status: 429 });
   }
 
-  const { uid } = params;
+  const { uid } = await params;
   const body = await req.json();
   const { stepId, action, note, resubmitReason } = body;
 
@@ -103,18 +109,22 @@ async function patchHandler(req, { params }) {
     );
   }
 
-  const reqSnap = await db
-    .collection('onboarding_requests')
-    .where('uid', '==', uid)
-    .orderBy('submittedAt', 'desc')
-    .limit(1)
-    .get();
+  const reqSnap = await db.collection('onboarding_requests').where('uid', '==', uid).get();
 
   if (reqSnap.empty) {
     return NextResponse.json({ error: 'No onboarding request found.' }, { status: 404 });
   }
 
-  const reqDoc = reqSnap.docs[0];
+  let reqDoc = reqSnap.docs[0];
+  if (reqSnap.docs.length > 1) {
+    const docs = reqSnap.docs.map((doc) => ({ doc, data: doc.data() }));
+    docs.sort((a, b) => {
+      const aTime = a.data.submittedAt?.toDate?.()?.getTime() || 0;
+      const bTime = b.data.submittedAt?.toDate?.()?.getTime() || 0;
+      return bTime - aTime;
+    });
+    reqDoc = docs[0].doc;
+  }
   const existingData = reqDoc.data();
   const kycStepStatus = { ...(existingData.kycStepStatus || {}) };
 

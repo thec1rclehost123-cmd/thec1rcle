@@ -7,31 +7,69 @@
 
 import { getAdminDb } from '../firebase/admin';
 
-export async function requestPartnership(hostId, venueId, hostName, venueName) {
+export async function requestPartnership(
+  hostId,
+  venueId,
+  hostName,
+  venueName,
+  initiatedBy = 'host',
+) {
   if (!hostId || !venueId) {
     throw new Error('[PartnershipStore] hostId and venueId are required to request a partnership');
   }
   try {
     const db = getAdminDb();
+    // BUG-7 fix: only block on active/pending — rejected partnerships can be re-requested
     const existing = await db
       .collection('partnerships')
       .where('hostId', '==', hostId)
       .where('venueId', '==', venueId)
+      .where('status', 'in', ['pending', 'active'])
       .limit(1)
       .get();
     if (!existing.empty) {
       return { success: false, error: 'Partnership already requested or active' };
     }
+    const now = new Date().toISOString();
     const ref = await db.collection('partnerships').add({
       hostId,
       venueId,
       hostName: hostName || '',
       venueName: venueName || '',
       status: 'pending',
-      initiatedBy: 'host',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      initiatedBy,
+      createdAt: now,
+      updatedAt: now,
     });
+
+    // BUG-1 fix: notification write is non-critical — never let it roll back the partnership
+    const recipientId = initiatedBy === 'host' ? venueId : hostId;
+    const recipientType = initiatedBy === 'host' ? 'venue' : 'host';
+    const senderName = initiatedBy === 'host' ? hostName || 'A host' : venueName || 'A venue';
+    const notifType = initiatedBy === 'host' ? 'host_request' : 'venue_request';
+
+    db.collection('notifications')
+      .add({
+        recipientId,
+        recipientType,
+        type: notifType,
+        title: 'New Connection Request',
+        message: `${senderName} wants to connect with you.`,
+        read: false,
+        createdAt: now,
+        data: {
+          partnershipId: ref.id,
+          hostId,
+          venueId,
+          hostName,
+          venueName,
+          initiatedBy,
+        },
+      })
+      .catch((err) =>
+        console.error('[PartnershipStore] notification write failed (non-critical):', err.message),
+      );
+
     return { success: true, id: ref.id };
   } catch (error) {
     console.error('[PartnershipStore] requestPartnership failed:', error.message);

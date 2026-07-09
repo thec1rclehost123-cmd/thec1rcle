@@ -142,7 +142,7 @@ export function PromoterStep({ formData, updateFormData, role }: PromoterStepPro
                 <label className="flex items-center justify-between cursor-pointer">
                   <div>
                     <p className="text-[12px] font-bold text-[var(--v-text-primary)]">
-                      Enable Promoters
+                      Enable Promoters (Optional)
                     </p>
                     <p className="text-[10px] text-[var(--v-text-secondary)] font-medium">
                       Allow promoters to sell tickets for this event
@@ -168,7 +168,7 @@ export function PromoterStep({ formData, updateFormData, role }: PromoterStepPro
                     {/* Commission Rate */}
                     <div>
                       <label className="text-[11px] font-bold text-[var(--v-text-secondary)] mb-1.5 block">
-                        Commission Rate
+                        Commission Rate (Optional)
                       </label>
                       <div className="flex items-center gap-3">
                         <input
@@ -200,7 +200,7 @@ export function PromoterStep({ formData, updateFormData, role }: PromoterStepPro
                     <label className="flex items-center justify-between cursor-pointer">
                       <div>
                         <p className="text-[12px] font-bold text-[var(--v-text-primary)]">
-                          Use Default Commission
+                          Use Default Commission (Optional)
                         </p>
                         <p className="text-[10px] text-[var(--v-text-secondary)] font-medium">
                           Apply your default promoter commission rate
@@ -229,7 +229,7 @@ export function PromoterStep({ formData, updateFormData, role }: PromoterStepPro
                       <label className="flex items-center justify-between cursor-pointer">
                         <div>
                           <p className="text-[12px] font-bold text-[var(--v-text-primary)]">
-                            Enable Buyer Discounts
+                            Enable Buyer Discounts (Optional)
                           </p>
                           <p className="text-[10px] text-[var(--v-text-secondary)] font-medium">
                             Let promoters offer discounts to their buyers
@@ -256,7 +256,7 @@ export function PromoterStep({ formData, updateFormData, role }: PromoterStepPro
                       {formData.buyerDiscountsEnabled && (
                         <div className="mt-3 ml-0">
                           <label className="text-[11px] font-bold text-[var(--v-text-secondary)] mb-1.5 block">
-                            Discount Amount
+                            Discount Amount (Optional)
                           </label>
                           <div className="flex items-center gap-3">
                             <input

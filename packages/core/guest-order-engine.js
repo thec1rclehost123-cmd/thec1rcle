@@ -122,6 +122,8 @@ export async function createRSVPOrder(payload) {
   const orderId = reservationId ? `RSVP-${reservationId}` : generateLocalOrderId('RSVP');
   const now = new Date().toISOString();
 
+  const rsvpTicketCount = tickets.reduce((s, t) => s + (t.quantity || 1), 0);
+
   const rsvpOrder = {
     id: orderId,
     reservationId: reservationId,
@@ -137,6 +139,8 @@ export async function createRSVPOrder(payload) {
     userName: userName || '',
     userPhone: payload.userPhone || '',
     promoterCode: promoterCode || null,
+    ticketCount: rsvpTicketCount,
+    totalPaise: 0,
     tickets: tickets.map((t) => ({ ...t, price: 0, subtotal: 0 })),
     totalAmount: 0,
     currency: 'INR',
@@ -404,6 +408,8 @@ export async function createOrder(payload) {
   const orderId = reservationId ? `ORD-${reservationId}` : generateOrderId();
   const now = new Date().toISOString();
 
+  const ticketCount = orderTickets.reduce((s, t) => s + (t.quantity || 1), 0);
+
   const order = {
     id: orderId,
     reservationId: reservationId,
@@ -425,6 +431,8 @@ export async function createOrder(payload) {
     promoCodeId: payload.promoCodeId || null,
     promoterDiscount: promoterDiscount || 0,
     discountAmount: discountAmount || 0,
+    ticketCount,
+    totalPaise: Math.round((totalAmount || 0) * 100),
     tickets: orderTickets,
     subtotal,
     totalAmount,

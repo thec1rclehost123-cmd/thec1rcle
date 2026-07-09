@@ -35,7 +35,7 @@ export function CapacityStep({ formData, updateFormData, validationErrors }: Cap
       >
         <FieldGroup>
           <WizardInput
-            label="Maximum Capacity"
+            label="Maximum Capacity (Optional)"
             type="number"
             min={1}
             placeholder="500"

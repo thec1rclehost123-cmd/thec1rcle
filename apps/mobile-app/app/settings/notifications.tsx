@@ -40,7 +40,7 @@ export default function NotificationSettingsScreen() {
       <SettingsGroup>
         <SettingsRow
           title="Alert Preferences"
-          onPress={() => router.push('/settings/alert-preferences')}
+          onPress={() => router.push('/settings/alert-preferences' as any)}
         />
       </SettingsGroup>
 

@@ -20,6 +20,7 @@ import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { BentoCard } from '@/components/ui/BentoCard';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useToast } from '@/components/ui/Toast';
 
 export default function ProfilePage({
   setActions,
@@ -27,6 +28,7 @@ export default function ProfilePage({
   setActions?: (node: React.ReactNode) => void;
 }) {
   const { profile, user: authUser } = useDashboardAuth();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -102,12 +104,16 @@ export default function ProfilePage({
       });
       if (!res.ok) throw new Error('Update failed');
       setEditMode(false);
-    } catch (err) {
-      alert('Failed to save changes');
+      toastSuccess('Profile updated', 'Your promoter profile has been saved.');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (err: any) {
+      toastError('Save failed', err.message || 'Could not save profile changes.');
     } finally {
       setSaving(false);
     }
-  }, [promoterId, formData, authUser]);
+  }, [promoterId, formData, authUser, toastSuccess, toastError]);
 
   // Integrate with SettingsHub actions if available
   useEffect(() => {

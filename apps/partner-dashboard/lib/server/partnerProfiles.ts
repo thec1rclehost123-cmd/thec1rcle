@@ -370,7 +370,10 @@ export async function getPartnerProfileSummary(id: string): Promise<PartnerProfi
 
   const normalizedEvents = eventDocs
     .map(normalizeEvent)
-    .filter((event: any) => event.id && event.title)
+    .filter(
+      (event: any) =>
+        event.id && event.title && ['scheduled', 'live', 'completed'].includes(event.lifecycle),
+    )
     .sort((left: any, right: any) => {
       const leftTime = left.dateIso ? new Date(left.dateIso).getTime() : 0;
       const rightTime = right.dateIso ? new Date(right.dateIso).getTime() : 0;

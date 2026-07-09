@@ -42,6 +42,8 @@ export function buildEvent(payload?: {}): {
   country: any;
   startDate: any;
   endDate: any;
+  startTime: any;
+  endTime: any;
   timezone: any;
   poster: any;
   image: any;
