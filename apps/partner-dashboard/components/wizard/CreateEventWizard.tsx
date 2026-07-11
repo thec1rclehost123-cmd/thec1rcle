@@ -57,7 +57,7 @@ const STEPS: { id: WizardStep; label: string; icon: any }[] = [
   { id: 'venue', label: 'Venue', icon: Building2 },
   { id: 'ticketing', label: 'Tickets', icon: Ticket },
   { id: 'tables', label: 'Tables', icon: Wine },
-  { id: 'promoters', label: 'Sales', icon: Percent },
+  { id: 'promoters', label: 'PROMOTERS', icon: Percent },
   { id: 'media', label: 'Media', icon: ImageIcon },
   { id: 'review', label: 'Review', icon: CheckCircle2 },
 ];

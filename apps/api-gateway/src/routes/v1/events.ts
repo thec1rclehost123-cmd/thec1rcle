@@ -394,12 +394,859 @@ async function sendPushToUsers(
   }
 }
 
-async function ensurePromoterLink(
+type CompensationModel = 'standard' | 'custom' | 'salary';
+
+interface PromoterTierCommissionOverrideInput {
+  hasCustomCommission?: boolean;
+  tierRates?: Record<string, number>;
+  globalRate?: number;
+  globalRateType?: 'percent' | 'fixed';
+}
+
+interface EventTierCommissionInput {
+  id: string;
+  commissionType?: 'percent' | 'fixed';
+  commissionValue?: number;
+}
+
+interface SalaryCompensationInput {
+  tableIncentivesEnabled?: boolean;
+  tableIncentiveType?: 'percent' | 'fixed';
+  tableIncentiveValue?: number;
+  notes?: string;
+}
+
+/**
+ * Resolves what a promoter actually earns for an event under its active
+ * compensation model:
+ * - standard: one flat rate for every promoter and tier
+ * - custom: a per-ticket-tier map, optionally overridden per promoter; the
+ *   flat `rate`/`type` returned alongside it is just a display fallback for
+ *   list views that show one number
+ * - salary: promoters are paid outside the platform — ticket commission is
+ *   forced to 0 (table incentives are configuration-only today; there is no
+ *   existing table-sale attribution pipeline to pay them out through)
+ */
+/**
+ * Resolves what a promoter actually earns for an event.
+ *
+ * New signature: pass a V2 `promoterCompensation` object as the first argument.
+ * Legacy signature: pass individual flat fields (kept for backward compat).
+ */
+export function resolveEffectiveCommission(
+  pcOrPromoterId: any,
+  promoterIdOrModel?: string | CompensationModel,
+  standardRate?: number,
+  standardType?: 'percent' | 'fixed',
+  tiers?: EventTierCommissionInput[],
+  overrides?: Record<string, PromoterTierCommissionOverrideInput>,
+): {
+  rate: number;
+  type: 'percentage' | 'fixed';
+  tierCommissions: Record<string, { rate: number; type: 'percentage' | 'fixed' }> | null;
+} {
+  const toStored = (t: string | undefined): 'percentage' | 'fixed' =>
+    t === 'fixed' || t === 'flat' ? 'fixed' : 'percentage';
+
+  // ── NEW V2 path: resolveEffectiveCommission(pc, promoterId) ─────────────────
+  if (
+    pcOrPromoterId &&
+    typeof pcOrPromoterId === 'object' &&
+    pcOrPromoterId.schemaVersion === SCHEMA_VERSION
+  ) {
+    const pc = pcOrPromoterId;
+    const promoterId = promoterIdOrModel as string;
+    const model: CompensationModel = pc.model || 'standard';
+    const defaults = pc.defaults || {};
+    const pcOverrides = pc.overrides || {};
+
+    if (model === 'salary') {
+      return { rate: 0, type: 'percentage', tierCommissions: null };
+    }
+
+    if (model === 'custom') {
+      const ticketCommissions = defaults.ticketCommissions || [];
+      const pOv = pcOverrides[promoterId];
+      const tierCommissions: Record<string, { rate: number; type: 'percentage' | 'fixed' }> = {};
+      for (const tc of ticketCommissions) {
+        const ovEntry = pOv?.ticketOverrides?.find((o: any) => o.ticketTierId === tc.ticketTierId);
+        const effectiveEntry = ovEntry || tc;
+        tierCommissions[tc.ticketTierId] = {
+          rate: Number(effectiveEntry.value) || 0,
+          type: toStored(effectiveEntry.type),
+        };
+      }
+      const firstEntry = ticketCommissions[0];
+      const flat = firstEntry
+        ? tierCommissions[firstEntry.ticketTierId] || { rate: 0, type: 'percentage' as const }
+        : { rate: 0, type: 'percentage' as const };
+      return { rate: flat.rate, type: flat.type, tierCommissions };
+    }
+
+    // standard
+    const pOv = pcOverrides[promoterId];
+    if (pOv?.ticketCommission) {
+      return {
+        rate: Number(pOv.ticketCommission.value) || 0,
+        type: toStored(pOv.ticketCommission.type),
+        tierCommissions: null,
+      };
+    }
+    return {
+      rate: Number(defaults.ticketCommission?.value) || 0,
+      type: toStored(defaults.ticketCommission?.type),
+      tierCommissions: null,
+    };
+  }
+
+  // ── LEGACY flat-field path ─────────────────────────────────────────────────
+  const promoterId = pcOrPromoterId as string;
+  const compensationModel = promoterIdOrModel as CompensationModel;
+  const legacyRate = standardRate ?? 0;
+  const legacyType = standardType ?? 'percent';
+  const legacyTiers = tiers ?? [];
+  const legacyOverrides = overrides ?? {};
+
+  if (compensationModel === 'salary') {
+    return { rate: 0, type: 'percentage', tierCommissions: null };
+  }
+
+  if (compensationModel === 'custom') {
+    const override = legacyOverrides?.[promoterId];
+    const tierCommissions: Record<string, { rate: number; type: 'percentage' | 'fixed' }> = {};
+    for (const tier of legacyTiers) {
+      const overrideRate = override?.hasCustomCommission
+        ? override.tierRates?.[tier.id]
+        : undefined;
+      tierCommissions[tier.id] = {
+        rate: typeof overrideRate === 'number' ? overrideRate : tier.commissionValue || 0,
+        type: toStored(tier.commissionType),
+      };
+    }
+    const firstTierId = legacyTiers[0]?.id;
+    const flat = firstTierId
+      ? tierCommissions[firstTierId]
+      : { rate: 0, type: 'percentage' as const };
+    return { rate: flat.rate, type: flat.type, tierCommissions };
+  }
+
+  // standard
+  const override = legacyOverrides?.[promoterId];
+  if (
+    override?.hasCustomCommission &&
+    override.globalRate !== undefined &&
+    override.globalRate !== null
+  ) {
+    return {
+      rate: Number(override.globalRate) || 0,
+      type: toStored(override.globalRateType as any),
+      tierCommissions: null,
+    };
+  }
+  return { rate: legacyRate, type: toStored(legacyType), tierCommissions: null };
+}
+
+/**
+ * Server-side mirror of the wizard's 0-100%/no-negative commission rules —
+ * the client already enforces this, but the wizard payload fields are
+ * validated with permissive z.number().optional() schemas, so a direct API
+ * call could otherwise persist an out-of-range or missing commission.
+ */
+function validateCommissionRate(
+  value: unknown,
+  type: 'percent' | 'fixed' | undefined,
+  label: string,
+): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return `${label} must be a number`;
+  if (value < 0) return `${label} cannot be negative`;
+  if ((type ?? 'percent') === 'percent' && value > 100) return `${label} cannot exceed 100%`;
+  return null;
+}
+
+/**
+ * Server-side mirror of the wizard's 0-100%/no-negative commission rules,
+ * validated directly against the canonical V2 `{model, defaults, overrides}`
+ * structure — the shape actually persisted to Firestore — regardless of
+ * whether the client sent flat wizard fields or the V2 object itself.
+ */
+function validateCompensationPayload(
+  pc: { model: CompensationModel; defaults: any; overrides?: Record<string, any> },
+  isPublishing: boolean,
+): string | null {
+  const { model, defaults = {}, overrides = {} } = pc;
+
+  if (model === 'standard') {
+    const err = validateCommissionRate(
+      defaults.ticketCommission?.value,
+      fromRateType(defaults.ticketCommission?.type),
+      'Global commission',
+    );
+    if (err) return err;
+
+    for (const [promoterId, override] of Object.entries(overrides)) {
+      const tc = (override as any)?.ticketCommission;
+      if (!tc) continue;
+      const err2 = validateCommissionRate(
+        tc.value,
+        fromRateType(tc.type),
+        `Commission override for promoter ${promoterId}`,
+      );
+      if (err2) return err2;
+    }
+  }
+
+  if (model === 'custom') {
+    for (const tc of defaults.ticketCommissions || []) {
+      const tierLabel = `Commission for ticket tier "${tc.ticketTierId}"`;
+      if (tc.value === undefined || tc.value === null) {
+        if (isPublishing) {
+          return `${tierLabel} is missing. Assign a commission to every ticket tier before publishing.`;
+        }
+        continue;
+      }
+      const err = validateCommissionRate(tc.value, fromRateType(tc.type), tierLabel);
+      if (err) return err;
+    }
+    for (const [promoterId, override] of Object.entries(overrides)) {
+      for (const to of (override as any)?.ticketOverrides || []) {
+        const err = validateCommissionRate(
+          to.value,
+          fromRateType(to.type),
+          `Custom commission override for promoter ${promoterId}, tier ${to.ticketTierId}`,
+        );
+        if (err) return err;
+      }
+    }
+  }
+
+  if (defaults.tableCommission) {
+    const tablesErr = validateCommissionRate(
+      defaults.tableCommission.value,
+      fromRateType(defaults.tableCommission.type),
+      'Tables commission',
+    );
+    if (tablesErr) return tablesErr;
+  }
+
+  if (model === 'salary' && defaults.tableIncentive?.enabled) {
+    const err = validateCommissionRate(
+      defaults.tableIncentive.value,
+      fromRateType(defaults.tableIncentive.type),
+      'Table incentive',
+    );
+    if (err) return err;
+  }
+
+  return null;
+}
+
+// =============================================================================
+// V2 SCHEMA HELPERS
+// =============================================================================
+
+/** Current promoterCompensation schema version. Bump when the canonical shape changes. */
+const SCHEMA_VERSION = 2 as const;
+
+/** Normalises a stored commission type string to 'percentage' | 'flat'. */
+function toRateType(t: string | undefined): 'percentage' | 'flat' {
+  if (!t) return 'percentage';
+  const n = t.toLowerCase();
+  return n === 'fixed' || n === 'flat' ? 'flat' : 'percentage';
+}
+
+/** Normalises back to legacy 'percent' | 'fixed' for internal resolvers. */
+function fromRateType(t: string | undefined): 'percent' | 'fixed' {
+  return t === 'flat' || t === 'fixed' ? 'fixed' : 'percent';
+}
+
+/**
+ * Build the canonical V2 `promoterCompensation` object from the wizard's flat
+ * form-data fields. This is the single source that is written to Firestore.
+ */
+export function buildPromoterCompensationV2(formData: any, tickets: any[] = []): any {
+  const model: CompensationModel = formData.compensationModel || 'standard';
+  const enabled = formData.promotersEnabled === true;
+
+  // ── defaults block (model-specific) ────────────────────────────────────────
+  let defaults: any;
+
+  if (model === 'standard') {
+    defaults = {
+      ticketCommission: {
+        type: toRateType(formData.commissionType),
+        value: Number(formData.commission) || 0,
+      },
+    };
+    const tcv = formData.tablesCommissionValue;
+    if (tcv !== undefined && tcv !== '' && tcv !== null) {
+      defaults.tableCommission = {
+        enabled: true,
+        type: toRateType(formData.tablesCommissionType),
+        value: Number(tcv) || 0,
+      };
+    }
+  } else if (model === 'custom') {
+    // Free (RSVP) tiers — price 0 — can never carry a commission; exclude
+    // them from the defaults so validation never demands one and revenue
+    // math never matches one.
+    defaults = {
+      ticketCommissions: (tickets || [])
+        .filter((t: any) => (Number(t.price) || 0) > 0)
+        .map((t: any) => ({
+          ticketTierId: t.id || t.tierId,
+          type: toRateType(t.commissionType),
+          value: Number(t.commissionValue) || 0,
+        })),
+    };
+    const tcv = formData.tablesCommissionValue;
+    if (tcv !== undefined && tcv !== '' && tcv !== null) {
+      defaults.tableCommission = {
+        enabled: true,
+        type: toRateType(formData.tablesCommissionType),
+        value: Number(tcv) || 0,
+      };
+    }
+  } else {
+    // salary
+    defaults = {
+      notes: formData.salaryNotes || '',
+    };
+    if (formData.salaryTableIncentivesEnabled) {
+      defaults.tableIncentive = {
+        enabled: true,
+        type: toRateType(formData.salaryTableIncentiveType),
+        value: Number(formData.salaryTableIncentiveValue) || 0,
+      };
+    }
+  }
+
+  // ── overrides block ─────────────────────────────────────────────────────────
+  // Convert the wizard's `promoterCommissionOverrides` (old flat shape) to V2.
+  const overrides: Record<string, any> = {};
+  const rawOverrides: Record<string, any> = formData.promoterCommissionOverrides || {};
+
+  for (const [promoterId, ov] of Object.entries(rawOverrides)) {
+    if (!(ov as any)?.hasCustomCommission) continue;
+    if (model === 'standard') {
+      const gr = (ov as any).globalRate;
+      if (gr !== undefined && gr !== null) {
+        overrides[promoterId] = {
+          ticketCommission: {
+            type: toRateType((ov as any).globalRateType),
+            value: Number(gr) || 0,
+          },
+        };
+      }
+    } else if (model === 'custom') {
+      const ticketOverrides = Object.entries((ov as any).tierRates || {}).map(([tierId, rate]) => {
+        const defaultEntry = (defaults.ticketCommissions || []).find(
+          (tc: any) => tc.ticketTierId === tierId,
+        );
+        return {
+          ticketTierId: tierId,
+          type: defaultEntry?.type || 'percentage',
+          value: Number(rate) || 0,
+        };
+      });
+      if (ticketOverrides.length > 0) {
+        overrides[promoterId] = { ticketOverrides };
+      }
+    }
+  }
+
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    enabled,
+    model,
+    defaults,
+    overrides,
+  };
+}
+
+/**
+ * Strips any per-tier commission entries whose ticket tier is free (price 0)
+ * from a V2 `promoterCompensation` object. Applied regardless of whether the
+ * object was just built from flat wizard fields or sent to the API directly
+ * as an already-V2 `promoterCompensation` payload — free (RSVP) tickets can
+ * never carry a commission, and a client bypassing `buildPromoterCompensationV2`
+ * must not be able to smuggle one in.
+ */
+function stripFreeTicketCommissions(pc: any, tickets: any[]): any {
+  if (!pc || pc.model !== 'custom') return pc;
+  const freeTierIds = new Set(
+    (tickets || [])
+      .filter((t: any) => (Number(t.price) || 0) === 0)
+      .map((t: any) => String(t.id || t.tierId)),
+  );
+  if (freeTierIds.size === 0) return pc;
+
+  const defaults = { ...(pc.defaults || {}) };
+  if (Array.isArray(defaults.ticketCommissions)) {
+    defaults.ticketCommissions = defaults.ticketCommissions.filter(
+      (tc: any) => !freeTierIds.has(String(tc.ticketTierId)),
+    );
+  }
+
+  const overrides: Record<string, any> = {};
+  for (const [promoterId, ov] of Object.entries(pc.overrides || {})) {
+    const ovAny = ov as any;
+    overrides[promoterId] = Array.isArray(ovAny?.ticketOverrides)
+      ? {
+          ...ovAny,
+          ticketOverrides: ovAny.ticketOverrides.filter(
+            (to: any) => !freeTierIds.has(String(to.ticketTierId)),
+          ),
+        }
+      : ovAny;
+  }
+
+  return { ...pc, defaults, overrides };
+}
+
+/**
+ * Convert a V2 `promoterCompensation` object back to the flat field set that
+ * internal helpers (`resolveEffectiveCommission`, `syncEventPromoters`) expect.
+ */
+export function flattenCompensationV2(pc: any): any {
+  if (!pc || pc.schemaVersion !== 2) return {};
+
+  const model: CompensationModel = pc.model || 'standard';
+  const defaults = pc.defaults || {};
+
+  const flat: any = {
+    compensationModel: model,
+    promotersEnabled: pc.enabled ?? false,
+  };
+
+  if (model === 'standard') {
+    flat.commission = defaults.ticketCommission?.value ?? 0;
+    flat.commissionType = fromRateType(defaults.ticketCommission?.type);
+    if (defaults.tableCommission) {
+      flat.tablesCommissionValue = defaults.tableCommission.value ?? 0;
+      flat.tablesCommissionType = fromRateType(defaults.tableCommission.type);
+    }
+  } else if (model === 'custom') {
+    flat.commission = 0;
+    flat.commissionType = 'percent';
+    if (defaults.tableCommission) {
+      flat.tablesCommissionValue = defaults.tableCommission.value ?? 0;
+      flat.tablesCommissionType = fromRateType(defaults.tableCommission.type);
+    }
+  } else {
+    // salary
+    flat.commission = 0;
+    flat.commissionType = 'percent';
+    flat.salaryNotes = defaults.notes || '';
+    flat.salaryTableIncentivesEnabled = !!defaults.tableIncentive?.enabled;
+    if (defaults.tableIncentive) {
+      flat.salaryTableIncentiveValue = defaults.tableIncentive.value ?? 0;
+      flat.salaryTableIncentiveType = fromRateType(defaults.tableIncentive.type);
+    }
+  }
+
+  // Map V2 overrides → old promoterCommissionOverrides shape
+  const promoterCommissionOverrides: Record<string, any> = {};
+  for (const [promoterId, ov] of Object.entries(pc.overrides || {})) {
+    const ovAny = ov as any;
+    if (model === 'standard' && ovAny.ticketCommission) {
+      promoterCommissionOverrides[promoterId] = {
+        hasCustomCommission: true,
+        globalRate: ovAny.ticketCommission.value,
+        globalRateType: fromRateType(ovAny.ticketCommission.type),
+      };
+    } else if (model === 'custom' && ovAny.ticketOverrides) {
+      const tierRates: Record<string, number> = {};
+      for (const to of ovAny.ticketOverrides as any[]) {
+        tierRates[to.ticketTierId] = to.value;
+      }
+      promoterCommissionOverrides[promoterId] = {
+        hasCustomCommission: true,
+        tierRates,
+      };
+    }
+  }
+  flat.promoterCommissionOverrides = promoterCommissionOverrides;
+
+  return flat;
+}
+
+/**
+ * Convert a stored V1 `promoterCompensation` doc (model/standard/custom/salary
+ * sub-objects) to the clean V2 shape.  Call this on every Firestore read until
+ * a migration script has back-filled all events.
+ *
+ * If `schemaVersion === SCHEMA_VERSION` the object is returned as-is.
+ */
+export function normalizeCompensationForRead(pc: any): any {
+  if (!pc) return pc;
+  if (pc.schemaVersion === SCHEMA_VERSION) return pc;
+
+  const model: CompensationModel = pc.model || 'standard';
+  let defaults: any = {};
+  const overrides: Record<string, any> = {};
+
+  if (model === 'standard') {
+    const s = pc.standard || {};
+    defaults = {
+      ticketCommission: {
+        type: toRateType(s.commissionType),
+        value: Number(s.commissionValue) || 0,
+      },
+    };
+    if (s.tableCommission) {
+      defaults.tableCommission = {
+        enabled: s.tableCommission.enabled ?? true,
+        type: toRateType(s.tableCommission.type),
+        value: Number(s.tableCommission.value) || 0,
+      };
+    }
+  } else if (model === 'custom') {
+    const c = pc.custom || {};
+    defaults = {
+      ticketCommissions: (c.ticketCommissions || []).map((tc: any) => ({
+        ticketTierId: tc.ticketTierId,
+        type: toRateType(tc.commissionType),
+        value: Number(tc.commissionValue) || 0,
+      })),
+    };
+    if (c.tableCommission) {
+      defaults.tableCommission = {
+        enabled: c.tableCommission.enabled ?? true,
+        type: toRateType(c.tableCommission.type),
+        value: Number(c.tableCommission.value) || 0,
+      };
+    }
+  } else {
+    // salary
+    const s = pc.salary || {};
+    defaults = { notes: s.notes || '' };
+    if (s.tableIncentives?.enabled) {
+      defaults.tableIncentive = {
+        enabled: true,
+        type: toRateType(s.tableIncentives.type),
+        value: Number(s.tableIncentives.value) || 0,
+      };
+    }
+  }
+
+  // Extract per-promoter overrides from V1 promoters array
+  for (const promoter of pc.promoters || []) {
+    if (promoter.useEventDefault === false && promoter.overrides) {
+      const pOv = promoter.overrides;
+      if (model === 'standard' && pOv.tableCommission) {
+        overrides[promoter.promoterId] = {
+          ticketCommission: {
+            type: toRateType(pOv.tableCommission.type),
+            value: Number(pOv.tableCommission.value) || 0,
+          },
+        };
+      } else if (model === 'custom' && pOv.ticketCommissions) {
+        overrides[promoter.promoterId] = {
+          ticketOverrides: (pOv.ticketCommissions || []).map((tc: any) => ({
+            ticketTierId: tc.ticketTierId,
+            type: toRateType(tc.commissionType),
+            value: Number(tc.commissionValue) || 0,
+          })),
+        };
+      }
+    }
+  }
+
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    enabled: pc.enabled ?? false,
+    model,
+    defaults,
+    overrides,
+    revenueSummary: pc.revenueSummary,
+  };
+}
+
+/**
+ * Compute revenue summary from a V2 promoterCompensation object and the event
+ * ticket tiers.
+ */
+export function calculateRevenueSummary(pc: any, tickets: any[]): any;
+/** @deprecated Pass the V2 promoterCompensation object directly. */
+export function calculateRevenueSummary(params: {
+  model: 'standard' | 'custom' | 'salary';
+  standard?: any;
+  custom?: any;
+  salary?: any;
+  tickets: any[];
+}): any;
+export function calculateRevenueSummary(pcOrParams: any, ticketsArg?: any[]): any {
+  // Support both new signature (pc, tickets) and old signature ({ model, standard, ... })
+  let model: string;
+  let defaults: any;
+  let tickets: any[];
+
+  if (ticketsArg !== undefined) {
+    // New V2 call: calculateRevenueSummary(pc, tickets)
+    const pc = pcOrParams;
+    model = pc?.model || 'standard';
+    const pc2 = normalizeCompensationForRead(pc);
+    defaults = pc2?.defaults || {};
+    tickets = ticketsArg || [];
+  } else {
+    // Legacy call: calculateRevenueSummary({ model, standard, custom, ... })
+    const params = pcOrParams;
+    model = params.model || 'standard';
+    tickets = params.tickets || [];
+    // Convert legacy shape to V2 defaults for unified logic below
+    if (model === 'standard' && params.standard) {
+      defaults = {
+        ticketCommission: {
+          type: params.standard.commissionType === 'flat' ? 'flat' : 'percentage',
+          value: Number(params.standard.commissionValue) || 0,
+        },
+      };
+    } else if (model === 'custom' && params.custom) {
+      defaults = {
+        ticketCommissions: (params.custom.ticketCommissions || []).map((tc: any) => ({
+          ticketTierId: tc.ticketTierId,
+          type: tc.commissionType === 'flat' ? 'flat' : 'percentage',
+          value: Number(tc.commissionValue) || 0,
+        })),
+      };
+    } else {
+      defaults = {};
+    }
+  }
+
+  let estimatedGrossRevenue = 0;
+  let estimatedPromoterCommission = 0;
+
+  for (const tier of tickets) {
+    const price = Number(tier.price) || 0;
+    const capacity = Number(tier.quantity) || 0;
+    const value = price * capacity;
+    estimatedGrossRevenue += value;
+    // Free (RSVP) tiers never earn a commission — this matters beyond the
+    // percent case: a flat/fixed rate would otherwise still multiply out
+    // to a nonzero amount even though the ticket sold for ₹0.
+    const isFree = price === 0;
+
+    if (!isFree && model === 'standard') {
+      const tc = defaults.ticketCommission;
+      if (tc) {
+        const commRate = Number(tc.value) || 0;
+        const comm = tc.type === 'flat' ? commRate * capacity : (value * commRate) / 100;
+        estimatedPromoterCommission += comm;
+      }
+    } else if (!isFree && model === 'custom') {
+      const match = (defaults.ticketCommissions || []).find(
+        (c: any) => String(c.ticketTierId) === String(tier.id || tier.tierId),
+      );
+      if (match) {
+        const commRate = Number(match.value) || 0;
+        const comm = match.type === 'flat' ? commRate * capacity : (value * commRate) / 100;
+        estimatedPromoterCommission += comm;
+      }
+    }
+    // salary: no ticket commission
+  }
+
+  estimatedGrossRevenue = Math.round(estimatedGrossRevenue * 100) / 100;
+  estimatedPromoterCommission = Math.round(estimatedPromoterCommission * 100) / 100;
+  const estimatedVenueRevenue =
+    Math.round((estimatedGrossRevenue - estimatedPromoterCommission) * 100) / 100;
+
+  return { estimatedGrossRevenue, estimatedPromoterCommission, estimatedVenueRevenue };
+}
+
+/**
+ * @deprecated Use `buildPromoterCompensationV2` + `flattenCompensationV2` instead.
+ * Kept for callers that haven't been migrated yet — reads the V1 pc object and
+ * produces legacy flat fields.
+ */
+export function mapPromoterCompensationToLegacy(pc: any, tickets: any[] = []) {
+  if (!pc) return {};
+  // If this is already V2, flatten it directly
+  if (pc.schemaVersion === SCHEMA_VERSION) {
+    const flat = flattenCompensationV2(pc);
+    flat.promoters = Object.keys(pc.overrides || []);
+    flat.promotersEnabled = pc.enabled ?? false;
+    flat.promoterSettings = { enabled: flat.promotersEnabled };
+    return flat;
+  }
+
+  // Legacy V1 path — kept for any remaining callers
+  const toLegacyType = (t: string | undefined): 'percent' | 'fixed' => {
+    if (!t) return 'percent';
+    const normalized = t.toLowerCase();
+    if (normalized === 'fixed' || normalized === 'flat') return 'fixed';
+    return 'percent';
+  };
+
+  const legacy: any = { compensationModel: pc.model || 'standard' };
+
+  if (pc.model === 'standard' && pc.standard) {
+    legacy.commission = pc.standard.commissionValue;
+    legacy.commissionType = toLegacyType(pc.standard.commissionType);
+    legacy.tablesCommissionValue = pc.standard.tableCommission?.value;
+    legacy.tablesCommissionType = toLegacyType(pc.standard.tableCommission?.type);
+  }
+  if (pc.model === 'custom' && pc.custom) {
+    legacy.tablesCommissionValue = pc.custom.tableCommission?.value;
+    legacy.tablesCommissionType = toLegacyType(pc.custom.tableCommission?.type);
+    legacy.tickets = (tickets || []).map((ticket: any) => {
+      const match = (pc.custom.ticketCommissions || []).find(
+        (tc: any) => String(tc.ticketTierId) === String(ticket.id || ticket.tierId),
+      );
+      const copy = { ...ticket };
+      if (match?.commissionValue !== undefined) copy.commissionValue = match.commissionValue;
+      if (match?.commissionType !== undefined)
+        copy.commissionType = toLegacyType(match.commissionType);
+      return copy;
+    });
+  }
+  if (pc.model === 'salary' && pc.salary) {
+    legacy.salaryNotes = pc.salary.notes;
+    legacy.salaryTableIncentivesEnabled = !!pc.salary.tableIncentives?.enabled;
+    legacy.salaryTableIncentiveValue = pc.salary.tableIncentives?.value;
+    legacy.salaryTableIncentiveType = toLegacyType(pc.salary.tableIncentives?.type);
+  }
+  legacy.promoters = (pc.promoters || []).map((p: any) => p.promoterId);
+  legacy.promotersEnabled = pc.enabled ?? (pc.promoters || []).length > 0;
+  legacy.promoterSettings = { enabled: legacy.promotersEnabled };
+  return legacy;
+}
+
+export async function populatePromoterDetails(db: any, promoterId: string) {
+  try {
+    const doc = await db.collection('promoters').doc(promoterId).get();
+    if (doc.exists) {
+      const data = doc.data();
+      return {
+        name: data.displayName || data.name || 'Promoter',
+        email: data.email || '',
+        phone: data.phoneNumber || data.phone || '',
+        role: data.role || 'promoter',
+      };
+    }
+  } catch (err) {
+    console.error(`Failed to fetch promoter details for ${promoterId}:`, err);
+  }
+  return {
+    name: 'Promoter',
+    email: '',
+    phone: '',
+    role: 'promoter',
+  };
+}
+
+/**
+ * @deprecated Use `buildPromoterCompensationV2` for new writes.
+ * This function remains for `updateEventPromoterCompensation` (settings sync path)
+ * which still reads from the legacy `event_promoter_settings` collection.
+ */
+export async function mapLegacyToPromoterCompensation(
+  db: any,
+  legacy: any,
+  tickets: any[] = [],
+  _currentPromotersList: any[] = [],
+) {
+  // Delegate to V2 builder — treat legacy flat fields as wizard formData
+  const pc = buildPromoterCompensationV2(legacy, tickets);
+  pc.revenueSummary = calculateRevenueSummary(pc, tickets);
+  return pc;
+}
+
+export async function updateEventPromoterCompensation(db: any, eventId: string, settingsData: any) {
+  try {
+    const eventDoc = await db.collection('events').doc(eventId).get();
+    if (!eventDoc.exists) return;
+    const eventData = eventDoc.data() || {};
+
+    const legacyMerged = {
+      commission: settingsData.defaultCommission ?? settingsData.commissionRate ?? 10,
+      commissionType: settingsData.defaultCommissionType ?? 'percent',
+      compensationModel: settingsData.compensationModel ?? 'standard',
+      promotersEnabled: settingsData.enabled ?? eventData.promotersEnabled ?? false,
+      promoterCommissionOverrides: settingsData.promoterCommissionOverrides || {},
+      tablesCommissionValue: settingsData.tablesCommissionValue ?? 0,
+      tablesCommissionType: settingsData.tablesCommissionType ?? 'percent',
+      salaryTableIncentivesEnabled: !!settingsData.salary?.tableIncentivesEnabled,
+      salaryTableIncentiveValue: settingsData.salary?.tableIncentiveValue ?? 0,
+      salaryTableIncentiveType: settingsData.salary?.tableIncentiveType ?? 'percent',
+      salaryNotes: settingsData.salary?.notes ?? '',
+    };
+
+    const pc = await mapLegacyToPromoterCompensation(
+      db,
+      legacyMerged,
+      eventData.tickets || eventData.ticketTiers || [],
+    );
+
+    // Only promoterCompensation + the assignment array are canonical on the
+    // event document — event_promoter_settings (written by the caller) is the
+    // denormalised index that still carries the flattened legacy fields.
+    await db
+      .collection('events')
+      .doc(eventId)
+      .update({
+        promoterCompensation: pc,
+        promoters: normalizePromotersArray(settingsData.allowedPromoterIds ?? []),
+        updatedAt: new Date().toISOString(),
+      });
+  } catch (err) {
+    console.error(`Failed to update promoterCompensation for event ${eventId}:`, err);
+  }
+}
+
+export function mapEventPromoterSettingsForClient(event: any) {
+  if (event.promoterSettings) {
+    return event.promoterSettings;
+  }
+  if (event.promoterCompensation) {
+    const pc = event.promoterCompensation;
+    const promoters = pc.promoters || [];
+    return {
+      enabled: promoters.length > 0,
+      allowedPromoterIds: promoters.map((p: any) => p.promoterId),
+    };
+  }
+  return { enabled: false, allowedPromoterIds: [] };
+}
+
+/**
+ * When the compensation model changes, the fields that belong to the model
+ * being left behind must be cleared server-side — mirroring the wizard's
+ * switch-model confirmation copy ("...will be removed/deleted") — instead of
+ * relying on the client to resend cleared values on every request.
+ */
+function computeModelSwitchClears(
+  previousModel: CompensationModel | undefined,
+  nextModel: CompensationModel,
+): Record<string, any> {
+  if (!previousModel || previousModel === nextModel) return {};
+  const clears: Record<string, any> = {};
+
+  if (previousModel === 'custom') {
+    clears.promoterCommissionOverrides = {};
+    clears.clearTierCommissions = true;
+  }
+
+  if (previousModel === 'salary') {
+    clears.salaryTableIncentivesEnabled = false;
+    clears.salaryTableIncentiveType = 'percent';
+    clears.salaryTableIncentiveValue = 0;
+    clears.salaryNotes = '';
+  }
+
+  return clears;
+}
+
+export async function ensurePromoterLink(
   db: any,
   promoterId: string,
   eventId: string,
   eventTitle: string,
   commissionRate: number,
+  commissionType: 'percentage' | 'fixed' = 'percentage',
+  tierCommissions: Record<string, { rate: number; type: 'percentage' | 'fixed' }> | null = null,
 ): Promise<string> {
   try {
     const promoterRef = db.collection('promoters').doc(promoterId);
@@ -443,8 +1290,8 @@ async function ensurePromoterLink(
     const linkRef = db.collection('promoter_links').doc(linkId);
     const linkDoc = await linkRef.get();
 
+    const now = new Date().toISOString();
     if (!linkDoc.exists) {
-      const now = new Date().toISOString();
       await linkRef.set({
         id: linkId,
         promoterId,
@@ -456,7 +1303,8 @@ async function ensurePromoterLink(
         campaignLabel: 'assigned',
         ticketTierIds: [],
         commissionRate,
-        commissionType: 'percentage',
+        commissionType,
+        tierCommissions,
         code: trackingCode,
         clicks: 0,
         conversions: 0,
@@ -466,6 +1314,13 @@ async function ensurePromoterLink(
         createdAt: now,
         updatedAt: now,
       });
+    } else {
+      // Keep the link's payout-time commission in sync with the current
+      // effective rate (standard flat rate, per-tier custom map, or salary's 0).
+      await linkRef.set(
+        { commissionRate, commissionType, tierCommissions, updatedAt: now },
+        { merge: true },
+      );
     }
 
     return trackingCode || '';
@@ -473,6 +1328,43 @@ async function ensurePromoterLink(
     console.error(`[ensurePromoterLink] Error: ${err.message}`);
     return '';
   }
+}
+
+/** Legacy flat compensation fields — no longer written to the event document. */
+const LEGACY_COMPENSATION_FIELDS = [
+  'commission',
+  'commissionType',
+  'compensationModel',
+  'promotersEnabled',
+  'promoterCommissionOverrides',
+  'tablesCommissionValue',
+  'tablesCommissionType',
+  'salaryTableIncentivesEnabled',
+  'salaryTableIncentiveValue',
+  'salaryTableIncentiveType',
+  'salaryNotes',
+] as const;
+
+/** Removes legacy flat compensation fields in place — call right before persisting an event doc. */
+function stripLegacyCompensationFields(target: Record<string, any>): void {
+  for (const key of LEGACY_COMPENSATION_FIELDS) {
+    delete target[key];
+  }
+}
+
+/**
+ * Normalises whatever shape the client sent for `promoters` (array of plain
+ * ID strings, or partial `{promoterId}` objects) into the canonical
+ * `{ promoterId, status: 'accepted' }[]` shape written to the event document.
+ * Promoters on this array are, by definition, currently assigned/active —
+ * pending/declined states live in `promoter_assignments`, not here.
+ */
+function normalizePromotersArray(raw: unknown): { promoterId: string; status: 'accepted' }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((p: any) => (typeof p === 'string' ? p : p?.promoterId))
+    .filter((id: any): id is string => typeof id === 'string' && id.length > 0)
+    .map((promoterId: string) => ({ promoterId, status: 'accepted' as const }));
 }
 
 async function syncEventPromoters(
@@ -484,7 +1376,46 @@ async function syncEventPromoters(
   promotersEnabled: boolean,
   commissionRate: number,
   creatorRole: string,
+  /** Pass a V2 promoterCompensation object OR the legacy compensationModel string. */
+  compensationModelOrPc: CompensationModel | any = 'standard',
+  commissionType: 'percent' | 'fixed' = 'percent',
+  tiers: EventTierCommissionInput[] = [],
+  commissionOverrides: Record<string, PromoterTierCommissionOverrideInput> = {},
+  tablesCommission: { type?: 'percent' | 'fixed'; value?: number } = {},
+  salary: SalaryCompensationInput = {},
 ): Promise<void> {
+  // Detect if called with a V2 pc object (new path) or legacy flat fields
+  const isV2Call =
+    compensationModelOrPc &&
+    typeof compensationModelOrPc === 'object' &&
+    compensationModelOrPc.schemaVersion === SCHEMA_VERSION;
+
+  // Derive the flat fields needed for event_promoter_settings and legacy resolvers
+  let compensationModel: CompensationModel;
+  let effectivePc: any;
+
+  if (isV2Call) {
+    effectivePc = compensationModelOrPc;
+    compensationModel = effectivePc.model || 'standard';
+    const flat = flattenCompensationV2(effectivePc);
+    commissionRate = flat.commission ?? commissionRate;
+    commissionType = flat.commissionType ?? commissionType;
+    tablesCommission = {
+      type: flat.tablesCommissionType === 'fixed' ? 'fixed' : 'percent',
+      value: flat.tablesCommissionValue ?? 0,
+    };
+    salary = {
+      tableIncentivesEnabled: flat.salaryTableIncentivesEnabled,
+      tableIncentiveType: flat.salaryTableIncentiveType,
+      tableIncentiveValue: flat.salaryTableIncentiveValue,
+      notes: flat.salaryNotes,
+    };
+    commissionOverrides = flat.promoterCommissionOverrides || {};
+  } else {
+    compensationModel = compensationModelOrPc as CompensationModel;
+    effectivePc = null;
+  }
+
   try {
     const isEnabled = promotersEnabled !== false;
     const nextIds = isEnabled ? (Array.isArray(promoterIds) ? promoterIds : []) : [];
@@ -496,7 +1427,17 @@ async function syncEventPromoters(
         eventId,
         enabled: isEnabled,
         allowedPromoterIds: nextIds,
+        compensationModel,
         defaultCommission: commissionRate,
+        defaultCommissionType: commissionType,
+        tablesCommissionType: tablesCommission.type === 'fixed' ? 'fixed' : 'percent',
+        tablesCommissionValue: tablesCommission.value || 0,
+        salary: {
+          tableIncentivesEnabled: !!salary.tableIncentivesEnabled,
+          tableIncentiveType: salary.tableIncentiveType === 'fixed' ? 'fixed' : 'percent',
+          tableIncentiveValue: salary.tableIncentiveValue || 0,
+          notes: salary.notes || '',
+        },
         updatedAt: new Date().toISOString(),
       },
       { merge: true },
@@ -528,8 +1469,9 @@ async function syncEventPromoters(
     const prevIds: string[] =
       activeAssignmentsSnap?.docs.map((d: any) => d.data().promoterId) ?? [];
 
-    // 2. Diff newly added / removed promoters
+    // 2. Diff newly added / staying / removed promoters
     const newlyAdded = nextIds.filter((id) => !prevIds.includes(id));
+    const staying = nextIds.filter((id) => prevIds.includes(id));
     const removed = prevIds.filter((id) => !nextIds.includes(id));
     const now = new Date().toISOString();
 
@@ -539,12 +1481,24 @@ async function syncEventPromoters(
     // 3. Create assignments for newly added promoters
     await Promise.all(
       newlyAdded.map(async (promoterId) => {
+        const effective = isV2Call
+          ? resolveEffectiveCommission(effectivePc, promoterId)
+          : resolveEffectiveCommission(
+              promoterId,
+              compensationModel,
+              commissionRate,
+              commissionType,
+              tiers,
+              commissionOverrides,
+            );
         const trackingCode = await ensurePromoterLink(
           db,
           promoterId,
           eventId,
           eventName,
-          commissionRate,
+          effective.rate,
+          effective.type,
+          effective.tierCommissions,
         );
         const assignId = `${promoterId}_${eventId}`;
         await db
@@ -558,7 +1512,9 @@ async function syncEventPromoters(
               eventName: encryptedEventName,
               venueName: encryptedVenueName,
               status: 'active',
-              commissionRate,
+              commissionRate: effective.rate,
+              commissionType: effective.type,
+              tierCommissions: effective.tierCommissions,
               linkCode: trackingCode || null,
               totalSales: 0,
               totalRevenue: 0,
@@ -572,6 +1528,43 @@ async function syncEventPromoters(
             },
             { merge: true },
           );
+      }),
+    );
+
+    // 3b. Re-sync commission for promoters who remain assigned — this is what
+    // makes a compensation-model switch or a standard-rate change automatically
+    // flow through to every promoter, without resetting their sales totals.
+    await Promise.all(
+      staying.map(async (promoterId) => {
+        const effective = isV2Call
+          ? resolveEffectiveCommission(effectivePc, promoterId)
+          : resolveEffectiveCommission(
+              promoterId,
+              compensationModel,
+              commissionRate,
+              commissionType,
+              tiers,
+              commissionOverrides,
+            );
+        await ensurePromoterLink(
+          db,
+          promoterId,
+          eventId,
+          eventName,
+          effective.rate,
+          effective.type,
+          effective.tierCommissions,
+        );
+        const assignId = `${promoterId}_${eventId}`;
+        await db.collection('promoter_assignments').doc(assignId).set(
+          {
+            commissionRate: effective.rate,
+            commissionType: effective.type,
+            tierCommissions: effective.tierCommissions,
+            updatedAt: now,
+          },
+          { merge: true },
+        );
       }),
     );
 
@@ -1332,6 +2325,14 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             }),
           );
 
+        // Backward-compat: normalise any v1-shaped stored promoterCompensation
+        // before it reaches the client, so consumers only ever see the V2 shape.
+        if (detail.event?.promoterCompensation) {
+          detail.event.promoterCompensation = normalizeCompensationForRead(
+            detail.event.promoterCompensation,
+          );
+        }
+
         if (!isPrivateOrDraft) {
           await fastify.cache.set('public-discovery', cacheKey, detail, 60);
         }
@@ -1419,6 +2420,33 @@ export default async function eventRoutes(fastify: FastifyInstance) {
       }
 
       try {
+        // ── Build canonical V2 promoterCompensation ──────────────────────────
+        const baseTickets = Array.isArray(request.body.tickets) ? request.body.tickets : [];
+        let pc: any;
+
+        if (request.body.promoterCompensation?.schemaVersion === SCHEMA_VERSION) {
+          // Already V2 from the client (future-proof path)
+          pc = request.body.promoterCompensation;
+        } else if (request.body.promoterCompensation) {
+          // V1 pc object sent — normalise to V2
+          pc = normalizeCompensationForRead(request.body.promoterCompensation);
+        } else {
+          // Flat wizard fields — build V2 fresh
+          pc = buildPromoterCompensationV2(request.body, baseTickets);
+        }
+
+        pc = stripFreeTicketCommissions(pc, baseTickets);
+        pc.revenueSummary = calculateRevenueSummary(pc, baseTickets);
+        request.body.promoterCompensation = pc;
+
+        // Capture assigned promoter ids before normalising the array shape, then
+        // write only the canonical { promoterId, status } shape + promoterCompensation.
+        const bodyPromoters = normalizePromotersArray(request.body.promoters).map(
+          (p) => p.promoterId,
+        );
+        request.body.promoters = normalizePromotersArray(request.body.promoters);
+        stripLegacyCompensationFields(request.body);
+
         const event = await fastify.eventService.createEvent(request.body, actorId, workspaceId);
 
         // Invalidate event lists for this workspace
@@ -1441,10 +2469,8 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         await fastify.invalidatePublicDiscovery('all');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
 
-        // Sync promoters (fire-and-forget)
-        const bodyPromoters = Array.isArray(request.body.promoters) ? request.body.promoters : [];
-        const bodyPromotersEnabled = request.body.promotersEnabled ?? false;
-        const commissionRate = request.body.commission ?? 10;
+        // Sync promoters (fire-and-forget) — pass V2 pc object directly
+        const bodyPromotersEnabled = pc.enabled ?? false;
 
         syncEventPromoters(
           fastify.db,
@@ -1453,8 +2479,9 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           event.venueName || event.venue || '',
           bodyPromoters,
           bodyPromotersEnabled,
-          commissionRate,
+          0, // commissionRate — overridden by V2 pc inside syncEventPromoters
           request.body.creatorRole || 'venue',
+          pc, // V2 promoterCompensation object
         );
 
         return { success: true, id: event.id };
@@ -1540,6 +2567,158 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         patchFields.venueId = patchFields.venueId || existingEventSnap.creatorId;
       }
 
+      // --- Promoter compensation validation + stale-model cleanup ---
+      // Runs before the event is persisted so an invalid publish attempt never
+      // saves, and so switching models clears the previous model's fields on
+      // the event doc itself instead of relying on the client to resend them.
+      const patchIsPublishing =
+        patchFields.lifecycle === 'scheduled' || patchFields.lifecycle === 'submitted';
+      const touchesCompensation =
+        patchFields.promoters !== undefined ||
+        patchFields.promotersEnabled !== undefined ||
+        patchFields.commission !== undefined ||
+        patchFields.commissionType !== undefined ||
+        patchFields.compensationModel !== undefined ||
+        patchFields.promoterCommissionOverrides !== undefined ||
+        patchFields.tickets !== undefined ||
+        patchFields.tablesCommissionType !== undefined ||
+        patchFields.tablesCommissionValue !== undefined ||
+        patchFields.salaryTableIncentivesEnabled !== undefined ||
+        patchFields.salaryNotes !== undefined ||
+        patchIsPublishing;
+
+      let preEventData: any = existingEventSnap;
+      if (!preEventData) {
+        const preEventSnap = await fastify.db
+          .collection('events')
+          .doc(id)
+          .get()
+          .catch(() => null);
+        preEventData = preEventSnap?.exists ? preEventSnap.data() : null;
+      }
+
+      // ── Build/normalise V2 promoterCompensation for patch ──────────────────
+      const baseTickets = Array.isArray(patchFields.tickets)
+        ? patchFields.tickets
+        : Array.isArray(preEventData?.tickets)
+          ? preEventData.tickets
+          : [];
+
+      if (patchFields.promoterCompensation) {
+        // Incoming pc object — normalise to V2
+        const incomingPc = patchFields.promoterCompensation;
+        patchFields.promoterCompensation = stripFreeTicketCommissions(
+          incomingPc.schemaVersion === SCHEMA_VERSION
+            ? incomingPc
+            : normalizeCompensationForRead(incomingPc),
+          baseTickets,
+        );
+        patchFields.promoterCompensation.revenueSummary = calculateRevenueSummary(
+          patchFields.promoterCompensation,
+          baseTickets,
+        );
+      } else if (touchesCompensation) {
+        // Flat compensation fields changed — merge with existing and build V2
+        const existingPc = preEventData?.promoterCompensation
+          ? normalizeCompensationForRead(preEventData.promoterCompensation)
+          : null;
+        const existingFlat = existingPc ? flattenCompensationV2(existingPc) : {};
+
+        const mergedFormData = {
+          compensationModel:
+            patchFields.compensationModel ?? existingFlat.compensationModel ?? 'standard',
+          promotersEnabled: patchFields.promotersEnabled ?? existingFlat.promotersEnabled ?? false,
+          commission: patchFields.commission ?? existingFlat.commission ?? 0,
+          commissionType: patchFields.commissionType ?? existingFlat.commissionType ?? 'percent',
+          tablesCommissionValue:
+            patchFields.tablesCommissionValue ?? existingFlat.tablesCommissionValue,
+          tablesCommissionType:
+            patchFields.tablesCommissionType ?? existingFlat.tablesCommissionType ?? 'percent',
+          promoterCommissionOverrides:
+            patchFields.promoterCommissionOverrides ??
+            existingFlat.promoterCommissionOverrides ??
+            {},
+          salaryTableIncentivesEnabled:
+            patchFields.salaryTableIncentivesEnabled ??
+            existingFlat.salaryTableIncentivesEnabled ??
+            false,
+          salaryTableIncentiveValue:
+            patchFields.salaryTableIncentiveValue ?? existingFlat.salaryTableIncentiveValue ?? 0,
+          salaryTableIncentiveType:
+            patchFields.salaryTableIncentiveType ??
+            existingFlat.salaryTableIncentiveType ??
+            'percent',
+          salaryNotes: patchFields.salaryNotes ?? existingFlat.salaryNotes ?? '',
+        };
+
+        patchFields.promoterCompensation = buildPromoterCompensationV2(mergedFormData, baseTickets);
+        patchFields.promoterCompensation.revenueSummary = calculateRevenueSummary(
+          patchFields.promoterCompensation,
+          baseTickets,
+        );
+      }
+
+      if (touchesCompensation) {
+        const preSettingsDoc = await fastify.db
+          .collection('event_promoter_settings')
+          .doc(id)
+          .get()
+          .catch(() => null);
+        const preSettingsData: any = preSettingsDoc?.exists ? preSettingsDoc.data() : null;
+
+        const previousCompensationModel: CompensationModel | undefined =
+          preSettingsData?.compensationModel;
+
+        if (
+          patchFields.compensationModel &&
+          patchFields.compensationModel !== previousCompensationModel
+        ) {
+          const clears = computeModelSwitchClears(
+            previousCompensationModel,
+            patchFields.compensationModel,
+          );
+
+          if (clears.clearTierCommissions) {
+            const baseTickets: any[] = Array.isArray(patchFields.tickets)
+              ? patchFields.tickets
+              : Array.isArray(preEventData?.tickets)
+                ? preEventData.tickets
+                : [];
+            patchFields.tickets = baseTickets.map(
+              ({ commissionValue, commissionType, ...rest }: any) => rest,
+            );
+            delete clears.clearTierCommissions;
+          }
+
+          for (const [key, value] of Object.entries(clears)) {
+            if (patchFields[key] === undefined) patchFields[key] = value;
+          }
+        }
+
+        // Validate directly against the canonical V2 object built above — the
+        // shape that is actually about to be persisted.
+        const compensationValidationError = validateCompensationPayload(
+          patchFields.promoterCompensation,
+          patchIsPublishing,
+        );
+        if (compensationValidationError) {
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'BAD_REQUEST',
+              message: compensationValidationError,
+              requestId: request.id,
+            }),
+          );
+        }
+      }
+
+      // Normalise the assigned-promoters array shape and drop legacy flat
+      // fields — only promoterCompensation + promoters get persisted.
+      if (patchFields.promoters !== undefined) {
+        patchFields.promoters = normalizePromotersArray(patchFields.promoters);
+      }
+      stripLegacyCompensationFields(patchFields);
+
       try {
         const event = await fastify.eventService.updateEvent(id, patchFields, userId, workspaceId);
         if (!event)
@@ -1578,14 +2757,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         await fastify.invalidatePublicDiscovery('all');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
 
-        const isPublishing =
-          patchFields.lifecycle === 'scheduled' || patchFields.lifecycle === 'submitted';
-        if (
-          patchFields.promoters !== undefined ||
-          patchFields.promotersEnabled !== undefined ||
-          patchFields.commission !== undefined ||
-          isPublishing
-        ) {
+        if (touchesCompensation) {
           const settingsDoc = await fastify.db
             .collection('event_promoter_settings')
             .doc(id)
@@ -1594,23 +2766,28 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           const prevIds: string[] =
             (settingsDoc?.exists ? (settingsDoc.data() as any)?.allowedPromoterIds : null) ?? [];
 
-          const bodyPromoters = Array.isArray(patchFields.promoters)
-            ? patchFields.promoters
+          // Sync promoters (fire-and-forget) — pass V2 pc object directly
+          const resolvedPc = patchFields.promoterCompensation
+            ? patchFields.promoterCompensation
+            : preEventData?.promoterCompensation
+              ? normalizeCompensationForRead(preEventData.promoterCompensation)
+              : buildPromoterCompensationV2(patchFields, baseTickets);
+
+          const bodyPromotersNorm = Array.isArray(patchFields.promoters)
+            ? patchFields.promoters.map((p: any) => (typeof p === 'string' ? p : p.promoterId))
             : prevIds;
-          const bodyPromotersEnabled =
-            patchFields.promotersEnabled ?? event.promotersEnabled ?? false;
-          const commissionRate =
-            patchFields.commission ?? event.promoterSettings?.commissionRate ?? 10;
+          const bodyPromotersEnabled = resolvedPc.enabled ?? false;
 
           syncEventPromoters(
             fastify.db,
             id,
             event.title || 'Untitled Event',
             event.venueName || event.venue || '',
-            bodyPromoters,
+            bodyPromotersNorm,
             bodyPromotersEnabled,
-            commissionRate,
+            0, // overridden by V2 pc
             event.creatorRole || 'venue',
+            resolvedPc,
           );
         }
 
@@ -1890,6 +3067,43 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         }
       }
 
+      // ── Build canonical V2 promoterCompensation ──────────────────────────
+      const baseTickets = Array.isArray(body.tickets) ? body.tickets : [];
+      let pcBody: any;
+
+      if (body.promoterCompensation?.schemaVersion === SCHEMA_VERSION) {
+        pcBody = body.promoterCompensation;
+      } else if (body.promoterCompensation) {
+        pcBody = normalizeCompensationForRead(body.promoterCompensation);
+      } else {
+        pcBody = buildPromoterCompensationV2(body, baseTickets);
+      }
+      pcBody = stripFreeTicketCommissions(pcBody, baseTickets);
+
+      // --- Promoter compensation validation (0-100%, no negative, custom tiers required to publish) ---
+      // Validated against the canonical V2 object — the shape actually persisted.
+      if (body.promotersEnabled) {
+        const compensationValidationError = validateCompensationPayload(pcBody, !isDraft);
+        if (compensationValidationError) {
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'BAD_REQUEST',
+              message: compensationValidationError,
+              requestId: request.id,
+            }),
+          );
+        }
+      }
+
+      pcBody.revenueSummary = calculateRevenueSummary(pcBody, baseTickets);
+      body.promoterCompensation = pcBody;
+
+      // Capture assigned promoter ids before normalising the array shape, then
+      // write only the canonical { promoterId, status } shape + promoterCompensation.
+      const bodyPromoterIds = normalizePromotersArray(body.promoters).map((p) => p.promoterId);
+      body.promoters = normalizePromotersArray(body.promoters);
+      stripLegacyCompensationFields(body);
+
       try {
         const built = buildEvent({
           ...body,
@@ -1966,20 +3180,19 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         await fastify.publicDiscoveryService.syncEventReadModels(event.id);
         await fastify.invalidatePublicDiscovery('all');
 
-        // Sync promoters (fire-and-forget)
-        const bodyPromoters = Array.isArray(body.promoters) ? body.promoters : [];
-        const bodyPromotersEnabled = body.promotersEnabled ?? false;
-        const commissionRate = body.commission ?? 10;
+        // Sync promoters (fire-and-forget) — pass V2 pc object directly
+        const bodyPromotersEnabled = pcBody.enabled ?? false;
 
         syncEventPromoters(
           fastify.db,
           event.id,
           eventRecord.title || 'Untitled Event',
           eventRecord.venueName || eventRecord.venue || '',
-          bodyPromoters,
+          bodyPromoterIds,
           bodyPromotersEnabled,
-          commissionRate,
+          0, // overridden by V2 pc
           body.creatorRole || 'venue',
+          pcBody,
         );
 
         return reply.status(201).send({ success: true, event: { id: event.id } });
@@ -2061,8 +3274,14 @@ export default async function eventRoutes(fastify: FastifyInstance) {
     isRSVP: z.boolean().optional(),
     promotersEnabled: z.boolean().optional(),
     buyerDiscountsEnabled: z.boolean().optional(),
+    compensationModel: z.string().optional(),
     commission: z.number().optional(),
     commissionType: z.string().optional(),
+    tablesCommissionType: z.string().optional(),
+    tablesCommissionValue: z.number().optional(),
+    salaryTableIncentivesEnabled: z.boolean().optional(),
+    salaryTableIncentiveType: z.string().optional(),
+    salaryTableIncentiveValue: z.number().optional(),
     discount: z.number().optional(),
     discountType: z.string().optional(),
     tickets: z
@@ -2071,9 +3290,8 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           name: z.string().optional(),
           price: z.number(),
           quantity: z.number(),
-          overrideCommission: z.boolean().optional(),
-          promoterCommission: z.number().optional(),
-          promoterCommissionType: z.string().optional(),
+          commissionType: z.string().optional(),
+          commissionValue: z.number().optional(),
           overrideDiscount: z.boolean().optional(),
           promoterDiscount: z.number().optional(),
           promoterDiscountType: z.string().optional(),
@@ -2107,6 +3325,14 @@ export default async function eventRoutes(fastify: FastifyInstance) {
       const isRSVP = fd.isRSVP === true;
       const promotersEnabled = fd.promotersEnabled === true;
       const buyerDiscountsEnabled = fd.buyerDiscountsEnabled === true;
+      const compensationModel = fd.compensationModel || 'standard';
+
+      // Read commission rates from the canonical V2 `defaults` shape instead of
+      // re-deriving per-model field names ad hoc. Custom-model per-tier rates
+      // still come straight off each tier — this preview payload has no stable
+      // ticketTierId to match `defaults.ticketCommissions` entries against.
+      const previewPc = buildPromoterCompensationV2(fd, []);
+      const defaults: any = previewPc.defaults || {};
 
       const computeTier = (tier: any, type: 'ticket' | 'table') => {
         const price = Number(tier.price) || 0;
@@ -2118,12 +3344,41 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           commRate = 0,
           commType = 'percent';
         if (promotersEnabled && !isFree) {
-          commRate = tier.overrideCommission
-            ? Number(tier.promoterCommission) || 0
-            : Number(fd.commission) || 15;
-          commType = tier.overrideCommission
-            ? tier.promoterCommissionType || 'percent'
-            : fd.commissionType || 'percent';
+          if (compensationModel === 'salary') {
+            // Ticket commissions are disabled under Salary; table sales may
+            // still earn an optional incentive.
+            if (type === 'table' && defaults.tableIncentive?.enabled) {
+              commRate = Number(defaults.tableIncentive.value) || 0;
+              commType = fromRateType(defaults.tableIncentive.type);
+            }
+          } else if (compensationModel === 'custom') {
+            if (type === 'ticket') {
+              commRate = Number(tier.commissionValue) || 0;
+              commType = tier.commissionType || 'percent';
+            } else {
+              commRate = Number(defaults.tableCommission?.value) || 0;
+              commType = defaults.tableCommission
+                ? fromRateType(defaults.tableCommission.type)
+                : 'percent';
+            }
+          } else {
+            // standard
+            if (type === 'ticket') {
+              commRate = Number(defaults.ticketCommission?.value) || 15;
+              commType = defaults.ticketCommission
+                ? fromRateType(defaults.ticketCommission.type)
+                : 'percent';
+            } else {
+              commRate = defaults.tableCommission
+                ? Number(defaults.tableCommission.value)
+                : Number(defaults.ticketCommission?.value) || 15;
+              commType = defaults.tableCommission
+                ? fromRateType(defaults.tableCommission.type)
+                : defaults.ticketCommission
+                  ? fromRateType(defaults.ticketCommission.type)
+                  : 'percent';
+            }
+          }
           commTotal = commType === 'percent' ? (value * commRate) / 100 : commRate * quantity;
         }
 

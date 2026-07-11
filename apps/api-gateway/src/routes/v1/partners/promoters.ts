@@ -21,6 +21,7 @@ import {
   cleanPromoterProfilePatch,
 } from '../../../lib/signed-urls.js';
 import { getAdminStorage } from '@c1rcle/core/admin';
+import { resolveEffectiveCommission, normalizeCompensationForRead } from '../events.js';
 
 const AnalyticsQuerySchema = z
   .object({
@@ -150,6 +151,20 @@ function asArray<T = PlainRecord>(value: unknown): T[] {
 function toNumber(value: any): number {
   const amount = Number(value ?? 0);
   return Number.isFinite(amount) ? amount : 0;
+}
+
+/**
+ * Resolves the commission rate a promoter earns on an event from the
+ * canonical `promoterCompensation` object (v1 or v2 — normalised on read).
+ * Falls back to the pre-schema-redesign flat fields for any event doc that
+ * predates `promoterCompensation` entirely.
+ */
+function resolveEventCommissionRate(event: Record<string, any>, promoterId: string): number {
+  if (event.promoterCompensation) {
+    const pc = normalizeCompensationForRead(event.promoterCompensation);
+    return toNumber(resolveEffectiveCommission(pc, promoterId).rate);
+  }
+  return toNumber(event.promoterSettings?.commissionRate || event.commissionRate || 0);
 }
 
 function toIso(value: any): string | null {
@@ -426,6 +441,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   const buildLegacyPromoterEvent = (
     event: Record<string, any>,
     activeLink?: Record<string, any>,
+    promoterId?: string,
   ) => {
     const tickets = Array.isArray(event.tickets)
       ? event.tickets.map((ticket: any, index: number) => ({
@@ -457,10 +473,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         max: tickets.length ? Math.max(...tickets.map((ticket: any) => toNumber(ticket.price))) : 0,
       },
       commissionRate: toNumber(
-        activeLink?.commissionRate ||
-          event.promoterSettings?.commissionRate ||
-          event.commissionRate ||
-          0,
+        activeLink?.commissionRate || resolveEventCommissionRate(event, promoterId || ''),
       ),
       tickets,
       stats: {
@@ -559,7 +572,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         eventName: encrypt(event.title || event.name || 'Event'),
         venueName: encrypt(event.venueName || event.venue || ''),
         status: 'active',
-        commissionRate: event.promoterSettings?.commissionRate || event.commissionRate || 0,
+        commissionRate: resolveEventCommissionRate(event, promoterId),
         createdAt: new Date().toISOString(),
       };
       await assignmentRef.set(assignment);
@@ -648,10 +661,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       campaignLabel: pickString(body.campaignLabel),
       ticketTierIds: Array.isArray(body.ticketTierIds) ? body.ticketTierIds : [],
       commissionRate: normalizePromoterCommissionRate(
-        assignment.commissionRate ||
-          event.promoterSettings?.commissionRate ||
-          event.commissionRate ||
-          0,
+        assignment.commissionRate || resolveEventCommissionRate(event, promoterId),
       ),
       commissionType: pickString(body.commissionType, 'percentage'),
       code,
@@ -848,7 +858,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     }
 
     const events = validEvents.map((event) =>
-      buildLegacyPromoterEvent(event, activeLinkByEventId.get(String(event.id))),
+      buildLegacyPromoterEvent(event, activeLinkByEventId.get(String(event.id)), promoterId),
     );
     return { events, nextCursor: validEvents.length === pageSize ? nextCursor : null };
   };

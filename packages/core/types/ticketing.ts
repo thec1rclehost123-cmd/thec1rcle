@@ -369,6 +369,133 @@ export interface PromoterEventSettings {
   toggleHistory: PromoterToggleHistory[];
 }
 
+/**
+ * Entry in the event's top-level `promoters` array — assignment identity only.
+ * Compensation config lives entirely in `promoterCompensation`; this array never
+ * carries commission data, only who is assigned and their acceptance status.
+ */
+export interface PromoterAssignment {
+  promoterId: string;
+  status: 'accepted' | 'pending' | 'declined';
+}
+
+/**
+ * Promoter compensation models. Only one may be active per event:
+ * - standard: one global commission rate applies to every ticket tier and promoter
+ * - custom: each ticket tier has its own commission, optionally overridden per promoter
+ * - salary: promoters are paid outside the platform; ticket commissions are disabled
+ */
+export type CompensationModel = 'standard' | 'custom' | 'salary';
+
+/** Commission rate unit — percentage of ticket price, or flat currency amount. */
+export type CommissionRateType = 'percentage' | 'flat';
+
+// =============================================================================
+// PROMOTER COMPENSATION V2 — Canonical Firestore schema (schemaVersion: 2)
+// =============================================================================
+
+/** A single commission rate spec used in defaults and overrides. */
+export interface CommissionRate {
+  type: CommissionRateType;
+  value: number;
+}
+
+/** A table booking commission spec — same as CommissionRate but with an enabled flag. */
+export interface TableCommissionRate extends CommissionRate {
+  enabled: boolean;
+}
+
+/** Per-ticket-tier entry in custom defaults. */
+export interface TicketCommissionEntry {
+  ticketTierId: string;
+  type: CommissionRateType;
+  value: number;
+}
+
+/** Per-promoter ticket override entry (custom model). */
+export interface TicketOverrideEntry {
+  ticketTierId: string;
+  type: CommissionRateType;
+  value: number;
+}
+
+/** defaults block for `model: "standard"` */
+export interface StandardCompensationDefaults {
+  ticketCommission: CommissionRate;
+  tableCommission?: TableCommissionRate;
+}
+
+/** defaults block for `model: "custom"` */
+export interface CustomCompensationDefaults {
+  ticketCommissions: TicketCommissionEntry[];
+  tableCommission?: TableCommissionRate;
+}
+
+/** defaults block for `model: "salary"` */
+export interface SalaryCompensationDefaults {
+  tableIncentive?: TableCommissionRate;
+  notes?: string;
+}
+
+export type PromoterCompensationDefaults =
+  | StandardCompensationDefaults
+  | CustomCompensationDefaults
+  | SalaryCompensationDefaults;
+
+/** Per-promoter override for standard model (one ticket commission override). */
+export interface StandardPromoterOverride {
+  ticketCommission: CommissionRate;
+}
+
+/** Per-promoter override for custom model (selective ticket-tier overrides). */
+export interface CustomPromoterOverride {
+  ticketOverrides: TicketOverrideEntry[];
+}
+
+export type PromoterCompensationOverride = StandardPromoterOverride | CustomPromoterOverride;
+
+/**
+ * Canonical V2 promoter compensation object stored in Firestore `events` documents.
+ * schemaVersion: 2 distinguishes this from the legacy V1 shape.
+ */
+export interface PromoterCompensationV2 {
+  schemaVersion: 2;
+  enabled: boolean;
+  model: CompensationModel;
+  defaults: PromoterCompensationDefaults;
+  /** Record keyed by promoterId — only promoters with non-default rates appear here. */
+  overrides: Record<string, PromoterCompensationOverride>;
+  revenueSummary?: {
+    estimatedGrossRevenue: number;
+    estimatedPromoterCommission: number;
+    estimatedVenueRevenue: number;
+  };
+}
+
+// =============================================================================
+// LEGACY V1 types — kept for backward-compat reads of existing Firestore docs
+// =============================================================================
+
+/** @deprecated Use PromoterCompensationV2 */
+export interface PromoterTierCommissionOverride {
+  hasCustomCommission: boolean;
+  tierRates?: Record<string, number>;
+}
+
+/** @deprecated Use TableCommissionRate */
+export interface TablesCommissionConfig {
+  type: CommissionType;
+  value: number;
+}
+
+/** @deprecated Use SalaryCompensationDefaults */
+export interface SalaryCompensationConfig {
+  tableIncentivesEnabled: boolean;
+  tableIncentiveType: CommissionType;
+  tableIncentiveValue: number;
+  notes: string;
+}
+
 // =============================================================================
 // POLICIES
 // =============================================================================
