@@ -108,9 +108,9 @@ function StaffInviteContent() {
 
       setStep('success');
       setTimeout(() => {
-        router.replace(
-          tempPassword ? `/auth/change-password?temp=${tempPassword}` : '/auth/change-password',
-        );
+        // Do not put the temp password in the URL (leaks via history / referer /
+        // server logs). The change-password page reads it from sessionStorage.
+        router.replace('/auth/change-password');
       }, 1500);
     } catch (err: any) {
       console.error(err);

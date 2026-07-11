@@ -376,6 +376,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/',
     {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: DiscoveryPatchSchema })],
     },
     async (request: any, reply) => {

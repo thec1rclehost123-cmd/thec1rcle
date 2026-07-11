@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 
 export function generateTemporaryPassword(): string {
   const uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -7,24 +7,29 @@ export function generateTemporaryPassword(): string {
   const symbols = '!@#$%&*';
 
   const all = uppercase + lowercase + numbers + symbols;
-  let pwd = '';
 
-  // Ensure at least one of each category
-  pwd += uppercase[randomBytes(1)[0] % uppercase.length];
-  pwd += lowercase[randomBytes(1)[0] % lowercase.length];
-  pwd += numbers[randomBytes(1)[0] % numbers.length];
-  pwd += symbols[randomBytes(1)[0] % symbols.length];
+  // randomInt uses rejection sampling, so it is unbiased (unlike `bytes % len`).
+  const chars: string[] = [
+    // Ensure at least one of each category
+    uppercase[randomInt(uppercase.length)],
+    lowercase[randomInt(lowercase.length)],
+    numbers[randomInt(numbers.length)],
+    symbols[randomInt(symbols.length)],
+  ];
 
   // Fill the rest up to 12 chars
   for (let i = 0; i < 8; i++) {
-    pwd += all[randomBytes(1)[0] % all.length];
+    chars.push(all[randomInt(all.length)]);
   }
 
-  // Shuffle password characters
-  return pwd
-    .split('')
-    .sort(() => randomBytes(1)[0] - 128)
-    .join('');
+  // Fisher-Yates shuffle (unbiased) so the guaranteed categories are not
+  // always in the first four positions.
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join('');
 }
 
 export async function sendInvitationEmail({
