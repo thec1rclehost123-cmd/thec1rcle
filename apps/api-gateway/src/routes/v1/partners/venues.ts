@@ -13,6 +13,12 @@ import { SchedulingService } from '../../../services/unified/scheduling-service.
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
 import { buildPayoutAccountRecord } from '../../../lib/partner-hardening.js';
 import { generateFinanceReportPDF } from '@c1rcle/core/ticket-pdf-engine';
+import {
+  updateEventPromoterCompensation,
+  ensurePromoterLink,
+  resolveEffectiveCommission,
+  normalizeCompensationForRead,
+} from '../events.js';
 
 import { uploadPartnerAsset } from '../../../lib/partner-upload.js';
 import {
@@ -3162,87 +3168,6 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           });
         }
 
-        async function ensurePromoterLink(
-          db: any,
-          promoterId: string,
-          eventId: string,
-          eventTitle: string,
-          commissionRate: number,
-        ): Promise<string> {
-          try {
-            const promoterRef = db.collection('promoters').doc(promoterId);
-            const promoterDoc = await promoterRef.get();
-            let trackingCode = promoterDoc.exists ? promoterDoc.data()?.trackingCode : null;
-
-            if (!trackingCode) {
-              const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
-              let base = (
-                promoterDoc.exists
-                  ? promoterDoc.data()?.displayName || promoterDoc.data()?.name || 'promo'
-                  : 'promo'
-              )
-                .toLowerCase()
-                .replace(/[^a-z0-9]/g, '');
-              if (base.length > 10) base = base.substring(0, 10);
-              if (base.length < 3) base = 'promo';
-
-              let isUnique = false;
-              let newCode = '';
-              while (!isUnique) {
-                const suffix = Array.from(
-                  { length: 3 },
-                  () => chars[Math.floor(Math.random() * chars.length)],
-                ).join('');
-                newCode = `${base}${suffix}`;
-                const existingGlobal = await db
-                  .collection('promoters')
-                  .where('trackingCode', '==', newCode)
-                  .limit(1)
-                  .get();
-                if (existingGlobal.empty) {
-                  isUnique = true;
-                }
-              }
-              trackingCode = newCode;
-              await promoterRef.set({ trackingCode }, { merge: true });
-            }
-
-            const linkId = `${promoterId}_${eventId}`;
-            const linkRef = db.collection('promoter_links').doc(linkId);
-            const linkDoc = await linkRef.get();
-
-            if (!linkDoc.exists) {
-              const now = new Date().toISOString();
-              await linkRef.set({
-                id: linkId,
-                promoterId,
-                promoterName: promoterDoc.exists
-                  ? promoterDoc.data()?.displayName || promoterDoc.data()?.name || ''
-                  : '',
-                eventId,
-                eventTitle,
-                campaignLabel: 'assigned',
-                ticketTierIds: [],
-                commissionRate,
-                commissionType: 'percentage',
-                code: trackingCode,
-                clicks: 0,
-                conversions: 0,
-                revenue: 0,
-                commission: 0,
-                isActive: true,
-                createdAt: now,
-                updatedAt: now,
-              });
-            }
-
-            return trackingCode || '';
-          } catch (err: any) {
-            console.error(`[ensurePromoterLink] Error: ${err.message}`);
-            return '';
-          }
-        }
-
         if (eventPromotersMatch && request.method === 'PATCH') {
           const evtId = eventPromotersMatch[1];
           const eventDoc = await fastify.db.collection('events').doc(evtId).get();
@@ -3277,6 +3202,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               { merge: true },
             );
 
+          await updateEventPromoterCompensation(fastify.db, evtId, body);
+
           // Create / update promoter_assignments and notifications (fire-and-forget)
           (async () => {
             try {
@@ -3287,7 +3214,20 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
               const eventName: string = event.title ?? 'Untitled Event';
               const venueName: string = event.venueName ?? '';
-              const commissionRate: number =
+              // Re-fetch so promoterCompensation reflects the update written above
+              // (the `event` var above was read before updateEventPromoterCompensation ran).
+              const freshEventDoc = await fastify.db
+                .collection('events')
+                .doc(evtId)
+                .get()
+                .catch(() => null);
+              const freshEventData: PlainRecord = freshEventDoc?.exists
+                ? (freshEventDoc.data() as PlainRecord)
+                : event;
+              const pc = freshEventData.promoterCompensation
+                ? normalizeCompensationForRead(freshEventData.promoterCompensation)
+                : null;
+              const fallbackRate: number =
                 body?.defaultCommission ?? event.promoterSettings?.commissionRate ?? 10;
               const now = new Date().toISOString();
 
@@ -3316,12 +3256,17 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               // Create assignment docs for newly added promoters
               await Promise.all(
                 newlyAdded.map(async (promoterId: string) => {
+                  const effective = pc
+                    ? resolveEffectiveCommission(pc, promoterId)
+                    : { rate: fallbackRate, type: 'percentage' as const, tierCommissions: null };
                   const trackingCode = await ensurePromoterLink(
                     fastify.db,
                     promoterId,
                     evtId,
                     eventName,
-                    commissionRate,
+                    effective.rate,
+                    effective.type,
+                    effective.tierCommissions,
                   );
                   const assignId = `${promoterId}_${evtId}`;
                   await fastify.db
@@ -3335,7 +3280,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                         eventName: encryptedEventName,
                         venueName: encryptedVenueName,
                         status: 'active',
-                        commissionRate,
+                        commissionRate: effective.rate,
+                        commissionType: effective.type,
+                        tierCommissions: effective.tierCommissions,
                         linkCode: trackingCode || null,
                         totalSales: 0,
                         totalRevenue: 0,

@@ -1,3 +1,5 @@
+import tsParser from '@typescript-eslint/parser';
+
 export default [
   {
     ignores: [
@@ -10,8 +12,35 @@ export default [
     ],
   },
   {
+    files: ['**/*.{js,jsx}'],
+    languageOptions: {
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
     rules: {
       'no-unused-vars': 'warn',
+      'no-undef': 'off',
+    },
+  },
+  {
+    files: ['**/*.{ts,tsx}'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
+    rules: {
+      'no-unused-vars': 'off',
       'no-undef': 'off',
     },
   },

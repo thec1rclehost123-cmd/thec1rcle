@@ -12,10 +12,7 @@ import {
   trackGuestEventInteraction,
   trackGuestEventView,
 } from '@c1rcle/core/guest-event-conversion';
-import {
-  InventoryUnavailableError,
-  listAvailableTicketTiers,
-} from '@c1rcle/core/inventory-engine';
+import { InventoryUnavailableError, listAvailableTicketTiers } from '@c1rcle/core/inventory-engine';
 
 vi.mock('@c1rcle/core/guest-event-conversion', () => ({
   getEventQueueStatus: vi.fn(async () => ({
@@ -104,62 +101,69 @@ vi.mock('@c1rcle/core/inventory-engine', () => {
   };
 });
 
-async function buildServer({ authenticated = false } = {}) {
+async function buildServer({
+  authenticated = false,
+  customDb,
+}: { authenticated?: boolean; customDb?: any } = {}) {
   const server = Fastify({ logger: false });
-  server.decorate('db', {
-    collection(name: string) {
-      if (name === 'events') {
-        return {
-          doc() {
+  server.decorate(
+    'db',
+    customDb ??
+      ({
+        collection(name: string) {
+          if (name === 'events') {
             return {
-              async get() {
-                return { exists: true, data: () => ({ id: 'event_1' }) };
-              },
-            };
-          },
-        };
-      }
-
-      if (name === 'users') {
-        return {
-          doc() {
-            return {
-              async get() {
+              doc() {
                 return {
-                  exists: true,
-                  data: () => ({ attendedEvents: ['event_1'] }),
+                  async get() {
+                    return { exists: true, data: () => ({ id: 'event_1' }) };
+                  },
                 };
               },
             };
-          },
-        };
-      }
+          }
 
-      if (name === 'event_queues') {
-        return {
-          where() {
-            return this;
-          },
-          limit() {
-            return this;
-          },
-          async get() {
+          if (name === 'users') {
             return {
-              empty: false,
-              docs: [
-                {
-                  id: 'queue_1',
-                  data: () => ({ eventId: 'event_1', userId: 'user_1', status: 'waiting' }),
-                },
-              ],
+              doc() {
+                return {
+                  async get() {
+                    return {
+                      exists: true,
+                      data: () => ({ attendedEvents: ['event_1'] }),
+                    };
+                  },
+                };
+              },
             };
-          },
-        };
-      }
+          }
 
-      return {};
-    },
-  } as any);
+          if (name === 'event_queues') {
+            return {
+              where() {
+                return this;
+              },
+              limit() {
+                return this;
+              },
+              async get() {
+                return {
+                  empty: false,
+                  docs: [
+                    {
+                      id: 'queue_1',
+                      data: () => ({ eventId: 'event_1', userId: 'user_1', status: 'waiting' }),
+                    },
+                  ],
+                };
+              },
+            };
+          }
+
+          return {};
+        },
+      } as any),
+  );
   server.decorate('cache', {
     get: vi.fn(async () => null),
     set: vi.fn(async () => undefined),
@@ -198,6 +202,7 @@ async function buildServer({ authenticated = false } = {}) {
     syncEventReadModels: vi.fn(async () => undefined),
   } as any);
   server.decorate('invalidatePublicDiscovery', vi.fn(async () => undefined) as any);
+  server.decorate('verifyPartnerAccess', vi.fn(async () => true) as any);
   server.decorate('requireAuth', async (request: any, reply: any) => {
     if (!request.user?.uid) {
       return reply
@@ -575,6 +580,279 @@ describe('event routes GP-3 conversion contracts', () => {
     });
     expect(getEventSurgeStatus).toHaveBeenCalledWith(expect.anything(), 'event_1');
     expect(getEventQueueStatus).toHaveBeenCalledWith(expect.anything(), 'queue_1');
+
+    await server.close();
+  });
+});
+
+describe('promoterCompensation V2 schema', () => {
+  /** Builds a fresh mockDb + a way to read back whatever gets `create`d into the events collection. */
+  function buildPromoterCreateMockDb() {
+    let savedEventRecord: any = null;
+    const txCreateSpy = vi.fn((ref: any, record: any) => {
+      if (String(ref.path || '').startsWith('events/')) {
+        savedEventRecord = record;
+      }
+    });
+
+    const mockDb = {
+      collection: vi.fn((name: string) => ({
+        doc: vi.fn((id: string) => ({
+          path: `${name}/${id}`,
+          get: vi.fn(async () => {
+            if (name === 'promoters') {
+              return {
+                exists: true,
+                data: () => ({
+                  displayName: `Promoter ${id}`,
+                  email: `${id}@example.com`,
+                  phoneNumber: '+918888888888',
+                  role: 'promoter_owner',
+                }),
+              };
+            }
+            return { exists: false, data: () => ({}) };
+          }),
+          set: vi.fn(),
+          update: vi.fn(),
+        })),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        get: vi.fn(async () => ({ empty: true, docs: [] })),
+        add: vi.fn(async () => ({ id: 'notif_1' })),
+      })),
+      runTransaction: vi.fn(async (cb: any) => {
+        const tx = {
+          get: vi.fn(async () => ({ empty: true, docs: [] })),
+          create: txCreateSpy,
+          set: vi.fn(),
+          update: vi.fn(),
+        };
+        return cb(tx);
+      }),
+    };
+
+    return { mockDb, txCreateSpy, getSavedEventRecord: () => savedEventRecord };
+  }
+
+  const basePayload = {
+    creatorRole: 'host',
+    creatorId: 'host_123',
+    hostId: 'host_123',
+    venueId: 'venue_456',
+    venueName: 'The Palace Club',
+    startDate: '2026-08-15',
+    startTime: '22:00',
+    endTime: '04:00',
+    lifecycle: 'draft',
+    promotersEnabled: true,
+  };
+
+  it('POST /partner/events/create stores V2 promoterCompensation structure', async () => {
+    const { mockDb, txCreateSpy, getSavedEventRecord } = buildPromoterCreateMockDb();
+    const server = await buildServer({ authenticated: true, customDb: mockDb });
+
+    const payload = {
+      ...basePayload,
+      title: 'V2 Schema Test Night',
+      compensationModel: 'standard',
+      commission: 12,
+      commissionType: 'percent',
+      promoters: ['promoter_1'],
+    };
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/partner/events/create',
+      payload,
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(mockDb.runTransaction).toHaveBeenCalled();
+    expect(txCreateSpy).toHaveBeenCalled();
+
+    const savedEventRecord = getSavedEventRecord();
+    expect(savedEventRecord).toBeDefined();
+    expect(savedEventRecord.promoterCompensation).toBeDefined();
+
+    const pc = savedEventRecord.promoterCompensation;
+
+    // V2 schema fields
+    expect(pc.schemaVersion).toBe(2);
+    expect(pc.model).toBe('standard');
+    expect(pc.enabled).toBe(true);
+
+    // defaults block
+    expect(pc.defaults).toBeDefined();
+    expect(pc.defaults.ticketCommission).toEqual({ type: 'percentage', value: 12 });
+
+    // overrides block — empty (no per-promoter overrides in payload)
+    expect(pc.overrides).toBeDefined();
+    expect(typeof pc.overrides).toBe('object');
+
+    // revenueSummary computed
+    expect(pc.revenueSummary).toBeDefined();
+
+    // No legacy V1 sub-objects
+    expect(pc.standard).toBeUndefined();
+    expect(pc.custom).toBeUndefined();
+    expect(pc.salary).toBeUndefined();
+    expect(pc.promoters).toBeUndefined();
+
+    // Top-level promoters array is the clean { promoterId, status } shape
+    expect(savedEventRecord.promoters).toEqual([{ promoterId: 'promoter_1', status: 'accepted' }]);
+    expect(savedEventRecord.commission).toBeUndefined();
+    expect(savedEventRecord.compensationModel).toBeUndefined();
+
+    await server.close();
+  });
+
+  it('POST /partner/events/create stores V2 custom-model promoterCompensation with per-tier commissions', async () => {
+    const { mockDb, getSavedEventRecord } = buildPromoterCreateMockDb();
+    const server = await buildServer({ authenticated: true, customDb: mockDb });
+
+    const payload = {
+      ...basePayload,
+      title: 'Custom Model Night',
+      compensationModel: 'custom',
+      tickets: [
+        {
+          id: 'ga',
+          name: 'GA',
+          price: 500,
+          quantity: 100,
+          commissionType: 'percent',
+          commissionValue: 10,
+        },
+        {
+          id: 'vip',
+          name: 'VIP',
+          price: 2000,
+          quantity: 20,
+          commissionType: 'percent',
+          commissionValue: 20,
+        },
+      ],
+      promoters: ['promoter_1'],
+    };
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/partner/events/create',
+      payload,
+    });
+
+    expect(response.statusCode).toBe(201);
+
+    const pc = getSavedEventRecord().promoterCompensation;
+    expect(pc.schemaVersion).toBe(2);
+    expect(pc.model).toBe('custom');
+    expect(pc.defaults.ticketCommissions).toEqual([
+      { ticketTierId: 'ga', type: 'percentage', value: 10 },
+      { ticketTierId: 'vip', type: 'percentage', value: 20 },
+    ]);
+
+    await server.close();
+  });
+
+  it('POST /partner/events/create stores V2 salary-model promoterCompensation with table incentive', async () => {
+    const { mockDb, getSavedEventRecord } = buildPromoterCreateMockDb();
+    const server = await buildServer({ authenticated: true, customDb: mockDb });
+
+    const payload = {
+      ...basePayload,
+      title: 'Salary Model Night',
+      compensationModel: 'salary',
+      salaryTableIncentivesEnabled: true,
+      salaryTableIncentiveType: 'percent',
+      salaryTableIncentiveValue: 8,
+      salaryNotes: 'Promoters are paid a fixed monthly salary.',
+      promoters: ['promoter_1'],
+    };
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/partner/events/create',
+      payload,
+    });
+
+    expect(response.statusCode).toBe(201);
+
+    const pc = getSavedEventRecord().promoterCompensation;
+    expect(pc.schemaVersion).toBe(2);
+    expect(pc.model).toBe('salary');
+    expect(pc.defaults.notes).toBe('Promoters are paid a fixed monthly salary.');
+    expect(pc.defaults.tableIncentive).toEqual({ enabled: true, type: 'percentage', value: 8 });
+    expect(pc.overrides).toEqual({});
+
+    await server.close();
+  });
+
+  it('POST /partner/events/create stores per-promoter commission overrides', async () => {
+    const { mockDb, getSavedEventRecord } = buildPromoterCreateMockDb();
+    const server = await buildServer({ authenticated: true, customDb: mockDb });
+
+    const payload = {
+      ...basePayload,
+      title: 'Overrides Night',
+      compensationModel: 'standard',
+      commission: 15,
+      commissionType: 'percent',
+      promoterCommissionOverrides: {
+        promoter_1: { hasCustomCommission: true, globalRate: 20, globalRateType: 'percent' },
+      },
+      promoters: ['promoter_1', 'promoter_2'],
+    };
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/partner/events/create',
+      payload,
+    });
+
+    expect(response.statusCode).toBe(201);
+
+    const pc = getSavedEventRecord().promoterCompensation;
+    expect(pc.defaults.ticketCommission).toEqual({ type: 'percentage', value: 15 });
+    expect(pc.overrides.promoter_1).toEqual({
+      ticketCommission: { type: 'percentage', value: 20 },
+    });
+    expect(pc.overrides.promoter_2).toBeUndefined();
+
+    await server.close();
+  });
+
+  it('GET /events/:id normalises a stored v1-shaped promoterCompensation to V2 (backward-compat read shim)', async () => {
+    const server = await buildServer();
+    (server as any).publicDiscoveryService.getEventDetail.mockResolvedValueOnce({
+      event: {
+        id: 'legacy_event',
+        title: 'Legacy Shape Event',
+        promoterCompensation: {
+          model: 'standard',
+          enabled: true,
+          standard: {
+            commissionValue: 18,
+            commissionType: 'percent',
+          },
+          promoters: [],
+        },
+      },
+      interestedData: { count: 0, users: [] },
+    });
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/events/legacy_event',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const pc = response.json().event.promoterCompensation;
+
+    expect(pc.schemaVersion).toBe(2);
+    expect(pc.model).toBe('standard');
+    expect(pc.defaults.ticketCommission).toEqual({ type: 'percentage', value: 18 });
+    expect(pc.standard).toBeUndefined();
 
     await server.close();
   });
