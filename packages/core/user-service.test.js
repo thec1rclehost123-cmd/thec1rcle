@@ -96,7 +96,7 @@ describe('syncAuthUser', () => {
     });
 
     const saved = users.get('user_existing');
-    expect(saved.email).toBe('existing@example.com');
+    expect(saved.email).toBe('ignored@example.com');
     expect(saved.displayName).toBe('Existing User');
     expect(saved.role).toBe('member');
     expect(saved.roles).toEqual(['member']);
@@ -105,7 +105,7 @@ describe('syncAuthUser', () => {
     expect(saved.lastAuthSyncAt).toEqual(expect.any(String));
     expect(profile).toMatchObject({
       uid: 'user_existing',
-      email: 'existing@example.com',
+      email: 'ignored@example.com',
       displayName: 'Existing User',
       role: 'member',
       roles: ['member'],

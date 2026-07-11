@@ -2,19 +2,79 @@ import { getAdminDb, isFirebaseConfigured } from './admin.js';
 
 const EVENT_COLLECTION = 'events';
 const PUBLIC_LIFECYCLE_STATES_LOCAL = ['scheduled', 'live'];
+const RECOMMENDATION_MODEL_VERSION = 'explore-v2';
 
-function calculateMatchScore(
+function normalized(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+}
+
+function eventSignals(event) {
+  return new Set(
+    [...(Array.isArray(event.tags) ? event.tags : []), event.category, event.eventType, event.genre]
+      .filter(Boolean)
+      .map(normalized),
+  );
+}
+
+function intentScore(event, intents) {
+  const signals = eventSignals(event);
+  let score = 0;
+  if (
+    intents.has('friends') &&
+    ['social', 'group', 'party', 'club'].some((tag) => signals.has(tag))
+  )
+    score += 4;
+  if (
+    intents.has('meet_people') &&
+    ['social', 'networking', 'singles'].some((tag) => signals.has(tag))
+  )
+    score += 4;
+  if (intents.has('host_promote') && (event.hostId || event.host || event.promoterId)) score += 2;
+  if (intents.has('discover')) score += 1;
+  return score;
+}
+
+function calculateMatch(
   event,
-  { preferredTags, preferredCities, preferredHosts, pastEventIds },
+  { preferredTags, preferredCities, preferredHosts, pastEventIds, onboardingTags, intents },
 ) {
   let score = 0;
-  const eventTags = (event.tags || []).map((t) => t.toLowerCase());
-  score += eventTags.filter((tag) => preferredTags.has(tag)).length * 5;
+  const eventTags = [...eventSignals(event)];
+  const historyMatches = eventTags.filter((tag) => preferredTags.has(tag)).length;
+  const onboardingMatches = eventTags.filter((tag) => onboardingTags.has(tag)).length;
+  const cityMatch = preferredCities.has(normalized(event.city));
+  const matchedIntentScore = intentScore(event, intents);
+  score += historyMatches * 5;
+  score += onboardingMatches * 12;
   if (preferredHosts.has(event.host)) score += 15;
-  if (preferredCities.has(event.city)) score += 10;
+  if (cityMatch) score += 18;
+  score += matchedIntentScore;
   score += (event.heatScore || 0) * 0.1;
   if (pastEventIds.has(event.id)) score -= 100;
-  return score;
+
+  let reasonCode = 'TRENDING';
+  let reasonLabel = 'Trending now';
+  if (onboardingMatches > 0 && cityMatch) {
+    reasonCode = 'VIBE_AND_CITY_MATCH';
+    reasonLabel = `Because it matches your tastes in ${event.city}`;
+  } else if (onboardingMatches > 0) {
+    reasonCode = 'VIBE_MATCH';
+    reasonLabel = 'Because it matches your nightlife tastes';
+  } else if (cityMatch) {
+    reasonCode = 'CITY_MATCH';
+    reasonLabel = `Popular in ${event.city}`;
+  } else if (matchedIntentScore > 0) {
+    reasonCode = 'INTENT_MATCH';
+    reasonLabel = 'Matched to what brings you to THE C1RCLE';
+  } else if (historyMatches > 0 || preferredHosts.has(event.host)) {
+    reasonCode = 'HISTORY_MATCH';
+    reasonLabel = 'Based on events you like';
+  }
+
+  return { score, reasonCode, reasonLabel };
 }
 
 async function listCandidateEvents(limit = 100) {
@@ -43,11 +103,23 @@ async function getUserOrderHistory(userId, limit = 50) {
 }
 
 async function buildUserProfile(userId) {
-  const orders = await getUserOrderHistory(userId, 50);
+  const db = isFirebaseConfigured() ? getAdminDb() : null;
+  const [orders, userDoc] = await Promise.all([
+    getUserOrderHistory(userId, 50),
+    db ? db.collection('users').doc(userId).get() : Promise.resolve(null),
+  ]);
+  const userData = userDoc?.exists ? userDoc.data() || {} : {};
+  const discoveryProfile = userData.discoveryProfile || {};
   const preferredTags = new Set();
   const preferredCities = new Set();
   const preferredHosts = new Set();
   const pastEventIds = new Set();
+  const onboardingTags = new Set(
+    (discoveryProfile.vibeTags || userData.vibeTags || []).map(normalized),
+  );
+  const intents = new Set((discoveryProfile.intents || userData.intents || []).map(normalized));
+  const city = discoveryProfile.cityName || userData.city;
+  if (city) preferredCities.add(normalized(city));
 
   if (orders.length > 0) {
     const eventIds = [...new Set(orders.map((o) => o.eventId).filter(Boolean))];
@@ -66,29 +138,68 @@ async function buildUserProfile(userId) {
       eventDocs.forEach((doc) => {
         const event = doc.data();
         pastEventIds.add(doc.id);
-        (event.tags || []).forEach((t) => preferredTags.add(t.toLowerCase()));
-        if (event.city) preferredCities.add(event.city);
+        (event.tags || []).forEach((tag) => preferredTags.add(normalized(tag)));
+        if (event.city) preferredCities.add(normalized(event.city));
         if (event.host) preferredHosts.add(event.host);
       });
     }
   }
 
-  return { preferredTags, preferredCities, preferredHosts, pastEventIds };
+  return {
+    preferredTags,
+    preferredCities,
+    preferredHosts,
+    pastEventIds,
+    onboardingTags,
+    intents,
+    profileVersion: Number(discoveryProfile.profileVersion || 1),
+    cityId: discoveryProfile.cityId || userData.cityId || null,
+  };
+}
+
+export async function getRecommendationCacheContext(userId) {
+  const profile = await buildUserProfile(userId);
+  return {
+    modelVersion: RECOMMENDATION_MODEL_VERSION,
+    profileVersion: profile.profileVersion,
+    cityId: profile.cityId,
+  };
+}
+
+export function rankEventsForProfile(candidates, userProfile, limit = 5) {
+  return candidates
+    .filter((event) => event.status !== 'past')
+    .map((event) => ({ event, ...calculateMatch(event, userProfile) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+export async function getRecommendedEventsV2(userId, limit = 5) {
+  const candidates = await listCandidateEvents(100);
+  const userProfile = await buildUserProfile(userId);
+  const ranked = rankEventsForProfile(candidates, userProfile, limit);
+  const personalized =
+    userProfile.onboardingTags.size > 0 ||
+    userProfile.preferredCities.size > 0 ||
+    userProfile.intents.size > 0 ||
+    userProfile.preferredTags.size > 0;
+
+  return {
+    modelVersion: RECOMMENDATION_MODEL_VERSION,
+    profileVersion: userProfile.profileVersion,
+    items: ranked,
+    fallbackUsed: !personalized,
+  };
 }
 
 export async function getRecommendedEvents(userId, limit = 5) {
-  const candidates = await listCandidateEvents(100);
   if (!userId) {
+    const candidates = await listCandidateEvents(100);
     return candidates.sort((a, b) => (b.heatScore || 0) - (a.heatScore || 0)).slice(0, limit);
   }
 
-  const userProfile = await buildUserProfile(userId);
-  return candidates
-    .filter((e) => e.status !== 'past')
-    .map((event) => ({ event, score: calculateMatchScore(event, userProfile) }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map((item) => item.event);
+  const response = await getRecommendedEventsV2(userId, limit);
+  return response.items.map((item) => item.event);
 }
 
 export async function getSimilarEvents(eventId, limit = 3) {

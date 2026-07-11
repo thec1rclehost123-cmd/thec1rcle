@@ -32,7 +32,7 @@ service cloud.firestore {
     // enforces server-side authorization for the actual social profile data.
     function hasOnlyAllowedUserFields(data) {
       return data.keys().hasOnly([
-        'displayName', 'photoURL', 'bio', 'city', 'phone', 'phoneNumber',
+        'displayName', 'photoURL', 'bio', 'city',
         'gender', 'dateOfBirth', 'instagram', 'spotify',
         'vibeTags', 'photos', 'datingPhotos', 'datingActive',
         'datingVitals', 'anthem',
@@ -47,7 +47,7 @@ service cloud.firestore {
     // full merged document which includes server-managed fields like createdAt.
     function updateHasOnlyAllowedUserFields(diff) {
       return diff.affectedKeys().hasOnly([
-        'displayName', 'photoURL', 'bio', 'city', 'phone', 'phoneNumber',
+        'displayName', 'photoURL', 'bio', 'city',
         'gender', 'dateOfBirth', 'instagram', 'spotify',
         'vibeTags', 'photos', 'datingPhotos', 'datingActive',
         'datingVitals', 'anthem',
@@ -90,7 +90,7 @@ service cloud.firestore {
       // never rejected just because they exist on the server-side doc.
       allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId
                       && exists(/databases/$(database)/documents/users/$(userId))
-                      && updateHasOnlyAllowedUserFields(diff));
+                      && updateHasOnlyAllowedUserFields(request.resource.data.diff(resource.data)));
     }
 
     // 2. Business Domains (Entity Records)

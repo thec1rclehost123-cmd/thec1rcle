@@ -41,10 +41,6 @@ export type ProfileSettingsUpdate = {
   instagram?: string | null;
   spotify?: string | null;
   datingActive?: boolean;
-  basicSetupComplete?: boolean;
-  profileSetupComplete?: boolean;
-  profileComplete?: boolean;
-  onboardingComplete?: boolean;
   socialSetupComplete?: boolean;
   notifications?: Partial<Record<SettingsNotificationKey, boolean>>;
   privacy?: Partial<SettingsPrivacyUpdate>;
@@ -114,13 +110,7 @@ const MAX_DATING_PHOTOS = 6;
 const MAX_VIBE_TAGS = 20;
 const GENDER_CHANGE_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 const VALID_GENDERS = new Set(['male', 'female', 'other', 'prefer_not_to_say']);
-const PROFILE_FLOW_FLAG_KEYS = [
-  'basicSetupComplete',
-  'profileSetupComplete',
-  'profileComplete',
-  'onboardingComplete',
-  'socialSetupComplete',
-] as const;
+const PROFILE_FLOW_FLAG_KEYS = ['socialSetupComplete'] as const;
 
 const DEFAULT_USER_SETTINGS: UserSettings = {
   notifications: {
@@ -571,7 +561,7 @@ export async function updateUserProfileSettings(
   if (!userId) throw new Error('Missing userId');
 
   const userRef = db.collection('users').doc(userId);
-  
+
   return await db.runTransaction(async (transaction: any) => {
     const existing = await transaction.get(userRef);
     const existingData = existing.exists ? existing.data() || {} : {};

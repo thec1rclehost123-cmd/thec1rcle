@@ -79,7 +79,9 @@ export async function syncAuthUser(db, userId, authRecord, options = {}) {
     const baseline = {
       uid: userId,
       email: authRecord?.email || null,
-      phoneNumber: authRecord?.phoneNumber || null,
+      emailVerified: authRecord?.emailVerified === true || authRecord?.email_verified === true,
+      phone: authRecord?.phoneNumber || authRecord?.phone_number || null,
+      phoneNumber: authRecord?.phoneNumber || authRecord?.phone_number || null,
       name: authRecord?.displayName || '',
       displayName: authRecord?.displayName || '',
       photoURL: authRecord?.photoURL || null,
@@ -104,8 +106,10 @@ export async function syncAuthUser(db, userId, authRecord, options = {}) {
 
   const existing = doc.data() || {};
   const patch = {
-    email: existing.email || authRecord?.email || null,
-    phoneNumber: existing.phoneNumber || authRecord?.phoneNumber || null,
+    email: authRecord?.email || null,
+    emailVerified: authRecord?.emailVerified === true || authRecord?.email_verified === true,
+    phone: authRecord?.phoneNumber || authRecord?.phone_number || null,
+    phoneNumber: authRecord?.phoneNumber || authRecord?.phone_number || null,
     displayName: existing.displayName || existing.name || authRecord?.displayName || '',
     name: existing.name || existing.displayName || authRecord?.displayName || '',
     photoURL: existing.photoURL || authRecord?.photoURL || null,
@@ -286,10 +290,31 @@ export async function updateProfile(db, userId, updates) {
     throw new Error('User not found');
   }
 
-  const safeUpdates = {
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  };
+  const trustedFields = new Set([
+    'email',
+    'emailVerified',
+    'phone',
+    'phoneNumber',
+    'phoneNumberE164',
+    'phoneVerifiedAt',
+    'auth',
+    'consumerOnboarding',
+    'basicSetupComplete',
+    'profileSetupComplete',
+    'profileComplete',
+    'onboardingComplete',
+  ]);
+  const rejectedFields = Object.keys(updates || {}).filter((key) => trustedFields.has(key));
+  if (rejectedFields.length > 0) {
+    const error = new Error(
+      `Trusted profile fields cannot be updated here: ${rejectedFields.join(', ')}`,
+    );
+    error.code = 'TRUSTED_FIELD_UPDATE_REJECTED';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const safeUpdates = { ...updates, updatedAt: new Date().toISOString() };
 
   await userRef.update(safeUpdates);
 

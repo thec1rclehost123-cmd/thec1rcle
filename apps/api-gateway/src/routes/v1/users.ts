@@ -28,9 +28,6 @@ const ProfileUpdateBody = z
     name: z.string().optional(),
     displayName: z.string().optional(),
     firstName: z.string().optional(),
-    email: z.string().email().nullable().optional(),
-    phone: z.string().nullable().optional(),
-    phoneNumber: z.string().nullable().optional(),
     city: z.string().optional(),
     vibeTags: z.array(z.string()).max(20).optional(),
     photoURL: z.string().nullable().optional(),
@@ -41,10 +38,6 @@ const ProfileUpdateBody = z
     photos: z.array(z.string()).optional(),
     prompts: z.array(z.any()).optional(),
     bio: z.string().optional(),
-    basicSetupComplete: z.boolean().optional(),
-    profileSetupComplete: z.boolean().optional(),
-    profileComplete: z.boolean().optional(),
-    onboardingComplete: z.boolean().optional(),
     socialSetupComplete: z.boolean().optional(),
     verificationStatus: z.enum(['unverified', 'pending', 'verified', 'rejected']).optional(),
     isVerified: z.boolean().optional(),
@@ -143,10 +136,6 @@ const UserSettingsBody = z
     gender: z.string().nullable().optional(),
     dateOfBirth: z.string().nullable().optional(),
     datingActive: z.boolean().optional(),
-    basicSetupComplete: z.boolean().optional(),
-    profileSetupComplete: z.boolean().optional(),
-    profileComplete: z.boolean().optional(),
-    onboardingComplete: z.boolean().optional(),
     socialSetupComplete: z.boolean().optional(),
     notifications: SettingsNotificationBody.optional(),
     privacy: SettingsPrivacyBody.optional(),
@@ -183,6 +172,69 @@ const DeviceTokenBody = z
 
 const AuthSyncBody = z.object({}).strict().optional().default({});
 
+const OnboardingIdentityBody = z
+  .object({
+    displayName: z.string().trim().min(1).max(100),
+    dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })
+  .strict();
+
+const OnboardingCityBody = z
+  .object({
+    cityId: z.string().trim().min(1).max(120),
+    cityName: z.string().trim().min(1).max(120),
+    source: z.enum(['manual', 'location']),
+  })
+  .strict();
+
+const NightlifeTaste = z.enum([
+  'clubs',
+  'live_music',
+  'lounges',
+  'festivals',
+  'college_nights',
+  'underground',
+  'food_culture',
+  'premium',
+]);
+
+const UserIntent = z.enum(['discover', 'friends', 'meet_people', 'host_promote']);
+
+const OnboardingPreferencesBody = z
+  .object({
+    vibeTags: z.array(NightlifeTaste).min(3).max(8).optional(),
+    intents: z.array(UserIntent).min(1).max(4).optional(),
+  })
+  .strict()
+  .refine((value) => value.vibeTags !== undefined || value.intents !== undefined, {
+    message: 'vibeTags or intents are required',
+  });
+
+const EmailPromptBody = z
+  .object({
+    status: z.enum(['shown', 'skipped']),
+  })
+  .strict();
+
+async function loadFirebaseUser(fastify: FastifyInstance, userId: string, fallback: any = {}) {
+  if (fastify.auth && typeof fastify.auth.getUser === 'function') {
+    return fastify.auth.getUser(userId);
+  }
+  return fallback;
+}
+
+function sendOnboardingError(request: any, reply: any, error: any) {
+  const statusCode = Number(error?.statusCode || 500);
+  return reply.status(statusCode).send(
+    buildErrorResponse({
+      code: error?.code || 'INTERNAL_ERROR',
+      message: error?.message || 'Internal server error',
+      details: error?.details,
+      requestId: request.id,
+    }),
+  );
+}
+
 export default async function userRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/auth/sync',
@@ -203,15 +255,26 @@ export default async function userRoutes(fastify: FastifyInstance) {
       }
 
       try {
+        const authRecord = await loadFirebaseUser(fastify, userId, request.user);
         const { syncAuthUser } = await import('@c1rcle/core/user-service');
-        const profile = await syncAuthUser(fastify.db, userId, request.user, {
+        const syncedProfile = await syncAuthUser(fastify.db, userId, authRecord, {
           auth: fastify.auth,
         });
+        const { syncOnboardingAuthState } = await import('@c1rcle/core/onboarding-service');
+        const firstRun = await syncOnboardingAuthState(fastify.db, userId, authRecord);
+        const profile = {
+          ...syncedProfile,
+          email: firstRun.identity.email,
+          phoneNumber: firstRun.identity.phoneNumberE164,
+        };
         return buildSuccessResponse({
           user: profile,
           profile,
           claims: profile.claims || {},
           requiresTokenRefresh: true,
+          identity: firstRun.identity,
+          onboarding: firstRun.onboarding,
+          routeAccess: firstRun.routeAccess,
         });
       } catch (error: any) {
         fastify.log.error(
@@ -225,6 +288,130 @@ export default async function userRoutes(fastify: FastifyInstance) {
             requestId: request.id,
           }),
         );
+      }
+    },
+  );
+
+  fastify.get(
+    '/users/me/onboarding',
+    {
+      preHandler: [fastify.requireAuth],
+      config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    },
+    async (request: any, reply: any) => {
+      const userId = request.user?.uid;
+      if (!userId)
+        return reply
+          .status(401)
+          .send(
+            buildErrorResponse({
+              code: 'UNAUTHORIZED',
+              message: 'Authentication required',
+              requestId: request.id,
+            }),
+          );
+      try {
+        const authRecord = await loadFirebaseUser(fastify, userId, request.user);
+        const { syncOnboardingAuthState } = await import('@c1rcle/core/onboarding-service');
+        return buildSuccessResponse(await syncOnboardingAuthState(fastify.db, userId, authRecord));
+      } catch (error: any) {
+        request.log.error(
+          { requestId: request.id, userId, error: error?.message },
+          'GET /users/me/onboarding failed',
+        );
+        return sendOnboardingError(request, reply, error);
+      }
+    },
+  );
+
+  const onboardingMutation = (
+    path: string,
+    schema: any,
+    operation: 'identity' | 'city' | 'preferences' | 'emailPrompt',
+  ) => {
+    const register =
+      operation === 'emailPrompt' ? fastify.post.bind(fastify) : fastify.patch.bind(fastify);
+    register(
+      path,
+      {
+        preHandler: [fastify.requireAuth, fastify.validate({ body: schema })],
+        config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+      },
+      async (request: any, reply: any) => {
+        const userId = request.user?.uid;
+        if (!userId)
+          return reply
+            .status(401)
+            .send(
+              buildErrorResponse({
+                code: 'UNAUTHORIZED',
+                message: 'Authentication required',
+                requestId: request.id,
+              }),
+            );
+        try {
+          const service = await import('@c1rcle/core/onboarding-service');
+          if (operation === 'identity')
+            await service.updateOnboardingIdentity(fastify.db, userId, request.body);
+          if (operation === 'city')
+            await service.updateOnboardingCity(fastify.db, userId, request.body);
+          if (operation === 'preferences')
+            await service.updateOnboardingPreferences(fastify.db, userId, request.body);
+          if (operation === 'emailPrompt')
+            await service.recordEmailPrompt(fastify.db, userId, request.body.status);
+          if (operation === 'city' || operation === 'preferences') {
+            await fastify.cache.invalidateNamespace('recommendations');
+          }
+          const authRecord = await loadFirebaseUser(fastify, userId, request.user);
+          return buildSuccessResponse(
+            await service.syncOnboardingAuthState(fastify.db, userId, authRecord),
+          );
+        } catch (error: any) {
+          request.log.error(
+            { requestId: request.id, userId, operation, error: error?.message },
+            `PATCH ${path} failed`,
+          );
+          return sendOnboardingError(request, reply, error);
+        }
+      },
+    );
+  };
+
+  onboardingMutation('/users/me/onboarding/identity', OnboardingIdentityBody, 'identity');
+  onboardingMutation('/users/me/onboarding/city', OnboardingCityBody, 'city');
+  onboardingMutation('/users/me/onboarding/preferences', OnboardingPreferencesBody, 'preferences');
+  onboardingMutation('/users/me/onboarding/email-prompt', EmailPromptBody, 'emailPrompt');
+
+  fastify.post(
+    '/users/me/onboarding/complete',
+    {
+      preHandler: [fastify.requireAuth],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    },
+    async (request: any, reply: any) => {
+      const userId = request.user?.uid;
+      if (!userId)
+        return reply
+          .status(401)
+          .send(
+            buildErrorResponse({
+              code: 'UNAUTHORIZED',
+              message: 'Authentication required',
+              requestId: request.id,
+            }),
+          );
+      try {
+        const authRecord = await loadFirebaseUser(fastify, userId, request.user);
+        const { completeOnboarding } = await import('@c1rcle/core/onboarding-service');
+        const result = await completeOnboarding(fastify.db, userId, authRecord);
+        await fastify.cache.invalidateNamespace('recommendations');
+        return buildSuccessResponse(result);
+      } catch (error: any) {
+        request.log.error(
+          { requestId: request.id, userId, error: error?.message },
+          'POST /users/me/onboarding/complete failed',
+        );
+        return sendOnboardingError(request, reply, error);
       }
     },
   );
@@ -295,9 +482,11 @@ export default async function userRoutes(fastify: FastifyInstance) {
           { requestId: request.id, userId, error: error.message },
           'GET /users/me failed',
         );
-        return reply.status(error.message.includes('not found') ? 404 : 500).send(
+        const statusCode = error.statusCode || (error.message.includes('not found') ? 404 : 500);
+        return reply.status(statusCode).send(
           buildErrorResponse({
-            code: error.message.includes('not found') ? 'NOT_FOUND' : 'INTERNAL_ERROR',
+            code:
+              error.code || (error.message.includes('not found') ? 'NOT_FOUND' : 'INTERNAL_ERROR'),
             message: error.message,
             requestId: request.id,
           }),
@@ -408,9 +597,11 @@ export default async function userRoutes(fastify: FastifyInstance) {
           { requestId: request.id, userId, error: error.message },
           'PUT /users/me failed',
         );
-        return reply.status(error.message.includes('not found') ? 404 : 500).send(
+        const statusCode = error.statusCode || (error.message.includes('not found') ? 404 : 500);
+        return reply.status(statusCode).send(
           buildErrorResponse({
-            code: error.message.includes('not found') ? 'NOT_FOUND' : 'INTERNAL_ERROR',
+            code:
+              error.code || (error.message.includes('not found') ? 'NOT_FOUND' : 'INTERNAL_ERROR'),
             message: error.message,
             requestId: request.id,
           }),

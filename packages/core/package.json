@@ -93,7 +93,8 @@
         "./guest-chat-service": "./guest-chat-service.js",
         "./guest-dating-service": "./guest-dating-service.js",
         "./subscription-service": "./subscription-service.js",
-        "./user-service": "./user-service.js"
+        "./user-service": "./user-service.js",
+        "./onboarding-service": "./onboarding-service.js"
     },
     "dependencies": {
         "bcryptjs": "^3.0.3",

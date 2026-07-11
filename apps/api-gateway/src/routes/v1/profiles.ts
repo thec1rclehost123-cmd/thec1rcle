@@ -19,9 +19,6 @@ const PersonalUpdateSchema = z
     age: z.number().min(1).max(150).optional(),
     gender: z.string().max(20).optional(),
     city: z.string().max(100).optional(),
-    phone: z.string().max(20).optional(),
-    phoneNumber: z.string().max(20).optional(),
-    onboardingComplete: z.boolean().optional(),
   })
   .strict();
 
@@ -55,12 +52,10 @@ const UserProfileCreateBody = z
     displayName: z.string().max(100).optional(),
     age: z.number().min(1).max(150).optional(),
     gender: z.string().max(20).optional(),
-    phone: z.string().max(20).optional(),
     photoURL: z.string().optional(),
     avatar: z.string().optional(),
     city: z.string().max(100).optional(),
     instagram: z.string().max(100).optional(),
-    onboardingComplete: z.boolean().optional(),
     bio: z.string().max(500).optional(),
   })
   .strict();
@@ -497,6 +492,32 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         if (type === 'user') {
           const existingDoc = await fastify.db.collection('users').doc(actualId).get();
           const rawUpdates = updates || request.body || {};
+          const trustedFields = [
+            'email',
+            'emailVerified',
+            'phone',
+            'phoneNumber',
+            'phoneNumberE164',
+            'phoneVerifiedAt',
+            'auth',
+            'consumerOnboarding',
+            'basicSetupComplete',
+            'profileSetupComplete',
+            'profileComplete',
+            'onboardingComplete',
+          ];
+          const attemptedTrustedFields = trustedFields.filter(
+            (field) => rawUpdates[field] !== undefined,
+          );
+          if (attemptedTrustedFields.length > 0) {
+            return reply.status(400).send(
+              buildErrorResponse({
+                code: 'TRUSTED_FIELD_UPDATE_REJECTED',
+                message: `Trusted profile fields cannot be updated here: ${attemptedTrustedFields.join(', ')}`,
+                requestId: request.id,
+              }),
+            );
+          }
 
           const canOverride = request.user?.role === 'admin' || request.user?.admin === true;
           const isAdminOverride = canOverride && rawUpdates.adminOverrideGenderCooldown === true;

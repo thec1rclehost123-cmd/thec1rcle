@@ -2,13 +2,19 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { buildErrorResponse } from '../../lib/api-contracts';
 // @ts-ignore
-import { getRecommendedEvents, getSimilarEvents } from '@c1rcle/core/recommendation-engine';
+import {
+  getRecommendationCacheContext,
+  getRecommendedEvents,
+  getRecommendedEventsV2,
+  getSimilarEvents,
+} from '@c1rcle/core/recommendation-engine';
 
 const RecommendationQuery = z
   .object({
     type: z.enum(['personal', 'similar']).optional().default('personal'),
     eventId: z.string().min(1).max(160).optional(),
     limit: z.coerce.number().int().min(1).max(20).optional().default(10),
+    contract: z.enum(['legacy', 'v2']).optional().default('legacy'),
   })
   .strict();
 
@@ -34,7 +40,19 @@ export default async function recommendationRoutes(fastify: FastifyInstance) {
         const type = request.query?.type || 'personal';
         const eventId = request.query?.eventId;
         const limit = request.query?.limit || 10;
-        const cacheKey = JSON.stringify({ userId, type, eventId: eventId || null, limit });
+        const contract = request.query?.contract || 'legacy';
+        const cacheContext =
+          type === 'personal' && contract === 'v2'
+            ? await getRecommendationCacheContext(userId)
+            : null;
+        const cacheKey = JSON.stringify({
+          userId,
+          type,
+          eventId: eventId || null,
+          limit,
+          contract,
+          cacheContext,
+        });
 
         reply.header('Cache-Control', 'private, max-age=0, s-maxage=120');
         reply.header('Vary', 'Authorization');
@@ -57,7 +75,10 @@ export default async function recommendationRoutes(fastify: FastifyInstance) {
           return similar;
         }
 
-        const recommendations = await getRecommendedEvents(userId, limit);
+        const recommendations =
+          contract === 'v2'
+            ? await getRecommendedEventsV2(userId, limit)
+            : await getRecommendedEvents(userId, limit);
         await fastify.cache.set('recommendations', cacheKey, recommendations, 120);
         return recommendations;
       } catch (error: any) {
