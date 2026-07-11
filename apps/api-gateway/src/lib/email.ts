@@ -1,11 +1,5 @@
 import { randomInt } from 'node:crypto';
 
-// Strip CR/LF (and cap length) so untrusted values can't forge extra log lines.
-const logSafe = (value: unknown): string =>
-  String(value ?? '')
-    .replace(/[\r\n]+/g, ' ')
-    .slice(0, 200);
-
 export function generateTemporaryPassword(): string {
   const uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const lowercase = 'abcdefghijkmnopqrstuvwxyz';
@@ -60,15 +54,11 @@ export async function sendInvitationEmail({
     if (process.env.NODE_ENV === 'production') {
       throw new Error('Email provider (Resend API key) not configured');
     }
-    console.log('\n========================================');
-    console.log(`MOCK EMAIL INVITATION for ${logSafe(recipient)}:`);
-    console.log(`To: ${logSafe(name)}`);
-    console.log(`Venue: ${logSafe(venueName)}`);
-    console.log(`Role: ${logSafe(roleLabel)}`);
-    console.log(`Temp Password: ${logSafe(tempPassword)}`);
-    console.log(`Accept Link: ${logSafe(acceptLink)}`);
-    console.log(`Set Password Link: ${logSafe(setPasswordLink)}`);
-    console.log('========================================\n');
+    // Resend not configured (local dev). Do not log invitation details —
+    // recipient/name/venue are user-controlled (log injection) and the temp
+    // password is a secret. The temp password is returned to the caller in the
+    // API response for dev testing.
+    console.log('[dev] Resend API key not configured — invitation email not sent (mock).');
     return;
   }
 
@@ -146,13 +136,9 @@ export async function sendHostInvitationEmail({
     if (process.env.NODE_ENV === 'production') {
       throw new Error('Email provider (Resend API key) not configured');
     }
-    console.log('\n========================================');
-    console.log(`MOCK EMAIL INVITATION for ${logSafe(recipient)}:`);
-    console.log(`To: ${logSafe(name)}`);
-    console.log(`Host: ${logSafe(partnerName)}`);
-    console.log(`Role: ${logSafe(roleLabel)}`);
-    console.log(`Accept Link: ${logSafe(acceptLink)}`);
-    console.log('========================================\n');
+    // Resend not configured (local dev). Do not log user-controlled invitation
+    // details (log injection) or secrets.
+    console.log('[dev] Resend API key not configured — host invitation email not sent (mock).');
     return;
   }
 
