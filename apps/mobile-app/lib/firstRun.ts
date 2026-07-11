@@ -63,7 +63,10 @@ export function resolveFirstRunStage(
     return 'phone_required';
   }
 
-  if (server?.currentStage && server.currentStage !== 'complete') return server.currentStage;
+  // The authenticated backend snapshot is canonical, including completion.
+  // Reconstructing a completed stage from a partially cached profile can send
+  // returning users back into onboarding.
+  if (server?.currentStage) return server.currentStage;
 
   const onboarding = profile?.onboarding ?? {};
   const discovery = profile?.discoveryProfile ?? {};

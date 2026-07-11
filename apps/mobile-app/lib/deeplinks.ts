@@ -13,6 +13,7 @@ import { resolveFirstRunStage } from '@/lib/firstRun';
 const APP_SCHEME = 'c1rcle';
 const WEB_DOMAIN = 'thec1rcle.com';
 const PENDING_DEEP_LINK_KEY = 'c1rcle:pending_deep_link';
+const PENDING_APP_ROUTE_KEY = 'c1rcle:pending_app_route';
 
 // Deep link types
 export type DeepLinkType =
@@ -252,11 +253,37 @@ export function handleDeepLink(url: string): void {
   }
 }
 
+/** Gate trusted in-app destinations behind authentication and first-run setup. */
+export function handleProtectedRoute(route: string): void {
+  const user = useAuthStore.getState().user;
+  const profile = useProfileStore.getState().profile;
+  const snapshot = useFirstRunStore.getState().snapshot;
+
+  if (!user) {
+    void SecureStore.setItemAsync(PENDING_APP_ROUTE_KEY, route);
+    router.replace('/(auth)/login');
+    return;
+  }
+  if (resolveFirstRunStage(user, profile, snapshot) !== 'complete') {
+    void SecureStore.setItemAsync(PENDING_APP_ROUTE_KEY, route);
+    router.replace('/');
+    return;
+  }
+  router.push(route as any);
+}
+
 export async function resumePendingDeepLink(): Promise<boolean> {
   const url = await SecureStore.getItemAsync(PENDING_DEEP_LINK_KEY);
-  if (!url) return false;
-  await SecureStore.deleteItemAsync(PENDING_DEEP_LINK_KEY);
-  handleDeepLink(url);
+  if (url) {
+    await SecureStore.deleteItemAsync(PENDING_DEEP_LINK_KEY);
+    handleDeepLink(url);
+    return true;
+  }
+
+  const route = await SecureStore.getItemAsync(PENDING_APP_ROUTE_KEY);
+  if (!route) return false;
+  await SecureStore.deleteItemAsync(PENDING_APP_ROUTE_KEY);
+  handleProtectedRoute(route);
   return true;
 }
 

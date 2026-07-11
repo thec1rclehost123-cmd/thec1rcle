@@ -55,6 +55,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       useNotificationsStore.getState().clearNotifications();
       useTicketsStore.getState().clearOrders();
       useSubscriptionStore.getState().clearSubscription();
+      useFirstRunStore.getState().clear();
       try {
         wsManager.stop();
       } catch {

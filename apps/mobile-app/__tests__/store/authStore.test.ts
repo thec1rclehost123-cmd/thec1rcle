@@ -178,10 +178,13 @@ describe('authStore', () => {
     it('hydrates authenticated user after successful sync', async () => {
       const user = {
         uid: 'user_1',
+        phoneNumber: '+919876543210',
+        providerData: [{ providerId: 'phone' }],
         getIdToken: jest.fn(async () => 'firebase-token'),
       };
       (syncAuthSession as jest.Mock).mockResolvedValueOnce({
         profile: { uid: 'user_1', role: 'guest' },
+        onboarding: { version: 2, currentStage: 'complete', completed: true },
         claims: { role: 'guest' },
         requiresTokenRefresh: true,
       });

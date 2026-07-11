@@ -96,10 +96,13 @@ describe('authStore server handshake', () => {
   it('does not expose the Firebase user until auth sync succeeds', async () => {
     const user = {
       uid: 'user_1',
+      phoneNumber: '+919876543210',
+      providerData: [{ providerId: 'phone' }],
       getIdToken: jest.fn(async () => 'firebase-token'),
     };
     (syncAuthSession as jest.Mock).mockResolvedValueOnce({
       profile: { uid: 'user_1', role: 'guest' },
+      onboarding: { version: 2, currentStage: 'complete', completed: true },
       claims: { role: 'guest' },
       requiresTokenRefresh: true,
     });

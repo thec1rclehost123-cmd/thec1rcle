@@ -18,7 +18,7 @@ import { initSentry } from '@/lib/sentry';
 import { initAuthListener, useAuthStore } from '@/store/authStore';
 import { useCartStore } from '@/store/cartStore';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
-import { subscribeToDeepLinks, handleDeepLink } from '@/lib/deeplinks';
+import { subscribeToDeepLinks, handleDeepLink, handleProtectedRoute } from '@/lib/deeplinks';
 import { addNotificationResponseListener } from '@/lib/notifications';
 import { apiFetch } from '@/lib/api';
 import { useProfileStore } from '@/store/profileStore';
@@ -67,26 +67,27 @@ export default function RootLayout() {
     const sub = addNotificationResponseListener((response) => {
       const data = response.notification.request.content.data;
       if (!data) return;
-      const { type, eventId, conversationId, matchId, profileId } = data as Record<string, string>;
+      const { type, eventId, conversationId, matchId } = data as Record<string, string>;
+      const segment = (value: string) => encodeURIComponent(value);
       switch (type) {
         case 'event_reminder':
         case 'event_update':
-          if (eventId) router.push(`/event/${eventId}`);
+          if (eventId) handleProtectedRoute(`/event/${segment(eventId)}`);
           break;
         case 'new_message':
-          if (conversationId) router.push(`/social/dm/${conversationId}`);
+          if (conversationId) handleProtectedRoute(`/social/dm/${segment(conversationId)}`);
           break;
         case 'match':
-          if (matchId) router.push(`/social/matches/${matchId}` as any);
+          if (matchId) handleProtectedRoute(`/social/matches/${segment(matchId)}`);
           break;
         case 'dm_request':
-          if (conversationId) router.push(`/social/dm/${conversationId}`);
+          if (conversationId) handleProtectedRoute(`/social/dm/${segment(conversationId)}`);
           break;
         case 'ticket_update':
-          if (eventId) router.push(`/event/${eventId}`);
+          if (eventId) handleProtectedRoute(`/event/${segment(eventId)}`);
           break;
         default:
-          router.push('/(tabs)/notifications' as any);
+          handleProtectedRoute('/(tabs)/notifications');
           break;
       }
     });
@@ -203,6 +204,7 @@ export default function RootLayout() {
                   >
                     <Stack.Screen name="index" />
                     <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="(first-run)" />
                     <Stack.Screen name="profile-setup" />
                     <Stack.Screen name="profile-creation" />
                     <Stack.Screen name="social-setup" />

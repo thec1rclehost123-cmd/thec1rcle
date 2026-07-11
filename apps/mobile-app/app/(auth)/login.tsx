@@ -26,14 +26,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/store/authStore';
 import Svg, { Path } from 'react-native-svg';
 import { colors } from '@/lib/design/theme';
-import { CountryCodePicker } from '@/components/ui/CountryCodePicker';
-import {
-  DEFAULT_PHONE_COUNTRY,
-  getLocalPhoneDigits,
-  getPhoneNumberInputError,
-  normalizePhoneNumber,
-  type PhoneCountry,
-} from '@/lib/phone';
 
 function GoogleSvg({ size = 18 }: { size?: number }) {
   return (
@@ -65,13 +57,9 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
-  const [phone, setPhone] = useState('');
-  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
-  const [showPhoneForm, setShowPhoneForm] = useState(false);
   const emailInputRef = useRef<TextInput>(null);
-  const phoneInputRef = useRef<TextInput>(null);
 
-  const { login, loginApple, loginGoogle, sendPhoneCode, loading, error, setError, clearError } = useAuth();
+  const { login, loginApple, loginGoogle, loading, error, setError, clearError } = useAuth();
   const insets = useSafeAreaInsets();
 
   // Animated values for staggered layout slide & fade-in
@@ -152,18 +140,17 @@ export default function LoginScreen() {
   }, []);
 
   useEffect(() => {
-    if (!showEmailForm && !showPhoneForm) return;
+    if (!showEmailForm) return;
 
     const focusTask = InteractionManager.runAfterInteractions(() => {
-      const input = showPhoneForm ? phoneInputRef.current : emailInputRef.current;
-      input?.focus();
+      emailInputRef.current?.focus();
     });
 
     return () => focusTask.cancel();
-  }, [showEmailForm, showPhoneForm]);
+  }, [showEmailForm]);
 
   const [verificationSent, setVerificationSent] = useState(false);
-  const isAuthFormOpen = showEmailForm || showPhoneForm;
+  const isAuthFormOpen = showEmailForm;
   const returnTo = typeof params.returnTo === 'string' && params.returnTo.startsWith('/')
     ? params.returnTo
     : '/';
@@ -188,34 +175,6 @@ export default function LoginScreen() {
         finishAuthNavigation();
       }
     }
-  };
-
-  const handlePhoneSubmit = async () => {
-    Keyboard.dismiss();
-    setError(null);
-    clearError();
-
-    const inputError = getPhoneNumberInputError(phone, phoneCountry);
-    if (inputError) {
-      setError(inputError);
-      return;
-    }
-
-    const phoneNumber = normalizePhoneNumber(phone, phoneCountry);
-    const result = await sendPhoneCode(phoneNumber);
-    if (result.success && result.verificationId) {
-      router.push({
-        pathname: '/(auth)/otp',
-        params: { verificationId: result.verificationId, phoneNumber, returnTo },
-      });
-    }
-  };
-
-  const handleCountrySelect = (country: PhoneCountry) => {
-    setPhoneCountry(country);
-    setPhone((current) => getLocalPhoneDigits(current, country).slice(0, country.localDigits));
-    setError(null);
-    clearError();
   };
 
   const handleApple = async () => {
@@ -245,7 +204,6 @@ export default function LoginScreen() {
   };
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !loading;
-  const phoneDigits = getLocalPhoneDigits(phone, phoneCountry);
 
   return (
     <View style={s.container}>
@@ -328,7 +286,7 @@ export default function LoginScreen() {
                   <Text style={s.backText}>Back to Login</Text>
                 </Pressable>
               </View>
-            ) : (!showEmailForm && !showPhoneForm) ? (
+            ) : !showEmailForm ? (
               <View style={s.buttonGroup}>
                 {Platform.OS === 'ios' && (
                   <Animated.View
@@ -374,57 +332,66 @@ export default function LoginScreen() {
                   </Pressable>
                 </Animated.View>
               </View>
-            ) : showPhoneForm ? (
+            ) : (
               <Animated.View style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}>
-                <View style={s.phoneInputRow}>
-                  <CountryCodePicker
-                    selectedCountry={phoneCountry}
-                    onSelect={handleCountrySelect}
-                  />
+                <Text style={s.recoveryTitle}>Confirm your existing account</Text>
+                <Text style={s.recoveryCopy}>Enter the password for {email}. We’ll securely connect it to the provider you just chose.</Text>
+                <TextInput
+                  style={s.input}
+                  value={email}
+                  editable={false}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
+                <View style={s.passwordContainer}>
                   <TextInput
-                    ref={phoneInputRef}
-                    style={[s.input, s.phoneNumberInput]}
-                    placeholder={phoneCountry.example}
+                    ref={emailInputRef}
+                    style={[s.input, { paddingRight: 52 }]}
+                    value={password}
+                    onChangeText={(value) => { setPassword(value); clearError(); }}
+                    placeholder="Password"
                     placeholderTextColor="rgba(255,255,255,0.4)"
-                    keyboardType="number-pad"
-                    autoComplete="tel"
-                    autoFocus
-                    maxLength={phoneCountry.localDigits}
-                    value={phone}
-                    onChangeText={(t) => {
-                      setPhone(t.replace(/\D/g, '').slice(0, phoneCountry.localDigits));
-                      clearError();
-                    }}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoComplete="current-password"
                   />
+                  <Pressable onPress={() => setShowPassword((value) => !value)} style={s.eyeIcon} accessibilityRole="button" accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}>
+                    {showPassword ? <EyeOff size={20} color="rgba(255,255,255,0.7)" /> : <Eye size={20} color="rgba(255,255,255,0.7)" />}
+                  </Pressable>
                 </View>
 
                 <Pressable
-                  onPress={handlePhoneSubmit}
-                  disabled={loading || phoneDigits.length < phoneCountry.localDigits}
+                  onPress={() => void handleLogin()}
+                  disabled={!canSubmit}
                   style={[
                     s.submitBtn,
-                    (loading || phoneDigits.length < phoneCountry.localDigits) &&
-                      s.submitBtnDisabled,
+                    !canSubmit && s.submitBtnDisabled,
                   ]}
                 >
                   {loading ? (
                     <ActivityIndicator color="#000" />
                   ) : (
-                    <Text style={s.submitBtnText}>Send OTP</Text>
+                    <Text style={s.submitBtnText}>Connect account</Text>
                   )}
+                </Pressable>
+
+                <Pressable onPress={() => router.push('/(auth)/forgot-password')} style={s.forgotBtn}>
+                  <Text style={s.forgotText}>Forgot password?</Text>
                 </Pressable>
 
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowPhoneForm(false);
+                    setShowEmailForm(false);
+                    setPassword('');
+                    clearError();
                   }}
                   style={s.backBtn}
                 >
                   <Text style={s.backText}>Use another method</Text>
                 </Pressable>
               </Animated.View>
-            ) : null}
+            )}
 
             {/* Staggered Footer & Request Access / Legal text */}
             <Animated.View
@@ -598,15 +565,8 @@ const s = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  phoneInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    width: '100%',
-  },
-  phoneNumberInput: {
-    flex: 1,
-  },
+  recoveryTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800' },
+  recoveryCopy: { color: 'rgba(255,255,255,0.68)', fontSize: 14, lineHeight: 20, marginBottom: 4 },
   passwordContainer: {
     position: 'relative',
     justifyContent: 'center',

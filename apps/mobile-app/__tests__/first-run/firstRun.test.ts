@@ -30,6 +30,10 @@ describe('first-run stage resolution', () => {
     expect(resolveFirstRunStage(user(), { onboardingComplete: true, basicSetupComplete: true }, null)).toBe('complete');
   });
 
+  it('treats the authenticated server completion stage as canonical', () => {
+    expect(resolveFirstRunStage(user(), {}, { currentStage: 'complete', completed: true })).toBe('complete');
+  });
+
   it('maps complete to Explore and calculates age without birthday drift', () => {
     expect(firstRunRoute('complete')).toBe('/(tabs)/explore');
     expect(calculateAge(new Date('2000-07-12T12:00:00Z'), new Date('2026-07-11T12:00:00Z'))).toBe(25);
