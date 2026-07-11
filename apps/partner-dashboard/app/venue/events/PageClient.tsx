@@ -357,13 +357,20 @@ export default function EventsManagementPage() {
       ).length,
     [typeFilteredEventsForCounts],
   );
+  const completedCount = useMemo(
+    () =>
+      typeFilteredEventsForCounts.filter(
+        (e) => getStatus(e) === EVENT_LIFECYCLE.COMPLETED || isEventOver(e),
+      ).length,
+    [typeFilteredEventsForCounts],
+  );
 
   const filterTabs = [
     { label: 'All', value: 'all', count: typeFilteredEventsForCounts.length },
     { label: 'Live', value: 'live', count: liveCount },
     { label: 'Published', value: 'approved', count: publishedCount },
     { label: 'Drafts', value: 'draft', count: draftCount },
-    { label: 'Completed', value: 'completed' },
+    { label: 'Completed', value: 'completed', count: completedCount },
   ];
 
   return (
