@@ -4,18 +4,17 @@ import {
   Text,
   TextInput,
   Pressable,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   StyleSheet,
   Keyboard,
-  ScrollView,
   InteractionManager,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ChevronLeft, Phone, Mail } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import Animated, { FadeInUp, FadeIn } from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/store/authStore';
 import { markContactLinkingComplete } from '@/lib/onboardingFlow';
@@ -47,10 +46,10 @@ export default function AddContactScreen() {
   }, [user]);
 
   useEffect(() => {
-    const focusTask = InteractionManager.runAfterInteractions(() => {
+    const focusTask = setTimeout(() => {
       inputRef.current?.focus();
-    });
-    return () => focusTask.cancel();
+    }, 400); // Wait for the transition and enter animations
+    return () => clearTimeout(focusTask);
   }, []);
 
   const handleSkip = async () => {
@@ -89,7 +88,13 @@ export default function AddContactScreen() {
       const result = await linkEmail(trimmedEmail);
       if (result.success) {
         if (user?.uid) await markContactLinkingComplete(user.uid);
-        router.replace('/profile-setup');
+        import('react-native').then(({ Alert }) => {
+          Alert.alert(
+            'Verification Sent',
+            'We sent a verification link to your email. Please check your inbox.',
+            [{ text: 'OK', onPress: () => router.replace('/profile-setup') }]
+          );
+        });
       }
     }
   };
@@ -131,24 +136,26 @@ export default function AddContactScreen() {
             <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
           
-          <Pressable 
-            onPress={handleSkip}
-            style={({ pressed }) => [s.skipButton, pressed && { opacity: 0.6 }]}
-          >
-            <Text style={s.skipText}>Skip</Text>
-          </Pressable>
+          {!needsPhone && (
+            <Pressable 
+              onPress={handleSkip}
+              style={({ pressed }) => [s.skipButton, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={s.skipText}>Skip</Text>
+            </Pressable>
+          )}
         </View>
 
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        <KeyboardAwareScrollView 
           style={s.flex1}
+          contentContainerStyle={s.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          enableOnAndroid={true}
+          extraScrollHeight={20}
+          bounces={false}
         >
-          <ScrollView
-            contentContainerStyle={s.content}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={s.iconWrapper}>
+            <Animated.View entering={FadeInUp.delay(100)} style={s.iconWrapper}>
               <View style={s.iconBg}>
                 {needsPhone ? (
                   <Phone size={24} color="#FFFFFF" strokeWidth={2} />
@@ -156,16 +163,16 @@ export default function AddContactScreen() {
                   <Mail size={24} color="#FFFFFF" strokeWidth={2} />
                 )}
               </View>
-            </View>
+            </Animated.View>
             
-            <Text style={s.title}>{title}</Text>
-            <Text style={s.subtitle}>{subtitle}</Text>
+            <Animated.Text entering={FadeInUp.delay(150)} style={s.title}>{title}</Animated.Text>
+            <Animated.Text entering={FadeInUp.delay(200)} style={s.subtitle}>{subtitle}</Animated.Text>
 
             {error ? (
               <Text style={s.errorText}>{error}</Text>
             ) : null}
 
-            <View style={s.formContainer}>
+            <Animated.View entering={FadeInUp.delay(250)} style={s.formContainer}>
               {needsPhone ? (
                 <View style={[s.inputGroup, s.inputGroupActive]}>
                   <CountryCodePicker
@@ -206,23 +213,24 @@ export default function AddContactScreen() {
                   />
                 </View>
               )}
-            </View>
+            </Animated.View>
             
             <View style={s.spacer} />
 
-            <Pressable
-              onPress={handleSubmit}
-              disabled={!canSubmit}
-              style={[s.nextButton, !canSubmit && s.nextButtonDisabled]}
-            >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={s.nextButtonText}>Next</Text>
-              )}
-            </Pressable>
-          </ScrollView>
-        </KeyboardAvoidingView>
+            <Animated.View entering={FadeIn.delay(350).duration(400)}>
+              <Pressable
+                onPress={handleSubmit}
+                disabled={!canSubmit}
+                style={[s.nextButton, !canSubmit && s.nextButtonDisabled]}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={s.nextButtonText}>Next</Text>
+                )}
+              </Pressable>
+            </Animated.View>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

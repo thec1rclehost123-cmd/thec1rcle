@@ -377,9 +377,8 @@ service cloud.firestore {
         resource.data.fromUserId == request.auth.uid ||
         resource.data.toUserId == request.auth.uid
       );
-      allow create: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid)
-                      && request.resource.data.fromUserId == request.auth.uid;
-      allow update, delete: if false;
+      allow create, update, delete: if false; // Only server SDK handles likes
+
     }
 
     // User Passes (swipe left — kept to avoid reshowing profiles)
@@ -387,9 +386,8 @@ service cloud.firestore {
       allow list: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid);
       allow get: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid)
                    && resource.data.fromUserId == request.auth.uid;
-      allow create: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid)
-                      && request.resource.data.fromUserId == request.auth.uid;
-      allow update, delete: if false;
+      allow create, update, delete: if false; // Only server SDK handles passes
+
     }
 
     // Mutual Matches
@@ -399,15 +397,7 @@ service cloud.firestore {
         resource.data.user1Id == request.auth.uid ||
         resource.data.user2Id == request.auth.uid
       );
-      allow create: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid) && (
-        request.resource.data.user1Id == request.auth.uid ||
-        request.resource.data.user2Id == request.auth.uid
-      );
-      allow update: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid) && (
-        resource.data.user1Id == request.auth.uid ||
-        resource.data.user2Id == request.auth.uid
-      );
-      allow delete: if false;
+      allow create, update, delete: if false; // Matches are created only by the backend
     }
 
     // Verification Requests

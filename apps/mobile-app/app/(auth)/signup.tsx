@@ -4,14 +4,12 @@ import {
   Text,
   TextInput,
   Pressable,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   ActivityIndicator,
   Keyboard,
   Linking,
   StyleSheet,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -183,15 +181,16 @@ export default function SignupScreen() {
       />
 
       <SafeAreaView style={s.safeArea}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.kav}>
-          <ScrollView
-            bounces={false}
-            overScrollMode="never"
-            contentContainerStyle={s.scroll}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Back */}
+        <KeyboardAwareScrollView
+          style={s.kav}
+          contentContainerStyle={s.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          enableOnAndroid={true}
+          extraScrollHeight={20}
+        >
+          {/* Back */}
             <Pressable onPress={() => router.back()} style={s.backBtn}>
               <Text style={s.backArrow}>‹</Text>
               <Text style={s.backText}>BACK</Text>
@@ -440,8 +439,7 @@ export default function SignupScreen() {
                 <Text style={s.linkAccent}>Login</Text>
               </Pressable>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </Pressable>
   );

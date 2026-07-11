@@ -17,7 +17,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSpring,
+  
 } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { colors, radii, spacing, typography } from '@/lib/design/theme';
@@ -544,10 +544,10 @@ export function PremiumEventCard({
         <View style={{ flex: 1, padding: 1.2 }}>
           <AnimatedPressable
             onPressIn={() => {
-              scale.value = withSpring(0.96, { damping: 15, stiffness: 300 });
+              scale.value = withTiming(0.96, { duration: 150 });
             }}
             onPressOut={() => {
-              scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+              scale.value = withTiming(1, { duration: 150 });
             }}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

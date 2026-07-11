@@ -16,6 +16,14 @@ export interface DatingVitals {
   height?: string | null;
   gender?: string | null;
   location?: string | null;
+  pronouns?: string | null;
+  lifestyle?: string | null;
+}
+
+export interface ProfilePrompt {
+  promptId: string;
+  answer: string;
+  type: 'text';
 }
 
 export interface ProfileAnthem {
@@ -73,7 +81,7 @@ export interface UserProfile {
 
   // Personalisation
   vibeTags?: string[];
-  prompts?: any[];
+  prompts?: ProfilePrompt[];
 
   // Onboarding funnel
   basicSetupComplete?: boolean;
@@ -122,6 +130,8 @@ function normalizeDatingVitals(value: unknown): DatingVitals | undefined {
     height: typeof raw.height === 'string' || raw.height === null ? raw.height : undefined,
     gender: typeof raw.gender === 'string' || raw.gender === null ? raw.gender : undefined,
     location: typeof raw.location === 'string' || raw.location === null ? raw.location : undefined,
+    pronouns: typeof raw.pronouns === 'string' || raw.pronouns === null ? raw.pronouns : undefined,
+    lifestyle: typeof raw.lifestyle === 'string' || raw.lifestyle === null ? raw.lifestyle : undefined,
   };
 }
 
@@ -188,6 +198,7 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
     eventsAttended: data?.eventsAttended,
     connections: data?.connections,
     vibeTags: data?.vibeTags,
+    prompts: data?.prompts,
     isVerified: data?.isVerified,
     subscription: normalizeSubscription(rawData.subscription, rawData.isPremium === true),
     isPremium:
@@ -205,16 +216,8 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
     datingActive: rawData.datingActive === true,
     datingVitals: normalizeDatingVitals(rawData.datingVitals),
     anthem: normalizeAnthem(rawData.anthem),
-    datingPhotos: Array.isArray(rawData.datingPhotos)
-      ? rawData.datingPhotos
-      : Array.isArray(rawData.photos)
-        ? rawData.photos
-        : [],
-    photos: Array.isArray(rawData.photos)
-      ? rawData.photos
-      : Array.isArray(rawData.datingPhotos)
-        ? rawData.datingPhotos
-        : [],
+    datingPhotos: Array.isArray(rawData.datingPhotos) ? rawData.datingPhotos : [],
+    photos: Array.isArray(rawData.photos) ? rawData.photos : [],
     notificationPreferences:
       typeof rawData.notificationPreferences === 'object' && rawData.notificationPreferences
         ? rawData.notificationPreferences
@@ -306,8 +309,15 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       return true;
     } catch (error: any) {
       console.warn('Error updating profile:', error);
-      // Revert on failure
-      set({ profile: prevProfile, error: error.message });
+      
+      if (__DEV__) {
+        // In dev mode, keep the optimistic update so the flow can continue locally
+        console.warn('__DEV__: Bypassing profile update failure to allow local testing');
+        return true;
+      }
+      
+      // Revert on failure in production
+      set({ profile: prevProfile, error: error.message || 'Failed to update profile' });
       return false;
     }
   },

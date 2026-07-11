@@ -4,12 +4,11 @@ import {
   Text,
   TextInput,
   Pressable,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   StyleSheet,
   Keyboard,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -80,9 +79,11 @@ export default function ForgotPasswordScreen() {
             </Pressable>
           </View>
         ) : (
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.content}
+          <KeyboardAwareScrollView
+            contentContainerStyle={styles.content}
+            enableOnAndroid={true}
+            extraScrollHeight={20}
+            bounces={false}
           >
             {/* Back */}
             <Pressable onPress={() => router.back()} style={styles.backBtn}>
@@ -154,7 +155,7 @@ export default function ForgotPasswordScreen() {
                 <Text style={styles.linkAccent}>Login</Text>
               </Pressable>
             </View>
-          </KeyboardAvoidingView>
+          </KeyboardAwareScrollView>
         )}
       </SafeAreaView>
     </View>

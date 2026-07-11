@@ -4,13 +4,12 @@ import {
   Text,
   Pressable,
   TextInput,
-  ScrollView,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
   Alert,
   Modal,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -22,9 +21,9 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   FadeInDown,
   FadeIn,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
+  useAnimatedStyle, withTiming,
+  useSharedValue, withTiming,
+  
 } from 'react-native-reanimated';
 import {
   ChevronDown,
@@ -105,7 +104,7 @@ export default function ProfileSetupScreen() {
 
   const genderAnimStyle = useAnimatedStyle(() => ({
     maxHeight: genderHeight.value,
-    opacity: genderHeight.value > 0 ? withSpring(1) : 0,
+    opacity: genderHeight.value > 0 ? (1) : 0,
     overflow: 'hidden',
   }));
 
@@ -113,14 +112,14 @@ export default function ProfileSetupScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const next = !genderExpanded;
     setGenderExpanded(next);
-    genderHeight.value = withSpring(next ? 300 : 0, { damping: 18, stiffness: 200 });
+    genderHeight.value = withTiming(next ? 300 : 0, { duration: 250 });
   };
 
   const selectGender = (key: string) => {
     Haptics.selectionAsync();
     setGender(key);
     setGenderExpanded(false);
-    genderHeight.value = withSpring(0, { damping: 18, stiffness: 200 });
+    genderHeight.value = withTiming(0, { duration: 250 });
   };
 
   const handleDateChange = useCallback(
@@ -187,17 +186,15 @@ export default function ProfileSetupScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      <KeyboardAvoidingView
+      <KeyboardAwareScrollView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        extraScrollHeight={20}
+        bounces={false}
       >
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
           {/* Header */}
           <Animated.View entering={FadeIn.duration(600)} style={styles.headerSection}>
             <Pressable 
@@ -225,7 +222,7 @@ export default function ProfileSetupScreen() {
           </Animated.View>
 
           {/* Name */}
-          <Animated.View entering={FadeInDown.delay(100).duration(500).springify()}>
+          <Animated.View entering={FadeInDown.delay(100).duration(500)}>
             <Text style={styles.fieldLabel}>Your Name</Text>
             <TextInput
               style={styles.input}
@@ -239,7 +236,7 @@ export default function ProfileSetupScreen() {
           </Animated.View>
 
           {/* Gender */}
-          <Animated.View entering={FadeInDown.delay(200).duration(500).springify()}>
+          <Animated.View entering={FadeInDown.delay(200).duration(500)}>
             <Text style={styles.fieldLabel}>Gender</Text>
             <Pressable
               onPress={toggleGender}
@@ -301,7 +298,7 @@ export default function ProfileSetupScreen() {
           </Animated.View>
 
           {/* Date of Birth */}
-          <Animated.View entering={FadeInDown.delay(300).duration(500).springify()}>
+          <Animated.View entering={FadeInDown.delay(300).duration(500)}>
             <View style={styles.fieldLabelRow}>
               <Text style={styles.fieldLabel}>Date of Birth</Text>
               <Pressable
@@ -362,8 +359,7 @@ export default function ProfileSetupScreen() {
               </Animated.View>
             )}
           </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
 
       {/* Android: dialog picker */}
       {showDatePicker && Platform.OS === 'android' && (
@@ -426,7 +422,7 @@ export default function ProfileSetupScreen() {
 
       {/* CTA */}
       <Animated.View
-        entering={FadeInDown.delay(400).duration(500).springify()}
+        entering={FadeInDown.delay(400).duration(500)}
         style={styles.footer}
       >
         <Pressable

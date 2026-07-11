@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
+  
   withDelay,
   withTiming,
   withSequence,
@@ -182,11 +182,11 @@ function SlideItem({ item, index, currentIndex, player }: SlideItemProps) {
 
   useEffect(() => {
     if (isActive) {
-      iconY.value = withSpring(0, { damping: 14, stiffness: 150 });
-      titleOpacity.value = withDelay(200, withSpring(1, { damping: 16, stiffness: 120 }));
-      subtitleOpacity.value = withDelay(450, withSpring(1, { damping: 16, stiffness: 120 }));
+      iconY.value = withTiming(0, { duration: 250 });
+      titleOpacity.value = withDelay(200, (1, { damping: 16, stiffness: 120 }));
+      subtitleOpacity.value = withDelay(450, (1, { damping: 16, stiffness: 120 }));
       if (index === 1) {
-        qrScale.value = withDelay(650, withSpring(1, { damping: 12, stiffness: 130 }));
+        qrScale.value = withDelay(650, (1, { damping: 12, stiffness: 130 }));
       }
     } else {
       iconY.value = 60;
@@ -345,7 +345,7 @@ export default function OnboardingScreen() {
           .catch(console.error);
       }
       setOnboardingJustCompleted(true);
-      router.replace('/permission' as any);
+      router.replace('/notification-permission' as any);
     } else {
       const nextIndex = currentIndex + 1;
       scrollX.value = nextIndex * SCREEN_WIDTH;
@@ -363,7 +363,7 @@ export default function OnboardingScreen() {
         .catch(console.error);
     }
     setOnboardingJustCompleted(true);
-    router.replace('/permission' as any);
+    router.replace('/notification-permission' as any);
   }, [setOnboardingJustCompleted, user?.uid]);
 
   return (

@@ -196,6 +196,7 @@ export default function RootLayout() {
                     <Stack.Screen name="profile-creation" />
                     <Stack.Screen name="social-setup" />
                     <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="dating/match" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
                   </Stack>
                 </ThemeProvider>
                 <PremiumPaywallModal />

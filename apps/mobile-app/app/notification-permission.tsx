@@ -25,27 +25,9 @@ const { width } = Dimensions.get('window');
 const MOCKUP_WIDTH = width * 0.72;
 const MOCKUP_HEIGHT = 340; // reduced to make room for bottom content
 
-// Reusable animated floating avatar
-function FloatingAvatar({ emoji, bg, size, top, left, delay = 0, duration = 3000 }: any) {
-  const translateY = useSharedValue(0);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      translateY.value = withRepeat(
-        withSequence(withTiming(-8, { duration }), withTiming(0, { duration })),
-        -1,
-        true,
-      );
-    }, delay);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
+function FloatingAvatar({ emoji, bg, size, top, left, rotate = '0deg' }: any) {
   return (
-    <Animated.View style={[{ position: 'absolute', top, left, zIndex: 10 }, animStyle]}>
+    <View style={{ position: 'absolute', top, left, zIndex: 10, transform: [{ rotate }] }}>
       <View
         style={{
           width: size,
@@ -59,11 +41,13 @@ function FloatingAvatar({ emoji, bg, size, top, left, delay = 0, duration = 3000
           shadowRadius: 10,
           shadowOffset: { width: 0, height: 4 },
           elevation: 5,
+          borderWidth: 2,
+          borderColor: 'rgba(255,255,255,0.2)'
         }}
       >
         <Text style={{ fontSize: size * 0.6 }}>{emoji}</Text>
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -97,15 +81,15 @@ export default function NotificationPermissionScreen() {
     <View style={styles.container}>
       {/* Top Background Gradient */}
       <LinearGradient
-        colors={['rgba(244, 74, 34, 0.12)', 'rgba(0,0,0,0)']}
+        colors={[colors.midnight, colors.base.DEFAULT]}
         style={StyleSheet.absoluteFillObject}
       />
 
       {/* Illustration Area */}
       <View style={[styles.illustrationArea, { paddingTop: insets.top + 40 }]}>
         {/* Phone Mockup */}
-        <Animated.View entering={FadeInDown.duration(800).springify()} style={styles.phoneMockup}>
-          <LinearGradient colors={['#1C1C1E', '#0A0A0A']} style={StyleSheet.absoluteFillObject} />
+        <Animated.View entering={FadeInDown.duration(800)} style={styles.phoneMockup}>
+          <LinearGradient colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.01)']} style={StyleSheet.absoluteFillObject} />
 
           {/* Dynamic Island */}
           <View style={styles.dynamicIsland} />
@@ -154,77 +138,62 @@ export default function NotificationPermissionScreen() {
           </View>
         </Animated.View>
 
-        {/* Floating Avatars */}
+        {/* Floating Avatars - Centered around mockup */}
         <FloatingAvatar
           emoji="👧🏻"
           bg="#C8E6C9"
-          size={44}
-          top={MOCKUP_HEIGHT - 60}
-          left={MOCKUP_WIDTH * 0.1}
-          delay={0}
-          duration={3500}
+          size={50}
+          top={MOCKUP_HEIGHT * 0.2}
+          left={-25}
+          rotate="-12deg"
         />
         <FloatingAvatar
           emoji="👩🏼"
           bg="#B3E5FC"
           size={60}
-          top={MOCKUP_HEIGHT - 20}
-          left={MOCKUP_WIDTH * 0.05}
-          delay={200}
-          duration={4000}
+          top={MOCKUP_HEIGHT * 0.5}
+          left={-30}
+          rotate="5deg"
         />
         <FloatingAvatar
           emoji="👱🏾‍♂️"
           bg="#E0E0E0"
-          size={50}
-          top={MOCKUP_HEIGHT + 15}
-          left={MOCKUP_WIDTH * 0.25}
-          delay={100}
-          duration={3800}
+          size={45}
+          top={MOCKUP_HEIGHT * 0.8}
+          left={-20}
+          rotate="-8deg"
         />
 
         <FloatingAvatar
           emoji="👩🏻‍🎤"
           bg="#D1C4E9"
-          size={90}
-          top={MOCKUP_HEIGHT - 35}
-          left={MOCKUP_WIDTH * 0.4}
-          delay={300}
-          duration={4500}
+          size={70}
+          top={MOCKUP_HEIGHT * 0.1}
+          left={MOCKUP_WIDTH - 35}
+          rotate="15deg"
         />
 
         <FloatingAvatar
           emoji="👦🏻"
           bg="#FFCCBC"
-          size={56}
-          top={MOCKUP_HEIGHT - 60}
-          left={MOCKUP_WIDTH * 0.65}
-          delay={150}
-          duration={3200}
-        />
-        <FloatingAvatar
-          emoji="👦🏽"
-          bg="#FFE082"
-          size={46}
-          top={MOCKUP_HEIGHT + 25}
-          left={MOCKUP_WIDTH * 0.75}
-          delay={50}
-          duration={3600}
+          size={55}
+          top={MOCKUP_HEIGHT * 0.45}
+          left={MOCKUP_WIDTH - 25}
+          rotate="-5deg"
         />
         <FloatingAvatar
           emoji="🤓"
           bg="#F8BBD0"
           size={52}
-          top={MOCKUP_HEIGHT - 10}
-          left={MOCKUP_WIDTH * 0.85}
-          delay={250}
-          duration={4200}
+          top={MOCKUP_HEIGHT * 0.75}
+          left={MOCKUP_WIDTH - 20}
+          rotate="10deg"
         />
       </View>
 
       {/* Bottom Content */}
       <Animated.View
-        entering={FadeInUp.delay(300).duration(600).springify()}
+        entering={FadeInUp.delay(300).duration(600)}
         style={[styles.bottomContent, { paddingBottom: insets.bottom + 70 }]}
       >
         <Text style={styles.title}>Don't miss out on what your friends are up to</Text>
@@ -264,11 +233,13 @@ const styles = StyleSheet.create({
     width: MOCKUP_WIDTH,
     height: MOCKUP_HEIGHT,
     borderRadius: 44,
-    borderWidth: 8,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
     overflow: 'hidden',
     alignItems: 'center',
     zIndex: 2,
+    position: 'relative',
   },
   dynamicIsland: {
     width: 110,
@@ -277,6 +248,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginTop: 12,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   mockDate: {
     color: 'rgba(255,255,255,0.6)',
@@ -298,15 +271,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   notificationCard: {
-    backgroundColor: 'rgba(35, 35, 35, 0.98)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 22,
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-    shadowOffset: { width: 0, height: 8 },
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   notifAvatarWrap: {
     marginRight: 12,
@@ -374,7 +345,7 @@ const styles = StyleSheet.create({
     marginBottom: 36,
   },
   primaryButton: {
-    backgroundColor: '#F44A22',
+    backgroundColor: colors.iris,
     width: '100%',
     paddingVertical: 18,
     borderRadius: 30,
@@ -384,7 +355,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFF',
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   secondaryButton: {
     paddingVertical: 16,

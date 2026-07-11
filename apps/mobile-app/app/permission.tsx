@@ -173,7 +173,7 @@ export default function PermissionScreen() {
 
       <View style={[styles.illustrationArea, { paddingTop: insets.top + 40 }]}>
         {/* Phone Mockup */}
-        <Animated.View entering={FadeInDown.duration(800).springify()} style={styles.phoneMockup}>
+        <Animated.View entering={FadeInDown.duration(800)} style={styles.phoneMockup}>
           <LinearGradient colors={['#1C1C1E', '#0A0A0A']} style={StyleSheet.absoluteFillObject} />
 
           {/* Dynamic Island */}
@@ -249,7 +249,7 @@ export default function PermissionScreen() {
 
       {/* Bottom Content */}
       <Animated.View
-        entering={FadeInUp.delay(300).duration(600).springify()}
+        entering={FadeInUp.delay(300).duration(600)}
         style={[styles.bottomContent, { paddingBottom: insets.bottom + 70 }]}
       >
         <Text style={styles.title}>Your Night{'\n'}Starts Here</Text>

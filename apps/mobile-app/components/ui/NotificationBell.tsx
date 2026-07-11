@@ -9,7 +9,7 @@ import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  
   withRepeat,
   withSequence,
   withTiming,
@@ -56,11 +56,11 @@ export function NotificationBell({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.9, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.9, { duration: 250 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(1, { duration: 250 });
   };
 
   const handlePress = () => {
@@ -80,7 +80,7 @@ export function NotificationBell({
       <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
       {showBadge && (
         <Animated.View
-          entering={FadeIn.springify()}
+          entering={FadeIn}
           style={[
             styles.badge,
             count > 0 ? styles.badgeCount : styles.badgeDot,

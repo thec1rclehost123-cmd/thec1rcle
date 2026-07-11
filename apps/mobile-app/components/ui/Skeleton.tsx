@@ -6,7 +6,9 @@ import Animated, {
   useSharedValue,
   withRepeat,
   withTiming,
+  withSequence,
 } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radii } from '@/lib/design/theme';
 
 export interface SkeletonProps {
@@ -22,33 +24,33 @@ export function Skeleton({
   borderRadius = radii.md,
   style,
 }: SkeletonProps) {
-  const opacity = useSharedValue(0.3);
+  const translateX = useSharedValue(-100);
 
   useEffect(() => {
-    opacity.value = withRepeat(
-      withTiming(0.7, { duration: 1050, easing: Easing.inOut(Easing.quad) }),
-      -1,
-      true,
+    translateX.value = withRepeat(
+      withSequence(
+        withTiming(100, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+        withTiming(-100, { duration: 0 })
+      ),
+      -1
     );
-  }, [opacity]);
+  }, [translateX]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
+    transform: [{ translateX: `${translateX.value}%` }],
   }));
 
   return (
-    <Animated.View
-      style={[
-        styles.block,
-        {
-          width,
-          height,
-          borderRadius,
-        },
-        animatedStyle,
-        style,
-      ]}
-    />
+    <View style={[styles.block, { width, height, borderRadius, overflow: 'hidden' }, style]}>
+      <Animated.View style={[StyleSheet.absoluteFill, animatedStyle, { width: '200%' }]}>
+        <LinearGradient
+          colors={['transparent', 'rgba(255,255,255,0.08)', 'transparent']}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+    </View>
   );
 }
 
@@ -130,6 +132,34 @@ export function SkeletonChatCard() {
   );
 }
 
+export function SkeletonChatCardList({ count = 4, style }: { count?: number; style?: ViewStyle }) {
+  return (
+    <View style={[styles.skeletonStack, style]}>
+      {Array.from({ length: count }).map((_, index) => (
+        <SkeletonChatCard key={index} />
+      ))}
+    </View>
+  );
+}
+
+export function InboxEventCardSkeleton({ style }: { style?: ViewStyle }) {
+  return (
+    <View style={[styles.inboxEventCard, style]}>
+      <Skeleton height={180} borderRadius={18} />
+    </View>
+  );
+}
+
+export function InboxEventCardSkeletonList({ count = 3, style }: { count?: number; style?: ViewStyle }) {
+  return (
+    <View style={[styles.skeletonStack, style]}>
+      {Array.from({ length: count }).map((_, index) => (
+        <InboxEventCardSkeleton key={index} />
+      ))}
+    </View>
+  );
+}
+
 export function SkeletonTicketCard() {
   return (
     <View style={styles.ticketCard}>
@@ -196,13 +226,16 @@ const styles = StyleSheet.create({
   },
   ticketCard: {
     gap: 12,
-    marginHorizontal: 20,
-    padding: 16,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
   },
+  inboxEventCard: {
+    width: '100%',
+    height: 180,
+    borderRadius: 18,
+    overflow: 'hidden',
+    marginBottom: 12,
+    backgroundColor: '#1C1C1E',
+  },
+
 });
 
 export const Shimmer = Skeleton;

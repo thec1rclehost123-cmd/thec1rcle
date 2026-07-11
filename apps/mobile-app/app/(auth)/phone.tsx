@@ -1,15 +1,15 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
-  Keyboard,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -98,9 +98,11 @@ export default function PhoneAuthScreen() {
     <View style={styles.container}>
       {backgroundElement}
       <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.content}
+        <KeyboardAwareScrollView
+          contentContainerStyle={styles.content}
+          enableOnAndroid={true}
+          extraScrollHeight={20}
+          bounces={false}
         >
           <Text style={styles.title}>PHONE LOGIN</Text>
 
@@ -143,7 +145,7 @@ export default function PhoneAuthScreen() {
           <Pressable style={styles.secondary} onPress={() => router.back()}>
             <Text style={styles.secondaryText}>Back</Text>
           </Pressable>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

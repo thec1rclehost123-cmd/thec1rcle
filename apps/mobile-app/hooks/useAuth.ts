@@ -14,6 +14,7 @@ import {
   getPendingProviderLink,
   linkWithPhoneVerificationCode,
   linkEmailToUser,
+  sendVerificationLinkToCurrentUser,
 } from '@/lib/firebase';
 
 async function completeServerHandshake(user: Awaited<ReturnType<typeof loginWithEmail>>['user']) {
@@ -237,6 +238,9 @@ export function useAuth() {
     setError(null);
     try {
       await linkEmailToUser(email);
+      // Send magic link to verify the newly added email
+      const redirectUrl = `https://c1rcle-staging.firebaseapp.com/verify?email=${encodeURIComponent(email)}`;
+      await sendVerificationLinkToCurrentUser(redirectUrl);
       return { success: true };
     } catch (err: any) {
       const message = getActionErrorMessage(err);

@@ -4,16 +4,15 @@ import {
   Text,
   TextInput,
   Pressable,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  StyleSheet,
   Animated,
   Keyboard,
   AppState,
-  ScrollView,
   InteractionManager,
+  Platform,
+  ActivityIndicator,
+  StyleSheet,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -23,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/store/authStore';
+import { useProfileStore } from '@/store/profileStore';
 import Svg, { Path } from 'react-native-svg';
 import { colors } from '@/lib/design/theme';
 import { CountryCodePicker } from '@/components/ui/CountryCodePicker';
@@ -218,7 +218,13 @@ export default function LoginScreen() {
   const handleApple = async () => {
     const result = await loginApple();
     if (result.success) {
-      finishAuthNavigation();
+      const profile = useProfileStore.getState().profile;
+      if (!profile?.phone) {
+        router.push('/(auth)/phone?isLinking=true');
+      } else {
+        finishAuthNavigation();
+      }
+      return;
     }
     if ((result as any).requiresPasswordLink && (result as any).email) {
       setEmail((result as any).email);
@@ -230,7 +236,13 @@ export default function LoginScreen() {
   const handleGoogle = async () => {
     const result = await loginGoogle();
     if (result.success) {
-      finishAuthNavigation();
+      const profile = useProfileStore.getState().profile;
+      if (!profile?.phone) {
+        router.push('/(auth)/phone?isLinking=true');
+      } else {
+        finishAuthNavigation();
+      }
+      return;
     }
     if ((result as any).requiresPasswordLink && (result as any).email) {
       setEmail((result as any).email);
@@ -273,14 +285,16 @@ export default function LoginScreen() {
             <Text style={s.skipText}>Skip</Text>
           </Pressable>
         </View>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} style={s.kav}>
-          <ScrollView
-            contentContainerStyle={s.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            bounces={false}
-          >
-            <View style={s.content}>
+        <KeyboardAwareScrollView
+          style={s.kav}
+          contentContainerStyle={s.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          enableOnAndroid={true}
+          extraScrollHeight={20}
+        >
+          <View style={s.content}>
               {/* Header Section */}
             <Animated.View
               style={[
@@ -365,24 +379,6 @@ export default function LoginScreen() {
                     <Text style={s.emailBtnText}>Continue with Phone</Text>
                   </Pressable>
                 </Animated.View>
-
-                <Animated.View
-                  style={{ opacity: fadeEmail, transform: [{ translateY: slideEmail }] }}
-                >
-                  <Pressable
-                    style={s.emailBtn}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setShowEmailForm(true);
-                    }}
-                    disabled={loading}
-                  >
-                    <View style={s.btnIcon}>
-                      <Mail size={16} color="#ffffff" />
-                    </View>
-                    <Text style={s.emailBtnText}>Continue with Email</Text>
-                  </Pressable>
-                </Animated.View>
               </View>
             ) : showPhoneForm ? (
               <Animated.View style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}>
@@ -434,74 +430,6 @@ export default function LoginScreen() {
                   <Text style={s.backText}>Use another method</Text>
                 </Pressable>
               </Animated.View>
-            ) : showEmailForm ? (
-              <Animated.View style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}>
-                <TextInput
-                  ref={emailInputRef}
-                  style={s.input}
-                  placeholder="Email"
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoFocus
-                  value={email}
-                  onChangeText={(t) => {
-                    setEmail(t);
-                    clearError();
-                  }}
-                />
-
-                <View style={s.passwordContainer}>
-                  <TextInput
-                    style={[s.input, { paddingRight: 48 }]}
-                    placeholder="Password"
-                    placeholderTextColor="rgba(255,255,255,0.4)"
-                    secureTextEntry={!showPassword}
-                    value={password}
-                    onChangeText={(t) => {
-                      setPassword(t);
-                      clearError();
-                    }}
-                  />
-                  <Pressable onPress={() => setShowPassword((v) => !v)} style={s.eyeIcon}>
-                    {showPassword ? (
-                      <EyeOff size={18} color="rgba(255,255,255,0.6)" />
-                    ) : (
-                      <Eye size={18} color="rgba(255,255,255,0.6)" />
-                    )}
-                  </Pressable>
-                </View>
-
-                <Pressable
-                  onPress={handleLogin}
-                  disabled={!canSubmit}
-                  style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#000" />
-                  ) : (
-                    <Text style={s.submitBtnText}>Sign In</Text>
-                  )}
-                </Pressable>
-
-                <Pressable
-                  onPress={() => router.push('/(auth)/forgot-password')}
-                  style={s.forgotBtn}
-                >
-                  <Text style={s.forgotText}>Forgot Password?</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowEmailForm(false);
-                  }}
-                  style={s.backBtn}
-                >
-                  <Text style={s.backText}>Use another method</Text>
-                </Pressable>
-              </Animated.View>
             ) : null}
 
             {/* Staggered Footer & Request Access / Legal text */}
@@ -516,8 +444,7 @@ export default function LoginScreen() {
               </View>
             </Animated.View>
           </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );
@@ -550,10 +477,10 @@ const s = StyleSheet.create({
   },
   kav: {
     flex: 1,
-    justifyContent: 'flex-end',
   },
   scrollContent: {
     flexGrow: 1,
+    justifyContent: 'flex-end',
   },
   content: {
     paddingHorizontal: 24,

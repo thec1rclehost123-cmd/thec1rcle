@@ -35,7 +35,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   useAnimatedScrollHandler,
-  withSpring,
+  
   withTiming,
   withRepeat,
   withSequence,
@@ -226,7 +226,7 @@ function FilterPill({
   const scale = useSharedValue(1);
 
   useEffect(() => {
-    scale.value = withSpring(isActive ? 1 : 0.96, { damping: 14, stiffness: 200 });
+    scale.value = withTiming(isActive ? 1 : 0.96, { duration: 250 });
   }, [isActive]);
 
   const animStyle = useAnimatedStyle(() => ({
@@ -239,8 +239,8 @@ function FilterPill({
         onPress={() => {
           Haptics.selectionAsync();
           scale.value = withSequence(
-            withSpring(0.93, { damping: 10, stiffness: 300 }),
-            withSpring(isActive ? 1 : 0.96, { damping: 14, stiffness: 200 }),
+            (0.93, { damping: 10, stiffness: 300 }),
+            (isActive ? 1 : 0.96, { damping: 14, stiffness: 200 }),
           );
           onPress();
         }}
@@ -544,7 +544,7 @@ export default function ExploreScreen() {
       {
         key: 'filters',
         render: () => (
-          <View style={{ marginBottom: 24 }}>
+          <View style={{ marginBottom: 0 }}>
             <QuickFilterRow active={quickFilter} onChange={setQuickFilter} />
           </View>
         ),
@@ -705,9 +705,14 @@ export default function ExploreScreen() {
       trendingThisWeek,
     ],
   );
-
   return (
     <View style={styles.container}>
+      {/* Subtle top-down thec1rcle orange glow */}
+      <LinearGradient
+        colors={['rgba(244, 74, 34, 0.4)', 'transparent']}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 600, zIndex: 0 }}
+        pointerEvents="none"
+      />
       <FlashList
 
         style={styles.scrollLayer}
@@ -826,8 +831,8 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 19,
     backgroundColor: 'rgba(7,7,9,0.94)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1.5,
+    borderColor: colors.iris,
     overflow: 'hidden',
   },
   avatarImage: { width: '100%', height: '100%' },
@@ -856,7 +861,7 @@ const styles = StyleSheet.create({
   searchBarPlaceholder: { color: colors.goldMuted, fontSize: typography.fontSize.base, flex: 1 },
   // ── Quick Filters ────────────────────────────────────────────────────────────
   filterRowContent: {
-    paddingTop: 16,
+    paddingTop: 0,
     paddingBottom: 4,
     paddingHorizontal: 16,
     gap: 8,

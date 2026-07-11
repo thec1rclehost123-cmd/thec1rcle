@@ -4,9 +4,9 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Extrapolation,
   interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
+  useAnimatedStyle, withTiming,
+  useSharedValue, withTiming,
+  
   type SharedValue,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -121,7 +121,7 @@ export function ExploreFeaturedCarousel({ events }: { events: Event[] }) {
     (rawIndex: number) => {
       if (visibleEvents.length <= 1) return;
       Haptics.selectionAsync();
-      position.value = withSpring(rawIndex, { damping: 24, stiffness: 200 });
+      position.value = withTiming(rawIndex, { duration: 250 });
     },
     [position, visibleEvents.length],
   );
@@ -158,7 +158,7 @@ export function ExploreFeaturedCarousel({ events }: { events: Event[] }) {
           if (Math.round(context.value) !== target) {
             // Haptics.selectionAsync() on UI thread not available directly, but standard spring is fine
           }
-          position.value = withSpring(target, { damping: 22, stiffness: 180, mass: 1 });
+          position.value = withTiming(target, { duration: 250 });
         }),
     [context, position],
   );

@@ -140,6 +140,8 @@ const UserSettingsBody = z
     avatar: z.string().nullable().optional(),
     instagram: z.string().max(100).nullable().optional(),
     spotify: z.string().max(100).nullable().optional(),
+    gender: z.string().nullable().optional(),
+    dateOfBirth: z.string().nullable().optional(),
     datingActive: z.boolean().optional(),
     basicSetupComplete: z.boolean().optional(),
     profileSetupComplete: z.boolean().optional(),
