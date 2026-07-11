@@ -1,118 +1,51 @@
-import { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Redirect } from 'expo-router';
-import { useAuthStore } from '@/store/authStore';
+import { FirstRunButton, firstRunTokens } from '@/components/first-run';
+import { firstRunRoute, resolveFirstRunStage } from '@/lib/firstRun';
+import { logout } from '@/lib/firebase';
+import { completeAuthSessionAfterSignIn, useAuthStore } from '@/store/authStore';
+import { getFirebaseAuth } from '@/lib/firebase';
+import { useFirstRunStore } from '@/store/firstRunStore';
 import { useProfileStore } from '@/store/profileStore';
-import {
-  hasRequestedPermissions,
-  hasViewedOnboarding,
-  hasCompletedContactLinking,
-} from '@/lib/onboardingFlow';
-import { hasCompletedProfileSetup } from './profile-setup';
-import { colors } from '@/lib/design/theme';
-
-type FlowState = {
-  checked: boolean;
-  basicProfileComplete: boolean;
-  hasViewedOnboarding: boolean;
-  hasCompletedContactLinking: boolean;
-  permissionsRequested: boolean;
-};
-
-const INITIAL_FLOW_STATE: FlowState = {
-  checked: false,
-  basicProfileComplete: false,
-  hasViewedOnboarding: false,
-  hasCompletedContactLinking: false,
-  permissionsRequested: false,
-};
 
 export default function Index() {
-  const { user, initialized, serverSynced, authSyncInProgress, isGuest } = useAuthStore();
-  const { profile, loadProfile } = useProfileStore();
-  const [flowState, setFlowState] = useState<FlowState>(INITIAL_FLOW_STATE);
+  const { user, initialized, serverSynced, authSyncInProgress, authSyncFailed, isGuest } = useAuthStore();
+  const profile = useProfileStore((state) => state.profile);
+  const profileLoading = useProfileStore((state) => state.loading);
+  const { snapshot, hydrated, load, loading, error } = useFirstRunStore();
 
   useEffect(() => {
-    let cancelled = false;
-    console.log('[Index] useEffect triggered. initialized:', initialized, 'user.uid:', user?.uid);
+    if (user?.uid && serverSynced && !hydrated) void load();
+  }, [hydrated, load, serverSynced, user?.uid]);
 
-    if (!initialized || !user?.uid) {
-      console.log('[Index] Not initialized or no user, setting checked to initialized');
-      setFlowState({ ...INITIAL_FLOW_STATE, checked: initialized });
-      return;
-    }
+  const destination = useMemo(() => {
+    if (!user) return null;
+    return firstRunRoute(resolveFirstRunStage(user, profile, snapshot));
+  }, [profile, snapshot, user]);
 
-    console.log('[Index] User initialized. Starting async checks...');
-    setFlowState((current) => ({ ...current, checked: false }));
+  if (!initialized || authSyncInProgress || (user && !serverSynced) || (user && (!hydrated || (!profile && profileLoading)))) {
+    return <View style={styles.center}><ActivityIndicator color={firstRunTokens.accent} /><Text style={styles.status}>Getting your night ready…</Text></View>;
+  }
 
-    Promise.all([
-      hasCompletedProfileSetup(user.uid),
-      hasViewedOnboarding(user.uid),
-      hasRequestedPermissions(user.uid),
-      hasCompletedContactLinking(user.uid),
-      loadProfile(user.uid).catch((err) => {
-        console.log('[Index] loadProfile error:', err);
-        return undefined;
-      }),
-    ])
-      .then(
-        ([
-          basicProfileComplete,
-          onboardingViewed,
-          permissionsRequested,
-          contactLinkingComplete,
-        ]) => {
-          console.log('[Index] Async checks complete! Cancelled:', cancelled);
-          if (cancelled) return;
-          setFlowState({
-            checked: true,
-            basicProfileComplete,
-            hasViewedOnboarding: onboardingViewed,
-            hasCompletedContactLinking: contactLinkingComplete,
-            permissionsRequested,
-          });
-        },
-      )
-      .catch((err) => {
-        console.error('[Index] Promise.all failed:', err);
-      });
-
-    return () => {
-      cancelled = true;
+  if (authSyncFailed || (error && !profile)) {
+    const retry = async () => {
+      const firebaseUser = getFirebaseAuth().currentUser;
+      if (firebaseUser) await completeAuthSessionAfterSignIn(firebaseUser);
+      else await load();
     };
-  }, [initialized, loadProfile, user?.uid]);
-
-  const basicSetupComplete = Boolean(
-    profile?.basicSetupComplete ||
-    profile?.profileSetupComplete ||
-    profile?.profileComplete ||
-    flowState.basicProfileComplete,
-  );
-
-  const waitingForAuthSync = authSyncInProgress || Boolean(user && !serverSynced);
-
-  if (!initialized || waitingForAuthSync || !flowState.checked) {
     return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: colors.base.DEFAULT,
-        }}
-      >
-        <ActivityIndicator size="large" color="#8B5CF6" />
+      <View style={styles.errorWrap}>
+        <Text style={styles.title}>We couldn’t load your account</Text>
+        <Text style={styles.status}>Check your connection and try again. Your progress is safe.</Text>
+        <FirstRunButton label="Try again" onPress={() => void retry()} loading={loading || authSyncInProgress} />
+        <FirstRunButton label="Sign out" onPress={() => void logout()} secondary />
       </View>
     );
   }
 
-  if (!user) {
-    if (isGuest) return <Redirect href="/(tabs)/explore" />;
-    return <Redirect href="/(auth)/login" />;
-  }
-  if (!flowState.hasCompletedContactLinking) return <Redirect href={'/add-contact' as any} />;
-  if (!basicSetupComplete) return <Redirect href="/profile-setup" />;
-  if (!flowState.hasViewedOnboarding) return <Redirect href="/onboarding" />;
-  if (!flowState.permissionsRequested) return <Redirect href={'/permission' as any} />;
-  return <Redirect href="/(tabs)/explore" />;
+  if (!user) return <Redirect href={isGuest ? '/(tabs)/explore' : '/(auth)/login'} />;
+  return <Redirect href={(destination ?? '/(tabs)/explore') as any} />;
 }
+
+const styles = StyleSheet.create({ center: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', gap: 14 }, errorWrap: { flex: 1, backgroundColor: '#000', justifyContent: 'center', paddingHorizontal: 24, gap: 14 }, title: { color: firstRunTokens.text, fontSize: 28, fontWeight: '800' }, status: { color: firstRunTokens.muted, fontSize: 15, lineHeight: 22, textAlign: 'center' } });

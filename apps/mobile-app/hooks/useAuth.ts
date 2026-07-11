@@ -10,6 +10,7 @@ import {
   loginWithGoogle as firebaseLoginWithGoogle,
   loginWithPhoneVerificationCode,
   sendPhoneVerificationCode,
+  sendPhoneLinkVerificationCode,
   sendVerificationEmail,
   getPendingProviderLink,
   linkWithPhoneVerificationCode,
@@ -186,12 +187,16 @@ export function useAuth() {
     }
   }, []);
 
-  const sendPhoneCode = useCallback(async (phoneNumber: string) => {
+  const sendPhoneCode = useCallback(async (phoneNumber: string, mode: 'sign_in' | 'link' = 'sign_in') => {
     setAuthLoading(true);
     setError(null);
     try {
+      if (mode === 'link') {
+        const confirmation = await sendPhoneLinkVerificationCode(phoneNumber);
+        return { success: true, verificationId: confirmation.verificationId, expectedUid: confirmation.expectedUid };
+      }
       const confirmation = await sendPhoneVerificationCode(phoneNumber);
-      return { success: true, verificationId: confirmation.verificationId };
+      return { success: true, verificationId: confirmation.verificationId, expectedUid: undefined };
     } catch (err: any) {
       const message = getActionErrorMessage(err);
       setError(message);
@@ -217,12 +222,12 @@ export function useAuth() {
     }
   }, []);
 
-  const linkPhoneCode = useCallback(async (verificationId: string, code: string) => {
+  const linkPhoneCode = useCallback(async (verificationId: string, code: string, expectedUid: string) => {
     setAuthLoading(true);
     setError(null);
     try {
-      const result = await linkWithPhoneVerificationCode(verificationId, code);
-      // We don't need a full server handshake for linking, but we could sync if necessary.
+      const result = await linkWithPhoneVerificationCode(verificationId, code, expectedUid);
+      await completeServerHandshake(result.user);
       return { success: true };
     } catch (err: any) {
       const message = getActionErrorMessage(err);

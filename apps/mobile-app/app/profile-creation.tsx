@@ -362,10 +362,10 @@ export default function ProfileCreationScreen() {
         datingVitals: nextVitals,
         vibeTags,
         anthem: anthem ?? null,
-        prompts: prompts.filter((p) => p.answer.trim()).map((p, i) => ({
-          id: p.id,
-          title: p.question,
+        prompts: prompts.filter((p) => p.answer.trim()).map((p) => ({
+          promptId: p.id,
           answer: p.answer,
+          type: 'text' as const,
         })),
         datingActive: true,
         profileComplete: true,

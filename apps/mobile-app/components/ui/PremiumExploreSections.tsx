@@ -255,11 +255,11 @@ export function TopVenues() {
 }
 
 // ── 5. Editor's Picks ──
-export function EditorsPicks({ events }: { events: Event[] }) {
+export function EditorsPicks({ events, title = 'Handpicked Curations' }: { events: Event[]; title?: string }) {
   if (!events.length) return null;
   return (
     <View style={styles.section}>
-      <SectionHeader title="Handpicked Curations" />
+      <SectionHeader title={title} />
       <HorizontalEventRail events={events} />
     </View>
   );

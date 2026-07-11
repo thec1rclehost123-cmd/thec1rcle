@@ -77,12 +77,14 @@ const API_PREFIX = '/api/v1';
 type AuthSyncResponse = {
   user?: any;
   profile?: any;
+  claims?: Record<string, any>;
+  requiresTokenRefresh?: boolean;
+  onboarding?: import('./firstRun').FirstRunSnapshot;
   data?: {
     user?: any;
     profile?: any;
+    onboarding?: import('./firstRun').FirstRunSnapshot;
   };
-  claims?: Record<string, any>;
-  requiresTokenRefresh?: boolean;
 };
 
 /**

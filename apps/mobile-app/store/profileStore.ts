@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // extends it with mobile-specific fields (gender, vibeTags, isPremium, etc.).
 // When harmonizing: import type { Profile as BaseProfile } from '@c1rcle/types';
 import { apiFetch, deduplicateRequest } from '@/lib/api';
+import type { FirstRunStage, NightlifeTaste, UserIntent } from '@/lib/firstRun';
 
 const NIGHTLIFE_PROFILE_PROMPT_DISMISSED_KEY = 'c1rcle_nightlife_profile_prompt_dismissed';
 
@@ -88,6 +89,10 @@ export interface UserProfile {
   profileSetupComplete?: boolean;
   profileComplete?: boolean;
   onboardingComplete?: boolean;
+  intents?: UserIntent[];
+  identity?: { displayName?: string; dateOfBirth?: string };
+  discoveryProfile?: { cityId?: string; cityName?: string; citySource?: 'manual' | 'location'; vibeTags?: NightlifeTaste[]; intents?: UserIntent[] };
+  onboarding?: { version?: number; currentStage?: FirstRunStage; completedAt?: string; emailPromptStatus?: string };
   socialSetupComplete?: boolean;
 
   // Status
@@ -232,6 +237,10 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
     profileSetupComplete: rawData.profileSetupComplete === true || basicSetupComplete,
     profileComplete: rawData.profileComplete === true,
     onboardingComplete: rawData.onboardingComplete === true,
+    intents: Array.isArray(rawData.intents) ? rawData.intents : rawData.discoveryProfile?.intents,
+    identity: rawData.identity,
+    discoveryProfile: rawData.discoveryProfile,
+    onboarding: rawData.onboarding,
     socialSetupComplete,
   };
 }

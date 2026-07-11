@@ -20,9 +20,10 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Eye, EyeOff, Mail, Phone } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { Image } from 'expo-image';
+import { useReducedMotion } from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/store/authStore';
-import { useProfileStore } from '@/store/profileStore';
 import Svg, { Path } from 'react-native-svg';
 import { colors } from '@/lib/design/theme';
 import { CountryCodePicker } from '@/components/ui/CountryCodePicker';
@@ -58,6 +59,7 @@ function GoogleSvg({ size = 18 }: { size?: number }) {
 }
 
 export default function LoginScreen() {
+  const reducedMotion = useReducedMotion();
   const params = useLocalSearchParams<{ returnTo?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -95,11 +97,12 @@ export default function LoginScreen() {
   const player = useVideoPlayer(require('../../assets/background-video.mp4'), (player) => {
     player.loop = true;
     player.muted = true;
-    player.play();
+    if (!reducedMotion) player.play();
   });
 
   useEffect(() => {
     const resumeVideo = () => {
+      if (reducedMotion) return;
       try {
         player.play();
       } catch {
@@ -120,7 +123,7 @@ export default function LoginScreen() {
         // Ignore native crash during Fast Refresh when player is already released
       }
     };
-  }, [player]);
+  }, [player, reducedMotion]);
 
   useEffect(() => {
     // Staggered layout mount animation
@@ -218,12 +221,7 @@ export default function LoginScreen() {
   const handleApple = async () => {
     const result = await loginApple();
     if (result.success) {
-      const profile = useProfileStore.getState().profile;
-      if (!profile?.phone) {
-        router.push('/(auth)/phone?isLinking=true');
-      } else {
-        finishAuthNavigation();
-      }
+      finishAuthNavigation();
       return;
     }
     if ((result as any).requiresPasswordLink && (result as any).email) {
@@ -236,12 +234,7 @@ export default function LoginScreen() {
   const handleGoogle = async () => {
     const result = await loginGoogle();
     if (result.success) {
-      const profile = useProfileStore.getState().profile;
-      if (!profile?.phone) {
-        router.push('/(auth)/phone?isLinking=true');
-      } else {
-        finishAuthNavigation();
-      }
+      finishAuthNavigation();
       return;
     }
     if ((result as any).requiresPasswordLink && (result as any).email) {
@@ -256,7 +249,8 @@ export default function LoginScreen() {
 
   return (
     <View style={s.container}>
-      {player && (
+      <Image source={require('../../assets/09f5dd049312a8bf3c50ea656e1a203b.jpg')} style={StyleSheet.absoluteFillObject} contentFit="cover" accessibilityIgnoresInvertColors />
+      {player && !reducedMotion && (
         <VideoView
           player={player}
           style={[StyleSheet.absoluteFillObject, { top: -140 }]}
@@ -369,7 +363,7 @@ export default function LoginScreen() {
                     style={s.emailBtn}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setShowPhoneForm(true);
+                      router.push({ pathname: '/(auth)/phone', params: { mode: 'sign_in', returnTo } });
                     }}
                     disabled={loading}
                   >

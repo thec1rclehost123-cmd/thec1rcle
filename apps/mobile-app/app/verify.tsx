@@ -32,7 +32,7 @@ export default function VerifyScreen() {
         }
 
         // Successfully verified, route to onboarding!
-        router.replace('/onboarding');
+        router.replace('/');
       } catch (err: any) {
         console.error('Verification error:', err);
         setError(err.message || 'Failed to verify email. The link may have expired.');

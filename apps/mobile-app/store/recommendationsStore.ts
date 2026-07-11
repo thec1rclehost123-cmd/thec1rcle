@@ -6,6 +6,7 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Event } from "./eventsStore";
+import { apiFetch } from "@/lib/api";
 
 const BROWSED_KEY = "c1rcle:browsed_categories";
 const BROWSED_MAX = 10; // keep last 10 browsed category entries
@@ -24,6 +25,8 @@ interface RecommendationsState {
     recommendations: Event[];
     scoredEvents: Record<string, { score: number }>;
     browsedCategories: string[];
+    reasonLabel: string;
+    source: 'server' | 'local';
 
     // Call on each event detail open
     trackBrowse: (category: string) => Promise<void>;
@@ -31,6 +34,8 @@ interface RecommendationsState {
     score: (events: Event[], pastOrderCategories: string[]) => void;
     // Load persisted browsed categories from AsyncStorage
     loadBrowsed: () => Promise<void>;
+    setServerRecommendations: (items: Array<{ event: Event; reasonLabel?: string }>) => void;
+    loadServerRecommendations: () => Promise<boolean>;
 }
 
 function scoreEvent(
@@ -58,6 +63,28 @@ export const useRecommendationsStore = create<RecommendationsState>((set, get) =
     recommendations: [],
     scoredEvents: {},
     browsedCategories: [],
+    reasonLabel: "Recommended for you",
+    source: 'local',
+
+    setServerRecommendations: (items) => set({
+        recommendations: items.map((item) => item.event),
+        reasonLabel: items.find((item) => item.reasonLabel)?.reasonLabel ?? "Recommended for you",
+        source: 'server',
+    }),
+
+    loadServerRecommendations: async () => {
+        try {
+            const response = await apiFetch<any>('/api/v1/recommendations?limit=10');
+            const rawItems = Array.isArray(response) ? response : response?.items ?? response?.recommendations ?? [];
+            const items = rawItems.map((item: any) => item?.event ? item : ({ event: item, reasonLabel: item?.reasonLabel }));
+            if (!items.length) return false;
+            get().setServerRecommendations(items);
+            return true;
+        } catch {
+            // Local scoring remains the credible offline/legacy fallback.
+            return false;
+        }
+    },
 
     loadBrowsed: async () => {
         try {
@@ -113,6 +140,7 @@ export const useRecommendationsStore = create<RecommendationsState>((set, get) =
         set({
             recommendations: scored.slice(0, 10).map(({ event }) => event),
             scoredEvents: Object.fromEntries(scored.map(({ event, score }) => [event.id, { score }])),
+            source: 'local',
         });
     },
 }));

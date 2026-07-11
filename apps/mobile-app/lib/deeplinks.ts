@@ -4,10 +4,15 @@ import { Share, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
+import * as SecureStore from 'expo-secure-store';
+import { useProfileStore } from '@/store/profileStore';
+import { useFirstRunStore } from '@/store/firstRunStore';
+import { resolveFirstRunStage } from '@/lib/firstRun';
 
 // App scheme for deep links
 const APP_SCHEME = 'c1rcle';
 const WEB_DOMAIN = 'thec1rcle.com';
+const PENDING_DEEP_LINK_KEY = 'c1rcle:pending_deep_link';
 
 // Deep link types
 export type DeepLinkType =
@@ -180,8 +185,16 @@ export function parseDeepLink(url: string): {
 // Handle incoming deep link using expo-router
 export function handleDeepLink(url: string): void {
   const user = useAuthStore.getState().user;
+  const profile = useProfileStore.getState().profile;
+  const snapshot = useFirstRunStore.getState().snapshot;
   if (!user) {
+    void SecureStore.setItemAsync(PENDING_DEEP_LINK_KEY, url);
     router.replace('/(auth)/login');
+    return;
+  }
+  if (resolveFirstRunStage(user, profile, snapshot) !== 'complete') {
+    void SecureStore.setItemAsync(PENDING_DEEP_LINK_KEY, url);
+    router.replace('/');
     return;
   }
 
@@ -237,6 +250,14 @@ export function handleDeepLink(url: string): void {
     default:
       if (__DEV__) console.log('Unknown deep link type:', type);
   }
+}
+
+export async function resumePendingDeepLink(): Promise<boolean> {
+  const url = await SecureStore.getItemAsync(PENDING_DEEP_LINK_KEY);
+  if (!url) return false;
+  await SecureStore.deleteItemAsync(PENDING_DEEP_LINK_KEY);
+  handleDeepLink(url);
+  return true;
 }
 
 // Subscribe to incoming links

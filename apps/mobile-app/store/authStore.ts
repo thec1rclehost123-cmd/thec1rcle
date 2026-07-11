@@ -8,6 +8,8 @@ import { useProfileStore } from './profileStore';
 import { useNotificationsStore } from './notificationsStore';
 import { useTicketsStore } from './ticketsStore';
 import { useSubscriptionStore } from './subscriptionStore';
+import { useFirstRunStore } from './firstRunStore';
+import { resolveFirstRunStage } from '@/lib/firstRun';
 
 interface AuthState {
   user: User | null;
@@ -128,10 +130,17 @@ async function syncAfterFirebaseAuth(user: User) {
     useProfileStore.getState().setProfileFromGateway(user.uid, canonicalProfile);
     useSubscriptionStore.getState().hydrateFromProfile(canonicalProfile);
   }
+  const onboarding = result.onboarding ?? result.data?.onboarding ?? null;
+  useFirstRunStore.getState().setSnapshot(onboarding);
   void useSubscriptionStore.getState().fetchSubscription();
+  return { canonicalProfile, onboarding };
 }
 
 function startAuthenticatedSideEffects(user: User) {
+  const profile = useProfileStore.getState().profile;
+  const snapshot = useFirstRunStore.getState().snapshot;
+  if (resolveFirstRunStage(user, profile, snapshot) !== 'complete') return;
+  if (activeAuthUserId === user.uid) return;
   activeAuthUserId = user.uid;
   void useSubscriptionStore.getState().fetchRevenueCatSubscription();
   useTicketsStore.getState().clearOrders();
@@ -143,6 +152,11 @@ function startAuthenticatedSideEffects(user: User) {
   } catch {
     if (__DEV__) console.warn('[AuthStore] Failed to start websocket after auth.');
   }
+}
+
+export function startCompletedSessionSideEffects() {
+  const user = getFirebaseAuth().currentUser;
+  if (user) startAuthenticatedSideEffects(user);
 }
 
 export async function completeAuthSessionAfterSignIn(user: User) {
@@ -179,7 +193,7 @@ export function initAuthListener() {
     cancelRetry();
     retryCount += 1;
     if (retryCount >= 5) {
-      useAuthStore.setState({ authSyncFailed: true });
+      useAuthStore.setState({ authSyncFailed: true, initialized: true, loading: false, authSyncInProgress: false });
       if (__DEV__) console.warn('[AuthStore] Server sync retries exhausted. authSyncFailed=true');
       return;
     }
@@ -251,6 +265,7 @@ export function initAuthListener() {
       useNotificationsStore.getState().clearNotifications();
       useTicketsStore.getState().clearOrders();
       useSubscriptionStore.getState().clearSubscription();
+      useFirstRunStore.getState().clear();
       try {
         wsManager.stop();
       } catch {

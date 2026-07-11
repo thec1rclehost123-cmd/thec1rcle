@@ -16,7 +16,7 @@ import {
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 
 import { ExploreFeaturedCarousel } from '@/components/ui/ExploreFeaturedCarousel';
@@ -37,6 +37,7 @@ import Animated, {
   useAnimatedScrollHandler,
   
   withTiming,
+  withSpring,
   withRepeat,
   withSequence,
   Easing,
@@ -56,6 +57,7 @@ import { colors, spacing, typography } from '@/lib/design/theme';
 import { NotificationBell } from '@/components/ui/NotificationBell';
 import { EventCardSkeletonList } from '@/components/ui/Skeleton';
 import { trackScreen } from '@/lib/analytics';
+import { resumePendingDeepLink } from '@/lib/deeplinks';
 import { formatEventDate, safeDate } from '@/lib/utils/date';
 import { Search, MapPin, Compass, User, X } from 'lucide-react-native';
 import {
@@ -239,8 +241,8 @@ function FilterPill({
         onPress={() => {
           Haptics.selectionAsync();
           scale.value = withSequence(
-            (0.93, { damping: 10, stiffness: 300 }),
-            (isActive ? 1 : 0.96, { damping: 14, stiffness: 200 }),
+            withSpring(0.93, { damping: 10, stiffness: 300 }),
+            withSpring(isActive ? 1 : 0.96, { damping: 14, stiffness: 200 }),
           );
           onPress();
         }}
@@ -320,9 +322,10 @@ function CategoryFilterRow({
 // ── Main screen ────────────────────────────────────────────────────────────────
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ firstRun?: string }>();
 
   const { events, loading, fetchEvents } = useEventsStore();
-  const { recommendations, score, loadBrowsed } = useRecommendationsStore();
+  const { recommendations, reasonLabel, source: recommendationSource, score, loadBrowsed, loadServerRecommendations } = useRecommendationsStore();
   const ticketsStore = useTicketsStore();
   const { user } = useAuth();
   const { loadUserInterests } = useEventInterestStore();
@@ -331,7 +334,8 @@ export default function ExploreScreen() {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
-  const [cityFilter, setCityFilter] = useState(profile?.city?.toLowerCase() || 'all');
+  const profileCity = profile?.discoveryProfile?.cityName || profile?.city || '';
+  const [cityFilter, setCityFilter] = useState(profileCity.toLowerCase() || 'all');
   const [showCityModal, setShowCityModal] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [cachedEvents, setCachedEvents] = useState<Event[]>([]);
@@ -352,12 +356,13 @@ export default function ExploreScreen() {
       if (city) seen.set(city.toLowerCase(), city);
     });
     return [
-      { value: 'all', label: 'Pune' },
+      { value: 'all', label: 'All cities' },
       ...Array.from(seen.entries()).map(([, label]) => ({ value: label.toLowerCase(), label })),
     ];
   }, [allEvents]);
 
-  const activeCityLabel = cityOptions.find((o) => o.value === cityFilter)?.label ?? 'Pune';
+  const activeCityLabel = cityOptions.find((o) => o.value === cityFilter)?.label ??
+    (cityFilter === 'all' ? 'Choose a city' : cityFilter.replace(/\b\w/g, (letter) => letter.toUpperCase()));
 
   // Derived featured events — eliminates separate API call
   const featuredSlides = useMemo(() => {
@@ -378,6 +383,12 @@ export default function ExploreScreen() {
     // Apply strict filtering BEFORE sorting/slicing
     result = applyDateFilter(result, dateFilter);
     result = applyCategoryFilter(result, categoryFilter);
+    if (cityFilter !== 'all') {
+      result = result.filter((event) => {
+        const city = String(event.city ?? event.location ?? '').toLowerCase();
+        return city === cityFilter || city.includes(cityFilter);
+      });
+    }
 
     // Apply quick filters (including trending sort) on the accurately filtered data
     if (quickFilter !== 'all') {
@@ -464,14 +475,16 @@ export default function ExploreScreen() {
 
   useEffect(() => {
     trackScreen('Explore');
+    if (user?.uid) void resumePendingDeepLink();
+    if (user?.uid) void loadServerRecommendations();
     void loadBrowsed();
     void loadData(cityFilter);
     if (user?.uid) void loadUserInterests(user.uid);
-  }, [user?.uid, cityFilter, loadData]);
+  }, [user?.uid, cityFilter, loadData, loadServerRecommendations]);
 
   useEffect(() => {
-    if (allEvents.length > 0) score(allEvents, pastOrderCategories);
-  }, [allEvents, pastOrderCategories]);
+    if (allEvents.length > 0 && recommendationSource !== 'server') score(allEvents, pastOrderCategories);
+  }, [allEvents, pastOrderCategories, recommendationSource, score]);
 
   useEffect(() => {
     shouldPromptForLocation(user?.uid).then((show) => {
@@ -515,7 +528,7 @@ export default function ExploreScreen() {
           <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
             <View style={styles.headerRow}>
               <Pressable onPress={() => setShowCityModal(true)} style={styles.locationBlock}>
-                <Text style={styles.greetingText}>{greeting}</Text>
+                <Text style={styles.greetingText}>{greeting}{profile?.displayName ? `, ${profile.displayName.split(' ')[0]}` : ''}</Text>
                 <View style={styles.cityRow}>
                   <MapPin size={22} color="#F44A22" strokeWidth={2.5} style={{ marginRight: 6 }} />
                   <Text style={styles.cityName}>{activeCityLabel}</Text>
@@ -540,6 +553,15 @@ export default function ExploreScreen() {
             </Pressable>
           </View>
         ),
+      },
+      {
+        key: 'first-run-reveal',
+        render: () => params.firstRun === 'complete' ? (
+          <Animated.View entering={FadeInDown.duration(450)} style={styles.revealBanner}>
+            <Text style={styles.revealTitle}>Your C1RCLE is taking shape.</Text>
+            <Text style={styles.revealSubtitle}>These picks are tuned to your city and your nights.</Text>
+          </Animated.View>
+        ) : null,
       },
       {
         key: 'filters',
@@ -626,7 +648,7 @@ export default function ExploreScreen() {
         key: 'editors-picks',
         render: () =>
           quickFilter === 'all' && recommendations.length > 0 ? (
-            <EditorsPicks events={recommendations} />
+            <EditorsPicks events={recommendations} title={reasonLabel} />
           ) : null,
       },
       {
@@ -701,6 +723,8 @@ export default function ExploreScreen() {
       loading,
       quickFilter,
       recommendations,
+      reasonLabel,
+      params.firstRun,
       similarEvents,
       trendingThisWeek,
     ],
@@ -904,6 +928,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,170,0,0.25)',
   },
+  revealBanner: { marginHorizontal: 16, marginBottom: 12, padding: 16, borderRadius: 16, backgroundColor: 'rgba(244,74,34,0.12)', borderWidth: 1, borderColor: 'rgba(244,74,34,0.28)' },
+  revealTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
+  revealSubtitle: { color: 'rgba(255,255,255,0.62)', fontSize: 13, lineHeight: 19, marginTop: 4 },
   offlineText: { color: '#FFAA00', fontSize: typography.fontSize.sm, fontWeight: '500' },
   locationBanner: {
     marginHorizontal: 16,

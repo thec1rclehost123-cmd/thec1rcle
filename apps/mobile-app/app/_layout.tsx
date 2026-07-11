@@ -21,6 +21,9 @@ import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import { subscribeToDeepLinks, handleDeepLink } from '@/lib/deeplinks';
 import { addNotificationResponseListener } from '@/lib/notifications';
 import { apiFetch } from '@/lib/api';
+import { useProfileStore } from '@/store/profileStore';
+import { useFirstRunStore } from '@/store/firstRunStore';
+import { resolveFirstRunStage } from '@/lib/firstRun';
 
 initSentry();
 
@@ -93,12 +96,16 @@ export default function RootLayout() {
   useEffect(() => {
     let resumeTimer: ReturnType<typeof setTimeout> | null = null;
     let unsubHydrate: (() => void) | null = null;
+    let recoveryStartedFor: string | null = null;
 
     const recoverPendingPayment = async () => {
       const { pendingPaymentOrderId, pendingReservation, items } = useCartStore.getState();
       const user = useAuthStore.getState().user;
 
       if (!user || !pendingPaymentOrderId) return;
+      if (resolveFirstRunStage(user, useProfileStore.getState().profile, useFirstRunStore.getState().snapshot) !== 'complete') return;
+      if (recoveryStartedFor === pendingPaymentOrderId) return;
+      recoveryStartedFor = pendingPaymentOrderId;
 
       // First, poll server to check if order is already confirmed (via webhook)
       try {
@@ -152,16 +159,20 @@ export default function RootLayout() {
     };
 
     if (useCartStore.persist.hasHydrated()) {
-      recoverPendingPayment();
+      void recoverPendingPayment();
     } else {
       unsubHydrate = useCartStore.persist.onFinishHydration(() => {
         recoverPendingPayment();
       });
     }
+    const unsubscribeAuth = useAuthStore.subscribe(() => {
+      if (useCartStore.persist.hasHydrated()) void recoverPendingPayment();
+    });
 
     return () => {
       if (resumeTimer) clearTimeout(resumeTimer);
       if (unsubHydrate) unsubHydrate();
+      unsubscribeAuth();
     };
   }, []);
 

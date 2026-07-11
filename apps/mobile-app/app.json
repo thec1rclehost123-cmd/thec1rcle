@@ -9,7 +9,7 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#000000",
     "androidNavigationBar": {
-      "backgroundColor": "#161616",
+      "backgroundColor": "#000000",
       "barStyle": "light-content",
       "enforceContrast": false
     },
@@ -25,12 +25,12 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#161616"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.c1rcle.app",
-      "backgroundColor": "#161616",
+      "backgroundColor": "#000000",
       "usesAppleSignIn": true,
       "associatedDomains": [
         "applinks:thec1rcle.com",
@@ -61,7 +61,7 @@
       },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#161616"
+        "backgroundColor": "#000000"
       },
       "package": "com.c1rcle.app",
       "backgroundColor": "#000000",
