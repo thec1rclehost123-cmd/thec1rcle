@@ -89,7 +89,7 @@ export async function verifyStaffSession(idToken: string): Promise<StaffLoginRes
 export async function fetchStaffEvents(venueId: string): Promise<any[]> {
   const today = new Date().toISOString().split('T')[0];
   const data = await scannerFetch(
-    `/api/scanner/staff/events?venueId=${encodeURIComponent(venueId)}&date=${today}`,
+    `/scan/events?venueId=${encodeURIComponent(venueId)}&date=${today}`,
   );
   return Array.isArray(data?.events) ? data.events : [];
 }
