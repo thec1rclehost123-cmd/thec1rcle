@@ -1,5 +1,11 @@
 import { randomInt } from 'node:crypto';
 
+// Strip CR/LF (and cap length) so untrusted values can't forge extra log lines.
+const logSafe = (value: unknown): string =>
+  String(value ?? '')
+    .replace(/[\r\n]+/g, ' ')
+    .slice(0, 200);
+
 export function generateTemporaryPassword(): string {
   const uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const lowercase = 'abcdefghijkmnopqrstuvwxyz';
@@ -55,13 +61,13 @@ export async function sendInvitationEmail({
       throw new Error('Email provider (Resend API key) not configured');
     }
     console.log('\n========================================');
-    console.log(`MOCK EMAIL INVITATION for ${recipient}:`);
-    console.log(`To: ${name}`);
-    console.log(`Venue: ${venueName}`);
-    console.log(`Role: ${roleLabel}`);
-    console.log(`Temp Password: ${tempPassword}`);
-    console.log(`Accept Link: ${acceptLink}`);
-    console.log(`Set Password Link: ${setPasswordLink}`);
+    console.log(`MOCK EMAIL INVITATION for ${logSafe(recipient)}:`);
+    console.log(`To: ${logSafe(name)}`);
+    console.log(`Venue: ${logSafe(venueName)}`);
+    console.log(`Role: ${logSafe(roleLabel)}`);
+    console.log(`Temp Password: ${logSafe(tempPassword)}`);
+    console.log(`Accept Link: ${logSafe(acceptLink)}`);
+    console.log(`Set Password Link: ${logSafe(setPasswordLink)}`);
     console.log('========================================\n');
     return;
   }
@@ -141,11 +147,11 @@ export async function sendHostInvitationEmail({
       throw new Error('Email provider (Resend API key) not configured');
     }
     console.log('\n========================================');
-    console.log(`MOCK EMAIL INVITATION for ${recipient}:`);
-    console.log(`To: ${name}`);
-    console.log(`Host: ${partnerName}`);
-    console.log(`Role: ${roleLabel}`);
-    console.log(`Accept Link: ${acceptLink}`);
+    console.log(`MOCK EMAIL INVITATION for ${logSafe(recipient)}:`);
+    console.log(`To: ${logSafe(name)}`);
+    console.log(`Host: ${logSafe(partnerName)}`);
+    console.log(`Role: ${logSafe(roleLabel)}`);
+    console.log(`Accept Link: ${logSafe(acceptLink)}`);
     console.log('========================================\n');
     return;
   }

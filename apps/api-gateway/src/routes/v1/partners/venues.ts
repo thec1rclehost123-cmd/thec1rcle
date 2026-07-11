@@ -4423,9 +4423,6 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         if (rest === 'walk-ins' && request.method === 'GET') {
           const filterEventId = String(query.eventId || '');
           const pageSize = Math.min(parseInt(String(query.limit || '200'), 10) || 200, 500);
-          console.log(
-            `[API Gateway GET Walk-ins] Query Params: venueId=${ctx.partnerId}, eventId=${filterEventId}, limit=${pageSize}`,
-          );
           // Walk-in entries are stored in door_sales (created via door/sell POST)
           let q: any = fastify.db.collection('door_sales').where('venueId', '==', ctx.partnerId);
           if (filterEventId) q = q.where('eventId', '==', filterEventId);
@@ -4641,7 +4638,6 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         }
 
         if (rest === 'door/sell' && request.method === 'POST') {
-          console.log('[API Gateway POST door/sell] Received body payload:', body);
           const now = new Date().toISOString();
           const purpose = String(body.purpose || 'party');
           const category = purpose === 'dinein' ? 'dinein' : 'walkin';
@@ -4658,9 +4654,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             addedByName: 'Venue Dashboard',
           };
           delete (entry as any).purpose;
-          console.log('[API Gateway POST door/sell] Mapped Firestore document payload:', entry);
           const ref = await fastify.db.collection('door_sales').add(entry);
-          console.log('[API Gateway POST door/sell] Firestore record created with ID:', ref.id);
           // Compute remaining capacity after sale for real-time UI update
           let remainingCapacity: number | null = null;
           if (eventId) {
