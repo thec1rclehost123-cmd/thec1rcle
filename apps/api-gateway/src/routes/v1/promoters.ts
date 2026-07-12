@@ -14,6 +14,7 @@ import {
   enrichPromoterProfileWithSignedUrls,
   cleanPromoterProfilePatch,
 } from '../../lib/signed-urls.js';
+import { resolveEffectiveCommission, normalizeCompensationForRead } from './events.js';
 
 const ConnectionsQuery = z
   .object({
@@ -85,6 +86,20 @@ function toNumber(value: any) {
   return Number.isFinite(amount) ? amount : 0;
 }
 
+/**
+ * Resolves the commission rate a promoter earns on an event from the
+ * canonical `promoterCompensation` object (v1 or v2 — normalised on read).
+ * Falls back to the pre-schema-redesign flat fields for any event doc that
+ * predates `promoterCompensation` entirely.
+ */
+function resolveEventCommissionRate(event: Record<string, any>, promoterId: string): number {
+  if (event.promoterCompensation) {
+    const pc = normalizeCompensationForRead(event.promoterCompensation);
+    return toNumber(resolveEffectiveCommission(pc, promoterId).rate);
+  }
+  return toNumber(event.promoterSettings?.commissionRate || event.commissionRate || 0);
+}
+
 function isPromoterAllowedForEvent(event: Record<string, any>, promoterId: string) {
   const globallyEnabled =
     event?.promotersEnabled === true || event?.promoterSettings?.enabled === true;
@@ -150,7 +165,11 @@ async function loadEventsByIds(fastify: FastifyInstance, eventIds: string[]) {
   }, new Map<string, Record<string, any>>());
 }
 
-function buildLegacyPromoterEvent(event: Record<string, any>, activeLink?: Record<string, any>) {
+function buildLegacyPromoterEvent(
+  event: Record<string, any>,
+  activeLink?: Record<string, any>,
+  promoterId?: string,
+) {
   const tickets = Array.isArray(event.tickets)
     ? event.tickets.map((ticket: any, index: number) => ({
         id: String(ticket?.id || ticket?.ticketTierId || index),
@@ -181,10 +200,7 @@ function buildLegacyPromoterEvent(event: Record<string, any>, activeLink?: Recor
       max: tickets.length ? Math.max(...tickets.map((ticket: any) => toNumber(ticket.price))) : 0,
     },
     commissionRate: toNumber(
-      activeLink?.commissionRate ||
-        event.promoterSettings?.commissionRate ||
-        event.commissionRate ||
-        0,
+      activeLink?.commissionRate || resolveEventCommissionRate(event, promoterId || ''),
     ),
     tickets,
     stats: {
@@ -582,10 +598,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         campaignLabel: pickString(body.campaignLabel),
         ticketTierIds: Array.isArray(body.ticketTierIds) ? body.ticketTierIds : [],
         commissionRate: normalizePromoterCommissionRate(
-          body.commissionRate ||
-            event.promoterSettings?.commissionRate ||
-            event.commissionRate ||
-            0,
+          body.commissionRate || resolveEventCommissionRate(event, promoterId),
         ),
         commissionType: pickString(body.commissionType, 'percentage'),
         code,
@@ -901,7 +914,9 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
           return leftTime - rightTime;
         })
         .slice(0, pageSize)
-        .map((event) => buildLegacyPromoterEvent(event, activeLinkByEventId.get(String(event.id))));
+        .map((event) =>
+          buildLegacyPromoterEvent(event, activeLinkByEventId.get(String(event.id)), promoterId),
+        );
 
       return { events };
     },

@@ -1979,6 +1979,8 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/staff-login',
     {
+      // Credential endpoint — rate limit to blunt brute-force / credential stuffing.
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: StaffLoginBody })],
     },
     async (request: any, reply) => {
@@ -2029,6 +2031,13 @@ export default async function scanRoutes(fastify: FastifyInstance) {
 
       const staffDoc = validDocs[0];
       const staffData = staffDoc.data();
+
+      // Defense in depth: when a Firebase token was supplied, bind its verified
+      // uid to the staff record so a valid token for one account cannot be used
+      // against a different staff row that happens to share the email.
+      if (idToken && staffData.userId && staffData.userId !== verifiedUid) {
+        return reply.status(401).send({ error: 'Token does not match staff account' });
+      }
 
       // Check if password matches if not using idToken
       if (!idToken) {
