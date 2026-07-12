@@ -146,7 +146,15 @@ async function getHandler(req, { params }) {
 
   const stepSequence = STEP_SEQUENCES[entityType] ?? STEP_SEQUENCES.individual;
 
-  const enrichedKycStepData = await signObjectGcsUrls(onboardingData?.kycStepData || {});
+  const kycStepData = onboardingData?.kycStepData || onboardingData?.data?.kycStepData || {};
+  const enrichedKycStepData = await signObjectGcsUrls(kycStepData);
+
+  const kycStepStatus = { ...(onboardingData?.kycStepStatus || {}) };
+  for (const stepId of stepSequence) {
+    if (!kycStepStatus[stepId] && kycStepData[stepId]) {
+      kycStepStatus[stepId] = 'submitted';
+    }
+  }
 
   return NextResponse.json({
     uid,
@@ -155,7 +163,7 @@ async function getHandler(req, { params }) {
     entityType,
     kycStatus: userData.kycStatus || 'not_started',
     stepSequence,
-    kycStepStatus: onboardingData?.kycStepStatus || {},
+    kycStepStatus: kycStepStatus,
     kycStepData: enrichedKycStepData || {},
     kycStepAdminNotes: onboardingData?.kycStepAdminNotes || {},
     kycStepResubmissionReason: onboardingData?.kycStepResubmissionReason || {},
@@ -217,7 +225,13 @@ async function patchHandler(req, { params }) {
     reqDoc = docs[0].doc;
   }
   const existingData = reqDoc.data();
+  const kycStepData = existingData.kycStepData || existingData.data?.kycStepData || {};
   const kycStepStatus = { ...(existingData.kycStepStatus || {}) };
+  for (const s of stepSequence) {
+    if (!kycStepStatus[s] && kycStepData[s]) {
+      kycStepStatus[s] = 'submitted';
+    }
+  }
 
   const ACTION_TO_STATUS = {
     approve: 'approved',
