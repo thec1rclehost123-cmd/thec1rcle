@@ -30,6 +30,11 @@ import {
   listAvailableTicketTiers,
 } from '@c1rcle/core/inventory-engine';
 
+// Guard against prototype-pollution / remote property injection when a
+// user-provided value (promoterId, ticketTierId, …) is used as an object key.
+const isUnsafeObjectKey = (key: unknown): boolean =>
+  typeof key !== 'string' || key === '__proto__' || key === 'constructor' || key === 'prototype';
+
 const ExploreEventListQuery = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -469,6 +474,7 @@ export function resolveEffectiveCommission(
       const pOv = pcOverrides[promoterId];
       const tierCommissions: Record<string, { rate: number; type: 'percentage' | 'fixed' }> = {};
       for (const tc of ticketCommissions) {
+        if (isUnsafeObjectKey(tc.ticketTierId)) continue;
         const ovEntry = pOv?.ticketOverrides?.find((o: any) => o.ticketTierId === tc.ticketTierId);
         const effectiveEntry = ovEntry || tc;
         tierCommissions[tc.ticketTierId] = {
@@ -727,6 +733,7 @@ export function buildPromoterCompensationV2(formData: any, tickets: any[] = []):
   const rawOverrides: Record<string, any> = formData.promoterCommissionOverrides || {};
 
   for (const [promoterId, ov] of Object.entries(rawOverrides)) {
+    if (isUnsafeObjectKey(promoterId)) continue;
     if (!(ov as any)?.hasCustomCommission) continue;
     if (model === 'standard') {
       const gr = (ov as any).globalRate;
@@ -790,6 +797,7 @@ function stripFreeTicketCommissions(pc: any, tickets: any[]): any {
 
   const overrides: Record<string, any> = {};
   for (const [promoterId, ov] of Object.entries(pc.overrides || {})) {
+    if (isUnsafeObjectKey(promoterId)) continue;
     const ovAny = ov as any;
     overrides[promoterId] = Array.isArray(ovAny?.ticketOverrides)
       ? {
@@ -848,6 +856,7 @@ export function flattenCompensationV2(pc: any): any {
   // Map V2 overrides → old promoterCommissionOverrides shape
   const promoterCommissionOverrides: Record<string, any> = {};
   for (const [promoterId, ov] of Object.entries(pc.overrides || {})) {
+    if (isUnsafeObjectKey(promoterId)) continue;
     const ovAny = ov as any;
     if (model === 'standard' && ovAny.ticketCommission) {
       promoterCommissionOverrides[promoterId] = {
@@ -858,6 +867,7 @@ export function flattenCompensationV2(pc: any): any {
     } else if (model === 'custom' && ovAny.ticketOverrides) {
       const tierRates: Record<string, number> = {};
       for (const to of ovAny.ticketOverrides as any[]) {
+        if (isUnsafeObjectKey(to.ticketTierId)) continue;
         tierRates[to.ticketTierId] = to.value;
       }
       promoterCommissionOverrides[promoterId] = {
@@ -932,6 +942,7 @@ export function normalizeCompensationForRead(pc: any): any {
 
   // Extract per-promoter overrides from V1 promoters array
   for (const promoter of pc.promoters || []) {
+    if (isUnsafeObjectKey(promoter.promoterId)) continue;
     if (promoter.useEventDefault === false && promoter.overrides) {
       const pOv = promoter.overrides;
       if (model === 'standard' && pOv.tableCommission) {
@@ -1192,7 +1203,9 @@ export async function updateEventPromoterCompensation(db: any, eventId: string, 
         updatedAt: new Date().toISOString(),
       });
   } catch (err) {
-    console.error(`Failed to update promoterCompensation for event ${eventId}:`, err);
+    // eventId passed as a separate arg (not in the format string) to avoid
+    // externally-controlled format-string / log-injection issues.
+    console.error('Failed to update promoterCompensation for event %s:', String(eventId), err);
   }
 }
 
@@ -2365,6 +2378,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events',
     {
+      config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: EventCreateBody })],
     },
     async (request: any, reply) => {

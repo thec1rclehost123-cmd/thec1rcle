@@ -77,7 +77,7 @@ async function handler(req) {
         tickets_sold_total: stats.tickets_sold_total || 0,
         queues: {
           venues: stats.venues_total?.pending || 0,
-          hosts: stats.hosts_total?.pending || 0,
+          hosts: stats.hosts_pending || stats.hosts_total?.pending || 0,
           refunds: refundsSnap.data().count,
           incidents: activeIncidentsCount,
           webhooks: webhooksSnap.data().count,

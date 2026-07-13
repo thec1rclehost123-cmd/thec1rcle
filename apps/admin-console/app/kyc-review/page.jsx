@@ -258,12 +258,33 @@ export default function KycReviewQueue() {
               </tr>
             ) : (
               filtered.map((r) => {
-                const kycStatus = r.kycOverallStatus || 'not_started';
-                const stepStatus = r.kycStepStatus || {};
+                const kycStepData = r.kycStepData || r.data?.kycStepData || {};
                 const stepSequence =
                   r.entityType === 'business'
                     ? ['kyc_business', 'kyc_signatory', 'bank_setup']
                     : ['kyc_identity', 'bank_setup'];
+
+                const stepStatus = { ...(r.kycStepStatus || {}) };
+                for (const s of stepSequence) {
+                  if (!stepStatus[s] && kycStepData[s]) {
+                    stepStatus[s] = 'submitted';
+                  }
+                }
+
+                const deriveKycStatus = (seq, statuses) => {
+                  const vals = seq.map((s) => statuses[s] || 'not_started');
+                  if (vals.every((s) => s === 'not_started')) return 'not_started';
+                  if (vals.every((s) => s === 'approved')) return 'fully_verified';
+                  if (vals.some((s) => s === 'needs_resubmission')) return 'action_required';
+                  if (vals.every((s) => ['submitted', 'under_review', 'approved'].includes(s)))
+                    return 'fully_submitted';
+                  if (vals.some((s) => ['submitted', 'under_review', 'approved'].includes(s)))
+                    return 'partially_submitted';
+                  if (vals.some((s) => s === 'approved')) return 'partially_approved';
+                  return 'in_progress';
+                };
+
+                const kycStatus = r.kycOverallStatus || deriveKycStatus(stepSequence, stepStatus);
                 const approvedCount = stepSequence.filter(
                   (s) => stepStatus[s] === 'approved',
                 ).length;
