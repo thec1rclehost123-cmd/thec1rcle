@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import VenuePageClient from '../../../components/venue/VenuePageClient';
 import { fetchPublicVenue } from '../../../features/discovery/publicDiscovery';
 import { useAuth } from '../../../components/providers/AuthProvider';
+import { guestApiFetch } from '../../../lib/api/client';
 
 function normalizeEventCard(event) {
   return {
@@ -49,10 +50,9 @@ export default function VenuePublicPageClient({ initialData = null, initialSlug 
       }
 
       if (visitorId) {
-        fetch('/api/v1/analytics/venue-click', {
+        guestApiFetch('/analytics/venue-click', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ venueId, visitorId }),
+          body: { venueId, visitorId },
         }).catch((err) => console.error('[Analytics] Failed to track venue click', err));
       }
     }

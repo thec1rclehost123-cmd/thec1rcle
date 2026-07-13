@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { fetchPublicHost } from '../../../features/discovery/publicDiscovery';
+import { guestApiFetch } from '../../../lib/api/client';
 import { useAuth } from '../../../components/providers/AuthProvider';
 import {
   CheckCircle2,
@@ -49,10 +50,9 @@ export default function HostPublicPageClient({ initialData = null, initialSlug =
       }
 
       if (visitorId) {
-        fetch('/api/v1/analytics/host-click', {
+        guestApiFetch('/analytics/host-click', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hostId, visitorId }),
+          body: { hostId, visitorId },
         }).catch((err) => console.error('[Analytics] Failed to track host click', err));
       }
     }
