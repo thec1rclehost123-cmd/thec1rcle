@@ -176,7 +176,7 @@ describe('guest-auth contracts', () => {
     const result = buildGuestProfileUpdates(
       {
         photoURL: 'https://cdn.example/new.jpg',
-        phoneNumber: '+919999999999',
+        phoneNumber: '9999999999',
         ignoredAdminField: true,
       },
       {},
@@ -186,10 +186,29 @@ describe('guest-auth contracts', () => {
     expect(result.error).toBeNull();
     expect(result.safeUpdates).toEqual({
       photoURL: 'https://cdn.example/new.jpg',
-      phoneNumber: '+919999999999',
-      phone: '+919999999999',
+      phoneNumber: '9999999999',
+      phone: '9999999999',
       avatar: 'https://cdn.example/new.jpg',
       updatedAt: '2026-04-20T00:00:00.000Z',
     });
+  });
+
+  it('rejects phone numbers that are not exactly 10 digits', () => {
+    const result = buildGuestProfileUpdates(
+      { phoneNumber: '+919999999999' },
+      {},
+      '2026-04-20T00:00:00.000Z',
+    );
+
+    expect(result.statusCode).toBe(400);
+    expect(result.error).toMatch(/exactly 10 digits/);
+    expect(result.safeUpdates).toEqual({});
+  });
+
+  it('allows clearing the phone number with an empty string', () => {
+    const result = buildGuestProfileUpdates({ phone: '' }, {}, '2026-04-20T00:00:00.000Z');
+
+    expect(result.error).toBeNull();
+    expect(result.safeUpdates).toMatchObject({ phone: '', phoneNumber: '' });
   });
 });

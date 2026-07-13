@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import VenuePageClient from '../../../components/venue/VenuePageClient';
 import { fetchPublicVenue } from '../../../features/discovery/publicDiscovery';
+import { useAuth } from '../../../components/providers/AuthProvider';
 
 function normalizeEventCard(event) {
   return {
@@ -32,6 +33,30 @@ export default function VenuePublicPageClient({ initialData = null, initialSlug 
   const slug = decodeURIComponent(String(params?.slug || initialSlug || ''));
   const [data, setData] = useState(normalizeVenuePayload(initialData));
   const [status, setStatus] = useState(initialData?.venue ? 'ready' : 'loading');
+  const { user } = useAuth() || {};
+
+  const venueId = data?.venue?.id;
+
+  useEffect(() => {
+    if (status === 'ready' && venueId) {
+      let visitorId = user?.uid;
+      if (!visitorId && typeof window !== 'undefined') {
+        visitorId = window.localStorage.getItem('c1rcle:visitor-session-id');
+        if (!visitorId) {
+          visitorId = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+          window.localStorage.setItem('c1rcle:visitor-session-id', visitorId);
+        }
+      }
+
+      if (visitorId) {
+        fetch('/api/v1/analytics/venue-click', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ venueId, visitorId }),
+        }).catch((err) => console.error('[Analytics] Failed to track venue click', err));
+      }
+    }
+  }, [status, venueId, user?.uid]);
 
   useEffect(() => {
     let cancelled = false;

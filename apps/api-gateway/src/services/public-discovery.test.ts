@@ -660,8 +660,8 @@ describe('PublicDiscoveryService', () => {
                 exists: true,
                 data: () => ({
                   eventCardIndexVersion: 2,
-                  hostSummaryVersion: 1,
-                  venueSummaryVersion: 1,
+                  hostSummaryVersion: 3,
+                  venueSummaryVersion: 3,
                 }),
               })),
               set,

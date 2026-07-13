@@ -12,6 +12,7 @@ import {
   isGuestDiscoveryVisible,
   normalizeGuestDiscoveryLimit,
   normalizeGuestDiscoverySort,
+  normalizeStatusKey,
   rankGuestSearchGroups,
 } from './guest-discovery-engine.js';
 import { buildGuestScanDecision, parseGuestTicketPayload } from './guest-scanner-engine.js';
@@ -80,6 +81,32 @@ describe('guest core surface', () => {
       hasMore: true,
       appliedFilters: {},
     });
+  });
+
+  it('determines event status key based on precise start and end times in IST', () => {
+    const now = Date.now();
+    const oneHour = 60 * 60 * 1000;
+
+    // A: Event starts in 1 hour
+    const eventA = {
+      startAt: new Date(now + oneHour).toISOString(),
+      endAt: new Date(now + 2 * oneHour).toISOString(),
+    };
+    expect(normalizeStatusKey(eventA)).toBe('upcoming');
+
+    // B: Event is currently live (started 1 hour ago, ends in 1 hour)
+    const eventB = {
+      startAt: new Date(now - oneHour).toISOString(),
+      endAt: new Date(now + oneHour).toISOString(),
+    };
+    expect(normalizeStatusKey(eventB)).toBe('live');
+
+    // C: Event has ended (ended 1 hour ago)
+    const eventC = {
+      startAt: new Date(now - 2 * oneHour).toISOString(),
+      endAt: new Date(now - oneHour).toISOString(),
+    };
+    expect(normalizeStatusKey(eventC)).toBe('ended');
   });
 
   it('owns guest discovery projection, filtering, and search ranking in core', () => {

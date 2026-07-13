@@ -149,7 +149,15 @@ function SearchInput({ value, onChange }) {
 }
 
 // ── FilterPill ───────────────────────────────────────────────────────────────
-function FilterPill({ label, value, options, onChange, icon: Icon }) {
+function FilterPill({
+  label,
+  value,
+  options,
+  onChange,
+  customDateValue,
+  onCustomDateChange,
+  icon: Icon,
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
 
@@ -201,45 +209,78 @@ function FilterPill({ label, value, options, onChange, icon: Icon }) {
             className="absolute left-0 top-full mt-4 min-w-[240px] overflow-hidden rounded-2xl border border-black/10 dark:border-white/20 bg-white/95 dark:bg-[#0A0A0A]/90 backdrop-blur-3xl shadow-xl z-50"
           >
             <div className="p-2 space-y-1">
-              {options.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => {
-                    onChange(option.value);
-                    setIsOpen(false);
-                  }}
-                  className={clsx(
-                    'flex w-full items-center justify-between px-4 py-3 rounded-xl text-left text-[10px] font-black uppercase tracking-widest transition-all duration-200',
-                    value === option.label
-                      ? 'bg-black/5 dark:bg-white/10 text-black dark:text-white'
-                      : 'text-black/50 dark:text-white/50 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white',
-                  )}
-                >
-                  <span>{option.label}</span>
-                  {value === option.label && (
-                    <motion.div
-                      layoutId="activeCheck"
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="text-[#F44A22]"
+              {options.map((option) => {
+                if (option.value === 'custom') {
+                  const isSelected =
+                    value &&
+                    !['Date', 'Any Date', 'Today', 'Tomorrow', 'This Weekend'].includes(value);
+                  return (
+                    <div
+                      key={option.value}
+                      className={clsx(
+                        'flex flex-col gap-2 p-3 rounded-xl transition-all duration-200 mt-1',
+                        isSelected
+                          ? 'bg-black/5 dark:bg-white/10 text-black dark:text-white'
+                          : 'bg-black/5 dark:bg-white/5 text-black/50 dark:text-white/50',
+                      )}
                     >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                      <span className="text-[9px] font-black uppercase tracking-widest text-black/40 dark:text-white/40">
+                        {option.label}
+                      </span>
+                      <input
+                        type="date"
+                        value={customDateValue || ''}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          if (onCustomDateChange) {
+                            onCustomDateChange(e.target.value);
+                          }
+                        }}
+                        className="w-full bg-white dark:bg-black border border-black/10 dark:border-white/15 rounded-lg px-2.5 py-1.5 text-[10px] font-bold tracking-widest outline-none text-black dark:text-white focus:border-[#F44A22] transition-colors"
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      onChange(option.value);
+                      setIsOpen(false);
+                    }}
+                    className={clsx(
+                      'flex w-full items-center justify-between px-4 py-3 rounded-xl text-left text-[10px] font-black uppercase tracking-widest transition-all duration-200',
+                      value === option.label
+                        ? 'bg-black/5 dark:bg-white/10 text-black dark:text-white'
+                        : 'text-black/50 dark:text-white/50 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white',
+                    )}
+                  >
+                    <span>{option.label}</span>
+                    {value === option.label && (
+                      <motion.div
+                        layoutId="activeCheck"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="text-[#F44A22]"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={3}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    </motion.div>
-                  )}
-                </button>
-              ))}
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={3}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      </motion.div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </motion.div>
         )}
@@ -254,6 +295,8 @@ export default function ExploreFilterBar({
   setSort,
   date,
   setDate,
+  startDate,
+  setCustomDate,
   city,
   setCity,
   cityOptions = [],
@@ -262,7 +305,6 @@ export default function ExploreFilterBar({
 }) {
   const sortOptions = [
     { label: 'Trending', value: 'Trending' },
-    { label: 'This Week', value: 'This Week' },
     { label: 'New', value: 'New' },
     { label: 'Soonest', value: 'Soonest' },
     { label: 'Price: Low to High', value: 'Price Low to High' },
@@ -271,11 +313,29 @@ export default function ExploreFilterBar({
   const dateOptions = [
     { label: 'Any Date', value: 'any' },
     { label: 'Today', value: 'today' },
+    { label: 'Tomorrow', value: 'tomorrow' },
     { label: 'This Weekend', value: 'weekend' },
+    { label: 'Custom Date', value: 'custom' },
   ];
 
+  const formatDateLabel = () => {
+    if (date === 'custom' && startDate) {
+      try {
+        const parsed = new Date(startDate);
+        if (!Number.isNaN(parsed.getTime())) {
+          return parsed.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+          });
+        }
+      } catch {}
+    }
+    const option = dateOptions.find((o) => o.value === date);
+    return option && date !== 'any' ? option.label : 'Date';
+  };
+
   return (
-    <div className="w-full overflow-x-auto scrollbar-hide px-4">
+    <div className="w-full overflow-visible px-4">
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -297,9 +357,11 @@ export default function ExploreFilterBar({
         <div className="h-6 w-[1.5px] bg-white/10 mx-1.5" />
         <FilterPill
           label="Date"
-          value={date !== 'any' ? dateOptions.find((o) => o.value === date)?.label : 'Date'}
+          value={formatDateLabel()}
           options={dateOptions}
           onChange={setDate}
+          customDateValue={startDate}
+          onCustomDateChange={setCustomDate}
         />
         <div className="h-6 w-[1.5px] bg-white/10 mx-1.5" />
         <FilterPill

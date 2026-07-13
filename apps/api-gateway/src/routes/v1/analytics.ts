@@ -11,7 +11,127 @@ const AnalyticsRangeSchema = z.object({
   range: z.enum(['7d', '30d', '90d', '1y']).optional(),
 });
 
+const VenueClickSchema = z
+  .object({
+    venueId: z.string().min(1),
+    visitorId: z.string().min(1),
+  })
+  .strict();
+
+const HostClickSchema = z
+  .object({
+    hostId: z.string().min(1),
+    visitorId: z.string().min(1),
+  })
+  .strict();
+
 export default async function analyticsRoutes(fastify: FastifyInstance) {
+  /**
+   * POST /api/v1/analytics/host-click
+   * Tracks genuine host clicks, implements duplicate prevention (24h TTL), and publishes events.
+   */
+  fastify.post(
+    '/host-click',
+    {
+      preHandler: [fastify.validate({ body: HostClickSchema })],
+    },
+    async (request, reply) => {
+      const { hostId, visitorId } = request.body as z.infer<typeof HostClickSchema>;
+
+      try {
+        // Validate host exists
+        const hostDoc = await fastify.db.collection('hosts').doc(hostId).get();
+        if (!hostDoc.exists) {
+          return reply.status(400).send({ error: 'Host not found' });
+        }
+
+        const sessionId = `${visitorId}_${hostId}`;
+        const sessionDoc = await fastify.db.collection('host_visit_sessions').doc(sessionId).get();
+
+        if (sessionDoc.exists) {
+          const session = sessionDoc.data();
+          if (new Date(session.expiresAt) > new Date()) {
+            return { success: true, duplicate: true };
+          }
+        }
+
+        // Set or update the duplicate prevention session
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        await fastify.db.collection('host_visit_sessions').doc(sessionId).set({
+          visitorId,
+          hostId,
+          lastVisitedAt: new Date().toISOString(),
+          expiresAt,
+        });
+
+        // Publish to Inngest background queue
+        await fastify.sendInngestEvent(fastify.InngestEvents.HOST_CLICK, {
+          hostId,
+          visitorId,
+          timestamp: new Date().toISOString(),
+        });
+
+        return { success: true, duplicate: false };
+      } catch (error: any) {
+        fastify.log.error(`Error in POST /analytics/host-click: ${error.message}`);
+        return reply.status(500).send({ error: 'Internal server error' });
+      }
+    },
+  );
+
+  /**
+   * POST /api/v1/analytics/venue-click
+   * Tracks genuine venue clicks, implements duplicate prevention (24h TTL), and publishes events.
+   */
+  fastify.post(
+    '/venue-click',
+    {
+      preHandler: [fastify.validate({ body: VenueClickSchema })],
+    },
+    async (request, reply) => {
+      const { venueId, visitorId } = request.body as z.infer<typeof VenueClickSchema>;
+
+      try {
+        // Validate venue exists
+        const venueDoc = await fastify.db.collection('venues').doc(venueId).get();
+        if (!venueDoc.exists) {
+          return reply.status(400).send({ error: 'Venue not found' });
+        }
+
+        const sessionId = `${visitorId}_${venueId}`;
+        const sessionDoc = await fastify.db.collection('venue_visit_sessions').doc(sessionId).get();
+
+        if (sessionDoc.exists) {
+          const session = sessionDoc.data();
+          if (new Date(session.expiresAt) > new Date()) {
+            return { success: true, duplicate: true };
+          }
+        }
+
+        // Set or update the duplicate prevention session
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        await fastify.db.collection('venue_visit_sessions').doc(sessionId).set({
+          visitorId,
+          venueId,
+          lastVisitedAt: new Date().toISOString(),
+          expiresAt,
+        });
+
+        // Publish to Inngest background queue
+        await fastify.sendInngestEvent(fastify.InngestEvents.VENUE_CLICK, {
+          venueId,
+          visitorId,
+          timestamp: new Date().toISOString(),
+        });
+
+        return { success: true, duplicate: false };
+      } catch (error: any) {
+        fastify.log.error(`Error in POST /analytics/venue-click: ${error.message}`);
+        return reply.status(500).send({ error: 'Internal server error' });
+      }
+    },
+  );
+
   /**
    * GET /api/v1/analytics/venue/:id
    * Gets performance analytics for a venue
