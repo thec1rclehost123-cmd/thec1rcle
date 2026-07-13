@@ -50,7 +50,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
 
         if (sessionDoc.exists) {
           const session = sessionDoc.data();
-          if (new Date(session.expiresAt) > new Date()) {
+          if (session && new Date(session.expiresAt) > new Date()) {
             return { success: true, duplicate: true };
           }
         }
@@ -103,7 +103,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
 
         if (sessionDoc.exists) {
           const session = sessionDoc.data();
-          if (new Date(session.expiresAt) > new Date()) {
+          if (session && new Date(session.expiresAt) > new Date()) {
             return { success: true, duplicate: true };
           }
         }
