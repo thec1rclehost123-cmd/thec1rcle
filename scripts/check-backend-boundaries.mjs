@@ -29,6 +29,7 @@ const IGNORE_PATTERNS = [
   '**/package-lock.json',
   '**/yarn.lock',
   'apps/mobile-app-backup/**', // backup snapshot — not deployed code
+  '**/scratch/**', // local scratch and experimental files
 ];
 
 function matchesGlob(file, pattern) {

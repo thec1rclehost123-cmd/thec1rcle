@@ -18,6 +18,7 @@ import {
   Loader2,
   Clock3,
   ArrowRight,
+  AlertCircle,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
@@ -117,6 +118,16 @@ const BLOCK_TIMES: string[] = (() => {
   return out;
 })();
 
+const SELECT_TIMES: string[] = (() => {
+  const times = [];
+  for (let h = 0; h < 24; h++) {
+    const hh = String(h).padStart(2, '0');
+    times.push(`${hh}:00`);
+    times.push(`${hh}:30`);
+  }
+  return times;
+})();
+
 // ── Main component ──────────────────────────────────────────────────────────
 
 export function HostVenueCalendar() {
@@ -128,10 +139,17 @@ export function HostVenueCalendar() {
   const venueId = searchParams.get('venueId') || '';
   const venueName = searchParams.get('venueName') || 'Venue';
 
-  const [currentMonth, setCurrentMonth] = useState(() => new Date());
+  const initialDate = searchParams.get('date');
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    if (initialDate) {
+      const parsed = new Date(initialDate);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return new Date();
+  });
   const [calendarData, setCalendarData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(initialDate || null);
   const [confirmChecking, setConfirmChecking] = useState(false);
   const [confirmError, setConfirmError] = useState('');
 
@@ -220,7 +238,12 @@ export function HostVenueCalendar() {
     setSelectedDate(null);
   };
 
-  const handleConfirm = async (startTime: string, endTime: string) => {
+  const handleConfirm = async (
+    startTime: string,
+    endTime: string,
+    doorsOpen: string,
+    lastEntry: string,
+  ) => {
     if (!selectedDate) return;
 
     setConfirmChecking(true);
@@ -248,6 +271,8 @@ export function HostVenueCalendar() {
         date: selectedDate,
         startTime,
         endTime,
+        doorsOpen,
+        lastEntry,
       });
       router.push(`/host/create?${params.toString()}`);
     } catch (err) {
@@ -659,7 +684,7 @@ function RightPanel({
   confirmChecking: boolean;
   confirmError: string;
   onClose: () => void;
-  onConfirm: (startTime: string, endTime: string) => void;
+  onConfirm: (startTime: string, endTime: string, doorsOpen: string, lastEntry: string) => void;
 }) {
   const isBlocked = data?.state === 'BLOCKED';
   const events = filterVisible(data?.events);
@@ -667,8 +692,14 @@ function RightPanel({
 
   const [startTime, setStartTime] = useState('21:00');
   const [endTime, setEndTime] = useState('04:00');
+  const [doorsOpen, setDoorsOpen] = useState('21:00');
+  const [lastEntry, setLastEntry] = useState('04:00');
   const [timeModalOpen, setTimeModalOpen] = useState(false);
   const [timeConfirmed, setTimeConfirmed] = useState(false);
+
+  const isTimeInvalid = useMemo(() => {
+    return timeToMins(endTime) <= timeToMins(startTime);
+  }, [startTime, endTime]);
 
   const fromDisabled = useMemo<Set<string>>(() => {
     const disabled = new Set<string>();
@@ -701,6 +732,7 @@ function RightPanel({
 
   const handleStartChange = (t: string) => {
     setStartTime(t);
+    setDoorsOpen(t);
     const newUntilDisabled = new Set<string>();
     BLOCK_TIMES.forEach((u) => {
       if (events.some((e: any) => timeOverlaps(t, u, e.startTime || '21:00', e.endTime || '04:00')))
@@ -710,8 +742,16 @@ function RightPanel({
       const next = BLOCK_TIMES.find(
         (u) => !newUntilDisabled.has(u) && timeToMins(u) > timeToMins(t),
       );
-      if (next) setEndTime(next);
+      if (next) {
+        setEndTime(next);
+        setLastEntry(next);
+      }
     }
+  };
+
+  const handleEndChange = (t: string) => {
+    setEndTime(t);
+    setLastEntry(t);
   };
 
   const hasOverlap = events.some((e: any) =>
@@ -906,7 +946,9 @@ function RightPanel({
                     {timeConfirmed ? 'Time Set' : 'Select Time'}
                   </p>
                   <p className="text-[9px] font-medium mt-0.5 text-white/30">
-                    {timeConfirmed ? 'Tap to change' : 'Tap to choose slot'}
+                    {timeConfirmed
+                      ? `Doors: ${fmt12(doorsOpen)} · Last Entry: ${fmt12(lastEntry)}`
+                      : 'Tap to choose slot'}
                   </p>
                 </div>
               </div>
@@ -921,12 +963,17 @@ function RightPanel({
       <div className="flex-shrink-0 p-5 mt-auto border-t border-white/5 bg-black/20">
         {!isBlocked && (
           <button
-            onClick={() => timeConfirmed && !hasOverlap && onConfirm(startTime, endTime)}
-            disabled={!timeConfirmed || hasOverlap || confirmChecking}
+            onClick={() =>
+              timeConfirmed &&
+              !hasOverlap &&
+              !isTimeInvalid &&
+              onConfirm(startTime, endTime, doorsOpen, lastEntry)
+            }
+            disabled={!timeConfirmed || hasOverlap || isTimeInvalid || confirmChecking}
             className="w-full py-4 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-30"
             style={{
               background:
-                !timeConfirmed || hasOverlap || confirmChecking
+                !timeConfirmed || hasOverlap || isTimeInvalid || confirmChecking
                   ? 'rgba(255,255,255,0.06)'
                   : 'linear-gradient(135deg, #F44A22, #FF6B4A)',
               color: 'white',
@@ -937,11 +984,20 @@ function RightPanel({
             ) : (
               <ArrowRight className="w-4 h-4" />
             )}
-            {confirmChecking ? 'Verifying...' : 'Continue to Request Slot'}
+            {confirmChecking
+              ? 'Verifying...'
+              : !timeConfirmed || isTimeInvalid
+                ? 'Invalid Time Slot'
+                : 'Continue to Request Slot'}
           </button>
         )}
         {confirmError && (
           <p className="text-[11px] font-medium text-red-400 mt-3 text-center">{confirmError}</p>
+        )}
+        {isTimeInvalid && (
+          <p className="text-[11px] font-medium text-red-400 mt-3 text-center">
+            End time of event must be after the start time
+          </p>
         )}
         <button
           onClick={onClose}
@@ -987,17 +1043,89 @@ function RightPanel({
               <TimePicker
                 label="UNTIL"
                 value={endTime}
-                onChange={setEndTime}
+                onChange={handleEndChange}
                 disabledTimes={untilDisabled}
               />
+
+              <div className="grid grid-cols-2 gap-5 pt-3 border-t border-white/5">
+                <div>
+                  <label
+                    className="block text-[9px] font-black uppercase tracking-widest mb-1.5"
+                    style={{ color: 'rgba(255,255,255,0.3)' }}
+                  >
+                    Doors Open
+                  </label>
+                  <select
+                    value={doorsOpen}
+                    onChange={(e) => setDoorsOpen(e.target.value)}
+                    className="w-full rounded-xl px-3.5 py-2.5 text-[13px] font-black text-white border transition-colors focus:outline-none focus:border-orange-500 appearance-none cursor-pointer"
+                    style={{
+                      background: '#0f0f14',
+                      borderColor: 'rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    {(() => {
+                      const options = [...SELECT_TIMES];
+                      if (doorsOpen && !options.includes(doorsOpen)) {
+                        options.push(doorsOpen);
+                        options.sort();
+                      }
+                      return options.map((t) => (
+                        <option key={t} value={t} className="bg-[#0f0f14] text-white">
+                          {fmt12(t)}
+                        </option>
+                      ));
+                    })()}
+                  </select>
+                </div>
+                <div>
+                  <label
+                    className="block text-[9px] font-black uppercase tracking-widest mb-1.5"
+                    style={{ color: 'rgba(255,255,255,0.3)' }}
+                  >
+                    Last Entry
+                  </label>
+                  <select
+                    value={lastEntry}
+                    onChange={(e) => setLastEntry(e.target.value)}
+                    className="w-full rounded-xl px-3.5 py-2.5 text-[13px] font-black text-white border transition-colors focus:outline-none focus:border-orange-500 appearance-none cursor-pointer"
+                    style={{
+                      background: '#0f0f14',
+                      borderColor: 'rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    {(() => {
+                      const options = [...SELECT_TIMES];
+                      if (lastEntry && !options.includes(lastEntry)) {
+                        options.push(lastEntry);
+                        options.sort();
+                      }
+                      return options.map((t) => (
+                        <option key={t} value={t} className="bg-[#0f0f14] text-white">
+                          {fmt12(t)}
+                        </option>
+                      ));
+                    })()}
+                  </select>
+                </div>
+              </div>
+
               {hasOverlap && (
                 <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[12px] font-black flex items-center gap-2">
                   <Lock className="w-4 h-4" /> Overlaps with an existing event.
                 </div>
               )}
+              {isTimeInvalid && (
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[12px] font-black flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" /> End time of event must be after the start
+                  time.
+                </div>
+              )}
               <button
-                onClick={() => !hasOverlap && (setTimeConfirmed(true), setTimeModalOpen(false))}
-                disabled={hasOverlap}
+                onClick={() =>
+                  !hasOverlap && !isTimeInvalid && (setTimeConfirmed(true), setTimeModalOpen(false))
+                }
+                disabled={hasOverlap || isTimeInvalid}
                 className="w-full py-4 rounded-2xl bg-orange-600 text-white font-black uppercase tracking-widest hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-20 shadow-xl shadow-orange-600/20"
               >
                 Confirm Time Selection

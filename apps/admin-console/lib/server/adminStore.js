@@ -48,6 +48,17 @@ export const ALLOWLIST_ACTIONS = [
   'PROMOTER_DISABLE',
   'WEBHOOK_RETRY',
   'SUPPORT_RESOLVE',
+  'SUPPORT_ASSIGN',
+  'SUPPORT_CHANGE_PRIORITY',
+  'SUPPORT_REPLY',
+  'SUPPORT_MERGE',
+  'SUPPORT_LINK',
+  'SUPPORT_ADD_INTERNAL_NOTE',
+  'SUPPORT_ESCALATE',
+  'SUPPORT_CLOSE',
+  'SUPPORT_REOPEN',
+  'ANNOUNCEMENT_CREATE',
+  'ANNOUNCEMENT_DELETE',
   'SAFETY_REPORT_DISMISS',
   'MEDIA_REPORT_DISMISS',
   'CONTENT_REMOVE',
@@ -1022,6 +1033,418 @@ export const adminStore = {
     });
   },
 
+  async assignSupportTicket(ticketId, agentId, agentName, adminId) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: `Ticket Assigned to ${agentName}`,
+      type: 'assignment',
+      actorName: 'System Admin',
+      detail: `Assigned agent ID: ${agentId}`,
+    });
+    await ref.update({
+      assignedAgent: agentName,
+      assignedAgentId: agentId,
+      status: 'in progress',
+      timeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_ASSIGN',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: `Assigned to ${agentName}`,
+    });
+  },
+
+  async changeSupportTicketPriority(ticketId, priority, adminId) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: `Priority Changed to ${priority}`,
+      type: 'priority_change',
+      actorName: 'System Admin',
+      detail: `Priority changed from ${data.priority} to ${priority}`,
+    });
+    await ref.update({
+      priority,
+      timeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_CHANGE_PRIORITY',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: `Priority updated to ${priority}`,
+    });
+  },
+
+  async replyToSupportTicket(ticketId, message, adminId, adminEmail) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    const messages = data.messages || [];
+
+    messages.push({
+      senderId: adminId,
+      senderName: adminEmail || 'Support Agent',
+      senderRole: 'admin',
+      content: message,
+      timestamp: new Date().toISOString(),
+    });
+
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: 'Admin Replied',
+      type: 'reply',
+      actorName: adminEmail || 'Support Agent',
+      detail: `Reply content: "${message.slice(0, 40)}..."`,
+    });
+
+    await ref.update({
+      messages,
+      timeline,
+      status: 'waiting for user',
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_REPLY',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: `Replied: ${message.slice(0, 50)}`,
+    });
+  },
+
+  async mergeDuplicateSupportTicket(ticketId, duplicateTicketId, adminId) {
+    if (ticketId === duplicateTicketId) {
+      throw Object.assign(new Error('Cannot merge a ticket into itself'), { statusCode: 400 });
+    }
+
+    const db = getAdminDb();
+    const primaryRef = db.collection('support_tickets').doc(ticketId);
+    const primarySnap = await primaryRef.get();
+    if (!primarySnap.exists)
+      throw Object.assign(new Error('Primary ticket not found'), { statusCode: 404 });
+
+    let dupeRef = db.collection('support_tickets').doc(duplicateTicketId);
+    let dupeSnap = await dupeRef.get();
+
+    if (!dupeSnap.exists) {
+      // Fallback: Suffix search for short ID match
+      const snapshot = await db.collection('support_tickets').get();
+      const matchDoc = snapshot.docs.find((d) =>
+        d.id.toLowerCase().endsWith(duplicateTicketId.toLowerCase()),
+      );
+      if (!matchDoc) {
+        throw Object.assign(new Error('Duplicate ticket not found'), { statusCode: 404 });
+      }
+      dupeRef = matchDoc.ref;
+      dupeSnap = matchDoc;
+    }
+
+    if (dupeSnap.id === ticketId) {
+      throw Object.assign(new Error('Cannot merge a ticket into itself'), { statusCode: 400 });
+    }
+
+    const primaryData = primarySnap.data();
+    const dupeData = dupeSnap.data();
+
+    if (primaryData.mergedInto) {
+      throw Object.assign(
+        new Error(
+          `Cannot merge duplicate ticket because the primary ticket is already merged into ticket ${primaryData.mergedInto.slice(-8).toUpperCase()}`,
+        ),
+        { statusCode: 400 },
+      );
+    }
+
+    if (dupeData.mergedInto) {
+      throw Object.assign(
+        new Error(
+          `Ticket ${dupeSnap.id.slice(-8).toUpperCase()} is already merged into ticket ${dupeData.mergedInto.slice(-8).toUpperCase()}`,
+        ),
+        { statusCode: 400 },
+      );
+    }
+
+    // 1. Merge timelines
+    const primaryTimeline = Array.isArray(primaryData.timeline) ? primaryData.timeline : [];
+    primaryTimeline.push({
+      timestamp: new Date().toISOString(),
+      message: `Merged Duplicate Ticket`,
+      type: 'merge',
+      actorName: 'System Admin',
+      detail: `Merged duplicate ticket ID: ${dupeSnap.id}`,
+    });
+
+    // 2. Merge messages & sort chronologically
+    const primaryMessages = Array.isArray(primaryData.messages) ? primaryData.messages : [];
+    const dupeMessages = Array.isArray(dupeData.messages) ? dupeData.messages : [];
+    const annotatedDupeMessages = dupeMessages.map((msg) => ({
+      ...msg,
+      content: `[Merged from ticket ${dupeSnap.id.slice(-8).toUpperCase()}] ${msg.content}`,
+    }));
+    const mergedMessages = [...primaryMessages, ...annotatedDupeMessages];
+    mergedMessages.sort((a, b) => {
+      const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return aTime - bTime;
+    });
+
+    // 3. Merge screenshots and document attachments
+    const primaryImages = Array.isArray(primaryData.images) ? primaryData.images : [];
+    const dupeImages = Array.isArray(dupeData.images) ? dupeData.images : [];
+    const primaryDocs = Array.isArray(primaryData.documents) ? primaryData.documents : [];
+    const dupeDocs = Array.isArray(dupeData.documents) ? dupeData.documents : [];
+    const mergedImages = Array.from(new Set([...primaryImages, ...dupeImages]));
+    const mergedDocs = Array.from(new Set([...primaryDocs, ...dupeDocs]));
+
+    // 4. Update primary ticket
+    await primaryRef.update({
+      timeline: primaryTimeline,
+      messages: mergedMessages,
+      images: mergedImages,
+      documents: mergedDocs,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    // 5. Close and link duplicate ticket
+    const dupeTimeline = Array.isArray(dupeData.timeline) ? dupeData.timeline : [];
+    dupeTimeline.push({
+      timestamp: new Date().toISOString(),
+      message: `Ticket Merged and Closed`,
+      type: 'merge',
+      actorName: 'System Admin',
+      detail: `Merged into primary ticket ID: ${ticketId}`,
+    });
+    await dupeRef.update({
+      status: 'closed',
+      mergedInto: ticketId,
+      timeline: dupeTimeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    // 6. Log admin audit action
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_MERGE',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: `Merged duplicate ticket ${dupeSnap.id} into primary ticket ${ticketId}`,
+    });
+  },
+
+  async linkSupportTicket(ticketId, entityType, entityId, entityName, adminId) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: `Ticket Linked to ${entityType}`,
+      type: 'link',
+      actorName: 'System Admin',
+      detail: `Linked ${entityType}: ${entityName || entityId}`,
+    });
+
+    const updateFields = {};
+    if (entityType === 'venue') {
+      updateFields.linkedVenueId = entityId;
+      updateFields.linkedVenueName = entityName || '';
+    } else if (entityType === 'host') {
+      updateFields.linkedHostId = entityId;
+      updateFields.linkedHostName = entityName || '';
+    } else if (entityType === 'promoter') {
+      updateFields.linkedPromoterId = entityId;
+      updateFields.linkedPromoterName = entityName || '';
+    } else if (entityType === 'event') {
+      updateFields.linkedEventId = entityId;
+      updateFields.linkedEventName = entityName || '';
+    } else if (entityType === 'subscription') {
+      updateFields.linkedSubscriptionId = entityId;
+    }
+
+    await ref.update({
+      ...updateFields,
+      timeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_LINK',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: `Linked to ${entityType} ${entityId}`,
+    });
+  },
+
+  async addSupportTicketInternalNote(ticketId, note, adminId, adminEmail) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const internalNotes = data.internalNotes || [];
+
+    internalNotes.push({
+      authorId: adminId,
+      authorName: adminEmail || 'Support Agent',
+      content: note,
+      timestamp: new Date().toISOString(),
+    });
+
+    await ref.update({
+      internalNotes,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_ADD_INTERNAL_NOTE',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: `Added internal note: ${note.slice(0, 50)}`,
+    });
+  },
+
+  async escalateSupportTicket(ticketId, adminId) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: 'Ticket Escalated to Technical Team',
+      type: 'escalation',
+      actorName: 'System Admin',
+      detail: 'Status changed to escalated',
+    });
+    await ref.update({
+      status: 'escalated',
+      timeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_ESCALATE',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: 'Escalated to technical team',
+    });
+  },
+
+  async closeSupportTicket(ticketId, adminId) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: 'Ticket Closed',
+      type: 'status_change',
+      actorName: 'System Admin',
+      detail: 'Status changed to closed',
+    });
+    await ref.update({
+      status: 'closed',
+      timeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_CLOSE',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: 'Closed ticket',
+    });
+  },
+
+  async reopenSupportTicket(ticketId, adminId) {
+    const db = getAdminDb();
+    const ref = db.collection('support_tickets').doc(ticketId);
+    const snap = await ref.get();
+    if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+    const data = snap.data();
+    const timeline = data.timeline || [];
+    timeline.push({
+      timestamp: new Date().toISOString(),
+      message: 'Ticket Reopened by Admin',
+      type: 'status_change',
+      actorName: 'System Admin',
+      detail: 'Status changed to open',
+    });
+    await ref.update({
+      status: 'open',
+      feedback: null,
+      timeline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await this.logAdminAction({
+      adminId,
+      action: 'SUPPORT_REOPEN',
+      targetId: ticketId,
+      targetType: 'support_ticket',
+      reason: 'Reopened ticket',
+    });
+  },
+
+  async createPlatformAnnouncement(title, content, tag, adminId) {
+    const db = getAdminDb();
+    const docRef = db.collection('platform_announcements').doc();
+    await docRef.set({
+      title,
+      content,
+      tag,
+      createdBy: adminId,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await this.logAdminAction({
+      adminId,
+      action: 'ANNOUNCEMENT_CREATE',
+      targetId: docRef.id,
+      targetType: 'announcement',
+      reason: `Created announcement: ${title}`,
+    });
+  },
+
+  async deletePlatformAnnouncement(announcementId, adminId) {
+    const db = getAdminDb();
+    const docRef = db.collection('platform_announcements').doc(announcementId);
+    await docRef.delete();
+    await this.logAdminAction({
+      adminId,
+      action: 'ANNOUNCEMENT_DELETE',
+      targetId: announcementId,
+      targetType: 'announcement',
+      reason: `Deleted announcement ${announcementId}`,
+    });
+  },
+
   async dismissSafetyReport(reportId, adminId, reason) {
     const db = getAdminDb();
     const ref = db.collection('safety_reports').doc(reportId);
@@ -1114,26 +1537,42 @@ export const adminStore = {
 
     // 1. Fetch precomputed global stats (O(1) read)
     const statsDoc = await db.collection('platform_stats').doc('current').get();
-    const baseStats = statsDoc.exists
-      ? statsDoc.data()
-      : {
-          users_total: 0,
-          events_total: 0,
-          revenue: { total: 0 },
-          tickets_sold_total: 0,
-          pendingReviewsCount: 0,
-          activeIncidentsCount: 0,
-          liveEvents: 0,
-          liveUsers: 0,
-          liveHosts: 0,
-          liveVenues: 0,
-          updatedAt: new Date().toISOString(),
-        };
+    const defaultStats = {
+      users_total: 0,
+      events_total: 0,
+      revenue: { total: 0 },
+      tickets_sold_total: 0,
+      pendingReviewsCount: 0,
+      activeIncidentsCount: 0,
+      liveEvents: 0,
+      liveUsers: 0,
+      liveHosts: 0,
+      liveVenues: 0,
+      updatedAt: new Date(0).toISOString(),
+    };
+    let baseStats = statsDoc.exists ? { ...defaultStats, ...statsDoc.data() } : defaultStats;
 
     // 2. Detect staleness (> 30 mins)
     const lastSyncDate = new Date(baseStats.updatedAt || 0);
     const staleThresholdMs = 30 * 60 * 1000;
-    const isStale = Date.now() - lastSyncDate.getTime() > staleThresholdMs;
+    let isStale = Date.now() - lastSyncDate.getTime() > staleThresholdMs;
+
+    // Auto-compute if stats are missing or stale (especially important for dev local mode)
+    if (
+      !statsDoc.exists ||
+      isStale ||
+      baseStats.liveUsers === undefined ||
+      baseStats.revenue?.total === undefined ||
+      baseStats.hosts_pending === undefined
+    ) {
+      try {
+        console.log('[PlatformStats] Stats are stale or missing. Auto-computing stats...');
+        baseStats = await this.computePlatformStats();
+        isStale = false;
+      } catch (err) {
+        console.error('Failed to auto-compute platform stats:', err);
+      }
+    }
 
     // 3. Fetch truly transient data that shouldn't be lagged (audit logs)
     const logsSnapshot = await db
@@ -1157,9 +1596,9 @@ export const adminStore = {
       pendingReviewsCount: baseStats.pendingReviewsCount,
       activeIncidentsCount: baseStats.activeIncidentsCount,
       liveEvents: baseStats.liveEvents,
-      liveUsers: baseStats.liveUsers,
-      liveHosts: baseStats.liveHosts,
-      liveVenues: baseStats.liveVenues,
+      liveUsers: baseStats.liveUsers || baseStats.users_total || 0,
+      liveHosts: baseStats.liveHosts || baseStats.hosts_total || 0,
+      liveVenues: baseStats.liveVenues || baseStats.venues_total?.active || 0,
       recentLogs,
       lastSync: baseStats.updatedAt,
       isStale,
@@ -1174,16 +1613,59 @@ export const adminStore = {
     const db = getAdminDb();
     console.log('[PlatformStats] Starting heavy aggregation...');
 
-    const [pendingSnap, incidentSnap, eventSnap, userSnap, hostSnap, venueSnap] = await Promise.all(
-      [
-        db.collection('onboarding_requests').where('status', '==', 'pending').count().get(),
-        db.collection('incidents').where('status', '==', 'active').count().get(),
-        db.collection('events').where('status', '==', 'live').count().get(),
-        db.collection('users').count().get(),
-        db.collection('hosts').count().get(),
-        db.collection('venues').where('status', '==', 'active').count().get(),
-      ],
-    );
+    const [
+      pendingSnap,
+      incidentSnap,
+      eventSnap,
+      userSnap,
+      hostSnap,
+      activeVenueSnap,
+      suspendedVenueSnap,
+      totalEventsSnap,
+      pendingVenueOnboardingSnap,
+      pendingHostOnboardingSnap,
+    ] = await Promise.all([
+      db.collection('onboarding_requests').where('status', '==', 'pending').count().get(),
+      db.collection('incidents').where('status', '==', 'active').count().get(),
+      db.collection('events').where('status', '==', 'live').count().get(),
+      db.collection('users').count().get(),
+      db.collection('hosts').count().get(),
+      db.collection('venues').where('status', '==', 'active').count().get(),
+      db.collection('venues').where('status', '==', 'suspended').count().get(),
+      db.collection('events').count().get(),
+      db
+        .collection('onboarding_requests')
+        .where('status', '==', 'pending')
+        .where('type', '==', 'venue')
+        .count()
+        .get(),
+      db
+        .collection('onboarding_requests')
+        .where('status', '==', 'pending')
+        .where('type', '==', 'host')
+        .count()
+        .get(),
+    ]);
+
+    // Query orders to compute total revenue and tickets sold
+    let totalRevenue = 0;
+    let ticketsSoldTotal = 0;
+    try {
+      const ordersSnap = await db.collection('orders').get();
+      ordersSnap.forEach((doc) => {
+        const order = doc.data();
+        if (order.status === 'confirmed' || order.status === 'checked_in') {
+          totalRevenue += Number(order.totalAmount) || 0;
+          if (Array.isArray(order.tickets)) {
+            order.tickets.forEach((ticket) => {
+              ticketsSoldTotal += Number(ticket.quantity) || 0;
+            });
+          }
+        }
+      });
+    } catch (err) {
+      console.error('Error scanning orders for revenue calculation:', err);
+    }
 
     const stats = {
       pendingReviewsCount: pendingSnap.data().count,
@@ -1191,12 +1673,28 @@ export const adminStore = {
       liveEvents: eventSnap.data().count,
       liveUsers: userSnap.data().count,
       liveHosts: hostSnap.data().count,
-      liveVenues: venueSnap.data().count,
+      liveVenues: activeVenueSnap.data().count,
+      users_total: userSnap.data().count,
+      events_total: totalEventsSnap.data().count,
+      hosts_total: hostSnap.data().count,
+      venues_total: {
+        active: activeVenueSnap.data().count,
+        pending: pendingVenueOnboardingSnap.data().count,
+        suspended: suspendedVenueSnap.data().count,
+      },
+      hosts_pending: pendingHostOnboardingSnap.data().count,
+      revenue: {
+        total: totalRevenue,
+        ticket_commissions: totalRevenue * 0.15,
+        boosts: 0,
+        subscriptions: 0,
+      },
+      tickets_sold_total: ticketsSoldTotal,
       updatedAt: new Date().toISOString(),
     };
 
     await db.collection('platform_stats').doc('current').set(stats, { merge: true });
-    console.log('[PlatformStats] Computed and sync successfully.');
+    console.log('[PlatformStats] Computed and synced successfully.');
     return stats;
   },
 
@@ -1375,23 +1873,59 @@ export const adminStore = {
   // --- 💰 9. Refund Request Management ---
   async getRefunds({ status = 'pending', limit = 25, cursor = null } = {}) {
     const db = getAdminDb();
-    // Firestore requires: where() BEFORE orderBy()
-    let query = db.collection('refund_requests');
-    if (status !== 'all') query = query.where('status', '==', status);
-    query = query.orderBy('createdAt', 'desc').limit(limit + 1); // fetch one extra to detect hasMore
-    if (cursor) {
-      const cursorDoc = await db.collection('refund_requests').doc(cursor).get();
-      if (cursorDoc.exists) query = query.startAfter(cursorDoc);
+    try {
+      // Standard fast query using composite index
+      let query = db.collection('refund_requests');
+      if (status !== 'all') query = query.where('status', '==', status);
+      query = query.orderBy('createdAt', 'desc').limit(limit + 1); // fetch one extra to detect hasMore
+      if (cursor) {
+        const cursorDoc = await db.collection('refund_requests').doc(cursor).get();
+        if (cursorDoc.exists) query = query.startAfter(cursorDoc);
+      }
+      const snapshot = await query.get();
+      const docs = snapshot.docs.slice(0, limit);
+      const hasMore = snapshot.docs.length > limit;
+      const nextCursor = hasMore ? docs[docs.length - 1].id : null;
+      return {
+        refunds: docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+        hasMore,
+        nextCursor,
+      };
+    } catch (err) {
+      // Fallback: If composite index is missing (e.g. FAILED_PRECONDITION), run in-memory fallback
+      if (err.message && err.message.includes('FAILED_PRECONDITION')) {
+        console.warn(
+          '⚠️ Firestore composite index missing. Falling back to in-memory filtering for refund requests.',
+        );
+        let query = db.collection('refund_requests').orderBy('createdAt', 'desc');
+        const snapshot = await query.get();
+
+        let allRefunds = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        if (status !== 'all') {
+          allRefunds = allRefunds.filter((r) => r.status === status);
+        }
+
+        let startIndex = 0;
+        if (cursor) {
+          const idx = allRefunds.findIndex((r) => r.id === cursor);
+          if (idx !== -1) {
+            startIndex = idx + 1;
+          }
+        }
+
+        const paginated = allRefunds.slice(startIndex, startIndex + limit + 1);
+        const docs = paginated.slice(0, limit);
+        const hasMore = paginated.length > limit;
+        const nextCursor = hasMore ? docs[docs.length - 1].id : null;
+
+        return {
+          refunds: docs,
+          hasMore,
+          nextCursor,
+        };
+      }
+      throw err;
     }
-    const snapshot = await query.get();
-    const docs = snapshot.docs.slice(0, limit);
-    const hasMore = snapshot.docs.length > limit;
-    const nextCursor = hasMore ? docs[docs.length - 1].id : null;
-    return {
-      refunds: docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-      hasMore,
-      nextCursor,
-    };
   },
 
   async approveRefundRequest(refundId, admin) {

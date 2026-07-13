@@ -366,6 +366,18 @@ declare module '@c1rcle/core/guest-discovery-engine' {
   export function isEventDetailVisible(event?: any): boolean;
   export const isGuestEventDetailVisible: typeof isEventDetailVisible;
   export function computeHeatScore(event?: any): number;
+  export function computeHostHeatScore(entity?: {
+    followersCount?: number;
+    clickCount?: number;
+    ticketSalesCount?: number;
+    recentClickCount?: number;
+  }): number;
+  export function computeVenueHeatScore(entity?: {
+    followersCount?: number;
+    clickCount?: number;
+    ticketSalesCount?: number;
+    recentClickCount?: number;
+  }): number;
   export function listEventMapPins(
     db: any,
     options?: { lat?: number | string; lng?: number | string; radius?: number; limit?: number },

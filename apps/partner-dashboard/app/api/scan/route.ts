@@ -10,19 +10,19 @@ import { proxyToGateway, GATEWAY_URL } from '@/lib/server/apiGateway';
  * POST /api/scan
  * Process a QR ticket scan
  */
-export const POST = withAuth(async (req: NextRequest) => {
+export async function POST(req: NextRequest) {
   const body = await req.json();
   return proxyToGateway(req, `${GATEWAY_URL}/api/v1/scan/`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
-});
+}
 
 /**
  * GET /api/scan?eventId=XXX
  * Scan history for an event
  */
-export const GET = withAuth(async (req: NextRequest) => {
+export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   return proxyToGateway(req, `${GATEWAY_URL}/api/v1/scan/history?${searchParams.toString()}`, {});
-});
+}

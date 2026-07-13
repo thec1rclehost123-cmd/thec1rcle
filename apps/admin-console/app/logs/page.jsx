@@ -2,7 +2,16 @@
 
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useEffect, useState, useMemo } from 'react';
-import { History, Search, Terminal, ChevronRight, User, ShieldCheck, X } from 'lucide-react';
+import {
+  History,
+  Search,
+  Terminal,
+  ChevronRight,
+  User,
+  ShieldCheck,
+  X,
+  RotateCw,
+} from 'lucide-react';
 import { DataTable } from '@/components/ui/DataTable';
 import { ActionDrawer } from '@/components/ui/ActionDrawer';
 
@@ -13,6 +22,7 @@ export default function AdminLogs() {
   const [selectedLog, setSelectedLog] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [refreshedAt, setRefreshedAt] = useState(new Date());
 
   const fetchLogs = async () => {
     try {
@@ -64,72 +74,72 @@ export default function AdminLogs() {
   const columns = useMemo(
     () => [
       {
-        header: 'Time',
-        accessorKey: 'ts',
-        cell: ({ getValue }) => (
+        key: 'ts',
+        label: 'Time',
+        render: (val) => (
           <div className="flex flex-col gap-0.5">
             <span className="text-[11px] font-medium text-white leading-tight font-mono-numbers">
-              {getValue().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {val.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
             <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest leading-tight">
-              {getValue().toLocaleDateString([], { month: 'short', day: 'numeric' })}
+              {val.toLocaleDateString([], { month: 'short', day: 'numeric' })}
             </span>
           </div>
         ),
       },
       {
-        header: 'Admin',
-        accessorKey: 'actorEmail',
-        cell: ({ getValue }) => (
+        key: 'actorEmail',
+        label: 'Admin',
+        render: (val) => (
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded bg-zinc-900 border border-white/5 flex items-center justify-center text-[10px] font-bold text-zinc-700">
-              {getValue()?.[0]?.toUpperCase() || 'A'}
+              {val?.[0]?.toUpperCase() || 'A'}
             </div>
             <span className="text-[10px] font-bold text-zinc-400 truncate max-w-[150px] font-mono">
-              {getValue()}
+              {val}
             </span>
           </div>
         ),
       },
       {
-        header: 'Action',
-        accessorKey: 'actionType',
-        cell: ({ row }) => (
+        key: 'actionType',
+        label: 'Action',
+        render: (val, row) => (
           <div className="flex flex-col gap-0.5">
             <span className="text-[10px] font-bold uppercase tracking-widest text-white">
-              {cleanJargon(row.original.actionType || row.original.action)}
+              {cleanJargon(row.actionType || row.action)}
             </span>
             <span className="text-[9px] font-bold text-zinc-600 tracking-widest uppercase font-mono">
-              ID: {row.original.targetId?.slice(0, 12)}
+              ID: {row.targetId?.slice(0, 12)}
             </span>
           </div>
         ),
       },
       {
-        header: 'Status',
-        accessorKey: 'status',
-        cell: ({ getValue }) => (
+        key: 'status',
+        label: 'Status',
+        render: (val) => (
           <div
-            className={`inline-flex items-center gap-2 px-2.5 py-1 rounded border ${getValue() === 'failed' ? 'bg-iris/10 border-iris/20 text-iris' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'}`}
+            className={`inline-flex items-center gap-2 px-2.5 py-1 rounded border ${val === 'failed' ? 'bg-iris/10 border-iris/20 text-iris' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'}`}
           >
             <div
-              className={`h-1.5 w-1.5 rounded-full ${getValue() === 'failed' ? 'bg-iris' : 'bg-emerald-500'}`}
+              className={`h-1.5 w-1.5 rounded-full ${val === 'failed' ? 'bg-iris' : 'bg-emerald-500'}`}
             />
             <span className="text-[9px] font-bold uppercase tracking-widest">
-              {getValue() === 'failed' ? 'Failed' : 'Success'}
+              {val === 'failed' ? 'Failed' : 'Success'}
             </span>
           </div>
         ),
       },
       {
-        header: '',
-        id: 'actions',
-        cell: ({ row }) => (
+        key: 'actions',
+        label: '',
+        render: (val, row) => (
           <div className="flex justify-end">
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setSelectedLog(row.original);
+                setSelectedLog(row);
                 setIsDrawerOpen(true);
               }}
               className="p-2 hover:bg-white/5 rounded-lg text-zinc-600 hover:text-white transition-colors"
@@ -167,6 +177,31 @@ export default function AdminLogs() {
             A complete record of all administrative actions and system updates.
           </p>
         </div>
+      </div>
+
+      {/* Refresh Bar */}
+      <div className="flex items-center justify-between px-1 mb-6">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[#A1A1AA]">
+          Last updated{' '}
+          {refreshedAt
+            ? refreshedAt.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })
+            : '—'}
+        </span>
+        <button
+          onClick={async () => {
+            await fetchLogs();
+            setRefreshedAt(new Date());
+          }}
+          disabled={loading}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"
+        >
+          <RotateCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          REFRESH
+        </button>
       </div>
 
       <div className="space-y-6">

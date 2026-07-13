@@ -50,6 +50,8 @@ export async function proxyToGateway(
       'x-request-id',
       'x-forwarded-for',
       'content-type',
+      'referer',
+      'origin',
     ].forEach((h) => {
       const val = req.headers.get(h);
       if (val && !forwardedHeaders.has(h)) {
@@ -61,6 +63,12 @@ export async function proxyToGateway(
       }
     });
 
+    // Body cannot be present/validated on GET, DELETE, and HEAD requests.
+    // Strip content-type header if forwarding bodyless requests.
+    if (req.method === 'GET' || req.method === 'DELETE' || req.method === 'HEAD') {
+      forwardedHeaders.delete('content-type');
+    }
+
     const updatedInit: RequestInit = {
       ...init,
       headers: forwardedHeaders,
@@ -69,14 +77,15 @@ export async function proxyToGateway(
     const res = await fetch(url, updatedInit);
     const data = await res.json().catch(() => ({}));
     return NextResponse.json(data, { status: res.status });
-  } catch (err) {
-    console.error('[API Gateway Proxy Error]', err);
+  } catch (err: any) {
+    const detail = err?.cause ? String(err.cause) : err?.message ? err.message : 'Unknown error';
+    console.error(`[API Gateway Proxy Error] ${url} — ${detail}`);
     return NextResponse.json(
       {
         success: false,
         error: {
           code: 'BAD_GATEWAY',
-          message: 'Failed to communicate with underlying service',
+          message: `Failed to communicate with gateway at ${GATEWAY_URL}. Is the API gateway running? (${detail})`,
           requestId,
         },
       },

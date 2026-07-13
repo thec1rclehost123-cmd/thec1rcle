@@ -132,7 +132,13 @@ export default function ProfilePageClient({ id }: { id: string }) {
           viewerId,
           viewerRole,
         });
-        const response = await fetch(`/api/partners/venues/partners/${id}?${params.toString()}`, {
+        const basePath =
+          viewerRole === 'host'
+            ? '/api/partners/hosts/partners'
+            : viewerRole === 'promoter'
+              ? '/api/partners/promoters/partners'
+              : '/api/partners/venues/partners';
+        const response = await fetch(`${basePath}/${id}?${params.toString()}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const payload = await response.json();

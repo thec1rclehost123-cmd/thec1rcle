@@ -13,6 +13,7 @@ import {
   CircleDashed,
   CreditCard,
   ChevronRight,
+  RotateCw,
 } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { DataTable } from '@/components/ui/DataTable';
@@ -48,6 +49,7 @@ export default function RefundsPage() {
   const [hasMore, setHasMore] = useState(false);
   const [cursorStack, setCursorStack] = useState<Array<string | null>>([]); // stack of start cursors for each visited page
   const [currentPageCursor, setCurrentPageCursor] = useState<string | null>(null);
+  const [refreshedAt, setRefreshedAt] = useState<Date>(new Date());
 
   useEffect(() => {
     // Reset pagination when filter changes
@@ -348,16 +350,33 @@ export default function RefundsPage() {
             <ArrowRight className="w-4 h-4" />
             Export History
           </button>
-          <button
-            onClick={() => fetchRefundRequests(null)}
-            disabled={loading}
-            className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-zinc-400 text-[11px] font-bold uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh Queue
-          </button>
         </div>
       </header>
+
+      {/* Refresh Bar */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[#A1A1AA]">
+          Last updated{' '}
+          {refreshedAt
+            ? refreshedAt.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })
+            : '—'}
+        </span>
+        <button
+          onClick={async () => {
+            await fetchRefundRequests(null);
+            setRefreshedAt(new Date());
+          }}
+          disabled={loading}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"
+        >
+          <RotateCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          REFRESH
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-8 rounded-xl bg-obsidian-surface border border-[#ffffff08] flex items-center gap-6 shadow-sm group hover:border-[#ffffff15] transition-all">

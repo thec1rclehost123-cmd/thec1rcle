@@ -83,6 +83,7 @@ export default fp(async (fastify) => {
   }
 
   const db = getFirestore();
+  db.settings({ ignoreUndefinedProperties: true });
   const auth = getAuth();
   const storage = getStorage();
 
@@ -512,12 +513,27 @@ export default fp(async (fastify) => {
     await ensureMembershipsForRequest(request);
 
     const { uid } = request.user;
+    request.log.info({ partnerId, uid }, 'verifyPartnerAccess lookup started');
+
     const membershipMatch = request.authContext?.memberships?.find((membership: any) => {
       if (membership.partnerId !== partnerId) return false;
       if (!membership.isActive) return false;
-      return ['manager', 'ops', 'owner'].includes(String(membership.role || '').toLowerCase());
+      return [
+        'manager',
+        'ops',
+        'owner',
+        'promoter',
+        'cohost',
+        'staff',
+        'finance_admin',
+        'security',
+        'door',
+      ].includes(String(membership.role || '').toLowerCase());
     });
-    if (membershipMatch) return true;
+    if (membershipMatch) {
+      request.log.info({ partnerId, uid }, 'verifyPartnerAccess matches via cached memberships');
+      return true;
+    }
 
     // 🛡️ Reliability: Execute with timeout to prevent cascading failures
     const timeout = <T>(promise: Promise<T>, ms: number) => {
@@ -529,8 +545,18 @@ export default fp(async (fastify) => {
 
     const [venueSnap, hostSnap, membershipSnapshot, adminDoc] = await timeout(
       Promise.all([
-        db.collection('venues').where('__name__', '==', partnerId).select('ownerId').limit(1).get(),
-        db.collection('hosts').where('__name__', '==', partnerId).select('ownerId').limit(1).get(),
+        db
+          .collection('venues')
+          .where('__name__', '==', partnerId)
+          .select('ownerId', 'ownerUid')
+          .limit(1)
+          .get(),
+        db
+          .collection('hosts')
+          .where('__name__', '==', partnerId)
+          .select('ownerUid', 'userId', 'identityUid', 'ownerId')
+          .limit(1)
+          .get(),
         db
           .collection('partner_memberships')
           .where('partnerId', '==', partnerId)
@@ -546,23 +572,71 @@ export default fp(async (fastify) => {
     const venueDoc = venueSnap.docs[0];
     const hostDoc = hostSnap.docs[0];
 
+    request.log.info(
+      {
+        venueDocExists: venueDoc?.exists,
+        venueData: venueDoc?.data(),
+        hostDocExists: hostDoc?.exists,
+        hostData: hostDoc?.data(),
+        membershipEmpty: membershipSnapshot.empty,
+        adminDocExists: adminDoc.exists,
+        uid,
+        partnerId,
+      },
+      'verifyPartnerAccess queries completed',
+    );
+
     // 1. Direct Ownership Check
-    if (venueDoc.exists && venueDoc.data()?.ownerId === uid) return true;
-    if (hostDoc.exists && hostDoc.data()?.ownerId === uid) return true;
+    if (venueDoc?.exists) {
+      const data = venueDoc.data();
+      if (data?.ownerId === uid || data?.ownerUid === uid) {
+        request.log.info({ partnerId, uid }, 'verifyPartnerAccess matches via venue ownership');
+        return true;
+      }
+    }
+    if (hostDoc?.exists) {
+      const data = hostDoc.data();
+      if (
+        data?.ownerUid === uid ||
+        data?.userId === uid ||
+        data?.identityUid === uid ||
+        data?.ownerId === uid
+      ) {
+        request.log.info({ partnerId, uid }, 'verifyPartnerAccess matches via host ownership');
+        return true;
+      }
+    }
 
     // 2. Staff Membership Check
     if (!membershipSnapshot.empty) {
       const membership = membershipSnapshot.docs[0].data();
       const isActive = membership?.isActive === true || membership?.status === 'active';
       const role = (membership?.role || '').toLowerCase();
-      const managementRoles = ['manager', 'ops', 'owner'];
+      const managementRoles = [
+        'manager',
+        'ops',
+        'owner',
+        'promoter',
+        'cohost',
+        'staff',
+        'finance_admin',
+        'security',
+        'door',
+      ];
 
-      if (isActive && managementRoles.includes(role)) return true;
+      if (isActive && managementRoles.includes(role)) {
+        request.log.info({ partnerId, uid }, 'verifyPartnerAccess matches via staff membership');
+        return true;
+      }
     }
 
     // 3. System Admin Check
-    if (adminDoc.exists) return true;
+    if (adminDoc.exists) {
+      request.log.info({ partnerId, uid }, 'verifyPartnerAccess matches via admin status');
+      return true;
+    }
 
+    request.log.warn({ partnerId, uid }, 'verifyPartnerAccess rejected: No access');
     throw new Error('Forbidden: No access to this partner');
   });
 });

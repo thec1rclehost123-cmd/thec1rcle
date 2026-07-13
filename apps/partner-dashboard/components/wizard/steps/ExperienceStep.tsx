@@ -143,7 +143,7 @@ export function ExperienceStep({
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
               <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500">
-                Music & Genre Tags
+                Music & Genre Tags (Optional)
               </span>
             </div>
             {genres.length > 0 && (
@@ -178,7 +178,7 @@ export function ExperienceStep({
           <div className="flex items-center gap-2 mb-2.5">
             <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
             <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
-              Dress Code
+              Dress Code (Optional)
             </span>
           </div>
           <div className="space-y-1.5">
@@ -232,7 +232,7 @@ export function ExperienceStep({
           <div className="flex items-center gap-2 mb-2.5">
             <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
             <span className="text-[10px] font-black uppercase tracking-widest text-red-500">
-              Age Restriction
+              Age Restriction (Optional)
             </span>
           </div>
           <div className="grid grid-cols-2 gap-2">

@@ -14,6 +14,7 @@ import {
   UserCog,
   BarChart3,
   DoorOpen,
+  HelpCircle,
 } from 'lucide-react';
 import { AppleSidebar } from '@/components/shared/AppleSidebar';
 import { AppleTopBar } from '@/components/shared/AppleTopBar';
@@ -48,6 +49,7 @@ const MENU_SECTIONS = [
       { icon: Globe, label: 'Presence', href: '/venue/presence' },
       { icon: Users, label: 'Marketing', href: '/venue/crm' },
       { icon: UserCog, label: 'Team', href: '/venue/staff' },
+      { icon: HelpCircle, label: 'Support', href: '/venue/support' },
     ],
   },
 ];

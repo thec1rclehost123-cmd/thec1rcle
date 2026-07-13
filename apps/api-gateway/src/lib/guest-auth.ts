@@ -1,5 +1,7 @@
 const GENDER_CHANGE_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 
+export const GUEST_PHONE_REGEX = /^\d{10}$/;
+
 const GUEST_PROFILE_UPDATE_FIELDS = new Set([
   'displayName',
   'photoURL',
@@ -90,6 +92,25 @@ export function normalizeGuestProfile(
     partnerId: asNullableString(merged.partnerId),
     onboardingStatus: asNullableString(merged.onboardingStatus),
     isApproved: merged.isApproved === true,
+    // Partner onboarding fields
+    contactPerson: asNullableString(merged.contactPerson),
+    area: asNullableString(merged.area),
+    website: asNullableString(merged.website),
+    capacity: asNullableString(merged.capacity),
+    plan: asNullableString(merged.plan),
+    association: asNullableString(merged.association),
+    associatedHostId: asNullableString(merged.associatedHostId),
+    instagramHandle: asNullableString(merged.instagramHandle),
+    bio: asNullableString(merged.bio),
+    upcomingEventsText: asNullableString(merged.upcomingEventsText),
+    pastEventsText: asNullableString(merged.pastEventsText),
+    businessType: asNullableString(merged.businessType),
+    registrationNumber: asNullableString(merged.registrationNumber),
+    onboardingStep: asNullableString(merged.onboardingStep),
+    entityType: asNullableString(merged.entityType ?? merged.onboardingEntityType),
+    onboardingEntityType: asNullableString(merged.onboardingEntityType ?? merged.entityType),
+    onboardingRole: asNullableString(merged.onboardingRole ?? merged.role),
+    mustChangePassword: merged.mustChangePassword === true,
   };
 }
 
@@ -204,6 +225,21 @@ export function buildGuestProfileUpdates(
 
   if (safeUpdates.phoneNumber !== undefined && safeUpdates.phone === undefined) {
     safeUpdates.phone = safeUpdates.phoneNumber;
+  }
+
+  if (safeUpdates.phone !== undefined) {
+    const trimmedPhone = String(safeUpdates.phone).trim();
+
+    if (trimmedPhone && !GUEST_PHONE_REGEX.test(trimmedPhone)) {
+      return {
+        safeUpdates: {},
+        error: 'Phone number must contain exactly 10 digits.',
+        statusCode: 400,
+      };
+    }
+
+    safeUpdates.phone = trimmedPhone;
+    safeUpdates.phoneNumber = trimmedPhone;
   }
 
   if (safeUpdates.photoURL !== undefined && safeUpdates.avatar === undefined) {

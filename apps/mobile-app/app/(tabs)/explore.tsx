@@ -634,7 +634,7 @@ const SCENE_CATEGORIES = [
 function ChooseYourSceneGrid() {
   const handlePress = (cat: any) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push({ pathname: '/events/feed', params: { type: cat.id } });
+    router.push({ pathname: '/events/feed' as any, params: { type: cat.id } });
   };
 
   const renderCard = (cat: any, fontSize = 16) => (

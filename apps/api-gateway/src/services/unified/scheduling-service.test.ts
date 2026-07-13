@@ -107,4 +107,69 @@ describe('SchedulingService', () => {
       code: 'SLOT_CONFLICT',
     });
   });
+
+  it('rejects slots, requests, and approvals when a full-day block exists', async () => {
+    const db = new MockFirestore();
+    db.seed('availability_slots/full_day_block', {
+      venueId: 'venue_1',
+      date: '2026-05-05',
+      startTime: null,
+      endTime: null,
+      requestedDate: '2026-05-05',
+      requestedStartTime: null,
+      requestedEndTime: null,
+      status: 'blocked',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const service = new SchedulingService(db as any);
+
+    // 1. Rejects createSlot on blocked day
+    await expect(
+      service.createSlot(venueCtx as any, 'venue_1', {
+        date: '2026-05-05',
+        startTime: '18:00',
+        endTime: '22:00',
+        status: 'open',
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'SLOT_CONFLICT',
+    });
+
+    // 2. Rejects requestSlot on blocked day
+    await expect(
+      service.requestSlot(venueCtx as any, {
+        venueId: 'venue_1',
+        date: '2026-05-05',
+        startTime: '18:00',
+        endTime: '22:00',
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'SLOT_CONFLICT',
+    });
+
+    // 3. Rejects approveRequest on blocked day
+    db.seed('availability_slots/pending_request', {
+      venueId: 'venue_1',
+      date: '2026-05-05',
+      startTime: '18:00',
+      endTime: '22:00',
+      requestedDate: '2026-05-05',
+      requestedStartTime: '18:00',
+      requestedEndTime: '22:00',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    await expect(
+      service.approveRequest(venueCtx as any, 'venue_1', 'pending_request'),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'SLOT_CONFLICT',
+    });
+  });
 });

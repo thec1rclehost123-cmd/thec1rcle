@@ -357,7 +357,7 @@ export default function VenuePartnersPage() {
 
           <div className="flex items-center gap-3 flex-1 min-w-[300px]">
             <div
-              className="flex items-center gap-2 flex-1 px-4 py-2.5 rounded-2xl"
+              className="flex items-center gap-2 flex-1 min-w-0 px-4 py-2.5 rounded-2xl"
               style={{
                 background: 'rgba(255,255,255,0.04)',
                 border: '1px solid rgba(255,255,255,0.06)',
@@ -443,7 +443,7 @@ export default function VenuePartnersPage() {
                 </select>
                 <button
                   onClick={() => setDiscoverRefresh((n) => n + 1)}
-                  className="p-2.5 rounded-2xl flex items-center justify-center transition-all bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[var(--v-text-tertiary)]"
+                  className="p-2.5 rounded-2xl flex items-center justify-center transition-all bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[var(--v-text-tertiary)] shrink-0"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                 </button>

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { ScheduledPricing } from './components/ScheduledPricing';
 import { PromoCodeManager } from './components/PromoCodeManager';
+import { useToast } from '@/components/ui/Toast';
 
 interface ScheduledPrice {
   id: string;
@@ -56,11 +57,11 @@ interface TicketTier {
   minPerOrder: number | '';
   maxPerOrder: number | '';
   promoterEnabled: boolean;
-  overrideCommission?: boolean;
   overrideDiscount?: boolean;
   overrideScheduledPricing?: boolean;
-  promoterCommission?: number | '';
-  promoterCommissionType?: 'percent' | 'amount';
+  /** Custom Commission model only — this tier's own commission mapping. */
+  commissionType?: 'percent' | 'fixed';
+  commissionValue?: number | '';
   promoterDiscount?: number | '';
   promoterDiscountType?: 'percent' | 'amount';
   description?: string;
@@ -295,7 +296,7 @@ function CoverChargeConfig({
               {/* Wallet Amount */}
               <div className="space-y-1">
                 <AppleInput
-                  label="Wallet Credit Amount"
+                  label="Wallet Credit Amount (Optional)"
                   type="number"
                   prefix="₹"
                   value={cfg.walletAmountPaise === 0 ? '' : String(cfg.walletAmountPaise)}
@@ -315,7 +316,7 @@ function CoverChargeConfig({
               {/* Termination Hour */}
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
-                  Wallet Expires At
+                  Wallet Expires At (Optional)
                 </label>
                 <select
                   value={cfg.terminationHour}
@@ -333,7 +334,7 @@ function CoverChargeConfig({
               {/* Termination Policy */}
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
-                  Unspent Balance Policy
+                  Unspent Balance Policy (Optional)
                 </label>
                 <div className="flex gap-2">
                   {(
@@ -427,6 +428,67 @@ function CoverChargeConfig({
   );
 }
 
+// ─── TierRemoveConfirmDialog ───────────────────────────────────────────────────
+function TierRemoveConfirmDialog({
+  tierName,
+  onCancel,
+  onConfirm,
+}: {
+  tierName: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onCancel}
+        className="fixed inset-0 bg-black/50 z-40"
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.96 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
+        <div className="w-full max-w-sm rounded-2xl bg-surface-base border border-border-default p-6 space-y-4 shadow-xl">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-4 h-4 text-red-500" />
+            </div>
+            <div>
+              <p className="text-[14px] font-bold text-text-primary">
+                Remove &ldquo;{tierName}&rdquo;?
+              </p>
+              <p className="text-[12px] text-text-secondary mt-1">
+                This ticket tier and its commission mapping will be removed for every promoter.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 px-4 py-2.5 rounded-xl border border-border-default text-[12px] font-bold text-text-primary hover:bg-surface-secondary transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 text-white text-[12px] font-bold hover:opacity-90 transition-opacity"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
 // ─── TicketTierCard ───────────────────────────────────────────────────────────
 const TicketTierCard = forwardRef<
   HTMLDivElement,
@@ -437,10 +499,10 @@ const TicketTierCard = forwardRef<
     onRemove: () => void;
     canRemove: boolean;
     capacity: number;
-    eventDefaultCommission?: number | '';
-    eventDefaultCommissionType?: 'percent' | 'amount';
+    compensationModel?: 'standard' | 'custom' | 'salary';
+    standardCommissionValue?: number | '';
+    standardCommissionType?: 'percent' | 'fixed';
     promotersEnabled?: boolean;
-    useDefaultCommission?: boolean;
     buyerDiscountsEnabled?: boolean;
     useDefaultDiscount?: boolean;
     eventDefaultDiscount?: number | '';
@@ -459,10 +521,10 @@ const TicketTierCard = forwardRef<
       onRemove,
       canRemove,
       capacity,
-      eventDefaultCommission,
-      eventDefaultCommissionType,
+      compensationModel,
+      standardCommissionValue,
+      standardCommissionType,
       promotersEnabled,
-      useDefaultCommission,
       buyerDiscountsEnabled,
       useDefaultDiscount,
       eventDefaultDiscount,
@@ -534,12 +596,36 @@ const TicketTierCard = forwardRef<
               className="w-full text-[15px] font-bold bg-transparent focus:outline-none leading-tight truncate"
               autoCapitalize="words"
             />
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <span className="text-[10px] uppercase tracking-widest text-indigo-500 font-bold">
                 {selectedEntryType.label}
               </span>
               <span className="text-[10px] text-text-tertiary">·</span>
               <span className="text-[11px] text-text-tertiary">{tier.quantity || 0} units</span>
+              {promotersEnabled && compensationModel === 'custom' && (
+                <span
+                  className={`text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest ${
+                    tier.commissionValue === undefined || tier.commissionValue === ''
+                      ? 'bg-red-500/10 text-red-500 border border-red-500/20'
+                      : 'bg-surface-tertiary text-text-secondary border border-border-subtle'
+                  }`}
+                >
+                  {tier.commissionValue === undefined || tier.commissionValue === ''
+                    ? 'Commission Required'
+                    : `${tier.commissionValue}${(tier.commissionType || 'percent') === 'percent' ? '%' : '₹'} commission`}
+                </span>
+              )}
+              {promotersEnabled && compensationModel === 'standard' && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest bg-surface-tertiary text-text-secondary border border-border-subtle">
+                  {standardCommissionValue || 0}
+                  {(standardCommissionType || 'percent') === 'percent' ? '%' : '₹'} standard
+                </span>
+              )}
+              {promotersEnabled && compensationModel === 'salary' && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest bg-surface-tertiary text-text-secondary border border-border-subtle">
+                  Salary-based
+                </span>
+              )}
             </div>
           </div>
 
@@ -687,7 +773,7 @@ const TicketTierCard = forwardRef<
                   {!isRSVP ? (
                     <div className="space-y-1">
                       <AppleInput
-                        label="Price"
+                        label="Price *"
                         type="number"
                         prefix="₹"
                         value={tier.price}
@@ -715,7 +801,7 @@ const TicketTierCard = forwardRef<
                     </div>
                   )}
                   <AppleInput
-                    label="Quantity"
+                    label="Quantity *"
                     type="number"
                     value={tier.quantity}
                     onChange={(e: any) =>
@@ -809,176 +895,89 @@ const TicketTierCard = forwardRef<
                   />
                 )}
 
-                {/* Per-tier Promoter toggle — shown only if promoters globally enabled */}
+                {/* Promoter information & discounts — shown only if promoters globally enabled */}
                 {promotersEnabled && (
                   <div className="space-y-2">
-                    <div className="p-2.5 rounded-xl bg-surface-tertiary flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Percent className="w-4 h-4 text-text-tertiary" />
-                        <div>
-                          <p className="text-[12px] font-bold text-text-primary">Promoter Sales</p>
-                          <p className="text-[10px] text-text-tertiary">
-                            Allow promoters to sell this tier
-                          </p>
-                        </div>
-                      </div>
-                      <Toggle
-                        on={tier.promoterEnabled}
-                        onToggle={() => onUpdate({ promoterEnabled: !tier.promoterEnabled })}
-                      />
+                    {/* Promoter info message */}
+                    <div className="p-3 rounded-xl bg-surface-tertiary flex items-center gap-2.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#F44A22] flex-shrink-0" />
+                      <p className="text-[11px] text-text-secondary font-medium">
+                        Promoter compensation (Standard, Custom, or Salary) is configured on the
+                        PROMOTERS step.
+                      </p>
                     </div>
 
-                    {tier.promoterEnabled && (
-                      <div className="space-y-2">
-                        {/* Commission override */}
-                        <div
-                          className={`rounded-xl overflow-hidden transition-all ${
-                            tier.overrideCommission
-                              ? 'bg-[#F44A22]/5 border border-[#F44A22]/20'
-                              : 'bg-surface-tertiary'
-                          }`}
+                    {/* Discount override */}
+                    {!isRSVP && buyerDiscountsEnabled && (
+                      <div
+                        className={`rounded-xl overflow-hidden transition-all ${
+                          tier.overrideDiscount
+                            ? 'bg-[#34c759]/5 border border-[#34c759]/20'
+                            : 'bg-surface-tertiary'
+                        }`}
+                      >
+                        <button
+                          onClick={() =>
+                            onUpdate({
+                              overrideDiscount: !tier.overrideDiscount,
+                              promoterDiscount: tier.overrideDiscount
+                                ? ''
+                                : eventDefaultDiscount || 10,
+                              promoterDiscountType: tier.overrideDiscount
+                                ? 'percent'
+                                : eventDefaultDiscountType || 'percent',
+                            })
+                          }
+                          className="w-full p-3 flex items-center justify-between text-left"
                         >
-                          <button
-                            onClick={() =>
-                              onUpdate({
-                                overrideCommission: !tier.overrideCommission,
-                                promoterCommission: tier.overrideCommission
-                                  ? ''
-                                  : eventDefaultCommission || 15,
-                                promoterCommissionType: tier.overrideCommission
-                                  ? 'percent'
-                                  : eventDefaultCommissionType || 'percent',
-                              })
-                            }
-                            className="w-full p-3 flex items-center justify-between text-left"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-bold text-[#F44A22] uppercase tracking-wider">
-                                Commission
-                              </span>
-                              <span
-                                className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${tier.overrideCommission ? 'bg-[#F44A22] text-white' : 'bg-surface-elevated text-text-tertiary'}`}
-                              >
-                                {tier.overrideCommission ? 'CUSTOM' : 'DEFAULT'}
-                              </span>
-                            </div>
-                            <span
-                              className={`text-[13px] font-semibold ${tier.overrideCommission ? 'text-[#F44A22]' : 'text-text-primary'}`}
-                            >
-                              {tier.overrideCommission
-                                ? `${tier.promoterCommission || 0}${(tier.promoterCommissionType || 'percent') === 'percent' ? '%' : '₹'}`
-                                : `${eventDefaultCommission || 15}${(eventDefaultCommissionType || 'percent') === 'percent' ? '%' : '₹'}`}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold text-[#34c759] uppercase tracking-wider">
+                              Buyer Discount
                             </span>
-                          </button>
-                          {tier.overrideCommission && (
-                            <div className="px-3 pb-3 space-y-2">
-                              <div className="flex gap-2">
-                                <div className="flex p-0.5 bg-surface-elevated rounded-lg border border-[#F44A22]/20">
-                                  {[
-                                    { v: 'percent', l: '%' },
-                                    { v: 'amount', l: '₹' },
-                                  ].map(({ v, l }) => (
-                                    <button
-                                      key={v}
-                                      onClick={() => onUpdate({ promoterCommissionType: v as any })}
-                                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${(tier.promoterCommissionType || 'percent') === v ? 'bg-[#F44A22] text-white' : 'text-text-tertiary'}`}
-                                    >
-                                      {l}
-                                    </button>
-                                  ))}
-                                </div>
-                                <input
-                                  type="number"
-                                  value={tier.promoterCommission}
-                                  onChange={(e) =>
-                                    onUpdate({
-                                      promoterCommission:
-                                        e.target.value === '' ? '' : parseInt(e.target.value) || 0,
-                                    })
-                                  }
-                                  placeholder="15"
-                                  className="flex-1 px-3 py-1.5 rounded-lg bg-surface-elevated border border-[#F44A22]/20 text-[14px] font-bold focus:outline-none focus:border-[#F44A22]"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Discount override */}
-                        {!isRSVP && buyerDiscountsEnabled && (
-                          <div
-                            className={`rounded-xl overflow-hidden transition-all ${
-                              tier.overrideDiscount
-                                ? 'bg-[#34c759]/5 border border-[#34c759]/20'
-                                : 'bg-surface-tertiary'
-                            }`}
-                          >
-                            <button
-                              onClick={() =>
-                                onUpdate({
-                                  overrideDiscount: !tier.overrideDiscount,
-                                  promoterDiscount: tier.overrideDiscount
-                                    ? ''
-                                    : eventDefaultDiscount || 10,
-                                  promoterDiscountType: tier.overrideDiscount
-                                    ? 'percent'
-                                    : eventDefaultDiscountType || 'percent',
-                                })
-                              }
-                              className="w-full p-3 flex items-center justify-between text-left"
+                            <span
+                              className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${tier.overrideDiscount ? 'bg-[#34c759] text-white' : 'bg-surface-elevated text-text-tertiary'}`}
                             >
-                              <div className="flex items-center gap-2">
-                                <span className="text-[11px] font-bold text-[#34c759] uppercase tracking-wider">
-                                  Buyer Discount
-                                </span>
-                                <span
-                                  className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${tier.overrideDiscount ? 'bg-[#34c759] text-white' : 'bg-surface-elevated text-text-tertiary'}`}
-                                >
-                                  {tier.overrideDiscount ? 'CUSTOM' : 'DEFAULT'}
-                                </span>
+                              {tier.overrideDiscount ? 'CUSTOM' : 'DEFAULT'}
+                            </span>
+                          </div>
+                          <span
+                            className={`text-[13px] font-semibold ${tier.overrideDiscount ? 'text-[#34c759]' : 'text-text-primary'}`}
+                          >
+                            {tier.overrideDiscount
+                              ? `${tier.promoterDiscount || 0}${(tier.promoterDiscountType || 'percent') === 'percent' ? '%' : '₹'} off`
+                              : `${eventDefaultDiscount || 10}${(eventDefaultDiscountType || 'percent') === 'percent' ? '%' : '₹'} off`}
+                          </span>
+                        </button>
+                        {tier.overrideDiscount && (
+                          <div className="px-3 pb-3">
+                            <div className="flex gap-2">
+                              <div className="flex p-0.5 bg-surface-elevated rounded-lg border border-[#34c759]/20">
+                                {[
+                                  { v: 'percent', l: '%' },
+                                  { v: 'amount', l: '₹' },
+                                ].map(({ v, l }) => (
+                                  <button
+                                    key={v}
+                                    onClick={() => onUpdate({ promoterDiscountType: v as any })}
+                                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${(tier.promoterDiscountType || 'percent') === v ? 'bg-[#34c759] text-white' : 'text-text-tertiary'}`}
+                                  >
+                                    {l}
+                                  </button>
+                                ))}
                               </div>
-                              <span
-                                className={`text-[13px] font-semibold ${tier.overrideDiscount ? 'text-[#34c759]' : 'text-text-primary'}`}
-                              >
-                                {tier.overrideDiscount
-                                  ? `${tier.promoterDiscount || 0}${(tier.promoterDiscountType || 'percent') === 'percent' ? '%' : '₹'} off`
-                                  : `${eventDefaultDiscount || 10}${(eventDefaultDiscountType || 'percent') === 'percent' ? '%' : '₹'} off`}
-                              </span>
-                            </button>
-                            {tier.overrideDiscount && (
-                              <div className="px-3 pb-3">
-                                <div className="flex gap-2">
-                                  <div className="flex p-0.5 bg-surface-elevated rounded-lg border border-[#34c759]/20">
-                                    {[
-                                      { v: 'percent', l: '%' },
-                                      { v: 'amount', l: '₹' },
-                                    ].map(({ v, l }) => (
-                                      <button
-                                        key={v}
-                                        onClick={() => onUpdate({ promoterDiscountType: v as any })}
-                                        className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${(tier.promoterDiscountType || 'percent') === v ? 'bg-[#34c759] text-white' : 'text-text-tertiary'}`}
-                                      >
-                                        {l}
-                                      </button>
-                                    ))}
-                                  </div>
-                                  <input
-                                    type="number"
-                                    value={tier.promoterDiscount}
-                                    onChange={(e) =>
-                                      onUpdate({
-                                        promoterDiscount:
-                                          e.target.value === ''
-                                            ? ''
-                                            : parseInt(e.target.value) || 0,
-                                      })
-                                    }
-                                    placeholder="10"
-                                    className="flex-1 px-3 py-1.5 rounded-lg bg-surface-elevated border border-[#34c759]/20 text-[14px] font-bold focus:outline-none focus:border-[#34c759]"
-                                  />
-                                </div>
-                              </div>
-                            )}
+                              <input
+                                type="number"
+                                value={tier.promoterDiscount}
+                                onChange={(e) =>
+                                  onUpdate({
+                                    promoterDiscount:
+                                      e.target.value === '' ? '' : parseInt(e.target.value) || 0,
+                                  })
+                                }
+                                placeholder="10"
+                                className="flex-1 px-3 py-1.5 rounded-lg bg-surface-elevated border border-[#34c759]/20 text-[14px] font-bold focus:outline-none focus:border-[#34c759]"
+                              />
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1004,38 +1003,85 @@ export function TicketTierStep({
   updateFormData,
   validationErrors,
 }: TicketTierStepProps) {
+  const { warning: toastWarning } = useToast();
   const [activeTab, setActiveTab] = useState<ActiveTab>('tiers');
+  const [pendingRemoveIndex, setPendingRemoveIndex] = useState<number | null>(null);
 
   const tickets: TicketTier[] = formData.tickets || [];
   const capacity = formData.capacity || 500;
-  // Calculations moved to backend
-  const totalTickets = 0;
-  const inventoryValue = 0;
-  const capacityUsage = 0;
+  const totalTickets = tickets.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
+  const inventoryValue = tickets.reduce(
+    (sum, t) => sum + (Number(t.price) || 0) * (Number(t.quantity) || 0),
+    0,
+  );
+  const capacityUsage = capacity > 0 ? (totalTickets / capacity) * 100 : 0;
 
   const updateTicket = (index: number, updates: Partial<TicketTier>) => {
+    if (updates.quantity !== undefined) {
+      const newQty = Number(updates.quantity) || 0;
+      const otherTicketsTotal = tickets.reduce(
+        (sum, t, idx) => (idx === index ? sum : sum + (Number(t.quantity) || 0)),
+        0,
+      );
+      if (otherTicketsTotal + newQty > capacity) {
+        toastWarning(
+          'Capacity Exceeded',
+          `Quantity is exceeding the decided capacity (${otherTicketsTotal + newQty}/${capacity})`,
+        );
+        updates.quantity = Math.max(0, capacity - otherTicketsTotal);
+      }
+    }
     const newTickets = [...tickets];
     newTickets[index] = { ...newTickets[index], ...updates };
     updateFormData({ tickets: newTickets });
   };
 
   const removeTicket = (index: number) => {
-    updateFormData({ tickets: tickets.filter((_, i) => i !== index) });
+    const removedId = tickets[index]?.id;
+    const overrides = formData.promoterCommissionOverrides || {};
+    const nextOverrides = removedId
+      ? Object.fromEntries(
+          Object.entries(overrides).map(([promoterId, override]: [string, any]) => [
+            promoterId,
+            {
+              ...override,
+              tierRates: override?.tierRates
+                ? Object.fromEntries(
+                    Object.entries(override.tierRates).filter(([tierId]) => tierId !== removedId),
+                  )
+                : override?.tierRates,
+            },
+          ]),
+        )
+      : overrides;
+    updateFormData({
+      tickets: tickets.filter((_, i) => i !== index),
+      promoterCommissionOverrides: nextOverrides,
+    });
   };
 
   const addTicket = () => {
+    let defaultQty = 50;
+    if (totalTickets + defaultQty > capacity) {
+      const remaining = Math.max(0, capacity - totalTickets);
+      toastWarning(
+        'Capacity Exceeded',
+        `Quantity is exceeding the decided capacity. Capped new tier quantity at ${remaining}`,
+      );
+      defaultQty = remaining;
+    }
     const newTicket: TicketTier = {
       id: Date.now().toString(),
       name: '',
       entryType: 'stag',
       genderRequirement: 'male',
       price: formData.isRSVP ? 0 : 0,
-      quantity: 50,
+      quantity: defaultQty,
       minPerOrder: 1,
       maxPerOrder: 10,
       promoterEnabled: true,
-      promoterCommissionType: formData.isRSVP ? 'amount' : 'percent',
-      promoterCommission: formData.isRSVP ? 0 : 15,
+      // Left unset on purpose — shows as "Commission Required" in Custom mode
+      // until set on the Promoters step.
     };
     updateFormData({ tickets: [...tickets, newTicket] });
   };
@@ -1048,12 +1094,14 @@ export function TicketTierStep({
       updates.tickets = (formData.tickets || []).map((t: any) => ({
         ...t,
         price: 0,
-        promoterCommissionType: 'amount',
-        promoterCommission: t.promoterCommission ?? 0,
+        commissionType: t.commissionType ? 'fixed' : t.commissionType,
+        // A percent commission value is meaningless once the type flips to
+        // 'fixed' (it would be read as a flat currency amount) — reset it.
+        commissionValue: t.commissionType ? 0 : t.commissionValue,
       }));
       updates.minTicketsPerOrder = 1;
       updates.maxTicketsPerOrder = 1;
-      updates.commissionType = 'amount';
+      updates.commissionType = 'fixed';
       updates.buyerDiscountsEnabled = false;
     }
     updateFormData(updates);
@@ -1237,6 +1285,15 @@ export function TicketTierStep({
         )}
       </div>
 
+      {totalTickets > capacity && (
+        <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-[12px] text-red-500 font-bold">
+          <AlertCircle className="w-4.5 h-4.5 flex-shrink-0" />
+          <span>
+            Quantity is exceeding the decided capacity ({totalTickets}/{capacity})
+          </span>
+        </div>
+      )}
+
       {/* ─── Tab Bar ─── */}
       <div className="flex items-center gap-1 bg-surface-secondary border border-border-subtle rounded-xl p-1">
         {TABS.map((tab) => {
@@ -1285,13 +1342,13 @@ export function TicketTierStep({
                   tier={tier}
                   index={index}
                   onUpdate={(updates) => updateTicket(index, updates)}
-                  onRemove={() => removeTicket(index)}
+                  onRemove={() => setPendingRemoveIndex(index)}
                   canRemove={tickets.length > 1}
                   capacity={capacity}
-                  eventDefaultCommission={formData.commission}
-                  eventDefaultCommissionType={formData.commissionType}
+                  compensationModel={formData.compensationModel || 'standard'}
+                  standardCommissionValue={formData.commission}
+                  standardCommissionType={formData.commissionType}
                   promotersEnabled={formData.promotersEnabled}
-                  useDefaultCommission={formData.useDefaultCommission}
                   buyerDiscountsEnabled={formData.buyerDiscountsEnabled}
                   useDefaultDiscount={formData.useDefaultDiscount}
                   eventDefaultDiscount={formData.discount}
@@ -1326,13 +1383,33 @@ export function TicketTierStep({
                   <button
                     key={preset.label}
                     onClick={() => {
-                      const newTickets = preset.tiers.map((t, i) => ({
+                      const presetTotal = (preset.tiers as any[]).reduce(
+                        (sum: number, t: any) => sum + t.quantity,
+                        0,
+                      );
+                      let adjustedTiers: any[] = preset.tiers;
+                      if (presetTotal > capacity) {
+                        toastWarning(
+                          'Preset Capacity Adjusted',
+                          `The selected preset's total quantity (${presetTotal}) exceeds the decided capacity (${capacity}). Quantities have been scaled down to fit.`,
+                        );
+                        let allocated = 0;
+                        adjustedTiers = preset.tiers.map((t: any, idx) => {
+                          const isLast = idx === preset.tiers.length - 1;
+                          const qty = isLast
+                            ? Math.max(0, capacity - allocated)
+                            : Math.floor(t.quantity * (capacity / presetTotal));
+                          allocated += qty;
+                          return { ...t, quantity: qty };
+                        });
+                      }
+
+                      const newTickets = adjustedTiers.map((t: any, i) => ({
                         id: `preset-${Date.now()}-${i}`,
                         ...t,
                         minPerOrder: 1,
                         maxPerOrder: 10,
                         promoterEnabled: true,
-                        promoterCommissionType: 'percent',
                       }));
                       updateFormData({
                         tickets: newTickets,
@@ -1621,84 +1698,10 @@ export function TicketTierStep({
                   className="pt-4 border-t border-border-default space-y-4"
                 >
                   {/* ─ Commission Section ─ */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[11px] font-black uppercase tracking-widest text-[#F44A22]">
-                        Promoter Commission
-                      </p>
-                      <span className="px-2 py-0.5 rounded-full bg-orange-500/10 text-[#F44A22] text-[9px] font-black tracking-widest uppercase border border-orange-500/20">
-                        Payouts
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-surface-tertiary border border-border-default">
-                      <div>
-                        <p className="text-[13px] font-bold text-text-primary">
-                          Standardize Commission
-                        </p>
-                        <p className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">
-                          {formData.useDefaultCommission !== false
-                            ? 'Same rate for all tiers'
-                            : 'Custom rate per tier'}
-                        </p>
-                      </div>
-                      <Toggle
-                        on={formData.useDefaultCommission !== false}
-                        onToggle={() =>
-                          updateFormData({
-                            useDefaultCommission: formData.useDefaultCommission === false,
-                          })
-                        }
-                        color="bg-[#F44A22]"
-                      />
-                    </div>
-
-                    {formData.useDefaultCommission !== false && (
-                      <div className="p-3 rounded-xl bg-surface-tertiary border border-border-default flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-[13px] font-bold text-text-primary">
-                            Default Commission
-                          </p>
-                          <p className="text-[10px] text-text-tertiary uppercase tracking-widest font-bold">
-                            Applied to all tiers
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex p-1 bg-surface-secondary rounded-xl border border-border-default">
-                            {[
-                              { v: 'percent', l: '%' },
-                              { v: 'amount', l: '₹' },
-                            ].map(({ v, l }) => (
-                              <button
-                                key={v}
-                                onClick={() => updateFormData({ commissionType: v })}
-                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${(formData.commissionType || 'percent') === v ? 'bg-[#F44A22] text-white shadow-sm' : 'text-text-tertiary'}`}
-                              >
-                                {l}
-                              </button>
-                            ))}
-                          </div>
-                          <input
-                            type="number"
-                            value={formData.commission}
-                            onChange={(e) =>
-                              updateFormData({
-                                commission:
-                                  e.target.value === '' ? '' : parseInt(e.target.value) || 0,
-                              })
-                            }
-                            className="w-20 h-10 bg-surface-secondary border border-border-default rounded-xl px-3 text-center font-bold text-text-primary focus:outline-none"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {formData.useDefaultCommission === false && (
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-tertiary border border-border-default text-[11px] text-text-secondary font-medium">
-                        <Sparkles className="w-4 h-4 text-[#F44A22]" />
-                        Set custom commission within each tier in the Tiers tab.
-                      </div>
-                    )}
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-tertiary border border-border-default text-[11px] text-text-secondary font-medium">
+                    <Sparkles className="w-4 h-4 text-[#F44A22] flex-shrink-0" />
+                    Promoter compensation (Standard, Custom, or Salary) is configured on the{' '}
+                    <strong>PROMOTERS</strong> step.
                   </div>
 
                   {/* ─ Buyer Discount Section ─ */}
@@ -1882,6 +1885,19 @@ export function TicketTierStep({
               </div>
             )}
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pendingRemoveIndex !== null && (
+          <TierRemoveConfirmDialog
+            tierName={tickets[pendingRemoveIndex]?.name || 'this tier'}
+            onCancel={() => setPendingRemoveIndex(null)}
+            onConfirm={() => {
+              removeTicket(pendingRemoveIndex);
+              setPendingRemoveIndex(null);
+            }}
+          />
         )}
       </AnimatePresence>
 

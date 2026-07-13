@@ -1,11 +1,15 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import {
+  Activity,
+  BarChart3,
   Building2,
   Copy,
+  DoorOpen,
   Edit3,
   ExternalLink,
+  GitCompare,
   ImageIcon,
   Info,
   MapPin,
@@ -134,9 +138,10 @@ export default function EventAnalyticsClient({
 }) {
   const { profile, user } = useDashboardAuth();
   const entityId = profile?.activeMembership?.partnerId;
-  const useEmbeddedEventAnalytics = embedded && role === 'venue' && Boolean(eventId);
+  const useComputedEventAnalytics = role === 'venue' && Boolean(eventId);
 
   const [rangeDays, setRangeDays] = useState<number>(30);
+  const [activeTab, setActiveTab] = useState<string>('summary');
   const [copied, setCopied] = useState(false);
   const range: DateRange = {
     from: subDays(new Date(), rangeDays),
@@ -150,7 +155,7 @@ export default function EventAnalyticsClient({
     refetch: refetchEventDetails,
     isFetching: isFetchingEventDetails,
   } = useQuery({
-    queryKey: [role, 'events', entityId, 'all'],
+    queryKey: [role, 'events', entityId, eventId, 'details'],
     queryFn: async () => {
       const token = await user?.getIdToken();
       const res = await fetch(`/api/${role}/events?${idParam}=${entityId}`, {
@@ -171,10 +176,15 @@ export default function EventAnalyticsClient({
         eventUrl: mapped.eventUrl || rawEvent.eventUrl || '',
         coverImage:
           mapped.coverImage || mapped.image || rawEvent.coverImage || rawEvent.image || null,
+        creatorRole: mapped.creatorRole || rawEvent.creatorRole || null,
+        eventType: mapped.eventType || rawEvent.eventType || null,
       };
     },
     enabled: !!entityId && !!user,
   });
+
+  const isHostManagedEvent =
+    String(eventDetails?.creatorRole || eventDetails?.eventType || '').toLowerCase() === 'host';
 
   // 2. Fetch analytics strictly scoped to this event
   const {
@@ -192,7 +202,7 @@ export default function EventAnalyticsClient({
         ...(entityId ? { 'x-partner-id': entityId, 'x-venue-id': entityId } : {}),
       };
 
-      if (useEmbeddedEventAnalytics && eventId) {
+      if (useComputedEventAnalytics && eventId) {
         const res = await fetch(`/api/partners/venues/events/${eventId}/computed-analytics`, {
           headers,
         });
@@ -347,13 +357,15 @@ export default function EventAnalyticsClient({
             </div>
 
             <div className="flex flex-wrap items-center gap-3 xl:max-w-[320px] xl:justify-end">
-              <Link
-                href={`/${role}/create?id=${eventId}`}
-                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-white/12 bg-white/[0.02] px-5 py-3 text-[14px] font-semibold text-[var(--v-text-primary)] transition-all hover:border-white/18 hover:bg-white/[0.05]"
-              >
-                <Edit3 className="h-4 w-4" />
-                Edit
-              </Link>
+              {role === 'venue' && isHostManagedEvent ? null : (
+                <Link
+                  href={`/${role}/create?id=${eventId}`}
+                  className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-white/12 bg-white/[0.02] px-5 py-3 text-[14px] font-semibold text-[var(--v-text-primary)] transition-all hover:border-white/18 hover:bg-white/[0.05]"
+                >
+                  <Edit3 className="h-4 w-4" />
+                  Edit
+                </Link>
+              )}
               {eventDetails?.eventUrl && (
                 <a
                   href={eventDetails.eventUrl}
@@ -434,6 +446,19 @@ export default function EventAnalyticsClient({
     </section>
   ) : null;
 
+  // ── Tab definitions ──────────────────────────────────────────────────────
+  const tabs = useMemo(
+    () => [
+      { id: 'summary', label: 'Summary', Icon: BarChart3 },
+      { id: 'funnel', label: 'Funnel', Icon: TrendingUp },
+      { id: 'revenue', label: 'Revenue', Icon: Activity },
+      { id: 'crowd', label: 'Crowd', Icon: Users },
+      { id: 'door', label: 'Door', Icon: DoorOpen },
+      { id: 'compare', label: 'Compare', Icon: GitCompare },
+    ],
+    [],
+  );
+
   return (
     <div
       style={{
@@ -443,17 +468,6 @@ export default function EventAnalyticsClient({
     >
       <main className={embedded ? 'pt-0' : 'px-6 py-8'}>
         <div className={embedded ? 'space-y-4' : 'max-w-7xl mx-auto space-y-6'}>
-          {/* Back link — standalone only */}
-          {!embedded && (
-            <Link
-              href={`/${role}/events`}
-              className="inline-flex items-center gap-1.5 text-[12px] font-semibold hover:underline transition-colors"
-              style={{ color: 'var(--v-text-tertiary)' }}
-            >
-              ← Back to Events
-            </Link>
-          )}
-
           {/* Event card header */}
           {eventCard}
 
@@ -461,19 +475,6 @@ export default function EventAnalyticsClient({
           {embeddedToolbar}
 
           {/* Info / error banners */}
-          {!embedded && !isLoading && !data.hasData && (
-            <div
-              className="flex items-center gap-3 px-5 py-3 rounded-2xl border"
-              style={{ background: 'var(--v-elevated)', borderColor: 'var(--v-border)' }}
-            >
-              <Info className="w-4 h-4 shrink-0" style={{ color: 'var(--v-text-muted)' }} />
-              <p className="text-[13px]" style={{ color: 'var(--v-text-secondary)' }}>
-                No analytics recorded yet for this event — metrics will populate after tickets are
-                sold or guests arrive.
-              </p>
-            </div>
-          )}
-
           {!embedded && isError && (
             <div
               className="flex items-center gap-3 px-5 py-3 rounded-2xl border"
@@ -486,26 +487,69 @@ export default function EventAnalyticsClient({
             </div>
           )}
 
-          {/* Date range picker — standalone only, above analytics sections */}
-          {!embedded && !useEmbeddedEventAnalytics && (
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <p
-                className="text-[12px] font-bold uppercase tracking-[0.14em]"
-                style={{ color: 'var(--v-text-secondary)' }}
-              >
-                Analytics Period
-              </p>
-              {rangePicker}
+          {/* ── Tab bar + optional range picker row ─────────────────────── */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* Scrollable tab pill strip */}
+            <div
+              role="tablist"
+              aria-label="Analytics sections"
+              className="flex items-center gap-1 overflow-x-auto rounded-2xl p-1 scrollbar-none"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.07)',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              {tabs.map(({ id, label, Icon }) => {
+                const active = activeTab === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveTab(id)}
+                    className={cn(
+                      'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl px-5 py-2 text-[12px] font-bold transition-all',
+                      active
+                        ? 'text-white'
+                        : 'text-[var(--v-text-secondary)] hover:bg-white/[0.06] hover:text-white',
+                    )}
+                    style={{
+                      background: active ? 'var(--v-orange)' : undefined,
+                      boxShadow: active ? '0 2px 12px rgba(244,74,34,0.35)' : 'none',
+                      whiteSpace: 'nowrap',
+                      minWidth: '90px',
+                    }}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
+                  </button>
+                );
+              })}
             </div>
-          )}
 
-          {/* Analytics sections */}
-          <SummarySection data={data} loading={isLoading} hideTitle={embedded} />
-          <FunnelSection data={data} loading={isLoading} />
-          <RevenueSection data={data} loading={isLoading} />
-          <CrowdSection data={data} loading={isLoading} />
-          <DoorSection data={data} loading={isLoading} />
-          <CompareSection data={data} loading={isLoading} />
+            {/* Right side: info hint OR range picker */}
+            {!embedded && !isLoading && !data.hasData ? (
+              <p className="flex items-center gap-1.5 text-[12px] text-amber-200/60 shrink-0">
+                <Info className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                No analytics recorded yet for this event — metrics will populate after tickets are
+                sold or guests arrive.
+              </p>
+            ) : (
+              !embedded && !useComputedEventAnalytics && rangePicker
+            )}
+          </div>
+
+          {/* ── Active section ───────────────────────────────────────────── */}
+          {activeTab === 'summary' && (
+            <SummarySection data={data} loading={isLoading} hideTitle={embedded} />
+          )}
+          {activeTab === 'funnel' && <FunnelSection data={data} loading={isLoading} />}
+          {activeTab === 'revenue' && <RevenueSection data={data} loading={isLoading} />}
+          {activeTab === 'crowd' && <CrowdSection data={data} loading={isLoading} />}
+          {activeTab === 'door' && <DoorSection data={data} loading={isLoading} />}
+          {activeTab === 'compare' && <CompareSection data={data} loading={isLoading} />}
         </div>
       </main>
     </div>

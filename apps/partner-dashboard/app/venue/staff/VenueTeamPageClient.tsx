@@ -43,11 +43,21 @@ const ROLE_OPTIONS: Array<{ value: EditableVenueRole; label: string; description
     label: 'Security',
     description: 'Focused on entry, safety, and incident awareness at the door.',
   },
+  {
+    value: 'DOOR',
+    label: 'Door',
+    description: 'Focused on check-ins, guest entry, and front-of-house operations.',
+  },
 ];
 
 function normalizeVenueRole(role: string): VenueRole {
   const normalized = role.toUpperCase();
-  if (normalized === 'MANAGER' || normalized === 'FINANCE_ADMIN' || normalized === 'SECURITY') {
+  if (
+    normalized === 'MANAGER' ||
+    normalized === 'FINANCE_ADMIN' ||
+    normalized === 'SECURITY' ||
+    normalized === 'DOOR'
+  ) {
     return normalized as VenueRole;
   }
   if (normalized === 'OWNER') return 'OWNER';
@@ -171,11 +181,20 @@ function AddMemberModal({
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const contactValue = searchMode === 'email' ? email : phone;
 
   const handleSearchContinue = () => {
+    setError(null);
     if (!contactValue.trim()) return;
+    if (searchMode === 'email') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        setError('Please enter a valid email address.');
+        return;
+      }
+    }
     setStep('details');
   };
 
@@ -259,15 +278,22 @@ function AddMemberModal({
               <input
                 autoFocus
                 value={contactValue}
-                onChange={(event) =>
-                  searchMode === 'email'
-                    ? setEmail(event.target.value)
-                    : setPhone(event.target.value)
-                }
+                onChange={(event) => {
+                  setError(null);
+                  if (searchMode === 'email') {
+                    setEmail(event.target.value);
+                  } else {
+                    setPhone(event.target.value);
+                  }
+                }}
                 placeholder={searchMode === 'email' ? 'name@email.com' : '(555) 555-5555'}
                 className="h-16 w-full rounded-[24px] border border-[var(--v-border)] bg-[var(--v-elevated)] px-6 text-center text-lg font-semibold text-[var(--v-text-primary)] outline-none transition-all placeholder:text-[var(--v-text-tertiary)] focus:border-[var(--c1rcle-orange)]/40"
                 onKeyDown={(event) => event.key === 'Enter' && handleSearchContinue()}
               />
+
+              {error && (
+                <p className="mt-2 text-xs font-semibold text-center text-[#ff3b30]">{error}</p>
+              )}
 
               <button
                 type="button"

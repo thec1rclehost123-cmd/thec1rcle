@@ -21,16 +21,68 @@ export async function manageConnection(
 
   if (action === 'request') {
     const id = connectionId || randomUUID();
+
+    // Resolve promoter and target names
+    let promoterName = '';
+    let targetName = '';
+
+    try {
+      const promoterDoc = await db
+        .collection('promoters')
+        .doc(promoterId)
+        .get()
+        .catch(() => null);
+      if (promoterDoc?.exists) {
+        promoterName = promoterDoc.data()?.displayName || promoterDoc.data()?.name || '';
+      }
+
+      if (targetType === 'host') {
+        const hostDoc = await db
+          .collection('hosts')
+          .doc(targetId)
+          .get()
+          .catch(() => null);
+        if (hostDoc?.exists) {
+          targetName = hostDoc.data()?.displayName || hostDoc.data()?.name || '';
+        }
+      } else if (targetType === 'venue') {
+        const venueDoc = await db
+          .collection('venues')
+          .doc(targetId)
+          .get()
+          .catch(() => null);
+        if (venueDoc?.exists) {
+          targetName = venueDoc.data()?.displayName || venueDoc.data()?.name || '';
+        }
+      }
+    } catch (err) {
+      console.error('[promoter-engine] Failed to resolve connection names:', err);
+    }
+
     const connectionData = {
       id,
       promoterId,
+      promoterName,
       targetId,
       targetType,
+      targetName,
       status: 'pending',
       message: reason,
+      initiatedBy: 'promoter',
+      fromPartnerId: promoterId,
+      toPartnerId: targetId,
       createdAt: now,
       updatedAt: now,
     };
+
+    if (targetType === 'host') {
+      connectionData.hostId = targetId;
+      connectionData.hostName = targetName;
+    } else if (targetType === 'venue') {
+      connectionData.venueId = targetId;
+      connectionData.venueName = targetName;
+    }
+
     await db.collection(CONNECTIONS_COLLECTION).doc(id).set(connectionData);
     return connectionData;
   }
@@ -289,10 +341,26 @@ export async function recordConversion(linkId, orderId, orderAmount, ticketTierI
   const linkDoc = await db.collection(LINKS_COLLECTION).doc(linkId).get();
   if (!linkDoc.exists) return null;
   const link = linkDoc.data();
+
+  // Custom compensation model: look up this tier's own rate. Falls back to the
+  // link's flat rate for Standard (one rate for everyone) and Salary (rate 0).
+  const tierCommission = ticketTierId ? link.tierCommissions?.[ticketTierId] : null;
+  const commissionRate = tierCommission ? tierCommission.rate : link.commissionRate;
+  const commissionType = tierCommission ? tierCommission.type : link.commissionType;
+
+  // Use ?? rather than || so an intentional 0% / ₹0 commission (a valid,
+  // explicitly-allowed value for the Custom compensation model) isn't
+  // silently replaced by the fallback default.
+  //
+  // A zero-value order means a free (RSVP) ticket — a fixed/flat commission
+  // rate must never fire on it, or promoters would earn a payout on tickets
+  // that generated no revenue.
   const commissionAmount =
-    link.commissionType === 'percentage'
-      ? Math.round(orderAmount * ((link.commissionRate || 15) / 100))
-      : link.commissionRate || 50;
+    orderAmount > 0
+      ? commissionType === 'percentage'
+        ? Math.round(orderAmount * ((commissionRate ?? 15) / 100))
+        : (commissionRate ?? 50)
+      : 0;
   const now = new Date().toISOString();
   const commissionId = randomUUID();
   const commissionRecord = {
@@ -304,8 +372,8 @@ export async function recordConversion(linkId, orderId, orderAmount, ticketTierI
     orderId,
     orderAmount,
     ticketTierId: ticketTierId || 'multi',
-    commissionRate: link.commissionRate,
-    commissionType: link.commissionType,
+    commissionRate,
+    commissionType,
     commissionAmount,
     status: 'pending',
     createdAt: now,

@@ -18,19 +18,17 @@ import {
 describe('NotificationCenter helpers', () => {
   it('routes venue fetches to the venue notifications endpoint', () => {
     expect(getNotificationFetchUrl('venue', 'venue_123')).toBe(
-      '/api/partners/venues/notifications?venueId=venue_123&limit=20',
+      '/api/venue/notifications?venueId=venue_123&limit=20',
     );
   });
 
   it('routes host fetches to the host notifications endpoint', () => {
-    expect(getNotificationFetchUrl('host', 'host_123')).toBe(
-      '/api/partners/hosts/notifications?limit=20',
-    );
+    expect(getNotificationFetchUrl('host', 'host_123')).toBe('/api/host/notifications?limit=20');
   });
 
   it('routes promoter fetches to the promoter notifications endpoint', () => {
     expect(getNotificationFetchUrl('promoter', 'promoter_123')).toBe(
-      '/api/partners/promoters/notifications?limit=20',
+      '/api/promoter/notifications?limit=20',
     );
   });
 
@@ -50,7 +48,7 @@ describe('NotificationCenter helpers', () => {
     );
 
     expect(request).toEqual({
-      url: '/api/partners/venues/notifications',
+      url: '/api/venue/notifications',
       body: {
         venueId: 'venue_123',
         notificationId: 'notif_1',
@@ -62,17 +60,17 @@ describe('NotificationCenter helpers', () => {
 
   it('builds the correct mark-all payloads for venue and host', () => {
     expect(buildMarkAllReadRequest('venue', 'venue_123')).toEqual({
-      url: '/api/partners/venues/notifications',
+      url: '/api/venue/notifications',
       body: { venueId: 'venue_123', markAllRead: true },
     });
 
     expect(buildMarkAllReadRequest('host', 'host_123')).toEqual({
-      url: '/api/partners/hosts/notifications',
+      url: '/api/host/notifications',
       body: { markAllRead: true },
     });
 
     expect(buildMarkAllReadRequest('promoter', 'promoter_123')).toEqual({
-      url: '/api/partners/promoters/notifications',
+      url: '/api/promoter/notifications',
       body: { markAllRead: true },
     });
   });

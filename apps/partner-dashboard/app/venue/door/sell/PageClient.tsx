@@ -250,9 +250,15 @@ export function DoorSellClient() {
     if (selectedEventId) fetchCapacity();
   }, [selectedEventId]);
 
+  useEffect(() => {
+    if (hub?.eventId && entryType === 'walkins') {
+      setSelectedEventId(hub.eventId);
+    }
+  }, [hub?.eventId, entryType]);
+
   // Reset event selection and dine-in guest count when type changes
   useEffect(() => {
-    setSelectedEventId('');
+    setSelectedEventId(entryType === 'walkins' ? hub?.eventId || '' : '');
     setCapacity(null);
     setTotalGuests('');
   }, [entryType]);
@@ -311,8 +317,7 @@ export function DoorSellClient() {
           contact: contact.trim(),
           email: email.trim() || undefined,
           age: parseInt(age, 10) || 0,
-          partySize: entryType === 'dinein' ? parseInt(totalGuests, 10) || 1 : 1,
-          totalGuests: entryType === 'dinein' ? parseInt(totalGuests, 10) || 1 : undefined,
+          totalGuests: entryType === 'dinein' ? parseInt(totalGuests, 10) || 1 : 1,
           gender,
           purpose,
           idempotencyKey: idempotencyKey((profile as any)?.uid ?? 'staff'),
@@ -624,7 +629,10 @@ export function DoorSellClient() {
                       return (
                         <button
                           key={event.id}
-                          onClick={() => setSelectedEventId(event.id)}
+                          onClick={() => {
+                            setSelectedEventId(event.id);
+                            hub?.setEventId(event.id);
+                          }}
                           className={cn(
                             'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all active:scale-[0.98]',
                             isSelected

@@ -40,7 +40,7 @@ describe('/api/promoter/notifications', () => {
     expect(response.status).toBe(200);
     expect(proxyToGatewayMock).toHaveBeenCalledWith(
       req,
-      'http://gateway.test/api/v1/promoter/notifications?limit=10&promoterId=promoter_1',
+      'http://gateway.test/api/v1/partners/promoters/notifications?limit=10&promoterId=promoter_1',
       {},
     );
   });
@@ -58,7 +58,7 @@ describe('/api/promoter/notifications', () => {
     expect(response.status).toBe(200);
     expect(proxyToGatewayMock).toHaveBeenCalledWith(
       req,
-      'http://gateway.test/api/v1/promoter/notifications',
+      'http://gateway.test/api/v1/partners/promoters/notifications',
       {
         method: 'PATCH',
         body: JSON.stringify({

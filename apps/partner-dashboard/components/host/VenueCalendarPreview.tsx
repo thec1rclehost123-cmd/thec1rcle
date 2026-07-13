@@ -16,11 +16,34 @@ import {
 } from 'lucide-react';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 
+function fmt12(t: string): string {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
+const SELECT_TIMES: string[] = (() => {
+  const times = [];
+  for (let h = 0; h < 24; h++) {
+    const hh = String(h).padStart(2, '0');
+    times.push(`${hh}:00`);
+    times.push(`${hh}:30`);
+  }
+  return times;
+})();
+
 interface VenueCalendarPreviewProps {
   venueId: string;
   venueName: string;
   hostId: string;
-  onSelectSlot: (date: string, startTime: string, endTime: string) => void;
+  onSelectSlot: (
+    date: string,
+    startTime: string,
+    endTime: string,
+    doorsOpen: string,
+    lastEntry: string,
+  ) => void;
   onClose: () => void;
 }
 
@@ -95,6 +118,8 @@ export function VenueCalendarPreview({
     startTime: string;
     endTime: string;
   } | null>(null);
+  const [doorsOpen, setDoorsOpen] = useState('21:00');
+  const [lastEntry, setLastEntry] = useState('04:00');
   const [dateAvailability, setDateAvailability] = useState<any>(null);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
 
@@ -211,7 +236,13 @@ export function VenueCalendarPreview({
 
   const handleConfirm = () => {
     if (selectedDate && selectedTimeSlot) {
-      onSelectSlot(selectedDate, selectedTimeSlot.startTime, selectedTimeSlot.endTime);
+      onSelectSlot(
+        selectedDate,
+        selectedTimeSlot.startTime,
+        selectedTimeSlot.endTime,
+        doorsOpen,
+        lastEntry,
+      );
     }
   };
 
@@ -427,7 +458,13 @@ export function VenueCalendarPreview({
                         return (
                           <button
                             key={slot.label}
-                            onClick={() => !isUnavailable && setSelectedTimeSlot(slot)}
+                            onClick={() => {
+                              if (!isUnavailable) {
+                                setSelectedTimeSlot(slot);
+                                setDoorsOpen(slot.startTime);
+                                setLastEntry(slot.endTime);
+                              }
+                            }}
                             disabled={isUnavailable}
                             className={`
                                                             w-full p-4 rounded-xl text-left transition-all
@@ -455,6 +492,63 @@ export function VenueCalendarPreview({
                           </button>
                         );
                       })}
+                    </div>
+                  )}
+
+                  {/* Doors Open and Close Selection */}
+                  {selectedTimeSlot && (
+                    <div className="space-y-4 border-t border-gray-100 pt-4">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        Doors Open & Close
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-semibold text-gray-500">
+                            Doors Open
+                          </label>
+                          <select
+                            value={doorsOpen}
+                            onChange={(e) => setDoorsOpen(e.target.value)}
+                            className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-200 text-sm focus:outline-none focus:border-indigo-500 transition-all text-gray-700 appearance-none cursor-pointer"
+                          >
+                            {(() => {
+                              const options = [...SELECT_TIMES];
+                              if (doorsOpen && !options.includes(doorsOpen)) {
+                                options.push(doorsOpen);
+                                options.sort();
+                              }
+                              return options.map((t) => (
+                                <option key={t} value={t}>
+                                  {fmt12(t)}
+                                </option>
+                              ));
+                            })()}
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-semibold text-gray-500">
+                            Last Entry
+                          </label>
+                          <select
+                            value={lastEntry}
+                            onChange={(e) => setLastEntry(e.target.value)}
+                            className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-200 text-sm focus:outline-none focus:border-indigo-500 transition-all text-gray-700 appearance-none cursor-pointer"
+                          >
+                            {(() => {
+                              const options = [...SELECT_TIMES];
+                              if (lastEntry && !options.includes(lastEntry)) {
+                                options.push(lastEntry);
+                                options.sort();
+                              }
+                              return options.map((t) => (
+                                <option key={t} value={t}>
+                                  {fmt12(t)}
+                                </option>
+                              ));
+                            })()}
+                          </select>
+                        </div>
+                      </div>
                     </div>
                   )}
 

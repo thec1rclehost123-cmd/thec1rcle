@@ -31,8 +31,6 @@ interface TablePackage {
   includes: string[]; // What's included (bottles, mixers, etc.)
   location?: string; // e.g., "Main Floor", "Rooftop", "VIP Section"
   promoterEnabled: boolean;
-  promoterCommission?: number | '';
-  promoterCommissionType?: 'percent' | 'amount';
   // Buyer discount settings (same as ticket tiers)
   buyerDiscountEnabled?: boolean;
   promoterDiscount?: number | '';
@@ -85,16 +83,12 @@ function TablePackageCard({
   onUpdate,
   onRemove,
   canRemove,
-  eventDefaultCommission,
-  eventDefaultCommissionType,
 }: {
   table: TablePackage;
   index: number;
   onUpdate: (updates: Partial<TablePackage>) => void;
   onRemove: () => void;
   canRemove: boolean;
-  eventDefaultCommission?: number | '';
-  eventDefaultCommissionType?: 'percent' | 'amount';
 }) {
   const [expanded, setExpanded] = useState(index === 0);
   const [showIncludesDropdown, setShowIncludesDropdown] = useState(false);
@@ -173,7 +167,7 @@ function TablePackageCard({
               {/* Table Name */}
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-medium text-[#86868b] uppercase tracking-wide">
-                  Table/Package Name
+                  Table/Package Name (Optional)
                 </label>
                 <input
                   type="text"
@@ -231,7 +225,7 @@ function TablePackageCard({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-medium text-[#86868b] uppercase tracking-wide">
-                    Guests per Table
+                    Guests per Table (Optional)
                   </label>
                   <div className="relative">
                     <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#86868b]" />
@@ -247,7 +241,7 @@ function TablePackageCard({
                 </div>
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-medium text-[#86868b] uppercase tracking-wide">
-                    Tables Available
+                    Tables Available (Optional)
                   </label>
                   <input
                     type="number"
@@ -263,7 +257,7 @@ function TablePackageCard({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-medium text-[#86868b] uppercase tracking-wide">
-                    Price per Table
+                    Price per Table (Optional)
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[15px] font-bold text-[#86868b]">
@@ -325,7 +319,7 @@ function TablePackageCard({
               {/* What's Included */}
               <div className="space-y-2">
                 <label className="block text-[11px] font-medium text-[#86868b] uppercase tracking-wide">
-                  What's Included
+                  What's Included (Optional)
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {COMMON_INCLUDES.map((item) => {
@@ -392,75 +386,12 @@ function TablePackageCard({
               {/* Promoter Commission (if enabled) */}
               {table.promoterEnabled && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-bold text-[#86868b] uppercase tracking-widest">
-                      Promoter Commission
-                    </label>
-                    <div className="flex p-0.5 bg-[#e5e5ea] rounded-xl">
-                      <button
-                        onClick={() => onUpdate({ promoterCommissionType: 'percent' })}
-                        className={`px-3 py-1.5 rounded-[8px] text-[10px] font-bold transition-all ${
-                          (table.promoterCommissionType || 'percent') === 'percent'
-                            ? 'bg-[#F44A22] text-text-primary shadow-md'
-                            : 'text-[#86868b] hover:text-[#1d1d1f]'
-                        }`}
-                      >
-                        % PERCENT
-                      </button>
-                      <button
-                        onClick={() => onUpdate({ promoterCommissionType: 'amount' })}
-                        className={`px-3 py-1.5 rounded-[8px] text-[10px] font-bold transition-all ${
-                          table.promoterCommissionType === 'amount'
-                            ? 'bg-[#1d1d1f] text-text-primary shadow-md'
-                            : 'text-[#86868b] hover:text-[#1d1d1f]'
-                        }`}
-                      >
-                        ₹ FIXED
-                      </button>
-                    </div>
-                  </div>
-
-                  <div
-                    className={`relative rounded-2xl overflow-hidden border-2 transition-all ${
-                      (table.promoterCommissionType || 'percent') === 'percent'
-                        ? 'border-[#F44A22]/20 bg-[#F44A22]/5'
-                        : 'border-[#1d1d1f]/20 bg-[#1d1d1f]/5'
-                    }`}
-                  >
-                    <div
-                      className={`absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center text-[16px] font-black text-text-primary ${
-                        (table.promoterCommissionType || 'percent') === 'percent'
-                          ? 'bg-[#F44A22]'
-                          : 'bg-[#1d1d1f]'
-                      }`}
-                    >
-                      {(table.promoterCommissionType || 'percent') === 'percent' ? '%' : '₹'}
-                    </div>
-
-                    <input
-                      type="number"
-                      value={table.promoterCommission ?? ''}
-                      onChange={(e) =>
-                        onUpdate({
-                          promoterCommission:
-                            e.target.value === '' ? '' : parseInt(e.target.value) || 0,
-                        })
-                      }
-                      placeholder={eventDefaultCommission ? String(eventDefaultCommission) : '0'}
-                      className="w-full bg-transparent py-3 pl-16 pr-4 text-[18px] font-bold text-[#1d1d1f] focus:outline-none"
-                    />
-                  </div>
-
-                  <div
-                    className={`p-2 rounded-lg text-[11px] font-medium ${
-                      (table.promoterCommissionType || 'percent') === 'percent'
-                        ? 'bg-[#F44A22]/5 text-[#F44A22]'
-                        : 'bg-[#1d1d1f]/5 text-[#1d1d1f]'
-                    }`}
-                  >
-                    {table.promoterCommissionType === 'amount'
-                      ? `Promoters earn ₹${table.promoterCommission || eventDefaultCommission || 0} per table booking.`
-                      : `Promoters earn ${table.promoterCommission || eventDefaultCommission || 15}% of the table price.`}
+                  <div className="p-3 rounded-xl bg-[#f5f5f7] flex items-center gap-2.5">
+                    <Sparkles className="w-4 h-4 text-[#F44A22] flex-shrink-0" />
+                    <p className="text-[11px] text-[#86868b] font-medium">
+                      Table commission is configured on the Promoters step under Custom Commission —
+                      one rate applies to every table.
+                    </p>
                   </div>
 
                   {/* Buyer Discount Toggle */}
@@ -581,7 +512,7 @@ export function TableBookingStep({
   validationErrors,
 }: TableBookingStepProps) {
   const tables: TablePackage[] = formData.tables || [];
-  const [tablesEnabled, setTablesEnabled] = useState(tables.length > 0);
+  const tablesEnabled: boolean = formData.tablesEnabled ?? tables.length > 0;
 
   // Calculations moved to backend
   const totalTables = 0;
@@ -610,22 +541,18 @@ export function TableBookingStep({
 
   const removeTable = (index: number) => {
     const updated = tables.filter((_, i) => i !== index);
-    updateFormData({ tables: updated });
-    if (updated.length === 0) {
-      setTablesEnabled(false);
-    }
+    updateFormData({ tables: updated, ...(updated.length === 0 ? { tablesEnabled: false } : {}) });
   };
 
   const enableTables = () => {
-    setTablesEnabled(true);
+    updateFormData({ tablesEnabled: true });
     if (tables.length === 0) {
       addTable();
     }
   };
 
   const disableTables = () => {
-    setTablesEnabled(false);
-    updateFormData({ tables: [] });
+    updateFormData({ tables: [], tablesEnabled: false });
   };
 
   return (
@@ -718,8 +645,6 @@ export function TableBookingStep({
                   onUpdate={(updates) => updateTable(index, updates)}
                   onRemove={() => removeTable(index)}
                   canRemove={tables.length > 1}
-                  eventDefaultCommission={formData.commission}
-                  eventDefaultCommissionType={formData.commissionType}
                 />
               ))}
             </AnimatePresence>

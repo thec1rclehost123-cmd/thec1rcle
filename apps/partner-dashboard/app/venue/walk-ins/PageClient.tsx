@@ -99,26 +99,31 @@ function QuickEntryRow({
 
   const mut = useMutation({
     mutationFn: async () => {
+      const payload = {
+        eventId,
+        guestName: form.guestName,
+        contact: form.phone,
+        totalGuests: Number(form.partySize) || 1,
+        category: form.category,
+        paymentMode: form.paymentMode,
+        amountPaise: Math.round((parseFloat(form.amount) || 0) * 100),
+        note: form.note,
+        idempotencyKey: randomUUID(),
+      };
+      console.log('[POST Venue Walk-Ins] Request payload:', payload);
       const res = await fetch(`/api/partners/venues/walk-ins?venueId=${venueId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          eventId,
-          guestName: form.guestName,
-          phone: form.phone,
-          partySize: Number(form.partySize) || 1,
-          category: form.category,
-          paymentMode: form.paymentMode,
-          amount: parseFloat(form.amount) || 0,
-          note: form.note,
-          idempotencyKey: randomUUID(),
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
+        console.error('[POST Venue Walk-Ins] Save failed:', err);
         throw new Error(err.error ?? 'Failed');
       }
-      return res.json();
+      const data = await res.json();
+      console.log('[POST Venue Walk-Ins] Response data received:', data);
+      return data;
     },
     onSuccess: () => {
       setForm(EMPTY_FORM);
@@ -231,7 +236,7 @@ function WalkInRow({
     >
       <td className="py-2.5 px-3 text-xs text-text-tertiary w-10">{index + 1}</td>
       <td className="py-2.5 px-3 text-sm text-text-primary font-medium">{entry.guestName}</td>
-      <td className="py-2.5 px-3 text-xs text-text-secondary">{entry.partySize}</td>
+      <td className="py-2.5 px-3 text-xs text-text-secondary">{entry.totalGuests}</td>
       <td className="py-2.5 px-3">
         <span
           className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${CATEGORY_COLORS[entry.category]}`}
@@ -336,9 +341,15 @@ export function WalkInsClient() {
       const endpoint = selectedEventId
         ? `/api/partners/venues/walk-ins/${selectedEventId}?${params}`
         : `/api/partners/venues/walk-ins?${params}`;
+      console.log(`[GET Venue Walk-Ins] Fetching from endpoint: ${endpoint}`);
       const res = await fetch(endpoint);
-      if (!res.ok) throw new Error('Failed');
-      return res.json();
+      if (!res.ok) {
+        console.error(`[GET Venue Walk-Ins] Fetch failed: Status ${res.status}`);
+        throw new Error('Failed');
+      }
+      const fetchedData = await res.json();
+      console.log('[GET Venue Walk-Ins] Data received:', fetchedData);
+      return fetchedData;
     },
     enabled: !!venueId,
     staleTime: 15_000,

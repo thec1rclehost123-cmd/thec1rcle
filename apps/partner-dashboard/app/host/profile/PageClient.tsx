@@ -40,7 +40,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-IN', {
 });
 
 export default function HostProfilePage() {
-  const { profile } = useDashboardAuth();
+  const { profile, user } = useDashboardAuth();
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -96,7 +96,11 @@ export default function HostProfilePage() {
     setIsLoading(true);
     try {
       const partnerId = profile.activeMembership.partnerId;
-      const res = await fetch(`/api/profile?profileId=${partnerId}&type=host&stats=true`);
+      const token = await user?.getIdToken();
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`/api/profile?profileId=${partnerId}&type=host&stats=true`, {
+        headers,
+      });
       if (res.ok) {
         const json = await res.json();
         setData(json);
@@ -116,9 +120,12 @@ export default function HostProfilePage() {
     if (!profile?.activeMembership?.partnerId || !profile?.uid) return;
     setIsSaving(true);
     try {
+      const token = await user?.getIdToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
       const res = await fetch('/api/profile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           profileId: profile.activeMembership.partnerId,
           type: 'host',
@@ -141,9 +148,12 @@ export default function HostProfilePage() {
     if (!composerContent) return;
     setIsSaving(true);
     try {
+      const token = await user?.getIdToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
       await fetch('/api/profile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           profileId: profile?.activeMembership?.partnerId,
           type: 'host',

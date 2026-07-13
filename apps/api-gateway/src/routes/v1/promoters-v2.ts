@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { buildErrorResponse } from '../../lib/api-contracts';
 import { resolvePromoterRequestContext } from '../../lib/promoter-request-context';
+import { enrichPromoterProfileWithSignedUrls } from '../../lib/signed-urls.js';
 
 const AnalyticsQuery = z
   .object({
@@ -137,7 +138,8 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
     async (request: any, reply) => {
       const context = await getPromoterContextOrReply(fastify, request, reply);
       if (!context) return;
-      return fastify.promoterServiceV2.getProfile(context);
+      const profile = await fastify.promoterServiceV2.getProfile(context);
+      return await enrichPromoterProfileWithSignedUrls(profile);
     },
   );
 

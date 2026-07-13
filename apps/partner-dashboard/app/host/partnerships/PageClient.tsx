@@ -512,7 +512,13 @@ export default function HostPartnershipsPage() {
     }
   };
 
-  const handleSelectSlot = (date: string, startTime: string, endTime: string) => {
+  const handleSelectSlot = (
+    date: string,
+    startTime: string,
+    endTime: string,
+    doorsOpen: string,
+    lastEntry: string,
+  ) => {
     if (!selectedVenue) return;
     const params = new URLSearchParams({
       venue: selectedVenue.id,
@@ -520,6 +526,8 @@ export default function HostPartnershipsPage() {
       date,
       startTime,
       endTime,
+      doorsOpen,
+      lastEntry,
     });
     router.push(`/host/create?${params.toString()}`);
   };

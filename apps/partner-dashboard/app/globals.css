@@ -1733,11 +1733,11 @@ select option {
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgb(255 255 255 / 10%);
-  border-radius: 3px;
+  border-radius: 9999px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgb(255 255 255 / 20%);
+  background: rgb(255 255 255 / 25%);
 }
 
 /* Hide scrollbar but keep functionality */

@@ -9,7 +9,7 @@ import { proxyToGateway, GATEWAY_URL } from '@/lib/server/apiGateway';
 /**
  * GET /api/scan/stats?code=C1R-XXXXXX
  */
-export const GET = withAuth(async (req: NextRequest) => {
+export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   return proxyToGateway(req, `${GATEWAY_URL}/api/v1/scan/stats?${searchParams.toString()}`, {});
-});
+}

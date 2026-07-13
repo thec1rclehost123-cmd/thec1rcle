@@ -265,6 +265,60 @@ async function handler(req) {
       case 'SUPPORT_RESOLVE':
         await adminStore.resolveSupportTicket(targetId, adminId, reason);
         break;
+      case 'SUPPORT_ASSIGN':
+        await adminStore.assignSupportTicket(targetId, params?.agentId, params?.agentName, adminId);
+        break;
+      case 'SUPPORT_CHANGE_PRIORITY':
+        await adminStore.changeSupportTicketPriority(targetId, params?.priority, adminId);
+        break;
+      case 'SUPPORT_REPLY':
+        await adminStore.replyToSupportTicket(
+          targetId,
+          params?.message,
+          adminId,
+          req.user?.email || params?.adminEmail || 'Support Agent',
+        );
+        break;
+      case 'SUPPORT_MERGE':
+        await adminStore.mergeDuplicateSupportTicket(targetId, params?.duplicateTicketId, adminId);
+        break;
+      case 'SUPPORT_LINK':
+        await adminStore.linkSupportTicket(
+          targetId,
+          params?.entityType,
+          params?.entityId,
+          params?.entityName,
+          adminId,
+        );
+        break;
+      case 'SUPPORT_ADD_INTERNAL_NOTE':
+        await adminStore.addSupportTicketInternalNote(
+          targetId,
+          params?.note,
+          adminId,
+          req.user?.email || params?.adminEmail || 'Support Agent',
+        );
+        break;
+      case 'SUPPORT_ESCALATE':
+        await adminStore.escalateSupportTicket(targetId, adminId);
+        break;
+      case 'SUPPORT_CLOSE':
+        await adminStore.closeSupportTicket(targetId, adminId);
+        break;
+      case 'SUPPORT_REOPEN':
+        await adminStore.reopenSupportTicket(targetId, adminId);
+        break;
+      case 'ANNOUNCEMENT_CREATE':
+        await adminStore.createPlatformAnnouncement(
+          params?.title,
+          params?.content,
+          params?.tag,
+          adminId,
+        );
+        break;
+      case 'ANNOUNCEMENT_DELETE':
+        await adminStore.deletePlatformAnnouncement(targetId, adminId);
+        break;
       case 'SAFETY_REPORT_DISMISS':
         await adminStore.dismissSafetyReport(targetId, adminId, reason);
         break;

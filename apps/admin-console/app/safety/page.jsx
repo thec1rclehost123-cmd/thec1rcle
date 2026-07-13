@@ -13,6 +13,7 @@ import {
   User,
   Search,
   Filter,
+  RotateCw,
 } from 'lucide-react';
 import { DataTable } from '@/components/ui/DataTable';
 import { ActionDrawer } from '@/components/ui/ActionDrawer';
@@ -26,6 +27,7 @@ export default function AdminSafety() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [modalConfig, setModalConfig] = useState(null);
+  const [refreshedAt, setRefreshedAt] = useState(new Date());
 
   const fetchSafety = async () => {
     try {
@@ -74,36 +76,36 @@ export default function AdminSafety() {
   const columns = useMemo(
     () => [
       {
-        header: 'Reported Incident',
-        accessorKey: 'reason',
-        cell: ({ row }) => (
+        key: 'reason',
+        label: 'Reported Incident',
+        render: (val, row) => (
           <div className="flex flex-col gap-1">
             <span className="text-sm font-semibold text-white tracking-tight uppercase truncate max-w-[300px]">
-              {row.original.reason || 'Reported Incident'}
+              {row.reason || 'Reported Incident'}
             </span>
             <span className="text-[10px] text-zinc-600 font-mono tracking-widest">
-              ID: {row.original.id?.slice(0, 12).toUpperCase()}
+              ID: {row.id?.slice(0, 12).toUpperCase()}
             </span>
           </div>
         ),
       },
       {
-        header: 'Reporter',
-        accessorKey: 'reporterEmail',
-        cell: ({ getValue }) => (
+        key: 'reporterEmail',
+        label: 'Reporter',
+        render: (val) => (
           <div className="flex items-center gap-2">
             <User className="h-3 w-3 text-zinc-700" strokeWidth={2} />
             <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
-              {getValue() || 'Anonymous'}
+              {val || 'Anonymous'}
             </span>
           </div>
         ),
       },
       {
-        header: 'Severity',
-        accessorKey: 'priority',
-        cell: ({ getValue }) => {
-          const priority = getValue();
+        key: 'priority',
+        label: 'Severity',
+        render: (val) => {
+          const priority = val;
           const isCritical = priority === 'CRITICAL';
           return (
             <div
@@ -115,14 +117,14 @@ export default function AdminSafety() {
         },
       },
       {
-        header: '',
-        id: 'actions',
-        cell: ({ row }) => (
+        key: 'actions',
+        label: '',
+        render: (val, row) => (
           <div className="flex justify-end">
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setSelectedReport(row.original);
+                setSelectedReport(row);
                 setIsDrawerOpen(true);
               }}
               className="p-2 hover:bg-white/5 rounded-lg text-zinc-600 hover:text-white transition-colors"
@@ -211,6 +213,31 @@ export default function AdminSafety() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Refresh Bar */}
+      <div className="flex items-center justify-between px-1 mb-6">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[#A1A1AA]">
+          Last updated{' '}
+          {refreshedAt
+            ? refreshedAt.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })
+            : '—'}
+        </span>
+        <button
+          onClick={async () => {
+            await fetchSafety();
+            setRefreshedAt(new Date());
+          }}
+          disabled={loading}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"
+        >
+          <RotateCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          REFRESH
+        </button>
       </div>
 
       <div className="space-y-6">

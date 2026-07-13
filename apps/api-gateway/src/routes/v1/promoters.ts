@@ -9,6 +9,12 @@ import {
 } from '@c1rcle/core/promoter-engine';
 import { z } from 'zod';
 import { normalizePromoterCommissionRate } from '../../lib/partner-hardening.js';
+import { decrypt } from '../../lib/encryption.js';
+import {
+  enrichPromoterProfileWithSignedUrls,
+  cleanPromoterProfilePatch,
+} from '../../lib/signed-urls.js';
+import { resolveEffectiveCommission, normalizeCompensationForRead } from './events.js';
 
 const ConnectionsQuery = z
   .object({
@@ -80,6 +86,20 @@ function toNumber(value: any) {
   return Number.isFinite(amount) ? amount : 0;
 }
 
+/**
+ * Resolves the commission rate a promoter earns on an event from the
+ * canonical `promoterCompensation` object (v1 or v2 — normalised on read).
+ * Falls back to the pre-schema-redesign flat fields for any event doc that
+ * predates `promoterCompensation` entirely.
+ */
+function resolveEventCommissionRate(event: Record<string, any>, promoterId: string): number {
+  if (event.promoterCompensation) {
+    const pc = normalizeCompensationForRead(event.promoterCompensation);
+    return toNumber(resolveEffectiveCommission(pc, promoterId).rate);
+  }
+  return toNumber(event.promoterSettings?.commissionRate || event.commissionRate || 0);
+}
+
 function isPromoterAllowedForEvent(event: Record<string, any>, promoterId: string) {
   const globallyEnabled =
     event?.promotersEnabled === true || event?.promoterSettings?.enabled === true;
@@ -145,7 +165,11 @@ async function loadEventsByIds(fastify: FastifyInstance, eventIds: string[]) {
   }, new Map<string, Record<string, any>>());
 }
 
-function buildLegacyPromoterEvent(event: Record<string, any>, activeLink?: Record<string, any>) {
+function buildLegacyPromoterEvent(
+  event: Record<string, any>,
+  activeLink?: Record<string, any>,
+  promoterId?: string,
+) {
   const tickets = Array.isArray(event.tickets)
     ? event.tickets.map((ticket: any, index: number) => ({
         id: String(ticket?.id || ticket?.ticketTierId || index),
@@ -176,10 +200,7 @@ function buildLegacyPromoterEvent(event: Record<string, any>, activeLink?: Recor
       max: tickets.length ? Math.max(...tickets.map((ticket: any) => toNumber(ticket.price))) : 0,
     },
     commissionRate: toNumber(
-      activeLink?.commissionRate ||
-        event.promoterSettings?.commissionRate ||
-        event.commissionRate ||
-        0,
+      activeLink?.commissionRate || resolveEventCommissionRate(event, promoterId || ''),
     ),
     tickets,
     stats: {
@@ -275,8 +296,8 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
       if (!doc.exists) {
         return { profile: { id: promoterId } };
       }
-
-      return { profile: { id: doc.id, ...doc.data() } };
+      const enriched = await enrichPromoterProfileWithSignedUrls({ id: doc.id, ...doc.data() });
+      return { profile: enriched };
     },
   );
 
@@ -293,15 +314,17 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
 
+      const cleanedBody = cleanPromoterProfilePatch(body);
       const patch: Record<string, any> = { updatedAt: new Date().toISOString() };
       for (const field of ALLOWED_PROMOTER_PROFILE_FIELDS) {
-        if (body[field] !== undefined) patch[field] = body[field];
+        if (cleanedBody[field] !== undefined) patch[field] = cleanedBody[field];
       }
       if (patch.displayName && patch.name === undefined) patch.name = patch.displayName;
 
       await fastify.db.collection('promoters').doc(promoterId).set(patch, { merge: true });
       const doc = await fastify.db.collection('promoters').doc(promoterId).get();
-      return { profile: { id: doc.id, ...doc.data() } };
+      const enriched = await enrichPromoterProfileWithSignedUrls({ id: doc.id, ...doc.data() });
+      return { profile: enriched };
     },
   );
 
@@ -575,10 +598,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         campaignLabel: pickString(body.campaignLabel),
         ticketTierIds: Array.isArray(body.ticketTierIds) ? body.ticketTierIds : [],
         commissionRate: normalizePromoterCommissionRate(
-          body.commissionRate ||
-            event.promoterSettings?.commissionRate ||
-            event.commissionRate ||
-            0,
+          body.commissionRate || resolveEventCommissionRate(event, promoterId),
         ),
         commissionType: pickString(body.commissionType, 'percentage'),
         code,
@@ -894,7 +914,9 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
           return leftTime - rightTime;
         })
         .slice(0, pageSize)
-        .map((event) => buildLegacyPromoterEvent(event, activeLinkByEventId.get(String(event.id))));
+        .map((event) =>
+          buildLegacyPromoterEvent(event, activeLinkByEventId.get(String(event.id)), promoterId),
+        );
 
       return { events };
     },
@@ -971,11 +993,11 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
           name: pickString(
             event.title,
             event.name,
-            assignment.eventName,
-            assignment.eventTitle,
+            decrypt(assignment.eventName),
+            decrypt(assignment.eventTitle),
             'Event',
           ),
-          venue: pickString(event.venueName, event.venue, assignment.venueName),
+          venue: pickString(event.venueName, event.venue, decrypt(assignment.venueName)),
           date: toIso(
             event.startDate ||
               event.date ||
@@ -1152,19 +1174,52 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
 
       const id = randomUUID();
       const now = new Date().toISOString();
-      const connection = {
+      const targetType = pickString(body.targetType, 'venue');
+      const targetId = String(body.targetId || '');
+      const connection: any = {
         id,
         promoterId,
-        targetId: String(body.targetId || ''),
-        targetType: pickString(body.targetType, 'venue'),
+        targetId,
+        targetType,
         targetName: pickString(body.targetName),
         status: 'pending',
         message: pickString(body.message),
+        initiatedBy: 'promoter',
+        fromPartnerId: promoterId,
+        toPartnerId: targetId,
         createdAt: now,
         updatedAt: now,
       };
 
+      if (targetType === 'host') {
+        connection.hostId = targetId;
+        connection.hostName = connection.targetName;
+      } else if (targetType === 'venue') {
+        connection.venueId = targetId;
+        connection.venueName = connection.targetName;
+      }
+
       await fastify.db.collection('promoter_connections').doc(id).set(connection);
+
+      // Write notification for the target partner
+      const senderName = connection.promoterName || 'A promoter';
+      await fastify.db.collection('notifications').add({
+        recipientId: targetId,
+        recipientType: targetType,
+        type: 'promoter_request',
+        title: 'New Connection Request',
+        message: `${senderName} wants to connect with you.`,
+        read: false,
+        createdAt: now,
+        data: {
+          connectionId: id,
+          promoterId,
+          targetId,
+          targetType,
+          initiatedBy: 'promoter',
+        },
+      });
+
       return reply.status(201).send({ connection });
     },
   );

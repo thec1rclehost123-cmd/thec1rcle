@@ -116,6 +116,23 @@ const CreateAccountSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   phone: z.string().min(10).optional(),
+  name: z.string().optional(),
+  contactPerson: z.string().optional(),
+  city: z.string().optional(),
+  area: z.string().optional(),
+  website: z.string().optional(),
+  capacity: z.string().optional(),
+  plan: z.string().optional(),
+  role: z.string().optional(),
+  association: z.string().optional(),
+  associatedHostId: z.string().optional(),
+  instagram: z.string().optional(),
+  bio: z.string().optional(),
+  upcomingEventsText: z.string().optional(),
+  pastEventsText: z.string().optional(),
+  businessType: z.string().optional(),
+  registrationNumber: z.string().optional(),
+  entityType: z.string().optional(),
 });
 
 // Normalize to E.164: plain 10-digit numbers are assumed Indian (+91).
@@ -345,10 +362,48 @@ async function ensureProfile(fastify: FastifyInstance, user: any) {
   const userId = user.uid;
   const profileRef = fastify.db.collection('users').doc(userId);
 
+  const doc = await profileRef.get();
+  if (doc.exists) {
+    const data = doc.data() || {};
+    // Self-heal: if user has active memberships but isApproved or onboardingComplete is false, update them!
+    const memberships = await fastify.db
+      .collection('partner_memberships')
+      .where('uid', '==', userId)
+      .get()
+      .catch(() => null);
+    const hasActiveMembership =
+      memberships &&
+      !memberships.empty &&
+      memberships.docs.some((d: any) => d.data()?.isActive === true);
+
+    if (
+      hasActiveMembership &&
+      (!data.isApproved || !data.onboardingComplete || data.role === 'user')
+    ) {
+      const isVenueStaff = memberships.docs.some(
+        (d: any) => d.data()?.partnerType === 'venue' && d.data()?.isActive === true,
+      );
+      const isHostMember = memberships.docs.some(
+        (d: any) => d.data()?.partnerType === 'host' && d.data()?.isActive === true,
+      );
+      const updatedRole = isVenueStaff ? 'staff' : isHostMember ? 'host' : data.role || 'user';
+
+      const updates = {
+        isApproved: true,
+        onboardingComplete: true,
+        role: updatedRole,
+        updatedAt: new Date().toISOString(),
+      };
+      await profileRef.update(updates);
+      return { ...data, ...updates, uid: doc.id };
+    }
+    return { ...data, uid: doc.id };
+  }
+
   return await fastify.db.runTransaction(async (transaction) => {
-    const doc = await transaction.get(profileRef);
-    if (doc.exists) {
-      return { ...doc.data(), uid: doc.id };
+    const freshDoc = await transaction.get(profileRef);
+    if (freshDoc.exists) {
+      return { ...freshDoc.data(), uid: freshDoc.id };
     }
 
     // Create a skeleton profile
@@ -669,7 +724,50 @@ export default async function authRoutes(fastify: FastifyInstance) {
           returnSecureToken: true,
         });
 
+        // Firebase Auth is the source of truth for the credential. Do NOT persist
+        // a password hash in Firestore — nothing verifies against it and storing
+        // credential material in these collections is an unnecessary exposure.
         await fastify.auth.updateUser(userId, { password: request.body.newPassword });
+
+        await fastify.db
+          .collection('users')
+          .doc(userId)
+          .update({
+            mustChangePassword: false,
+            updatedAt: new Date().toISOString(),
+          })
+          .catch((err: any) => {
+            fastify.log.error(
+              { err, userId },
+              'Failed to clear mustChangePassword flag in Firestore',
+            );
+          });
+
+        if (userRecord.email) {
+          try {
+            const staffSnap = await fastify.db
+              .collection('venue_staff')
+              .where('email', '==', userRecord.email)
+              .get();
+
+            if (!staffSnap.empty) {
+              const batch = fastify.db.batch();
+              staffSnap.docs.forEach((doc) => {
+                batch.update(doc.ref, {
+                  mustChangePassword: false,
+                  updatedAt: new Date().toISOString(),
+                });
+              });
+              await batch.commit();
+            }
+          } catch (err: any) {
+            fastify.log.error(
+              { err, email: userRecord.email },
+              'Failed to clear venue_staff mustChangePassword flag in Firestore',
+            );
+          }
+        }
+
         return { success: true };
       } catch (error: any) {
         return reply.status(error?.statusCode || 400).send(
@@ -693,7 +791,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       preHandler: [fastify.validate({ body: CreateAccountSchema })],
     },
     async (request: any, reply) => {
-      const { email, password, phone } = request.body;
+      const { email, password, phone, ...details } = request.body;
 
       try {
         // 1. Create the user in Firebase Auth
@@ -709,20 +807,30 @@ export default async function authRoutes(fastify: FastifyInstance) {
         //    Without this, users who abandon onboarding have no Firestore doc
         //    and can neither log in nor re-onboard.
         const cleanPhone = e164Phone;
-        await fastify.db
-          .collection('users')
-          .doc(userRecord.uid)
-          .set({
-            uid: userRecord.uid,
-            email,
-            displayName: email.split('@')[0] || 'Member',
-            phone: cleanPhone,
-            role: 'pending',
-            isApproved: false,
-            onboardingComplete: false,
-            createdAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          });
+        const userDocData: Record<string, any> = {
+          // Client-supplied onboarding fields first, so the server-controlled
+          // fields below always win. Never let the request set the authoritative
+          // `role`/`isApproved` — that would be a privilege-escalation vector.
+          ...details,
+          uid: userRecord.uid,
+          email,
+          displayName: details.name || email.split('@')[0] || 'Member',
+          phone: cleanPhone,
+          role: 'pending',
+          isApproved: false,
+          onboardingComplete: false,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+
+        if (details.entityType) {
+          userDocData.onboardingEntityType = details.entityType;
+        }
+        if (details.role) {
+          userDocData.onboardingRole = details.role;
+        }
+
+        await fastify.db.collection('users').doc(userRecord.uid).set(userDocData);
 
         // 3. Generate a custom token so the client can sign in immediately
         const customToken = await fastify.auth.createCustomToken(userRecord.uid);
@@ -768,6 +876,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
   const CheckAvailabilitySchema = z.object({
     email: z.string().email().optional(),
     phone: z.string().optional(),
+  });
+
+  const CheckEmailSchema = z.object({
+    email: z.string().email(),
   });
 
   fastify.post(
@@ -817,6 +929,36 @@ export default async function authRoutes(fastify: FastifyInstance) {
           ...(taken.includes('phone') ? { phone: 'This phone number is already registered.' } : {}),
         },
       };
+    },
+  );
+
+  /**
+   * POST /api/v1/auth/check-email
+   * Check if a specific email exists in the Firebase Auth database.
+   */
+  fastify.post(
+    '/check-email',
+    {
+      preHandler: [fastify.validate({ body: CheckEmailSchema })],
+    },
+    async (request: any, reply) => {
+      const { email } = request.body;
+      try {
+        await fastify.auth.getUserByEmail(email);
+        return { exists: true };
+      } catch (error: any) {
+        if (error.code === 'auth/user-not-found') {
+          return { exists: false };
+        }
+        fastify.log.error({ error: error.message }, 'Check-email failed');
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'CHECK_FAILED',
+            message: 'Email check failed',
+            requestId: request.id,
+          }),
+        );
+      }
     },
   );
 
@@ -976,6 +1118,22 @@ export default async function authRoutes(fastify: FastifyInstance) {
   const OnboardingProgressSchema = z.object({
     onboardingStep: z.string(),
     entityType: z.string().optional(),
+    name: z.string().optional(),
+    contactPerson: z.string().optional(),
+    city: z.string().optional(),
+    area: z.string().optional(),
+    website: z.string().optional(),
+    capacity: z.string().optional(),
+    plan: z.string().optional(),
+    role: z.string().optional(),
+    association: z.string().optional(),
+    associatedHostId: z.string().optional(),
+    instagram: z.string().optional(),
+    bio: z.string().optional(),
+    upcomingEventsText: z.string().optional(),
+    pastEventsText: z.string().optional(),
+    businessType: z.string().optional(),
+    registrationNumber: z.string().optional(),
   });
 
   fastify.patch(
@@ -994,12 +1152,22 @@ export default async function authRoutes(fastify: FastifyInstance) {
           }),
         );
       }
-      const { onboardingStep, entityType } = request.body;
+      // Pull `role` out of the spread — the authoritative role must never be
+      // settable from the request body (privilege escalation). We still record
+      // the requested role as `onboardingRole` for the approval flow.
+      const { onboardingStep, entityType, role, ...details } = request.body;
       const update: Record<string, any> = {
         onboardingStep,
         updatedAt: FieldValue.serverTimestamp(),
+        ...details,
       };
-      if (entityType) update.entityType = entityType;
+      if (entityType) {
+        update.entityType = entityType;
+        update.onboardingEntityType = entityType; // keep both for compatibility with guards
+      }
+      if (role) {
+        update.onboardingRole = role; // keep compatibility with gateway auth
+      }
       await fastify.db.collection('users').doc(userId).set(update, { merge: true });
       return { success: true };
     },
@@ -1294,14 +1462,16 @@ export default async function authRoutes(fastify: FastifyInstance) {
           }),
         );
       }
-      const { partnerType, role } = membership;
+      const { partnerType, role, partnerId } = membership;
       const permissions = getPermissionsForRole(partnerType, role);
       const tabVisibility = getDefaultTabVisibility(partnerType, role);
       const context: Record<string, unknown> = {
+        partnerId,
         partnerType,
         role,
         permissions,
         tabVisibility,
+        activeMembership: membership,
         ...(partnerType === 'promoter' ? { commissionTiers: PROMOTER_COMMISSION_TIERS } : {}),
       };
       return buildSuccessResponse(context);

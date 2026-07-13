@@ -13,7 +13,6 @@ async function handler(req) {
     const db = (await import('@/lib/firebase/admin')).getAdminDb();
     const {
       stats,
-      pendingReviewsCount,
       activeIncidentsCount,
       liveEvents,
       liveUsers,
@@ -22,7 +21,7 @@ async function handler(req) {
       recentLogs,
     } = await adminStore.getPlatformSnapshot();
 
-    const [refundsSnap, webhooksSnap, payoutsSnap] = await Promise.all([
+    const [refundsSnap, webhooksSnap, payoutsSnap, onboardingSnap] = await Promise.all([
       db
         .collection('refund_requests')
         .where('status', '==', 'pending')
@@ -41,7 +40,25 @@ async function handler(req) {
         .count()
         .get()
         .catch(() => ({ data: () => ({ count: 0 }) })),
+      db
+        .collection('onboarding_requests')
+        .where('status', '==', 'pending')
+        .count()
+        .get()
+        .catch(() => ({ data: () => ({ count: 0 }) })),
     ]);
+
+    const pendingReviewsCount = onboardingSnap.data().count;
+
+    const alerts = [];
+    if (pendingReviewsCount > 0) {
+      alerts.push({
+        id: '1',
+        type: 'approval',
+        message: `${pendingReviewsCount} Pending access requests`,
+        priority: 'high',
+      });
+    }
 
     return NextResponse.json({
       snapshot: {
@@ -60,7 +77,7 @@ async function handler(req) {
         tickets_sold_total: stats.tickets_sold_total || 0,
         queues: {
           venues: stats.venues_total?.pending || 0,
-          hosts: stats.hosts_total?.pending || 0,
+          hosts: stats.hosts_pending || stats.hosts_total?.pending || 0,
           refunds: refundsSnap.data().count,
           incidents: activeIncidentsCount,
           webhooks: webhooksSnap.data().count,
@@ -68,14 +85,7 @@ async function handler(req) {
         },
       },
       alertsCount: pendingReviewsCount,
-      alerts: [
-        {
-          id: '1',
-          type: 'approval',
-          message: `${pendingReviewsCount} Pending access requests`,
-          priority: 'high',
-        },
-      ],
+      alerts,
       recentLogs,
     });
   } catch (error) {

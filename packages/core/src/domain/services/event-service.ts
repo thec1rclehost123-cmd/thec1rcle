@@ -31,14 +31,19 @@ export class EventService {
   }
 
   async createEvent(payload: any, actorId: string, workspaceId: string): Promise<Event> {
-    const event = buildEvent({
+    const built = buildEvent({
       ...payload,
       creatorId: actorId,
       workspaceId, // 🏢 SaaS: Tag event with workspace
     });
-    event.workspaceId = workspaceId; // Ensure property is present for TS
-    await this.eventRepo.create(event as Event);
-    return event as Event;
+    // Preserve all wizard-specific fields that buildEvent doesn't output
+    const event = {
+      ...payload,
+      ...built,
+      workspaceId,
+    } as Event;
+    await this.eventRepo.create(event);
+    return event;
   }
 
   async updateEvent(
@@ -50,16 +55,24 @@ export class EventService {
     const existing = await this.getEventByIdOrSlug(id, workspaceId);
     if (!existing) return null;
 
-    const updatedEvent = buildEvent({
+    const built = buildEvent({
       ...existing,
       ...updates,
       id,
       updatedAt: new Date().toISOString(),
     });
-    updatedEvent.workspaceId = workspaceId;
+    // Preserve all wizard-specific fields that buildEvent doesn't output
+    const updatedEvent = {
+      ...existing,
+      ...updates,
+      ...built,
+      id,
+      workspaceId,
+      updatedAt: new Date().toISOString(),
+    } as Event;
 
-    await this.eventRepo.update(id, updatedEvent as Partial<Event>, workspaceId);
-    return updatedEvent as Event;
+    await this.eventRepo.update(id, updatedEvent, workspaceId);
+    return updatedEvent;
   }
 
   async deleteEvent(id: string, actorId: string, workspaceId: string): Promise<void> {

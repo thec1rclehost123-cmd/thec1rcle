@@ -184,11 +184,20 @@ function AddMemberModal({
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const contactValue = searchMode === 'email' ? email : phone;
 
   const handleSearchContinue = () => {
+    setError(null);
     if (!contactValue.trim()) return;
+    if (searchMode === 'email') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        setError('Please enter a valid email address.');
+        return;
+      }
+    }
     setStep('details');
   };
 
@@ -278,15 +287,22 @@ function AddMemberModal({
               <input
                 autoFocus
                 value={contactValue}
-                onChange={(event) =>
-                  searchMode === 'email'
-                    ? setEmail(event.target.value)
-                    : setPhone(event.target.value)
-                }
+                onChange={(event) => {
+                  setError(null);
+                  if (searchMode === 'email') {
+                    setEmail(event.target.value);
+                  } else {
+                    setPhone(event.target.value);
+                  }
+                }}
                 placeholder={searchMode === 'email' ? 'name@email.com' : '(555) 555-5555'}
                 className="h-16 w-full rounded-[24px] border border-[var(--v-border)] bg-[var(--v-elevated)] px-6 text-center text-lg font-semibold text-[var(--v-text-primary)] outline-none transition-all placeholder:text-[var(--v-text-tertiary)] focus:border-[var(--c1rcle-orange)]/40"
                 onKeyDown={(event) => event.key === 'Enter' && handleSearchContinue()}
               />
+
+              {error && (
+                <p className="mt-2 text-xs font-semibold text-center text-[#ff3b30]">{error}</p>
+              )}
 
               <button
                 type="button"
@@ -467,14 +483,19 @@ export default function HostTeamPageClient() {
 
   const handleRemove = async (membershipId: string) => {
     try {
-      const response = await fetch(`/api/partners/hosts/team?membershipId=${membershipId}`, {
+      const response = await fetch(`/api/partners/hosts/team/${membershipId}`, {
         method: 'DELETE',
         headers: await getHeaders(),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error ?? 'Failed to remove team member');
+        console.error('DELETE error payload:', payload);
+        const errMsg =
+          payload?.error?.message ||
+          (typeof payload?.error === 'string' ? payload.error : null) ||
+          'Failed to remove team member';
+        throw new Error(errMsg);
       }
 
       setMembers((previous) => previous.filter((member) => member.membershipId !== membershipId));
@@ -487,18 +508,20 @@ export default function HostTeamPageClient() {
   const handleSavePermissions = async (role: EditableHostRole) => {
     if (!editTarget) return;
     try {
-      const response = await fetch(
-        `/api/partners/hosts/team?membershipId=${editTarget.membershipId}`,
-        {
-          method: 'PATCH',
-          headers: await getHeaders(),
-          body: JSON.stringify({ role, granularPermissions: null }),
-        },
-      );
+      const response = await fetch(`/api/partners/hosts/team/${editTarget.membershipId}`, {
+        method: 'PATCH',
+        headers: await getHeaders(),
+        body: JSON.stringify({ role, granularPermissions: null }),
+      });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error ?? 'Failed to update permissions');
+        console.error('PATCH error payload:', payload);
+        const errMsg =
+          payload?.error?.message ||
+          (typeof payload?.error === 'string' ? payload.error : null) ||
+          'Failed to update permissions';
+        throw new Error(errMsg);
       }
 
       setMembers((previous) =>

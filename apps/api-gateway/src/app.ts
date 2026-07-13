@@ -1,4 +1,5 @@
 // @ts-nocheck
+// Triggering reload for compiled packages/core/dist changes
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import compress from '@fastify/compress';
@@ -72,6 +73,7 @@ import partnersHostRoutes from './routes/v1/partners/hosts';
 import partnersVenueRoutes from './routes/v1/partners/venues';
 import partnersPromoterRoutes from './routes/v1/partners/promoters';
 import partnersFinanceRoutes from './routes/v1/partners/finance';
+import supportRoutes from './routes/v1/support';
 import { buildErrorResponse } from './lib/api-contracts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -79,7 +81,7 @@ const __dirname = path.dirname(__filename);
 
 const server = Fastify({
   trustProxy: process.env.NODE_ENV === 'production',
-  bodyLimit: 1048576, // 🛡️ Security: Limit request body to 1MB to prevent OOM attacks
+  bodyLimit: 11 * 1024 * 1024, // 🛡️ Security: bound request body size (OOM protection) while covering the 10MB multipart fileSize limit registered below
   genReqId: function (req) {
     return (req.headers['x-request-id'] as string) || crypto.randomUUID();
   },
@@ -354,6 +356,7 @@ async function main() {
   await server.register(partnersVenueRoutes, { prefix: '/api/v1' });
   await server.register(partnersPromoterRoutes, { prefix: '/api/v1' });
   await server.register(partnersFinanceRoutes, { prefix: '/api/v1' });
+  await server.register(supportRoutes, { prefix: '/api/v1/support' });
 
   // Enhanced Database-aware Health Check
   const healthHandler = async (request: any, reply: any) => {

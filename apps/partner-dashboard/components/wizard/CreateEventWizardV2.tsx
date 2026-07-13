@@ -23,7 +23,7 @@ import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 // Step Components
-import { IdentityStep, SchedulingStep, ExperienceStep } from './steps';
+import { IdentityStep, ExperienceStep } from './steps';
 import { TicketTierStep } from './TicketTierStep';
 import { TableBookingStep } from './TableBookingStep';
 import { MediaStep } from './MediaStep';
@@ -49,13 +49,6 @@ const STEPS: StepConfig[] = [
     description: 'Event name, category, host and venue',
   },
   {
-    id: 'scheduling',
-    label: 'Dates & Times',
-    shortLabel: 'Schedule',
-    icon: Calendar,
-    description: 'When the event takes place',
-  },
-  {
     id: 'experience',
     label: 'Lineup & Experience',
     shortLabel: 'Lineup',
@@ -78,10 +71,10 @@ const STEPS: StepConfig[] = [
   },
   {
     id: 'promoters',
-    label: 'Sales & Distribution',
-    shortLabel: 'Sales',
+    label: 'PROMOTERS',
+    shortLabel: 'PROMOTERS',
     icon: Percent,
-    description: 'Promoter settings and commissions',
+    description: 'Assign promoters and configure compensation',
   },
   {
     id: 'media',
@@ -106,6 +99,163 @@ const formatCurrency = (value: number) => {
     maximumFractionDigits: 0,
   }).format(value);
 };
+
+const toRateType = (t: string | undefined): 'percentage' | 'flat' =>
+  t === 'fixed' || t === 'flat' ? 'flat' : 'percentage';
+
+const fromRateType = (t: string | undefined): 'percent' | 'fixed' =>
+  t === 'fixed' || t === 'flat' ? 'fixed' : 'percent';
+
+/**
+ * Builds the canonical `promoterCompensation` object (schemaVersion 2) from
+ * the wizard's flat formData fields — sent instead of the many flat
+ * commission keys. Mirrors apps/api-gateway/src/routes/v1/events.ts's
+ * `buildPromoterCompensationV2`; keep the two in sync if the shape changes.
+ */
+function buildPromoterCompensationPayload(formData: any): any {
+  const model = formData.compensationModel || 'standard';
+  const enabled = formData.promotersEnabled === true;
+
+  let defaults: any;
+  if (model === 'standard') {
+    defaults = {
+      ticketCommission: {
+        type: toRateType(formData.commissionType),
+        value: Number(formData.commission) || 0,
+      },
+    };
+    const tcv = formData.tablesCommissionValue;
+    if (tcv !== undefined && tcv !== '' && tcv !== null) {
+      defaults.tableCommission = {
+        enabled: true,
+        type: toRateType(formData.tablesCommissionType),
+        value: Number(tcv) || 0,
+      };
+    }
+  } else if (model === 'custom') {
+    // Free (RSVP) tiers — price 0 — never carry a commission; exclude them
+    // so a stale commissionValue left on a tier that was zeroed out doesn't
+    // get persisted as a real commission entry.
+    defaults = {
+      ticketCommissions: (formData.tickets || [])
+        .filter((t: any) => (Number(t.price) || 0) > 0)
+        .map((t: any) => ({
+          ticketTierId: t.id || t.tierId,
+          type: toRateType(t.commissionType),
+          value: Number(t.commissionValue) || 0,
+        })),
+    };
+    const tcv = formData.tablesCommissionValue;
+    if (tcv !== undefined && tcv !== '' && tcv !== null) {
+      defaults.tableCommission = {
+        enabled: true,
+        type: toRateType(formData.tablesCommissionType),
+        value: Number(tcv) || 0,
+      };
+    }
+  } else {
+    defaults = { notes: formData.salaryNotes || '' };
+    if (formData.salaryTableIncentivesEnabled) {
+      defaults.tableIncentive = {
+        enabled: true,
+        type: toRateType(formData.salaryTableIncentiveType),
+        value: Number(formData.salaryTableIncentiveValue) || 0,
+      };
+    }
+  }
+
+  const overrides: Record<string, any> = {};
+  const rawOverrides: Record<string, any> = formData.promoterCommissionOverrides || {};
+  for (const [promoterId, ov] of Object.entries(rawOverrides)) {
+    if (!(ov as any)?.hasCustomCommission) continue;
+    if (model === 'standard') {
+      const gr = (ov as any).globalRate;
+      if (gr !== undefined && gr !== null) {
+        overrides[promoterId] = {
+          ticketCommission: {
+            type: toRateType((ov as any).globalRateType),
+            value: Number(gr) || 0,
+          },
+        };
+      }
+    } else if (model === 'custom') {
+      const ticketOverrides = Object.entries((ov as any).tierRates || {}).map(([tierId, rate]) => {
+        const defaultEntry = (defaults.ticketCommissions || []).find(
+          (tc: any) => tc.ticketTierId === tierId,
+        );
+        return {
+          ticketTierId: tierId,
+          type: defaultEntry?.type || 'percentage',
+          value: Number(rate) || 0,
+        };
+      });
+      if (ticketOverrides.length > 0) overrides[promoterId] = { ticketOverrides };
+    }
+  }
+
+  return { schemaVersion: 2, enabled, model, defaults, overrides };
+}
+
+/**
+ * Converts a stored/fetched V2 `promoterCompensation` object back into the
+ * flat formData keys the wizard steps read and write internally — used to
+ * prefill the wizard when reopening a draft. Ticket-tier-level commission
+ * fields (commissionValue/commissionType) already live on `event.tickets`
+ * and need no reconstruction here.
+ */
+function deserializeCompensation(pc: any): Record<string, any> {
+  if (!pc) return {};
+  const model = pc.model || 'standard';
+  const defaults = pc.defaults || {};
+
+  const flat: Record<string, any> = {
+    compensationModel: model,
+    promotersEnabled: pc.enabled ?? false,
+  };
+
+  if (model === 'standard') {
+    flat.commission = defaults.ticketCommission?.value ?? 0;
+    flat.commissionType = fromRateType(defaults.ticketCommission?.type);
+  } else if (model === 'custom') {
+    flat.commission = 0;
+    flat.commissionType = 'percent';
+  } else {
+    flat.commission = 0;
+    flat.commissionType = 'percent';
+    flat.salaryNotes = defaults.notes || '';
+    flat.salaryTableIncentivesEnabled = !!defaults.tableIncentive?.enabled;
+    if (defaults.tableIncentive) {
+      flat.salaryTableIncentiveValue = defaults.tableIncentive.value ?? 0;
+      flat.salaryTableIncentiveType = fromRateType(defaults.tableIncentive.type);
+    }
+  }
+
+  if (defaults.tableCommission) {
+    flat.tablesCommissionValue = defaults.tableCommission.value ?? 0;
+    flat.tablesCommissionType = fromRateType(defaults.tableCommission.type);
+  }
+
+  const promoterCommissionOverrides: Record<string, any> = {};
+  for (const [promoterId, ov] of Object.entries(pc.overrides || {})) {
+    const ovAny = ov as any;
+    if (model === 'standard' && ovAny.ticketCommission) {
+      promoterCommissionOverrides[promoterId] = {
+        hasCustomCommission: true,
+        globalRate: ovAny.ticketCommission.value,
+        globalRateType: fromRateType(ovAny.ticketCommission.type),
+      };
+    } else if (model === 'custom' && ovAny.ticketOverrides) {
+      const tierRates: Record<string, number> = {};
+      for (const to of ovAny.ticketOverrides as any[]) {
+        tierRates[to.ticketTierId] = to.value;
+      }
+      promoterCommissionOverrides[promoterId] = { hasCustomCommission: true, tierRates };
+    }
+  }
+  flat.promoterCommissionOverrides = promoterCommissionOverrides;
+
+  return flat;
+}
 
 export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
   const router = useRouter();
@@ -205,9 +355,16 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     tables: [],
     tablesEnabled: false,
     promotersEnabled: true,
+    compensationModel: 'standard',
     commission: 15,
     commissionType: 'percent',
-    useDefaultCommission: true,
+    tablesCommissionType: 'percent',
+    tablesCommissionValue: 15,
+    promoterCommissionOverrides: {},
+    salaryTableIncentivesEnabled: false,
+    salaryTableIncentiveType: 'percent',
+    salaryTableIncentiveValue: 10,
+    salaryNotes: '',
     buyerDiscountsEnabled: false,
     discount: 10,
     discountType: 'percent',
@@ -258,17 +415,9 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         throw new Error(data.message || slotErrMsg || 'Failed to check slot availability');
       }
 
-      const day = (data.calendar || data.days || [])[0];
+      const calendarDays = Array.isArray(data) ? data : data.calendar || data.days || [];
+      const day = calendarDays[0];
       if (!day) return { available: true, reason: '' };
-      if (day.status === 'blocked') {
-        return { available: false, reason: 'This date is blocked on the venue calendar.' };
-      }
-      if (
-        day.status === 'booked' &&
-        (!day.slots || day.slots.some((slot: any) => !slot.startTime || !slot.endTime))
-      ) {
-        return { available: false, reason: 'This date is already occupied by another event.' };
-      }
 
       const toExtendedMinutes = (time: string) => {
         const [hour, minute] = time.split(':').map(Number);
@@ -280,25 +429,56 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
       const requestedStart = toExtendedMinutes(startTime);
       const requestedEnd = toExtendedMinutes(endTime);
 
-      const hasOverlap = (day.slots || []).some((slot: any) => {
-        if (!slot || slot.status === 'available') return false;
-        if (!slot.startTime || !slot.endTime) return true;
+      const isBlocked =
+        String(day.status || '').toLowerCase() === 'blocked' ||
+        String(day.state || '').toLowerCase() === 'blocked';
 
-        const slotStart = toExtendedMinutes(slot.startTime);
-        const slotEnd = toExtendedMinutes(slot.endTime);
-        return requestedStart < slotEnd && slotStart < requestedEnd;
-      });
+      if (isBlocked) {
+        return { available: false, reason: 'This date is blocked on the venue calendar.' };
+      }
 
-      if (hasOverlap) {
-        return {
-          available: false,
-          reason: 'The selected time overlaps with an existing blocked, pending, or booked slot.',
-        };
+      const isBooked =
+        String(day.status || '').toLowerCase() === 'booked' ||
+        String(day.state || '').toLowerCase() === 'confirmed';
+
+      if (isBooked) {
+        const slots = [
+          ...(Array.isArray(day.slots) ? day.slots : []),
+          ...(Array.isArray(day.events) ? day.events : []),
+        ];
+        if (slots.length === 0 && !Array.isArray(day.slots)) {
+          slots.push(day);
+        }
+
+        const hasOverlap = slots.some((slot: any) => {
+          if (!slot || slot.status === 'available') return false;
+
+          // If checking overlap with self, ignore
+          const targetId = searchParams.get('id');
+          if (targetId && (slot.id === targetId || slot.eventId === targetId)) {
+            return false;
+          }
+
+          const sStart = slot.startTime || slot.requestedStartTime;
+          const sEnd = slot.endTime || slot.requestedEndTime;
+          if (!sStart || !sEnd) return true;
+
+          const slotStart = toExtendedMinutes(sStart);
+          const slotEnd = toExtendedMinutes(sEnd);
+          return requestedStart < slotEnd && slotStart < requestedEnd;
+        });
+
+        if (hasOverlap) {
+          return {
+            available: false,
+            reason: 'The selected time overlaps with an existing blocked, pending, or booked slot.',
+          };
+        }
       }
 
       return { available: true, reason: '' };
     },
-    [authedFetch, profile?.activeMembership?.partnerId, profile?.uid, role],
+    [authedFetch, role, searchParams],
   );
 
   useEffect(() => {
@@ -412,7 +592,6 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
       { isValid: boolean; issues: string[]; fieldErrors: Record<string, string> }
     > = {
       identity: { isValid: true, issues: [], fieldErrors: {} },
-      scheduling: { isValid: true, issues: [], fieldErrors: {} },
       experience: { isValid: true, issues: [], fieldErrors: {} },
       ticketing: { isValid: true, issues: [], fieldErrors: {} },
       tables: { isValid: true, issues: [], fieldErrors: {} },
@@ -432,37 +611,204 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
       validation.identity.fieldErrors.venueId = 'Required';
       validation.identity.isValid = false;
     }
-
-    // Scheduling validation
     if (!formData.startDate) {
-      validation.scheduling.issues.push('Event date is required');
-      validation.scheduling.fieldErrors.startDate = 'Required';
-      validation.scheduling.isValid = false;
+      validation.identity.issues.push('Event date is required');
+      validation.identity.fieldErrors.startDate = 'Required';
+      validation.identity.isValid = false;
+    }
+    if (formData.startDate && formData.startTime && formData.endTime) {
+      const [sYr, sMon, sDay] = formData.startDate.split('-').map(Number);
+      const [sHr, sMin] = formData.startTime.split(':').map(Number);
+      const startDt = new Date(sYr, sMon - 1, sDay, sHr, sMin);
+
+      const effectiveEndDate = formData.endDate || formData.startDate;
+      const [eYr, eMon, eDay] = effectiveEndDate.split('-').map(Number);
+      const [eHr, eMin] = formData.endTime.split(':').map(Number);
+      const endDt = new Date(eYr, eMon - 1, eDay, eHr, eMin);
+
+      const isSameDayOrUnspecified = !formData.endDate || formData.endDate === formData.startDate;
+      if (isSameDayOrUnspecified) {
+        const startMinutes = sHr * 60 + sMin;
+        const endMinutes = eHr * 60 + eMin;
+        if (endMinutes < startMinutes) {
+          endDt.setDate(endDt.getDate() + 1);
+        }
+      }
+
+      if (endDt.getTime() <= startDt.getTime()) {
+        validation.identity.issues.push('End time must be after start time');
+        validation.identity.fieldErrors.endTime = 'Must be after start time';
+        validation.identity.isValid = false;
+      }
     }
     if (formData.venueId && formData.startDate && formData.startTime && formData.endTime) {
       if (scheduleAvailability.checking) {
-        validation.scheduling.issues.push('Checking venue availability...');
-        validation.scheduling.fieldErrors.scheduleAvailability = 'Checking';
-        validation.scheduling.isValid = false;
+        validation.identity.issues.push('Checking venue availability...');
+        validation.identity.fieldErrors.scheduleAvailability = 'Checking';
+        validation.identity.isValid = false;
       } else if (!scheduleAvailability.available) {
-        validation.scheduling.issues.push(
+        validation.identity.issues.push(
           scheduleAvailability.reason || 'Selected slot is unavailable',
         );
-        validation.scheduling.fieldErrors.scheduleAvailability =
+        validation.identity.fieldErrors.scheduleAvailability =
           scheduleAvailability.reason || 'Unavailable';
-        validation.scheduling.isValid = false;
+        validation.identity.isValid = false;
       }
     }
 
     // Ticketing validation
-    // Revenue and capacity validated by backend
-    validation.ticketing = { isValid: true, issues: [], fieldErrors: {} };
+    const ticketingIssues: string[] = [];
+    const ticketingFieldErrors: Record<string, string> = {};
+    const isCustomCommission = formData.promotersEnabled && formData.compensationModel === 'custom';
+    if (formData.tickets && formData.tickets.length > 0) {
+      formData.tickets.forEach((tier: any, index: number) => {
+        const label = tier.name?.trim() || `Tier ${index + 1}`;
+        if (tier.price === '' || tier.price === null || tier.price === undefined) {
+          ticketingIssues.push(`"${label}": Price is required`);
+          ticketingFieldErrors.tickets = 'Fill in Price and Quantity for all ticket tiers';
+        }
+        if (tier.quantity === '' || tier.quantity === null || tier.quantity === undefined) {
+          ticketingIssues.push(`"${label}": Quantity is required`);
+          ticketingFieldErrors.tickets = 'Fill in Price and Quantity for all ticket tiers';
+        }
+      });
+      const totalTickets = formData.tickets.reduce(
+        (sum: number, t: any) => sum + (Number(t.quantity) || 0),
+        0,
+      );
+      const capacity = formData.capacity || 500;
+      if (totalTickets > capacity) {
+        ticketingIssues.push(
+          `Quantity is exceeding the decided capacity (${totalTickets}/${capacity})`,
+        );
+        ticketingFieldErrors.tickets = 'Total ticket quantity exceeds the decided capacity';
+      }
+    }
+    validation.ticketing = {
+      isValid: ticketingIssues.length === 0,
+      issues: ticketingIssues,
+      fieldErrors: ticketingFieldErrors,
+    };
+
+    // Promoters validation
+    const promotersIssues: string[] = [];
+    const promotersFieldErrors: Record<string, string> = {};
+    // RSVP events have no paid tickets, so promoter commission is never
+    // configurable — the Promoters step hides the whole section for isRSVP,
+    // and validation must not demand a commission it never let the user set.
+    if (formData.promotersEnabled && !formData.isRSVP) {
+      if (
+        formData.compensationModel === 'custom' &&
+        formData.tickets &&
+        formData.tickets.length > 0
+      ) {
+        formData.tickets.forEach((tier: any, index: number) => {
+          // Free tiers (price 0) inside an otherwise paid event never carry
+          // a commission — skip them entirely.
+          if ((Number(tier.price) || 0) === 0) return;
+          const label = tier.name?.trim() || `Tier ${index + 1}`;
+          if (
+            tier.commissionValue === '' ||
+            tier.commissionValue === null ||
+            tier.commissionValue === undefined
+          ) {
+            promotersIssues.push(`"${label}": Commission is required`);
+            promotersFieldErrors.promoters =
+              'Set a commission for every ticket tier on the Promoters step';
+          } else if (
+            (tier.commissionType || 'percent') === 'percent' &&
+            Number(tier.commissionValue) > 100
+          ) {
+            promotersIssues.push(`"${label}": Commission cannot exceed 100%`);
+            promotersFieldErrors.promoters = 'Commission cannot exceed 100%';
+          } else if (Number(tier.commissionValue) < 0) {
+            promotersIssues.push(`"${label}": Commission cannot be negative`);
+            promotersFieldErrors.promoters = 'Commission cannot be negative';
+          }
+        });
+      }
+      if (formData.compensationModel !== 'custom' && formData.compensationModel !== 'salary') {
+        const commission = formData.commission;
+        if (commission === '' || commission === null || commission === undefined) {
+          promotersIssues.push('Global commission is required');
+          promotersFieldErrors.promoters = 'Set a global commission on the Promoters step';
+        } else if (
+          (formData.commissionType || 'percent') === 'percent' &&
+          Number(commission) > 100
+        ) {
+          promotersIssues.push('Global commission cannot exceed 100%');
+          promotersFieldErrors.promoters = 'Global commission cannot exceed 100%';
+        } else if (Number(commission) < 0) {
+          promotersIssues.push('Global commission cannot be negative');
+          promotersFieldErrors.promoters = 'Global commission cannot be negative';
+        }
+      }
+      if (formData.compensationModel === 'salary' && formData.salaryTableIncentivesEnabled) {
+        const incentive = formData.salaryTableIncentiveValue;
+        if (incentive === '' || incentive === null || incentive === undefined) {
+          promotersIssues.push('Table incentive value is required');
+          promotersFieldErrors.promoters = 'Set a table incentive value on the Promoters step';
+        } else if (
+          (formData.salaryTableIncentiveType || 'percent') === 'percent' &&
+          Number(incentive) > 100
+        ) {
+          promotersIssues.push('Table incentive cannot exceed 100%');
+          promotersFieldErrors.promoters = 'Table incentive cannot exceed 100%';
+        }
+      }
+    }
+    validation.promoters = {
+      isValid: promotersIssues.length === 0,
+      issues: promotersIssues,
+      fieldErrors: promotersFieldErrors,
+    };
+
+    // Publish-blocking: mirror the ticketing and promoters rules on the review step,
+    // since Publish is gated on validation.review, not individual steps.
+    if (!validation.ticketing.isValid) {
+      validation.review.issues.push(...ticketingIssues);
+      validation.review.isValid = false;
+      validation.review.fieldErrors.tickets = ticketingFieldErrors.tickets;
+    }
+    if (!validation.promoters.isValid) {
+      validation.review.issues.push(...promotersIssues);
+      validation.review.isValid = false;
+      validation.review.fieldErrors.promoters = promotersFieldErrors.promoters;
+    }
 
     // Media validation (soft warning)
     if (!formData.poster && !formData.images?.length) {
       validation.media.issues.push('Adding a poster is recommended for better engagement');
     }
 
+    if (!formData.startDate || !formData.startTime || !formData.endTime) {
+      validation.review.issues.push('Event date and time must be selected before publishing');
+      validation.review.isValid = false;
+    } else {
+      const [sYr, sMon, sDay] = formData.startDate.split('-').map(Number);
+      const [sHr, sMin] = formData.startTime.split(':').map(Number);
+      const startDt = new Date(sYr, sMon - 1, sDay, sHr, sMin);
+
+      const effectiveEndDate = formData.endDate || formData.startDate;
+      const [eYr, eMon, eDay] = effectiveEndDate.split('-').map(Number);
+      const [eHr, eMin] = formData.endTime.split(':').map(Number);
+      const endDt = new Date(eYr, eMon - 1, eDay, eHr, eMin);
+
+      const isSameDayOrUnspecified = !formData.endDate || formData.endDate === formData.startDate;
+      if (isSameDayOrUnspecified) {
+        const startMinutes = sHr * 60 + sMin;
+        const endMinutes = eHr * 60 + eMin;
+        if (endMinutes < startMinutes) {
+          endDt.setDate(endDt.getDate() + 1);
+        }
+      }
+
+      if (endDt.getTime() <= startDt.getTime()) {
+        validation.review.issues.push('End time must be after start time');
+        validation.review.fieldErrors.endTime = 'Must be after start time';
+        validation.review.isValid = false;
+      }
+    }
     if (!scheduleAvailability.checking && !scheduleAvailability.available) {
       validation.review.issues.push(scheduleAvailability.reason || 'Selected slot is unavailable');
       validation.review.fieldErrors.scheduleAvailability =
@@ -474,12 +820,36 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
   }, [formData, role, scheduleAvailability]);
 
   // Grand Total Calculation
-  // Revenue and capacity calculations moved to backend
-  const grandTotal = {
-    totalTickets: 0,
-    revenue: 0,
-    capacity: 0,
-  };
+  const grandTotal = useMemo(() => {
+    const ticketRevenue = (formData.tickets || []).reduce(
+      (acc: number, tier: any) => acc + (Number(tier.price) || 0) * (Number(tier.quantity) || 0),
+      0,
+    );
+    const tableRevenue = formData.tablesEnabled
+      ? (formData.tables || []).reduce(
+          (acc: number, table: any) =>
+            acc + (Number(table.price) || 0) * (Number(table.quantity) || 0),
+          0,
+        )
+      : 0;
+    const ticketCapacity = (formData.tickets || []).reduce(
+      (acc: number, tier: any) => acc + (Number(tier.quantity) || 0),
+      0,
+    );
+    const tableCapacity = formData.tablesEnabled
+      ? (formData.tables || []).reduce(
+          (acc: number, table: any) =>
+            acc +
+            (Number(table.capacity || table.guestsPerTable) || 0) * (Number(table.quantity) || 0),
+          0,
+        )
+      : 0;
+
+    return {
+      revenue: ticketRevenue + tableRevenue,
+      capacity: ticketCapacity + tableCapacity,
+    };
+  }, [formData.tickets, formData.tables, formData.tablesEnabled]);
 
   const updateFormData = useCallback((updates: any) => {
     setFormData((prev: any) => ({ ...prev, ...updates }));
@@ -558,6 +928,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     const date = searchParams.get('date');
     const startTime = searchParams.get('startTime');
     const endTime = searchParams.get('endTime');
+    const doorsOpen = searchParams.get('doorsOpen') || '';
+    const lastEntry = searchParams.get('lastEntry') || '';
 
     if (venueId && date && startTime && endTime) {
       setPrefilledSlot({
@@ -576,9 +948,33 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         startDate: date,
         startTime,
         endTime,
+        doorsOpen,
+        lastEntry,
       }));
     }
   }, [searchParams]);
+
+  // Redirect to calendar if no date/time is provided and we are not loading a draft
+  useEffect(() => {
+    const isDraft = searchParams.get('id') && searchParams.get('id') !== 'new';
+    const hasDateParams =
+      searchParams.get('date') && searchParams.get('startTime') && searchParams.get('endTime');
+    if (!isDraft && !hasDateParams) {
+      if (role === 'venue') {
+        const preferredId = profile?.activeMembership?.partnerId;
+        const preferredName = profile?.activeMembership?.partnerName || 'Your Venue';
+        if (preferredId) {
+          router.replace(
+            `/venue/create/select-venue/calendar?venueId=${preferredId}&venueName=${preferredName}`,
+          );
+        } else {
+          router.replace('/venue/create/select-venue');
+        }
+      } else {
+        router.replace('/host/create/select-venue');
+      }
+    }
+  }, [searchParams, role, profile, router]);
 
   // 1. Load Local Recovery Snapshot (Crash recovery)
   useEffect(() => {
@@ -617,7 +1013,12 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
           const data = await res.json();
 
           if (data.event) {
-            const remote = data.event;
+            const remote = {
+              ...data.event,
+              ...deserializeCompensation(data.event.promoterCompensation),
+              startTime: data.event.startTime || '21:00',
+              endTime: data.event.endTime || '03:00',
+            };
             const remoteUpdated = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
 
             // Compare with local recovery data if available
@@ -637,7 +1038,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
               // Restore progress if saved
               if (remote.draftMeta?.lastStep) {
-                setCurrentStep(remote.draftMeta.lastStep as WizardStep);
+                const stepExists = STEPS.some((s) => s.id === remote.draftMeta.lastStep);
+                setCurrentStep(stepExists ? (remote.draftMeta.lastStep as WizardStep) : 'identity');
               }
             }
           }
@@ -727,6 +1129,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
               profile?.activeMembership?.partnerName || profile?.displayName || 'C1RCLE Partner',
             venue: formData.venue || formData.venueName || 'TBD',
             location: formData.venue || formData.venueName || formData.address || 'TBD',
+            promoterCompensation: buildPromoterCompensationPayload(formData),
             draftMeta: {
               ...formData.draftMeta,
               lastStep: currentStep,
@@ -829,9 +1232,16 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
           formData.images?.[0] ||
           '',
         settings: { ...(formData.settings || {}), showGuestlist },
+        promoterCompensation: buildPromoterCompensationPayload(formData),
+        draftMeta: {
+          ...formData.draftMeta,
+          lastStep: currentStep,
+          clientUpdatedAt: Date.now(),
+          lastSavedAt: new Date().toISOString(),
+        },
       };
+      console.log('payload', payload);
       const draftPayload = { ...payload, lifecycle: 'draft' };
-
       let res: Response;
       if (role === 'host' && !isDraft) {
         let draftId = effectiveDraftId;
@@ -896,11 +1306,20 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
       if (res.ok) {
         const eventResult = await res.json();
+        const draftId = eventResult.id || eventResult.event?.id;
 
         if (profile?.uid) {
           const storageKey = `c1rcle_draft_event_v2_${profile.uid}_${savedDraftId || 'new'}`;
           localStorage.removeItem(storageKey);
         }
+
+        if (draftId && !savedDraftId) {
+          setSavedDraftId(draftId);
+          const params = new URLSearchParams(searchParams.toString());
+          params.set('id', draftId);
+          router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false });
+        }
+
         if (!isDraft) {
           setIsSuccess(true);
         } else {
@@ -912,8 +1331,12 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
           typeof data.error === 'object' && data.error ? data.error.message : data.error;
         alert(`Error: ${data.message || errMsg || 'Failed to create event'}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Submission failed', err);
+      setSaveState('failed');
+      alert(
+        `Error: ${err?.message || 'Failed to save event. Please check that the API gateway is running on port 4000.'}`,
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -1106,17 +1529,6 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                     />
                   )}
 
-                  {currentStep === 'scheduling' && (
-                    <SchedulingStep
-                      formData={formData}
-                      updateFormData={updateFormData}
-                      validationErrors={validationErrors}
-                      role={role}
-                      profile={profile}
-                      scheduleAvailability={scheduleAvailability}
-                    />
-                  )}
-
                   {currentStep === 'experience' && (
                     <ExperienceStep
                       formData={formData}
@@ -1153,6 +1565,20 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                     <div className="space-y-8">
                       {/* Balance Sheet - UNCHANGED */}
                       <DetailedBreakdown formData={formData} />
+
+                      {/* Show validation errors if any */}
+                      {stepValidation.review.issues.length > 0 && (
+                        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 space-y-2">
+                          <p className="font-bold text-sm">
+                            Please resolve the following issues before publishing:
+                          </p>
+                          <ul className="list-disc pl-5 text-xs space-y-1">
+                            {stepValidation.review.issues.map((issue, idx) => (
+                              <li key={idx}>{issue}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1175,8 +1601,12 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
                     {currentStep === 'review' ? (
                       <button
-                        disabled={isSubmitting}
-                        onClick={() => setShowPublishModal(true)}
+                        disabled={isSubmitting || !stepValidation.review.isValid}
+                        onClick={() => {
+                          if (validateCurrentStep()) {
+                            setShowPublishModal(true);
+                          }
+                        }}
                         className="btn btn-primary btn-sm flex items-center gap-2 disabled:opacity-50"
                       >
                         Continue <ChevronRight className="w-4 h-4" />

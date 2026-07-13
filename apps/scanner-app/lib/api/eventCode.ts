@@ -1,74 +1,97 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 import { scannerFetch } from './client';
 
+import { auth } from '../firebase';
 import { EventData } from '@/store/eventContext';
 
 const SCANNER_CODE_KEY = 'scanner_active_code';
 
-/** Persist the active scanner code so all other API calls can retrieve it. */
-export async function saveActiveCode(code: string): Promise<void> {
-  await AsyncStorage.setItem(SCANNER_CODE_KEY, code);
-}
-
-/** Retrieve the currently active scanner code. */
 export async function getActiveCode(): Promise<string | null> {
-  return AsyncStorage.getItem(SCANNER_CODE_KEY);
+  return null;
 }
 
-/** Clear the active scanner code (on sign-out or expiry). */
 export async function clearActiveCode(): Promise<void> {
-  await AsyncStorage.removeItem(SCANNER_CODE_KEY);
+  // Deprecated, no-op
 }
 
-/**
- * Validate an event code against the backend.
- * On success, persists the code to AsyncStorage for subsequent API calls.
- */
-export async function validateEventCode(
-  code: string,
-): Promise<EventData & { valid: boolean; error?: string }> {
+// Validate code, stats, and mock events were removed as they are deprecated.
+
+export interface StaffLoginResponse {
+  success: boolean;
+  userId: string;
+  venueId: string;
+  role: string;
+  error?: string;
+}
+
+export async function loginStaff(email: string, password: string): Promise<StaffLoginResponse> {
+  // Allow developer mock login with bypass credentials in development
+  if (__DEV__ && email.trim().toLowerCase() === 'mock@c1rcle.com') {
+    return {
+      success: true,
+      userId: 'dev_staff_001',
+      venueId: 'venue_NPpsWyAw',
+      role: 'DOOR',
+    };
+  }
+
   try {
-    const data = await scannerFetch('/api/scanner/validate', {
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      email.trim().toLowerCase(),
+      password,
+    );
+    const idToken = await userCredential.user.getIdToken(true);
+
+    const res = await scannerFetch('/scan/staff-login', {
       method: 'POST',
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ idToken }),
     });
 
-    if (data.valid) {
-      await saveActiveCode(code);
-    }
-
-    return { valid: !!data.valid, code, ...data };
+    return {
+      success: true,
+      userId: res.userId,
+      venueId: res.venueId,
+      role: res.role || 'DOOR',
+    };
   } catch (error: any) {
-    console.error('[validateEventCode] Error:', error);
+    console.error('[loginStaff] Error:', error);
+    throw new Error(error.message || 'Unable to sign in');
+  }
+}
 
-    // In dev mode, return mock data so the app is usable without a running backend
-    if (__DEV__) {
-      await saveActiveCode(code);
-      return getMockEventData(code);
-    }
+export async function verifyStaffSession(idToken: string): Promise<StaffLoginResponse> {
+  try {
+    const res = await scannerFetch('/scan/staff-login', {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
+    });
 
-    throw new Error(error.message || 'Unable to connect to server');
+    return {
+      success: true,
+      userId: res.userId,
+      venueId: res.venueId,
+      role: res.role || 'DOOR',
+    };
+  } catch (error: any) {
+    console.error('[verifyStaffSession] Error:', error);
+    throw new Error(error.message || 'Session verification failed');
   }
 }
 
 /**
- * Refresh live event stats for the stats screen pull-to-refresh.
- * @param eventId  The actual Firestore event document ID
- * @param code     The scanner session code (optional — falls back to stored code)
+ * Fetch today's events for a venue (used by staff on the scanner app).
+ * Authenticates via Firebase ID token attached by scannerFetch automatically.
+ * @param venueId  The venue to fetch events for
  */
-export async function refreshEventStats(eventId: string, code?: string): Promise<any> {
-  try {
-    const activeCode = code || (await getActiveCode()) || '';
-    return await scannerFetch(
-      `/api/scanner/stats?eventId=${encodeURIComponent(eventId)}`,
-      {},
-      activeCode,
-    );
-  } catch (error) {
-    console.error('[refreshEventStats] Error:', error);
-    return null;
-  }
+export async function fetchStaffEvents(venueId: string): Promise<any[]> {
+  const today = new Date().toISOString().split('T')[0];
+  const data = await scannerFetch(
+    `/scan/events?venueId=${encodeURIComponent(venueId)}&date=${today}`,
+  );
+  return Array.isArray(data?.events) ? data.events : [];
 }
 
 function getMockEventData(code: string): EventData & { valid: boolean } {

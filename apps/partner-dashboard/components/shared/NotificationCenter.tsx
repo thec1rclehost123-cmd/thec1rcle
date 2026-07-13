@@ -55,8 +55,10 @@ const TYPE_TO_TAB: Record<string, NotifTab> = {
   promoter_request: 'partners',
   connection_request: 'partners',
   event_submitted: 'events',
+  event_resubmitted: 'events',
   event: 'events',
   event_review: 'events',
+  promoter_assignment: 'events',
   revenue: 'finance',
   new_order: 'finance',
   payment: 'finance',
@@ -112,25 +114,24 @@ export function normalizeNotification(
 
 export function getNotificationFetchUrl(partnerType: NotificationPartnerType, partnerId?: string) {
   if (!partnerId) return null;
-  if (partnerType === 'host') return '/api/partners/hosts/notifications?limit=20';
-  if (partnerType === 'promoter') return '/api/partners/promoters/notifications?limit=20';
-  if (partnerType === 'venue')
-    return `/api/partners/venues/notifications?venueId=${partnerId}&limit=20`;
+  if (partnerType === 'host') return '/api/host/notifications?limit=20';
+  if (partnerType === 'promoter') return '/api/promoter/notifications?limit=20';
+  if (partnerType === 'venue') return `/api/venue/notifications?venueId=${partnerId}&limit=20`;
   return null;
 }
 
 export function buildMarkAllReadRequest(partnerType: NotificationPartnerType, partnerId?: string) {
   if (partnerType === 'host') {
-    return { url: '/api/partners/hosts/notifications', body: { markAllRead: true } };
+    return { url: '/api/host/notifications', body: { markAllRead: true } };
   }
   if (partnerType === 'venue' && partnerId) {
     return {
-      url: '/api/partners/venues/notifications',
+      url: '/api/venue/notifications',
       body: { venueId: partnerId, markAllRead: true },
     };
   }
   if (partnerType === 'promoter') {
-    return { url: '/api/partners/promoters/notifications', body: { markAllRead: true } };
+    return { url: '/api/promoter/notifications', body: { markAllRead: true } };
   }
   return null;
 }
@@ -143,7 +144,7 @@ export function buildQuickActionRequest(
 ) {
   if (partnerType !== 'venue' || !partnerId) return null;
   return {
-    url: '/api/partners/venues/notifications',
+    url: '/api/venue/notifications',
     body: {
       venueId: partnerId,
       notificationId: notif.id,
@@ -155,6 +156,7 @@ export function buildQuickActionRequest(
 
 const TYPE_CONFIG: Record<string, { icon: React.ReactNode; bg: string }> = {
   host_request: { icon: <UserPlus className="w-4 h-4 text-iris" />, bg: 'bg-iris/10' },
+  venue_request: { icon: <UserPlus className="w-4 h-4 text-iris" />, bg: 'bg-iris/10' },
   connection_request: { icon: <UserPlus className="w-4 h-4 text-iris" />, bg: 'bg-iris/10' },
   promoter_request: {
     icon: <Handshake className="w-4 h-4 text-emerald-500" />,
@@ -164,8 +166,16 @@ const TYPE_CONFIG: Record<string, { icon: React.ReactNode; bg: string }> = {
     icon: <Sparkles className="w-4 h-4 text-purple-500" />,
     bg: 'bg-purple-500/10',
   },
+  event_resubmitted: {
+    icon: <Sparkles className="w-4 h-4 text-purple-500" />,
+    bg: 'bg-purple-500/10',
+  },
   event: { icon: <Sparkles className="w-4 h-4 text-purple-500" />, bg: 'bg-purple-500/10' },
   event_review: { icon: <Sparkles className="w-4 h-4 text-purple-500" />, bg: 'bg-purple-500/10' },
+  promoter_assignment: {
+    icon: <Sparkles className="w-4 h-4 text-purple-500" />,
+    bg: 'bg-purple-500/10',
+  },
   reservation: { icon: <Calendar className="w-4 h-4 text-indigo-500" />, bg: 'bg-indigo-500/10' },
   table_reservation: {
     icon: <Calendar className="w-4 h-4 text-indigo-500" />,
@@ -252,6 +262,9 @@ export function NotificationCenter() {
       const url = getNotificationFetchUrl(partnerType, partnerId);
       if (!url) return;
       const res = await authedFetch(url);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText || 'Fetch failed'}`);
+      }
       const data = await res.json();
       const incoming: Notification[] = (data.notifications || []).map((n: any) =>
         normalizeNotification(n, partnerType),
@@ -269,8 +282,15 @@ export function NotificationCenter() {
         incoming.forEach((n) => seenIdsRef.current!.add(n.id));
       }
       setNotifications(incoming);
+      setError(null);
     } catch (err: any) {
-      console.error('[NotificationCenter] fetch error:', err);
+      if (err?.name === 'TypeError' && err?.message === 'Failed to fetch') {
+        console.warn(
+          '[NotificationCenter] Network offline or server unreachable (Failed to fetch)',
+        );
+      } else {
+        console.error('[NotificationCenter] fetch error:', err);
+      }
       if (isMountedRef.current) setError('Failed to load notifications');
     } finally {
       if (isMountedRef.current) setLoading(false);
@@ -319,7 +339,13 @@ export function NotificationCenter() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request.body),
       });
-      if (res.ok) fetchNotifications();
+      if (res.ok) {
+        fetchNotifications();
+      } else {
+        console.warn('[NotificationCenter] Quick action failed with status:', res.status);
+      }
+    } catch (err) {
+      console.error('[NotificationCenter] Quick action error:', err);
     } finally {
       setActionLoading(null);
     }
@@ -332,7 +358,9 @@ export function NotificationCenter() {
       host_request: `/${rolePrefix}/partners`,
       connection_request: `/${rolePrefix}/partners`,
       promoter_request: `/${rolePrefix}/partners`,
-      event_submitted: `/${rolePrefix}/events`,
+      event_submitted: `/${rolePrefix}/events/requests`,
+      event_resubmitted: `/${rolePrefix}/events/requests`,
+      promoter_assignment: `/${rolePrefix}/events`,
       event: `/${rolePrefix}/events`,
       event_review: `/${rolePrefix}/events`,
       revenue: `/${rolePrefix}/finance`,

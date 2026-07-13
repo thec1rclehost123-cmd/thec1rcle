@@ -13,6 +13,15 @@ const falsyBoolean = z.union([
   z.literal('off'),
 ]);
 
+const GUEST_PHONE_REGEX = /^\d{10}$/;
+const guestPhoneSchema = z
+  .string()
+  .max(20)
+  .refine((value) => value === '' || GUEST_PHONE_REGEX.test(value), {
+    message: 'Phone number must contain exactly 10 digits',
+  })
+  .optional();
+
 export const guestBffBooleanQuerySchema = z.union([truthyBoolean, falsyBoolean]).optional();
 export const guestBffIntegerQuerySchema = z.coerce.number().int().nonnegative();
 
@@ -358,8 +367,8 @@ export const profileUpdateBodySchema = z
     handle: z.string().max(30).optional(),
     instagram: z.string().max(100).optional(),
     onboardingComplete: z.boolean().optional(),
-    phone: z.string().max(20).optional(),
-    phoneNumber: z.string().max(20).optional(),
+    phone: guestPhoneSchema,
+    phoneNumber: guestPhoneSchema,
     photoURL: z.string().nullable().optional(),
     savedEvents: z.array(z.string().min(1)).optional(),
     username: z.string().max(30).optional(),

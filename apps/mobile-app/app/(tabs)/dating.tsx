@@ -49,7 +49,7 @@ function ProfileHeader({
         onPress={() => {
           void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           router.push({
-            pathname: '/dating/[id]',
+            pathname: '/dating/[id]' as any,
             params: { id: profile.id },
           });
         }}

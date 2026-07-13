@@ -129,8 +129,10 @@ export function buildInitiateCheckoutPayload({
     userName: attendeeDetails.name,
     userEmail: attendeeDetails.email,
     userPhone: attendeeDetails.phone,
-    promoCode,
-    promoterCode,
+    // Optional codes must be omitted (not null) — the gateway schema is strict
+    // and non-nullable, so send undefined when absent.
+    promoCode: promoCode || undefined,
+    promoterCode: promoterCode || undefined,
   };
 }
 

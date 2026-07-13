@@ -16,7 +16,7 @@
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:3005/api/inngest",
     "docker:up": "docker compose up -d redis api-gateway --build",
     "docker:down": "docker compose down",
-    "build": "turbo build",
+    "build": "turbo build --concurrency=1",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
     "test": "turbo run test",
@@ -42,6 +42,7 @@
     "@lhci/cli": "^0.15.1",
     "@size-limit/file": "^12.1.0",
     "@vitest/coverage-v8": "4.1.9",
+    "cross-env": "^10.1.0",
     "expo": "^56.0.12",
     "husky": "^9.1.7",
     "lint-staged": "^15.2.11",
@@ -63,6 +64,10 @@
     "dotenv": "^17.2.3"
   },
   "optionalDependencies": {
+    "@esbuild/darwin-arm64": "^0.28.1",
+    "@esbuild/darwin-x64": "^0.28.1",
+    "@esbuild/linux-x64": "^0.28.1",
+    "@esbuild/win32-x64": "^0.28.1",
     "@next/swc-linux-x64-gnu": "^16.2.9",
     "@next/swc-linux-x64-musl": "^16.2.9"
   }

@@ -20,6 +20,7 @@ import {
   Filter,
   ArrowUpRight,
   ArrowDownRight,
+  RotateCw,
 } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 
@@ -30,6 +31,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [filterActive, setFilterActive] = useState(false);
+  const [refreshedAt, setRefreshedAt] = useState(new Date());
 
   useEffect(() => {
     async function fetchSnapshot() {
@@ -213,6 +215,30 @@ export default function AdminDashboard() {
           </button>
         </div>
       </header>
+
+      {/* Refresh Bar */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[#A1A1AA]">
+          Last updated{' '}
+          {refreshedAt
+            ? refreshedAt.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })
+            : '—'}
+        </span>
+        <button
+          onClick={() => {
+            setRetryCount((c) => c + 1);
+            setRefreshedAt(new Date());
+          }}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"
+        >
+          <RotateCw className="h-3.5 w-3.5" />
+          REFRESH
+        </button>
+      </div>
 
       {/* Metrics Grid */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

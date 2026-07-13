@@ -1,7 +1,12 @@
 import type { FastifyInstance } from 'fastify';
+import { sendHostInvitationEmail, generateTemporaryPassword } from '../../../lib/email.js';
 import { getHostAnalytics } from '@c1rcle/core/analytics-engine';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
+import {
+  getPartnerProfileSummary,
+  getConnectionForViewer,
+} from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { HostService } from '../../../services/unified/host-service.js';
 import { SchedulingService } from '../../../services/unified/scheduling-service.js';
@@ -10,6 +15,21 @@ import {
   buildPayoutAccountRecord,
   sanitizeEventResubmissionPatch,
 } from '../../../lib/partner-hardening.js';
+import { encrypt, decrypt } from '../../../lib/encryption.js';
+import {
+  enrichHostProfileWithSignedUrls,
+  cleanHostProfilePatch,
+  signStorageUrl,
+} from '../../../lib/signed-urls.js';
+import { uploadPartnerAsset } from '../../../lib/partner-upload.js';
+import { getAdminStorage } from '@c1rcle/core/admin';
+import { randomUUID } from 'node:crypto';
+import {
+  updateEventPromoterCompensation,
+  ensurePromoterLink,
+  resolveEffectiveCommission,
+  normalizeCompensationForRead,
+} from '../events.js';
 
 const OverviewQuerySchema = z
   .object({
@@ -133,7 +153,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   const financeService = new FinanceService(svcCtx);
 
   const hostProfileFields = [
+    'name',
     'displayName',
+    'hostType',
     'bio',
     'tagline',
     'profileImage',
@@ -196,24 +218,37 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   };
 
   const removeTeamMember = async (hostId: string, memberId: string) => {
-    const ref = fastify.db.collection('partner_memberships').doc(memberId);
-    const doc = await ref.get();
-    if (!doc.exists) {
-      const err: any = new Error('Member not found');
-      err.statusCode = 404;
-      err.code = 'NOT_FOUND';
-      throw err;
+    let ref = fastify.db.collection('partner_memberships').doc(memberId);
+    let doc = await ref.get();
+
+    if (doc.exists) {
+      const membership = doc.data() as PlainRecord;
+      if (String(membership.partnerId || '') !== hostId) {
+        const err: any = new Error('Forbidden');
+        err.statusCode = 403;
+        err.code = 'FORBIDDEN';
+        throw err;
+      }
+      await ref.update({ isActive: false, removedAt: new Date().toISOString() });
+    } else {
+      ref = fastify.db.collection('host_team_invitations').doc(memberId);
+      doc = await ref.get();
+      if (!doc.exists) {
+        const err: any = new Error('Member or Invitation not found');
+        err.statusCode = 404;
+        err.code = 'NOT_FOUND';
+        throw err;
+      }
+      const invitation = doc.data() as PlainRecord;
+      if (String(invitation.hostId || '') !== hostId) {
+        const err: any = new Error('Forbidden');
+        err.statusCode = 403;
+        err.code = 'FORBIDDEN';
+        throw err;
+      }
+      await ref.update({ status: 'revoked', revokedAt: new Date().toISOString() });
     }
 
-    const membership = doc.data() as PlainRecord;
-    if (String(membership.partnerId || '') !== hostId) {
-      const err: any = new Error('Forbidden');
-      err.statusCode = 403;
-      err.code = 'FORBIDDEN';
-      throw err;
-    }
-
-    await ref.update({ isActive: false, removedAt: new Date().toISOString() });
     await fastify
       .writeAuditLog({
         action: 'TEAM_MEMBER_REMOVED',
@@ -233,22 +268,48 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       throw err;
     }
     const data = { id: doc.id, ...(doc.data() || {}) };
-    return { host: data, profile: data };
+    const enriched = await enrichHostProfileWithSignedUrls(data);
+    return { host: enriched, profile: enriched };
   };
 
   const updateHostProfile = async (hostId: string, patch: PlainRecord) => {
+    const cleanedPatch = cleanHostProfilePatch(patch);
     const safe: PlainRecord = {};
     for (const key of hostProfileFields) {
-      if (patch[key] !== undefined) safe[key] = patch[key];
+      if (cleanedPatch[key] !== undefined) safe[key] = cleanedPatch[key];
     }
     // Normalize image fields so the discovery engine can find them
+    if (safe.photoURL) {
+      safe.profileImage = safe.photoURL;
+      safe.avatar = safe.photoURL;
+    }
     if (safe.profileImage) {
       safe.avatar = safe.profileImage;
       safe.photoURL = safe.profileImage;
     }
+    if (safe.avatar) {
+      safe.profileImage = safe.avatar;
+      safe.photoURL = safe.avatar;
+    }
+    if (safe.backdropURL) {
+      safe.coverURL = safe.backdropURL;
+      safe.coverImage = safe.backdropURL;
+      safe.cover = safe.backdropURL;
+    }
+    if (safe.coverURL) {
+      safe.coverImage = safe.coverURL;
+      safe.cover = safe.coverURL;
+      safe.backdropURL = safe.coverURL;
+    }
     if (safe.coverImage) {
       safe.coverURL = safe.coverImage;
       safe.cover = safe.coverImage;
+      safe.backdropURL = safe.coverImage;
+    }
+    if (safe.cover) {
+      safe.coverURL = safe.cover;
+      safe.coverImage = safe.cover;
+      safe.backdropURL = safe.cover;
     }
     safe.updatedAt = new Date().toISOString();
     await fastify.db.collection('hosts').doc(hostId).set(safe, { merge: true });
@@ -307,15 +368,64 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   };
 
   const getHostNotifications = async (hostId: string) => {
-    const snap = await fastify.db
-      .collection('notifications')
-      .where('recipientId', '==', hostId)
-      .orderBy('createdAt', 'desc')
-      .limit(50)
-      .get()
-      .catch(() => ({ docs: [] as any[] }));
+    let snap;
+    const fallbackUsed = process.env.NODE_ENV === 'development';
+    if (fallbackUsed) {
+      const fallbackQ = fastify.db
+        .collection('notifications')
+        .where('recipientId', '==', hostId)
+        .limit(100);
+      const tempSnap = await fallbackQ.get().catch(() => ({ docs: [] as any[] }));
+      const sortedDocs = [...(tempSnap.docs || [])].sort((a: any, b: any) => {
+        const aTime = new Date(a.data()?.createdAt || a.data()?.timestamp || 0).getTime();
+        const bTime = new Date(b.data()?.createdAt || b.data()?.timestamp || 0).getTime();
+        return bTime - aTime;
+      });
+      snap = { docs: sortedDocs.slice(0, 50) };
+    } else {
+      try {
+        snap = await fastify.db
+          .collection('notifications')
+          .where('recipientId', '==', hostId)
+          .orderBy('createdAt', 'desc')
+          .limit(50)
+          .get();
+      } catch (err: any) {
+        if (
+          err.code === 9 ||
+          String(err).includes('requires an index') ||
+          String(err).includes('FAILED_PRECONDITION')
+        ) {
+          fastify.log.warn(
+            'Firestore index missing for host notifications query. Falling back to in-memory sort.',
+          );
+          const fallbackQ = fastify.db
+            .collection('notifications')
+            .where('recipientId', '==', hostId)
+            .limit(100);
+          const tempSnap = await fallbackQ.get().catch(() => ({ docs: [] as any[] }));
+          const sortedDocs = [...(tempSnap.docs || [])].sort((a: any, b: any) => {
+            const aTime = new Date(a.data()?.createdAt || a.data()?.timestamp || 0).getTime();
+            const bTime = new Date(b.data()?.createdAt || b.data()?.timestamp || 0).getTime();
+            return bTime - aTime;
+          });
+          snap = { docs: sortedDocs.slice(0, 50) };
+        } else {
+          snap = { docs: [] as any[] };
+        }
+      }
+    }
+
     return {
-      notifications: (snap as any).docs.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) })),
+      notifications: (snap as any).docs.map((doc: any) => {
+        const data = doc.data() || {};
+        return {
+          id: doc.id,
+          ...data,
+          title: decrypt(data.title),
+          message: decrypt(data.message),
+        };
+      }),
     };
   };
 
@@ -518,22 +628,28 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         .collection('events')
         .where('creatorId', '==', hostId)
         .where('lifecycle', 'in', ['submitted', 'scheduled', 'live', 'approved'])
-        .orderBy('startDate', 'asc')
-        .limit(5)
+        // No orderBy here — avoids composite index requirement (FAILED_PRECONDITION).
+        // Sorted in-memory below instead.
+        .limit(50)
         .get()
         .catch(() => ({ docs: [] as any[] })),
       financeService.getFinanceSummary(ctx),
     ]);
     const partnerships = (partnerSnap as any).docs || [];
+    const upcomingEvents = ((eventsSnap as any).docs || [])
+      .map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }))
+      .sort((a: any, b: any) => {
+        const aTime = a.startDate ? new Date(a.startDate).getTime() : 0;
+        const bTime = b.startDate ? new Date(b.startDate).getTime() : 0;
+        return aTime - bTime; // ascending
+      })
+      .slice(0, 5);
     return {
       pendingPartnerships: partnerships.filter(
         (doc: any) => (doc.data() || {}).status === 'pending',
       ).length,
       activePromoters: (promoterSnap as any).size || 0,
-      upcomingEvents: ((eventsSnap as any).docs || []).map((doc: any) => ({
-        id: doc.id,
-        ...(doc.data() || {}),
-      })),
+      upcomingEvents,
       stats: {
         revenue: finance.netRevenue || 0,
         ticketsSold: finance.totalTicketsSold || 0,
@@ -1169,11 +1285,29 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         ['approved', 'occupied'].includes(String(slot.status || '').toLowerCase()),
       );
 
+      // Filter for confirmed/booked events (exclude draft, deleted, cancelled, denied)
+      const bookedEvents = dayEvents.filter((event: any) => {
+        const lifecycle = String(event.lifecycle || event.status || 'draft').toLowerCase();
+        return (
+          lifecycle !== 'draft' &&
+          lifecycle !== 'deleted' &&
+          lifecycle !== 'cancelled' &&
+          lifecycle !== 'denied'
+        );
+      });
+
+      // Count drafts at the media or review creation steps as pending status
+      const pendingDraftsCount = dayEvents.filter((event: any) => {
+        const lifecycle = String(event.lifecycle || event.status || 'draft').toLowerCase();
+        const lastStep = String(event.draftMeta?.lastStep || '').toLowerCase();
+        return lifecycle === 'draft' && (lastStep === 'media' || lastStep === 'review');
+      }).length;
+
       dates.push({
         date: dateKey,
         state: block
           ? 'BLOCKED'
-          : dayEvents.length > 0 || confirmedSlots.length > 0
+          : bookedEvents.length > 0 || confirmedSlots.length > 0
             ? 'CONFIRMED'
             : 'OPEN',
         events: maskedEvents,
@@ -1188,10 +1322,10 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         })),
         block,
         stats: {
-          eventCount: dayEvents.length,
-          pendingSlots: visibleSlots.filter(
-            (slot) => String(slot.status || '').toLowerCase() === 'requested',
-          ).length,
+          eventCount: bookedEvents.length,
+          pendingSlots:
+            visibleSlots.filter((slot) => String(slot.status || '').toLowerCase() === 'requested')
+              .length + pendingDraftsCount,
         },
       });
 
@@ -1449,6 +1583,125 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     },
   );
 
+  // ── List slot requests (host) ──────────────────────────────────────────────
+  // The page shows events submitted to venues for review.
+  // Tabs filter by event lifecycle: submitted=pending, approved=approved,
+  // needs_changes=needs action, denied=denied.
+
+  fastify.get(
+    '/partners/hosts/slot-requests',
+    {
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      const ctx = await resolvePartnerContext(fastify.db, request);
+      if (!ctx)
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'FORBIDDEN',
+            message: 'No partner identity found',
+            requestId: request.id,
+          }),
+        );
+
+      try {
+        requireType(ctx, 'host');
+        const hostId = ctx.partnerId;
+
+        // Fetch events in review-relevant lifecycle states, by both owner fields.
+        // No orderBy — avoids composite index requirement (FAILED_PRECONDITION).
+        const reviewLifecycles = ['submitted', 'approved', 'needs_changes', 'denied'];
+
+        const [creatorSnap, hostSnap] = await Promise.all([
+          fastify.db
+            .collection('events')
+            .where('creatorId', '==', hostId)
+            .where('lifecycle', 'in', reviewLifecycles)
+            .limit(200)
+            .get()
+            .catch(() => ({ docs: [] as any[] })),
+          fastify.db
+            .collection('events')
+            .where('hostId', '==', hostId)
+            .where('lifecycle', 'in', reviewLifecycles)
+            .limit(200)
+            .get()
+            .catch(() => ({ docs: [] as any[] })),
+        ]);
+
+        // Merge, deduplicate by doc id
+        const docsById = new Map<string, any>();
+        for (const doc of [...(creatorSnap as any).docs, ...(hostSnap as any).docs]) {
+          docsById.set(doc.id, doc);
+        }
+
+        const requests = [...docsById.values()]
+          .map((doc: any) => {
+            const d = doc.data() as Record<string, any>;
+            const startDate = d.startDate
+              ? typeof d.startDate === 'string'
+                ? d.startDate
+                : (d.startDate?.toDate?.()?.toISOString?.() ?? '')
+              : '';
+            const createdAt = d.createdAt?.toDate?.()?.toISOString?.() ?? String(d.createdAt ?? '');
+            const updatedAt = d.updatedAt?.toDate?.()?.toISOString?.() ?? null;
+            return {
+              id: doc.id,
+              eventId: doc.id,
+              venueId: String(d.venueId || ''),
+              venueName: String(d.venueName || d.venue?.name || ''),
+              // Use the event's start date/time as the requested slot
+              requestedDate: startDate.split('T')[0] ?? '',
+              requestedStartTime: d.startTime || startDate.split('T')[1]?.slice(0, 5) || '',
+              requestedEndTime:
+                d.endTime ||
+                (d.endDate
+                  ? ((typeof d.endDate === 'string'
+                      ? d.endDate
+                      : (d.endDate?.toDate?.()?.toISOString?.() ?? '')
+                    )
+                      .split('T')[1]
+                      ?.slice(0, 5) ?? '')
+                  : ''),
+              status: String(d.lifecycle || d.status || 'pending'),
+              notes: d.notes ?? d.description ?? null,
+              clubResponse: d.clubResponse ?? d.venueNote ?? d.adminNote ?? null,
+              alternativeDate: d.alternativeDate ?? null,
+              alternativeStartTime: d.alternativeStartTime ?? null,
+              alternativeEndTime: d.alternativeEndTime ?? null,
+              createdAt,
+              respondedAt: updatedAt,
+            };
+          })
+          // Sort newest first in memory (avoids composite index requirement)
+          .sort((a: any, b: any) => {
+            const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return bTime - aTime;
+          });
+
+        return reply
+          .header('Cache-Control', 'private, max-age=60')
+          .send({ success: true, requests });
+      } catch (err: any) {
+        fastify.log.error({ err: (err as any).message }, 'partners/hosts/slot-requests error');
+        if (err.statusCode)
+          return reply
+            .status(err.statusCode)
+            .send(
+              buildErrorResponse({ code: err.code, message: err.message, requestId: request.id }),
+            );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
   // ── Request a slot ─────────────────────────────────────────────────────────
 
   fastify.post(
@@ -1520,8 +1773,39 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           const sessions = ((snap as any).docs || []).map((d: any) => d.data() || {});
           return reply.send({ sessions });
         }
-        const settings = await hostService.getSettings(ctx);
-        return reply.header('Cache-Control', 'private, max-age=300').send(settings);
+        const doc = await fastify.db.collection('hosts').doc(ctx.partnerId).get();
+        const data = doc.exists ? doc.data() || {} : {};
+        const settings = {
+          hostId: ctx.partnerId,
+          orgName: data.orgName || data.displayName || data.name || '',
+          supportEmail: data.supportEmail || data.contactEmail || data.email || '',
+          legalPhone: data.legalPhone || data.contactPhone || data.phone || '',
+          website: data.website || '',
+          logoUrl: data.profileImage || data.photoURL || null,
+          defaultTimezone: data.defaultTimezone || 'Asia/Kolkata',
+          defaultCurrency: data.defaultCurrency || 'INR',
+          notificationPreferences: data.notificationPreferences || {
+            slotApproved_email: true,
+            slotApproved_push: true,
+            slotApproved_sms: false,
+            slotRejected_email: true,
+            slotRejected_push: true,
+            slotRejected_sms: false,
+            eventReminder_email: true,
+            eventReminder_push: true,
+            eventReminder_sms: false,
+            promoterRequest_email: true,
+            promoterRequest_push: true,
+            promoterRequest_sms: false,
+            newFollower_email: true,
+            newFollower_push: true,
+            newFollower_sms: false,
+            weeklyDigest_email: true,
+            weeklyDigest_push: false,
+            weeklyDigest_sms: false,
+          },
+        };
+        return reply.header('Cache-Control', 'private, max-age=300').send({ settings });
       } catch (err: any) {
         if (err.statusCode)
           return reply
@@ -1542,6 +1826,180 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
   // ── Team ───────────────────────────────────────────────────────────────────
 
+  fastify.get('/partners/hosts/team/accept', async (request: any, reply: any) => {
+    const { code, hostId } = request.query as any;
+    if (!code || !hostId) {
+      return reply.status(400).send({ error: 'code and hostId required' });
+    }
+    try {
+      const snap = await fastify.db
+        .collection('host_team_invitations')
+        .where('hostId', '==', hostId)
+        .where('inviteToken', '==', code)
+        .limit(1)
+        .get();
+
+      if (snap.empty) {
+        return reply.status(404).send({ error: 'Invitation not found or invalid' });
+      }
+
+      const invDoc = snap.docs[0];
+      const invData = invDoc.data();
+
+      if (invData.inviteExpires && new Date() > new Date(invData.inviteExpires)) {
+        return reply.status(400).send({ error: 'Invitation has expired' });
+      }
+
+      return reply.send({
+        name:
+          invData.firstName && invData.lastName
+            ? `${invData.firstName} ${invData.lastName}`
+            : 'Team Member',
+        email: invData.email,
+        role: invData.role,
+        partnerName: invData.partnerName || 'Host Partner',
+        status: invData.status,
+      });
+    } catch (err: any) {
+      fastify.log.error({ err }, 'GET /partners/hosts/team/accept failed');
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: err.message || 'Failed to retrieve invitation',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
+
+  fastify.post('/partners/hosts/team/accept', async (request: any, reply: any) => {
+    const { inviteCode, hostId } = request.body as any;
+    if (!inviteCode || !hostId) {
+      return reply.status(400).send({ error: 'inviteCode and hostId required' });
+    }
+
+    try {
+      const snap = await fastify.db
+        .collection('host_team_invitations')
+        .where('hostId', '==', hostId)
+        .where('inviteToken', '==', inviteCode)
+        .limit(1)
+        .get();
+
+      if (snap.empty) {
+        return reply.status(404).send({ error: 'Invitation not found or invalid' });
+      }
+
+      const invDoc = snap.docs[0];
+      const invData = invDoc.data();
+
+      if (invData.inviteExpires && new Date() > new Date(invData.inviteExpires)) {
+        return reply.status(400).send({ error: 'Invitation has expired' });
+      }
+
+      if (invData.status === 'accepted' || invData.status === 'active') {
+        return reply.send({
+          success: true,
+          email: invData.email,
+          tempPassword: invData.tempPassword,
+          alreadyAccepted: true,
+        });
+      }
+
+      const email = invData.email;
+      const name =
+        invData.firstName && invData.lastName
+          ? `${invData.firstName} ${invData.lastName}`
+          : 'Team Member';
+      const role = invData.role;
+      const tempPassword = invData.tempPassword;
+
+      // 1. Create/update the Firebase user
+      let userRecord;
+      try {
+        userRecord = await fastify.auth.getUserByEmail(email);
+        await fastify.auth.updateUser(userRecord.uid, { password: tempPassword });
+        await fastify.db.collection('users').doc(userRecord.uid).update({
+          role: 'host',
+          isApproved: true,
+          onboardingComplete: true,
+          mustChangePassword: true,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (e: any) {
+        if (e.code === 'auth/user-not-found') {
+          userRecord = await fastify.auth.createUser({
+            email,
+            password: tempPassword,
+            displayName: name,
+          });
+
+          await fastify.db.collection('users').doc(userRecord.uid).set({
+            uid: userRecord.uid,
+            email,
+            displayName: name,
+            role: 'host',
+            isApproved: true,
+            onboardingComplete: true,
+            mustChangePassword: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        } else {
+          throw e;
+        }
+      }
+
+      const uid = userRecord.uid;
+      const partnerName = invData.partnerName || 'Host Partner';
+
+      // 2. Create or update the partner_memberships document
+      const membershipSnap = await fastify.db
+        .collection('partner_memberships')
+        .where('partnerId', '==', hostId)
+        .where('uid', '==', uid)
+        .limit(1)
+        .get();
+
+      if (membershipSnap.empty) {
+        await fastify.db.collection('partner_memberships').add({
+          uid,
+          partnerId: hostId,
+          partnerName,
+          partnerType: 'host',
+          role,
+          isActive: true,
+          joinedAt: Date.now(),
+          createdAt: new Date().toISOString(),
+        });
+      } else {
+        await membershipSnap.docs[0].ref.update({
+          isActive: true,
+          role,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      // 3. Update the host_team_invitations record status to active
+      await invDoc.ref.update({
+        status: 'accepted',
+        userId: uid,
+        updatedAt: new Date().toISOString(),
+      });
+
+      return reply.send({ success: true, email, tempPassword });
+    } catch (err: any) {
+      fastify.log.error({ err }, 'POST /partners/hosts/team/accept failed');
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: err.message || 'Failed to accept invitation',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
+
   fastify.get(
     '/partners/hosts/team',
     {
@@ -1561,9 +2019,89 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       try {
         requireType(ctx, 'host');
         const members = await hostService.getTeam(ctx);
+
+        const invitesSnap = await fastify.db
+          .collection('host_team_invitations')
+          .where('hostId', '==', ctx.partnerId)
+          .where('status', '==', 'pending')
+          .get()
+          .catch(() => ({ docs: [] }));
+
+        const invitedMembers = invitesSnap.docs.map((doc: any) => {
+          const d = doc.data();
+          const displayName =
+            d.firstName && d.lastName
+              ? `${d.firstName} ${d.lastName}`
+              : d.email || d.phone || 'Invited Member';
+          return {
+            membershipId: doc.id,
+            uid: null,
+            displayName,
+            email: d.email || null,
+            phone: d.phone || null,
+            role: d.role || 'STAFF',
+            status: 'invited',
+            isActive: false,
+            joinedAt: d.createdAt || null,
+            lastActive: null,
+            photoUrl: null,
+            granularPermissions: d.granularPermissions || null,
+            verified: false,
+          };
+        });
+
+        const uids = asArray(members)
+          .map((m: any) => m.uid)
+          .filter(Boolean);
+        const userMap = new Map<string, any>();
+        if (uids.length > 0) {
+          for (let i = 0; i < uids.length; i += 30) {
+            const batch = uids.slice(i, i + 30);
+            const userSnap = await fastify.db
+              .collection('users')
+              .where('__name__', 'in', batch)
+              .get()
+              .catch(() => ({ docs: [] }));
+            userSnap.docs.forEach((doc: any) => {
+              userMap.set(doc.id, doc.data());
+            });
+          }
+        }
+
+        const mappedMembers = asArray(members).map((m: any) => {
+          const uProfile = m.uid ? userMap.get(m.uid) : null;
+          const email = m.email || uProfile?.email || null;
+          const phone = m.phone || uProfile?.phone || uProfile?.phoneNumber || null;
+          const displayName =
+            m.displayName ||
+            uProfile?.displayName ||
+            (uProfile?.firstName && uProfile?.lastName
+              ? `${uProfile.firstName} ${uProfile.lastName}`
+              : null) ||
+            email ||
+            phone ||
+            'Team Member';
+
+          return {
+            membershipId: m.memberId || m.membershipId || '',
+            uid: m.uid || null,
+            displayName,
+            email,
+            phone,
+            role: m.role || 'STAFF',
+            status: m.isActive ? 'active' : 'suspended',
+            isActive: m.isActive,
+            joinedAt: m.joinedAt || null,
+            lastActive: m.lastActive || null,
+            photoUrl: m.photoUrl || uProfile?.photoUrl || uProfile?.photoURL || null,
+            granularPermissions: m.granularPermissions || null,
+            verified: m.verified || uProfile?.verified || false,
+          };
+        });
+
         return reply.header('Cache-Control', 'private, max-age=120').send({
           success: true,
-          members: asArray(members),
+          members: [...mappedMembers, ...invitedMembers],
         });
       } catch (err: any) {
         if (err.statusCode)
@@ -1659,6 +2197,51 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     },
   );
 
+  fastify.post(
+    '/partners/hosts/upload',
+    {
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await resolvePartnerContext(fastify.db, request);
+        // Debug: log partner context resolution
+        // eslint-disable-next-line no-console
+        console.debug('[hosts.upload] resolvePartnerContext', {
+          requestId: request.id,
+          hasCtx: !!ctx,
+        });
+        if (!ctx) return;
+        await requireType(ctx, 'host');
+
+        // Use shared upload helper so host upload has same behavior as venue
+        const uploadResult = await uploadPartnerAsset(request, {
+          partnerId: ctx.partnerId,
+          partnerType: 'host',
+          maxBytes: 5 * 1024 * 1024,
+        });
+
+        const signedUrl = await signStorageUrl(uploadResult.url);
+
+        return reply.send({
+          success: true,
+          url: signedUrl,
+          filename: uploadResult.filename,
+          storagePath: uploadResult.storagePath,
+        });
+      } catch (err: any) {
+        fastify.log.error(`Error in host upload: ${err.message}`);
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: err.message || 'Failed to upload file',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
   // ── Native parity dispatch ────────────────────────────────────────────────
 
   fastify.route({
@@ -1693,10 +2276,84 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         const body = asRecord(request.body);
         const query = asRecord(request.query);
 
+        if (rest.startsWith('partners/') && request.method === 'GET') {
+          const partnerId = rest.slice('partners/'.length);
+          const profile = await getPartnerProfileSummary(fastify.db, partnerId);
+          if (!profile) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Partner profile not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          const connection = await getConnectionForViewer(fastify.db, {
+            viewerRole: ctx.type,
+            viewerId: ctx.partnerId,
+            partnerId,
+            partnerType: profile.type,
+          });
+          if (connection && (connection.status === 'active' || connection.status === 'approved')) {
+            if ((profile as any)._pii) {
+              (profile as any).email = (profile as any)._pii.email;
+              (profile as any).phone = (profile as any)._pii.phone;
+            }
+          }
+          delete (profile as any)._pii;
+          return reply.send({ profile, connection });
+        }
+
         if (rest === 'profile' && request.method === 'GET')
           return reply.send(await getHostProfile(ctx.partnerId));
+
+        if (rest === 'promoters/connections' && request.method === 'GET') {
+          const status = (query.status as string) || 'approved';
+          const snap = await fastify.db
+            .collection('promoter_connections')
+            .where('hostId', '==', ctx.partnerId)
+            .get();
+
+          const connections = snap.docs
+            .map((doc: any) => ({ id: doc.id, ...doc.data() }))
+            .filter((c: any) => !status || c.status === status);
+
+          const promoterIds = [
+            ...new Set(connections.map((c: any) => c.promoterId).filter(Boolean)),
+          ];
+          const promoterProfiles = new Map();
+          if (promoterIds.length > 0) {
+            for (let i = 0; i < promoterIds.length; i += 30) {
+              const batch = promoterIds.slice(i, i + 30);
+              const profileSnap = await fastify.db
+                .collection('promoters')
+                .where('__name__', 'in', batch)
+                .get();
+              profileSnap.docs.forEach((d: any) => promoterProfiles.set(d.id, d.data()));
+            }
+          }
+
+          const result = connections.map((c: any) => {
+            const profile = promoterProfiles.get(c.promoterId);
+            return {
+              id: c.id,
+              promoterId: c.promoterId,
+              promoterName:
+                profile?.displayName || profile?.name || c.promoterName || 'Unknown Promoter',
+              promoterEmail: profile?.email || c.promoterEmail || '',
+              promoterPhone: profile?.phone || c.promoterPhone || '',
+              promoterInstagram: profile?.instagram || c.promoterInstagram || '',
+              status: c.status,
+              createdAt: c.createdAt || null,
+            };
+          });
+
+          return reply.send({ connections: result });
+        }
         if (rest === 'profile' && request.method === 'PATCH')
-          return reply.send(await updateHostProfile(ctx.partnerId, asRecord(body.patch)));
+          return reply.send(
+            await updateHostProfile(ctx.partnerId, asRecord(body.patch || body.updates)),
+          );
 
         if (rest === 'partnerships' && request.method === 'GET')
           return reply.send(await getHostPartnerships(ctx.partnerId));
@@ -2025,7 +2682,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         if (hostEventPromotersMatch && request.method === 'GET') {
           const evtId = hostEventPromotersMatch[1];
           await getHostEventAndVerify(ctx.partnerId, evtId);
-          const [assignmentsSnap, settingsDoc] = await Promise.all([
+          const [assignmentsSnap, settingsDoc, connectionsSnap] = await Promise.all([
             fastify.db
               .collection('promoter_assignments')
               .where('eventId', '==', evtId)
@@ -2036,12 +2693,13 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               .doc(evtId)
               .get()
               .catch(() => null),
+            fastify.db
+              .collection('promoter_connections')
+              .where('hostId', '==', ctx.partnerId)
+              .where('status', 'in', ['approved', 'active'])
+              .get()
+              .catch(() => ({ docs: [] as any[] })),
           ]);
-          const promoters = ((assignmentsSnap as any).docs || []).map((doc: any) => ({
-            assignmentId: doc.id,
-            ...(doc.data() || {}),
-            id: doc.id,
-          }));
           const settingsData =
             settingsDoc && (settingsDoc as any).exists ? (settingsDoc as any).data() || {} : {};
           const promoterSettings = {
@@ -2049,8 +2707,44 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             commissionRate: settingsData.commissionRate || 10,
             ...settingsData,
           };
+          const assignedPromoters = ((assignmentsSnap as any).docs || []).map((doc: any) => {
+            const data = doc.data() || {};
+            return {
+              assignmentId: doc.id,
+              ...data,
+              id: doc.id,
+              promoterId: data.promoterId || '',
+            };
+          });
+          const assignedIds = new Set(
+            assignedPromoters.map((p: any) => p.promoterId).filter(Boolean),
+          );
+          const unassignedPromoters = ((connectionsSnap as any).docs || [])
+            .map((doc: any) => {
+              const conn = doc.data() || {};
+              const promoterId = conn.promoterId;
+              if (!promoterId || assignedIds.has(promoterId)) return null;
+              return {
+                assignmentId: null,
+                id: promoterId,
+                promoterId,
+                promoterName: conn.promoterName || 'Promoter',
+                avatar: conn.promoterAvatar || conn.avatarUrl || null,
+                status: 'disabled',
+                isActive: false,
+                shortCode: null,
+                sales: 0,
+                revenue: 0,
+                clicks: 0,
+                commissionRate: promoterSettings.commissionRate || 10,
+              };
+            })
+            .filter(Boolean);
+          const promoters = [...assignedPromoters, ...unassignedPromoters];
           const totalPromoters = promoters.length;
-          const activePromoters = promoters.filter((p: any) => p.isActive !== false).length;
+          const activePromoters = promoters.filter(
+            (p: any) => p.isActive !== false && p.status === 'active',
+          ).length;
           const disabledPromoters = totalPromoters - activePromoters;
           const ticketsSold = promoters.reduce(
             (s: number, p: any) => s + toNumber(p.ticketsSold || 0),
@@ -2072,18 +2766,10 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             },
           });
         }
+
         if (hostEventPromotersMatch && request.method === 'PATCH') {
           const evtId = hostEventPromotersMatch[1];
           await getHostEventAndVerify(ctx.partnerId, evtId);
-
-          // Read previous state so we can diff newly added promoters for push
-          const prevDoc = await fastify.db
-            .collection('event_promoter_settings')
-            .doc(evtId)
-            .get()
-            .catch(() => null);
-          const prevIds: string[] =
-            (prevDoc?.exists ? (prevDoc.data() as any)?.allowedPromoterIds : null) ?? [];
 
           await fastify.db
             .collection('event_promoter_settings')
@@ -2098,13 +2784,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               { merge: true },
             );
 
-          // Diff newly added / removed promoters
-          const nextIds: string[] = Array.isArray(body?.allowedPromoterIds)
-            ? body.allowedPromoterIds
-            : [];
-          const newlyAdded = nextIds.filter((id: string) => !prevIds.includes(id));
-          const removed = prevIds.filter((id: string) => !nextIds.includes(id));
-          const isEnabled: boolean = body?.enabled !== false;
+          await updateEventPromoterCompensation(fastify.db, evtId, body);
 
           // Create / update promoter_assignments for all enabled promoters (fire-and-forget)
           (async () => {
@@ -2115,38 +2795,89 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
                 .get()
                 .catch(() => null);
               const eventData = (eventDoc?.exists ? (eventDoc.data() as any) : {}) ?? {};
+
+              // If event is a draft, do not assign or notify promoters
+              if (eventData.lifecycle === 'draft' || eventData.status === 'draft') {
+                return;
+              }
+
               const eventName: string = eventData.title ?? 'Untitled Event';
               const venueName: string = eventData.venueName ?? '';
-              const commissionRate: number =
+              // Resolve rates per-promoter from the canonical promoterCompensation
+              // object (standard flat rate, custom per-tier map, or salary's 0),
+              // falling back to the old flat field only for pre-migration docs.
+              const pc = eventData.promoterCompensation
+                ? normalizeCompensationForRead(eventData.promoterCompensation)
+                : null;
+              const fallbackRate: number =
                 body?.defaultCommission ?? eventData.promoterSettings?.commissionRate ?? 10;
               const now = new Date().toISOString();
+
+              const nextIds: string[] = Array.isArray(body?.allowedPromoterIds)
+                ? body.allowedPromoterIds
+                : [];
+              const isEnabled: boolean = body?.enabled !== false;
+
+              // Query promoter_assignments for active assignments to find the previous state
+              const activeAssignmentsSnap = await fastify.db
+                .collection('promoter_assignments')
+                .where('eventId', '==', evtId)
+                .where('status', '==', 'active')
+                .get()
+                .catch(() => null);
+              const prevIds: string[] =
+                activeAssignmentsSnap?.docs.map((d: any) => d.data().promoterId) ?? [];
+
+              const newlyAdded = nextIds.filter((id: string) => !prevIds.includes(id));
+              const removed = prevIds.filter((id: string) => !nextIds.includes(id));
+
+              // Encrypt event data to be stored securely
+              const encryptedEventName = encrypt(eventName);
+              const encryptedVenueName = encrypt(venueName);
 
               // Create assignment docs for newly added promoters
               await Promise.all(
                 newlyAdded.map(async (promoterId: string) => {
-                  const assignId = `${promoterId}_${evtId}`;
-                  await fastify.db.collection('promoter_assignments').doc(assignId).set(
-                    {
-                      id: assignId,
-                      promoterId,
-                      eventId: evtId,
-                      eventName,
-                      venueName,
-                      status: 'active',
-                      commissionRate,
-                      linkCode: null,
-                      totalSales: 0,
-                      totalRevenue: 0,
-                      totalCommission: 0,
-                      guestlistAllowance: 0,
-                      guestlistUsed: 0,
-                      guests: [],
-                      assignedAt: now,
-                      createdAt: now,
-                      updatedAt: now,
-                    },
-                    { merge: true },
+                  const effective = pc
+                    ? resolveEffectiveCommission(pc, promoterId)
+                    : { rate: fallbackRate, type: 'percentage' as const, tierCommissions: null };
+                  const trackingCode = await ensurePromoterLink(
+                    fastify.db,
+                    promoterId,
+                    evtId,
+                    eventName,
+                    effective.rate,
+                    effective.type,
+                    effective.tierCommissions,
                   );
+                  const assignId = `${promoterId}_${evtId}`;
+                  await fastify.db
+                    .collection('promoter_assignments')
+                    .doc(assignId)
+                    .set(
+                      {
+                        id: assignId,
+                        promoterId,
+                        eventId: evtId,
+                        eventName: encryptedEventName,
+                        venueName: encryptedVenueName,
+                        status: 'active',
+                        commissionRate: effective.rate,
+                        commissionType: effective.type,
+                        tierCommissions: effective.tierCommissions,
+                        linkCode: trackingCode || null,
+                        totalSales: 0,
+                        totalRevenue: 0,
+                        totalCommission: 0,
+                        guestlistAllowance: 0,
+                        guestlistUsed: 0,
+                        guests: [],
+                        assignedAt: now,
+                        createdAt: now,
+                        updatedAt: now,
+                      },
+                      { merge: true },
+                    );
                 }),
               );
 
@@ -2174,15 +2905,35 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
                 );
               }
 
-              // Push notification for newly added promoters
+              // Send notifications to newly added promoters
               if (newlyAdded.length > 0) {
-                await sendPushToUsers(
-                  fastify.db,
-                  newlyAdded,
-                  "You've been added to an event!",
-                  `${eventName} is live — start sharing your link`,
-                  { eventId: evtId, type: 'promoter_assignment' },
-                );
+                // Encrypt notification title and message
+                const rawTitle = "You've been added to an event!";
+                const rawMessage = `${eventName} is live — start sharing your link`;
+                const encryptedTitle = encrypt(rawTitle);
+                const encryptedMessage = encrypt(rawMessage);
+
+                await Promise.all([
+                  ...newlyAdded.map((promoterId: string) =>
+                    fastify.db.collection('notifications').add({
+                      recipientId: promoterId,
+                      recipientType: 'promoter',
+                      type: 'promoter_assignment',
+                      title: encryptedTitle,
+                      message: encryptedMessage,
+                      read: false,
+                      createdAt: now,
+                      data: {
+                        eventId: evtId,
+                        type: 'promoter_assignment',
+                      },
+                    }),
+                  ),
+                  sendPushToUsers(fastify.db, newlyAdded, rawTitle, rawMessage, {
+                    eventId: evtId,
+                    type: 'promoter_assignment',
+                  }),
+                ]);
               }
             } catch (err: any) {
               fastify.log.error(`[Promoter] Assignment sync error: ${err.message}`);
@@ -2312,14 +3063,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             .limit(1)
             .get()
             .catch(() => ({ empty: true }));
-          if (!(existing as any).empty)
-            return reply.status(409).send(
-              buildErrorResponse({
-                code: 'CONFLICT',
-                message: 'Partnership request already exists',
-                requestId: request.id,
-              }),
-            );
+          if (!(existing as any).empty) {
+            const doc = (existing as any).docs[0];
+            return reply
+              .status(200)
+              .send({ success: true, partnershipId: doc.id, alreadyExists: true });
+          }
           const now = new Date().toISOString();
           const ref = await fastify.db.collection('partnerships').add({
             hostId: ctx.partnerId,
@@ -2344,6 +3093,10 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               }),
             );
           const now = new Date().toISOString();
+          const tempPassword = generateTemporaryPassword();
+          const inviteToken = randomUUID();
+          const inviteExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
           const ref = await fastify.db.collection('host_team_invitations').add({
             hostId: ctx.partnerId,
             email: email || null,
@@ -2354,8 +3107,45 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             granularPermissions: granularPermissions || {},
             partnerName: partnerName || null,
             status: 'pending',
+            tempPassword,
+            inviteToken,
+            inviteExpires,
             createdAt: now,
           });
+
+          // Dispatch invitation email if email is provided
+          if (email) {
+            let origin = 'http://localhost:3001';
+            if (request.headers.referer) {
+              try {
+                origin = new URL(request.headers.referer).origin;
+              } catch {
+                if (request.headers.origin) origin = request.headers.origin;
+              }
+            } else if (request.headers.origin) {
+              origin = request.headers.origin;
+            }
+
+            const acceptLink = `${origin}/auth/staff-invite?code=${inviteToken}&host=${ctx.partnerId}`;
+            const pName = partnerName || ctx.displayName || 'Host Partner';
+            const roleLabels: Record<string, string> = {
+              COHOST: 'Co-Host',
+              MANAGER: 'Manager',
+              STAFF: 'Staff',
+            };
+            const roleLabel = roleLabels[role] || role || 'Member';
+
+            await sendHostInvitationEmail({
+              recipient: email.toLowerCase().trim(),
+              name: firstName && lastName ? `${firstName} ${lastName}` : 'Team Member',
+              roleLabel,
+              partnerName: pName,
+              acceptLink,
+            }).catch((err: any) => {
+              fastify.log.error({ err }, 'Failed to send host invitation email');
+            });
+          }
+
           return reply.status(201).send({ success: true, invitationId: ref.id });
         }
 
@@ -2542,12 +3332,19 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         if (rest === 'settings' && request.method === 'PATCH') {
           const patch = asRecord(body.patch || body);
           const allowedFields = [
+            'orgName',
+            'supportEmail',
+            'legalPhone',
+            'website',
+            'logoUrl',
+            'defaultTimezone',
+            'defaultCurrency',
+            'notificationPreferences',
             'displayName',
             'bio',
             'contactEmail',
             'contactPhone',
             'socialLinks',
-            'notificationPreferences',
             'bookingPolicy',
             'coverCharge',
             'dressCode',
@@ -2563,7 +3360,18 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           safe.updatedAt = new Date().toISOString();
           await fastify.db.collection('hosts').doc(ctx.partnerId).set(safe, { merge: true });
           const doc = await fastify.db.collection('hosts').doc(ctx.partnerId).get();
-          const settings = doc.exists ? { id: doc.id, ...(doc.data() || {}) } : safe;
+          const data = doc.exists ? doc.data() || {} : {};
+          const settings = {
+            hostId: ctx.partnerId,
+            orgName: data.orgName || data.displayName || data.name || '',
+            supportEmail: data.supportEmail || data.contactEmail || data.email || '',
+            legalPhone: data.legalPhone || data.contactPhone || data.phone || '',
+            website: data.website || '',
+            logoUrl: data.profileImage || data.photoURL || null,
+            defaultTimezone: data.defaultTimezone || 'Asia/Kolkata',
+            defaultCurrency: data.defaultCurrency || 'INR',
+            notificationPreferences: data.notificationPreferences || {},
+          };
           return reply.send({ success: true, settings });
         }
 
@@ -2613,7 +3421,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
         if (rest === 'settings/session/revoke' && request.method === 'POST') {
           try {
-            await (fastify as any).firebaseAdmin?.auth().revokeRefreshTokens(ctx.uid);
+            await fastify.auth.revokeRefreshTokens(ctx.uid);
           } catch {
             fastify.log.warn(
               `[partners/hosts] revokeRefreshTokens not available for uid=${ctx.uid}`,

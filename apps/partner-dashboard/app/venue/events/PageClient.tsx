@@ -118,6 +118,7 @@ const MemoizedVenueEventCard = memo(({ event, index, handleEventUpdate }: any) =
       secondaryActions={secondaryActions}
       showStats={true}
       height="h-full"
+      priority={index < 2}
     />
   );
 });
@@ -130,6 +131,7 @@ export default function EventsManagementPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState<'host' | 'venue'>('venue');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -287,9 +289,25 @@ export default function EventsManagementPage() {
     return new Date() > end;
   };
 
+  const pendingCount = useMemo(
+    () =>
+      events.filter((e) => e.eventType === 'host' && getStatus(e) === EVENT_LIFECYCLE.SUBMITTED)
+        .length,
+    [events],
+  );
+
+  const typeFilteredEventsForCounts = useMemo(() => {
+    return events.filter((e) => {
+      if (e.eventType === 'host' && getStatus(e) === EVENT_LIFECYCLE.SUBMITTED) {
+        return false;
+      }
+      return e.eventType === typeFilter;
+    });
+  }, [events, typeFilter]);
+
   const filteredEvents = useMemo(
     () =>
-      events.filter((e) => {
+      typeFilteredEventsForCounts.filter((e) => {
         const s = getStatus(e);
         let match = false;
         if (filter === 'all') {
@@ -308,45 +326,51 @@ export default function EventsManagementPage() {
         } else if (filter === 'completed') {
           match = s === EVENT_LIFECYCLE.COMPLETED || isEventOver(e);
         }
+
         return (
           match &&
           (e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             e.hostName.toLowerCase().includes(searchQuery.toLowerCase()))
         );
       }),
-    [events, filter, searchQuery],
+    [typeFilteredEventsForCounts, filter, searchQuery],
   );
 
-  const liveCount = useMemo(() => events.filter(isEventLiveNow).length, [events]);
-  const pendingCount = useMemo(
-    () =>
-      events.filter((e) => e.eventType === 'host' && getStatus(e) === EVENT_LIFECYCLE.SUBMITTED)
-        .length,
-    [events],
+  const liveCount = useMemo(
+    () => typeFilteredEventsForCounts.filter(isEventLiveNow).length,
+    [typeFilteredEventsForCounts],
   );
   const draftCount = useMemo(
     () =>
-      events.filter((e) => e.eventType === 'venue' && getStatus(e) === EVENT_LIFECYCLE.DRAFT)
-        .length,
-    [events],
+      typeFilteredEventsForCounts.filter(
+        (e) => e.eventType === 'venue' && getStatus(e) === EVENT_LIFECYCLE.DRAFT,
+      ).length,
+    [typeFilteredEventsForCounts],
   );
   const publishedCount = useMemo(
     () =>
-      events.filter(
+      typeFilteredEventsForCounts.filter(
         (e) =>
           [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.APPROVED].includes(getStatus(e) as string) &&
           !isEventLiveNow(e) &&
           !isEventOver(e),
       ).length,
-    [events],
+    [typeFilteredEventsForCounts],
+  );
+  const completedCount = useMemo(
+    () =>
+      typeFilteredEventsForCounts.filter(
+        (e) => getStatus(e) === EVENT_LIFECYCLE.COMPLETED || isEventOver(e),
+      ).length,
+    [typeFilteredEventsForCounts],
   );
 
   const filterTabs = [
-    { label: 'All', value: 'all', count: events.length },
+    { label: 'All', value: 'all', count: typeFilteredEventsForCounts.length },
     { label: 'Live', value: 'live', count: liveCount },
     { label: 'Published', value: 'approved', count: publishedCount },
     { label: 'Drafts', value: 'draft', count: draftCount },
-    { label: 'Completed', value: 'completed' },
+    { label: 'Completed', value: 'completed', count: completedCount },
   ];
 
   return (
@@ -474,6 +498,36 @@ export default function EventsManagementPage() {
                 );
               })}
             </div>
+
+            <div
+              className="flex items-center p-1.5 rounded-2xl shrink-0"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.06)',
+              }}
+            >
+              {[
+                { label: 'Hosts', value: 'host' },
+                { label: 'Venue', value: 'venue' },
+              ].map((t) => {
+                const isActive = typeFilter === t.value;
+                return (
+                  <button
+                    key={t.value}
+                    onClick={() => setTypeFilter(t.value as any)}
+                    className="px-4 py-2 rounded-xl text-[13px] font-semibold transition-all shrink-0 whitespace-nowrap"
+                    style={
+                      isActive
+                        ? { background: 'var(--v-elevated)', color: 'var(--v-text-primary)' }
+                        : { color: 'var(--v-text-tertiary)' }
+                    }
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+
             <div
               className="flex items-center gap-2 flex-1 px-4 py-2.5 rounded-2xl"
               style={{
