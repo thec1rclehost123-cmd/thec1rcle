@@ -6,7 +6,27 @@ export function normalizeBoolean(value: any): boolean;
 export function normalizeGuestDiscoverySort(
   value: any,
 ): 'startAt' | 'heatScore' | 'publishedAt' | 'priceMin';
-export function normalizeDiscoverySort(value: any): 'followersCount' | 'nextEventAt' | 'updatedAt';
+export function normalizeDiscoverySort(
+  value: any,
+): 'followersCount' | 'nextEventAt' | 'updatedAt' | 'heatScore' | 'id';
+export function computeProfileHeatScore(entity?: {
+  followersCount?: number;
+  upcomingEventsCount?: number;
+  verified?: boolean;
+  trending?: boolean;
+}): number;
+export function computeHostHeatScore(entity?: {
+  followersCount?: number;
+  clickCount?: number;
+  ticketSalesCount?: number;
+  recentClickCount?: number;
+}): number;
+export function computeVenueHeatScore(entity?: {
+  followersCount?: number;
+  clickCount?: number;
+  ticketSalesCount?: number;
+  recentClickCount?: number;
+}): number;
 export function normalizeGuestDiscoveryLimit(value: any, fallback?: number, max?: number): number;
 export function isPublicProfileEnabled(entity?: {}): any;
 export function toEventBoundaryTime(value: any, boundary?: string): number;
@@ -139,6 +159,7 @@ export function buildHostSummaryReadModel(
   nextEventDate: any;
   nextEventAt: any;
   featuredEventIds: any[];
+  heatScore: number;
   bioShort: any;
   bio: any;
   searchText: string;
@@ -189,6 +210,7 @@ export function buildVenueSummaryReadModel(
   followersCount: number;
   upcomingEventsCount: number;
   nextEventAt: any;
+  heatScore: number;
   menuAvailable: boolean;
   highlightsCount: number;
   bioShort: any;

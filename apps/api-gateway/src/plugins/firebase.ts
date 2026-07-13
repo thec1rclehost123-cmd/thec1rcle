@@ -83,6 +83,7 @@ export default fp(async (fastify) => {
   }
 
   const db = getFirestore();
+  db.settings({ ignoreUndefinedProperties: true });
   const auth = getAuth();
   const storage = getStorage();
 

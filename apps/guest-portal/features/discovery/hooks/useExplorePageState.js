@@ -16,6 +16,19 @@ import {
   toEventEndDate,
 } from '../exploreModel';
 
+const SUPPORTED_CITIES = [
+  { label: 'Pune, IN', value: 'pune-in' },
+  { label: 'Mumbai, IN', value: 'mumbai-in' },
+  { label: 'Bengaluru, IN', value: 'bengaluru-in' },
+  { label: 'Delhi NCR, IN', value: 'delhi-in' },
+  { label: 'Goa, IN', value: 'goa-in' },
+  { label: 'Hyderabad, IN', value: 'hyderabad-in' },
+  { label: 'Chennai, IN', value: 'chennai-in' },
+  { label: 'Kolkata, IN', value: 'kolkata-in' },
+  { label: 'Jaipur, IN', value: 'jaipur-in' },
+  { label: 'Chandigarh, IN', value: 'chandigarh-in' },
+];
+
 function getBackendSort(sortLabel) {
   return sortLabel === 'Trending' || sortLabel === 'This Week'
     ? 'heat'
@@ -66,6 +79,8 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
 
     if (filters.datePreset === 'today') {
       nextFilters.dayKey = new Date().toISOString().slice(0, 10);
+    } else if (filters.datePreset === 'tomorrow') {
+      nextFilters.datePreset = 'tomorrow';
     } else if (filters.datePreset === 'weekend') {
       nextFilters.datePreset = 'weekend';
     } else if (filters.datePreset === 'custom') {
@@ -111,44 +126,37 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
     );
   }, [activeSort, backendFilters, fetchEvents, filtersKey, selectedCity]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = window.localStorage.getItem('c1rcle:city');
-    if (stored) {
-      setSelectedCity(stored);
-    }
-  }, []);
-
   const cityOptions = useMemo(() => {
+    const counts = {};
     const citySource = bffEnabled && initialEvents.length > 0 ? initialEvents : events;
-    if (!citySource.length) {
-      return [{ count: 0, label: 'Pune, IN', value: 'pune-in' }];
-    }
-    const map = new Map();
     citySource.forEach((event) => {
       const value = event.cityKey || 'other-in';
-      const label = event.cityLabel || 'Other City, IN';
-      if (!map.has(value)) {
-        map.set(value, { count: 0, label, value });
+      counts[value] = (counts[value] || 0) + 1;
+    });
+
+    const list = SUPPORTED_CITIES.map((city) => ({
+      ...city,
+      count: counts[city.value] || 0,
+    }));
+
+    // Append any extra cities dynamically
+    Object.keys(counts).forEach((key) => {
+      if (key !== 'other-in' && !SUPPORTED_CITIES.some((c) => c.value === key)) {
+        list.push({
+          label: key.replace('-in', '').toUpperCase() + ', IN',
+          value: key,
+          count: counts[key],
+        });
       }
-      map.get(value).count += 1;
     });
-    return Array.from(map.values()).sort((left, right) => right.count - left.count);
+
+    return list.sort((left, right) => {
+      if (left.count !== right.count) {
+        return right.count - left.count;
+      }
+      return left.label.localeCompare(right.label);
+    });
   }, [bffEnabled, events, initialEvents]);
-
-  useEffect(() => {
-    if (!cityOptions.length) return;
-    setSelectedCity((previous) => {
-      if (previous && cityOptions.some((option) => option.value === previous)) return previous;
-      const pune = cityOptions.find((option) => option.value === 'pune-in');
-      return pune ? pune.value : cityOptions[0].value;
-    });
-  }, [cityOptions]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !selectedCity) return;
-    window.localStorage.setItem('c1rcle:city', selectedCity);
-  }, [selectedCity]);
 
   const eventTypeOptions = useMemo(() => {
     const map = new Map();
@@ -171,15 +179,25 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
   }, [events, initialFeaturedEvents]);
 
   const cityDropdownOptions = useMemo(() => {
+    const totalCount =
+      bffEnabled && initialEvents.length > 0 ? initialEvents.length : events.length;
+    const allOption = {
+      description: `${totalCount} events`,
+      label: 'All Cities',
+      value: '',
+    };
     if (!cityOptions.length) {
-      return [{ description: '', label: 'Loading city', value: '' }];
+      return [allOption];
     }
-    return cityOptions.map((option) => ({
-      description: `${option.count} events`,
-      label: option.label,
-      value: option.value,
-    }));
-  }, [cityOptions]);
+    return [
+      allOption,
+      ...cityOptions.map((option) => ({
+        description: `${option.count} events`,
+        label: option.label,
+        value: option.value,
+      })),
+    ];
+  }, [cityOptions, bffEnabled, initialEvents.length, events.length]);
 
   const eventsSource = useMemo(() => events, [events]);
 
@@ -224,6 +242,11 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
       const parsedDate = toDate(event.startDateTime || event.startDate);
       if (!parsedDate) return false;
       if (filters.datePreset === 'today') return isSameDay(parsedDate, now);
+      if (filters.datePreset === 'tomorrow') {
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return isSameDay(parsedDate, tomorrow);
+      }
       if (filters.datePreset === 'weekend') return isWeekend(parsedDate);
       if (filters.datePreset === 'custom') {
         const start = filters.startDate ? toDate(filters.startDate) : null;
@@ -267,9 +290,11 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
 
   return {
     activeCityLabel:
-      cityOptions.find((option) => option.value === selectedCity)?.label ||
-      cityOptions[0]?.label ||
-      'your city',
+      selectedCity === ''
+        ? 'All Cities'
+        : cityOptions.find((option) => option.value === selectedCity)?.label ||
+          cityOptions[0]?.label ||
+          'All Cities',
     activeFilterCount,
     activeSort,
     cityDropdownOptions,
@@ -292,6 +317,14 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
     filters,
     handleFilterChange: (field, value) => {
       setFilters((previous) => ({ ...previous, [field]: value }));
+    },
+    setCustomDate: (dateString) => {
+      setFilters((previous) => ({
+        ...previous,
+        datePreset: dateString ? 'custom' : 'any',
+        startDate: dateString || '',
+        endDate: dateString || '',
+      }));
     },
     hasMore,
     heroStatus: status,

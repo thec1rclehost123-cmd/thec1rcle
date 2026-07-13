@@ -192,7 +192,7 @@ describe('PublicDiscoveryService', () => {
     expect(service.events.queryList).toHaveBeenCalledWith(
       expect.objectContaining({
         cityKey: 'pune-in',
-        limit: 24,
+        limit: 100,
       }),
     );
     expect(service.events.listAll).not.toHaveBeenCalled();
@@ -660,8 +660,8 @@ describe('PublicDiscoveryService', () => {
                 exists: true,
                 data: () => ({
                   eventCardIndexVersion: 2,
-                  hostSummaryVersion: 1,
-                  venueSummaryVersion: 1,
+                  hostSummaryVersion: 3,
+                  venueSummaryVersion: 3,
                 }),
               })),
               set,

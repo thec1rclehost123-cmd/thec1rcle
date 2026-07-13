@@ -5,6 +5,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { fetchPublicHost } from '../../../features/discovery/publicDiscovery';
+import { guestApiFetch } from '../../../lib/api/client';
+import { useAuth } from '../../../components/providers/AuthProvider';
 import {
   CheckCircle2,
   MapPin,
@@ -32,6 +34,29 @@ export default function HostPublicPageClient({ initialData = null, initialSlug =
   const slug = decodeURIComponent(String(params?.slug || initialSlug || ''));
   const [data, setData] = useState(initialData);
   const [status, setStatus] = useState(initialData?.host ? 'ready' : 'loading');
+  const { user } = useAuth() || {};
+
+  const hostId = data?.host?.id;
+
+  useEffect(() => {
+    if (status === 'ready' && hostId) {
+      let visitorId = user?.uid;
+      if (!visitorId && typeof window !== 'undefined') {
+        visitorId = window.localStorage.getItem('c1rcle:visitor-session-id');
+        if (!visitorId) {
+          visitorId = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+          window.localStorage.setItem('c1rcle:visitor-session-id', visitorId);
+        }
+      }
+
+      if (visitorId) {
+        guestApiFetch('/analytics/host-click', {
+          method: 'POST',
+          body: { hostId, visitorId },
+        }).catch((err) => console.error('[Analytics] Failed to track host click', err));
+      }
+    }
+  }, [status, hostId, user?.uid]);
 
   useEffect(() => {
     let cancelled = false;

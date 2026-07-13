@@ -112,3 +112,20 @@ test('Guest notifications have a feature-owned React Query seam', () => {
     'auth shell count must come from the notification query seam',
   );
 });
+
+test('Hosts directory default tabs render tab-scoped server data before store data', () => {
+  const source = readFileSync(join(root, 'app/hosts/HostsClient.jsx'), 'utf8');
+
+  assert.equal(
+    source.includes(
+      'const usingInitialResults = hasDefaultFilters && activeInitialResults.length > 0',
+    ),
+    true,
+    'default Venues/Hosts tabs must prefer active tab initial data over persisted store results',
+  );
+  assert.equal(
+    source.includes('const results = usingInitialResults ? activeInitialResults : storeResults'),
+    true,
+    'filtered directory views should still read fetched store results',
+  );
+});

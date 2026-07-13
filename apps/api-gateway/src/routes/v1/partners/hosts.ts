@@ -3421,7 +3421,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
         if (rest === 'settings/session/revoke' && request.method === 'POST') {
           try {
-            await (fastify as any).firebaseAdmin?.auth().revokeRefreshTokens(ctx.uid);
+            await fastify.auth.revokeRefreshTokens(ctx.uid);
           } catch {
             fastify.log.warn(
               `[partners/hosts] revokeRefreshTokens not available for uid=${ctx.uid}`,

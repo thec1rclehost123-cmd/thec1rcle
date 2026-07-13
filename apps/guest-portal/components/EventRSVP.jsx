@@ -91,6 +91,14 @@ export default function EventRSVP({
     const isPastFromStatus = event?.status === 'past' || event?.lifecycle === 'completed';
     const isPastFromDate = event?.endDate && new Date(event.endDate) < new Date();
     const isDisabled = event?.settings?.activity === false;
+
+    // If the event is explicitly in a public active lifecycle state (live or scheduled)
+    // and not marked as completed/past-status/disabled, bypass the chronological date check.
+    const isLiveOrScheduled = event?.lifecycle === 'live' || event?.lifecycle === 'scheduled';
+    if (isLiveOrScheduled && !isCompleted && !isPastFromStatus && !isDisabled) {
+      return false;
+    }
+
     return isCompleted || isPastFromStatus || isPastFromDate || isDisabled;
   });
   const hasRSVPd = Boolean(
