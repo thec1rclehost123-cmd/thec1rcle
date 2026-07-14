@@ -46,6 +46,8 @@ export const ALLOWLIST_ACTIONS = [
   'PROMOTER_SUSPEND',
   'PROMOTER_ACTIVATE',
   'PROMOTER_DISABLE',
+  'HOST_SUSPEND',
+  'HOST_REINSTATE',
   'WEBHOOK_RETRY',
   'SUPPORT_RESOLVE',
   'SUPPORT_ASSIGN',
@@ -76,6 +78,10 @@ export const TIER2_ACTIONS = [
   'USER_BAN',
   'FINANCIAL_REFUND',
   'PAYOUT_BATCH_RUN',
+  'HOST_SUSPEND',
+  'HOST_REINSTATE',
+  'PROMOTER_SUSPEND',
+  'PROMOTER_ACTIVATE',
 ];
 
 export const TIER3_ACTIONS = [
@@ -238,6 +244,12 @@ export const adminStore = {
         break;
       case 'VENUE_SUSPEND':
         await this.updateVenueStatus(targetId, 'suspended', adminId, reason, evidence, context);
+        break;
+      case 'HOST_SUSPEND':
+        await this.updateHostStatus(targetId, 'suspended', adminId, reason, evidence, context);
+        break;
+      case 'HOST_REINSTATE':
+        await this.updateHostStatus(targetId, 'active', adminId, reason, evidence, context);
         break;
       case 'FINANCIAL_REFUND':
         await this.financialRefund(targetId, adminId, reason, evidence, params);
@@ -1510,6 +1522,24 @@ export const adminStore = {
       action: status === 'suspended' ? 'VENUE_SUSPEND' : 'VENUE_REINSTATE',
       targetId: venueId,
       targetType: 'venue',
+      reason,
+      evidence,
+      context,
+    });
+  },
+
+  async updateHostStatus(hostId, status, adminId, reason, evidence, context) {
+    const db = getAdminDb();
+    await db.collection('hosts').doc(hostId).update({
+      status,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await this.logAdminAction({
+      adminId,
+      action: status === 'suspended' ? 'HOST_SUSPEND' : 'HOST_REINSTATE',
+      targetId: hostId,
+      targetType: 'host',
       reason,
       evidence,
       context,

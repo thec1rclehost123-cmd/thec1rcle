@@ -188,6 +188,19 @@ async function handler(req) {
           context,
         );
         break;
+      case 'HOST_SUSPEND':
+        await adminStore.updateHostStatus(
+          targetId,
+          'suspended',
+          adminId,
+          reason,
+          evidence,
+          context,
+        );
+        break;
+      case 'HOST_REINSTATE':
+        await adminStore.updateHostStatus(targetId, 'active', adminId, reason, evidence, context);
+        break;
       case 'EVENT_PAUSE':
         await adminStore.setEventStatus(targetId, 'pause', adminId, reason, evidence);
         break;

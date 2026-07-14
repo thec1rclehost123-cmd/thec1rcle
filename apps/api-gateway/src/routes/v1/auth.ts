@@ -1473,10 +1473,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         const partnerSnap = await fastify.db.collection(partnerCollection).doc(partnerId).get();
         if (partnerSnap.exists) {
           const partnerData = partnerSnap.data() || {};
-          if (partnerType === 'venue' || partnerType === 'promoter') {
+          if (partnerType === 'venue' || partnerType === 'promoter' || partnerType === 'host') {
             isSuspended = partnerData.status === 'suspended' || partnerData.status === 'disabled';
-          } else if (partnerType === 'host') {
-            isSuspended = partnerData.payoutFrozen === true;
           }
         }
       } catch (err) {

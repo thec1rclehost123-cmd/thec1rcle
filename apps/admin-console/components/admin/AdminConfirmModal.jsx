@@ -46,15 +46,16 @@ export default function AdminConfirmModal({
     try {
       if (isTier2 || isTier3) {
         const auth = getFirebaseAuth();
-        if (auth.currentUser && auth.currentUser.email) {
-          const credential = EmailAuthProvider.credential(auth.currentUser.email, password);
-          await reauthenticateWithCredential(auth.currentUser, credential);
-        } else if (user && user.email) {
-          const credential = EmailAuthProvider.credential(user.email, password);
-          await reauthenticateWithCredential(auth.currentUser, credential);
-        } else {
-          throw new Error('Logged in admin credentials not found.');
+        const firebaseUser = auth.currentUser;
+        if (!firebaseUser) {
+          throw new Error('No active authentication session found. Please reload the page.');
         }
+        const email = firebaseUser.email || user?.email;
+        if (!email) {
+          throw new Error('Admin email not found in active session.');
+        }
+        const credential = EmailAuthProvider.credential(email, password);
+        await reauthenticateWithCredential(firebaseUser, credential);
       }
 
       await onConfirm(reason, targetId, inputValue, 'Verified via Password');
@@ -65,7 +66,6 @@ export default function AdminConfirmModal({
       setPasswordError('');
       onClose();
     } catch (err) {
-      console.error(err);
       if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setPasswordError('Incorrect password. Please try again.');
       } else {

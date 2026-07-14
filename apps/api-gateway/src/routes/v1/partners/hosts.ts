@@ -1355,14 +1355,22 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
       try {
         requireType(ctx, 'host');
+        const hostDoc = await fastify.db
+          .collection('hosts')
+          .doc(ctx.partnerId)
+          .get()
+          .catch(() => null);
+        const warnings = hostDoc && hostDoc.exists ? hostDoc.data()?.warnings || [] : [];
+
         const range = request.query.range ?? '1m';
         const metric = request.query.metric ?? 'tickets';
         const cacheKey = `partners:host:overview:${ctx.partnerId}:${range}:${metric}:contract-v1`;
         const cached = await fastify.cache.get('partners', cacheKey);
-        if (cached)
+        if (cached) {
           return reply
             .header('Cache-Control', 'private, max-age=120')
-            .send({ ...cached, fromCache: true });
+            .send({ ...cached, warnings, fromCache: true });
+        }
 
         const result = await hostService.getOverview(ctx, { range, metric });
 
@@ -1399,6 +1407,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           recentActivity: asArray(result.recentActivity),
           latestOrders: asArray(result.latestOrders),
           performance: asArray(result.performance),
+          warnings,
         };
 
         await fastify.cache.set('partners', cacheKey, normalized, 120);
