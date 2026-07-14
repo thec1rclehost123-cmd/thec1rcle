@@ -599,7 +599,16 @@ export const adminStore = {
 
   async issueWarning(type, targetId, message, adminId, reason) {
     const db = getAdminDb();
-    const collection = type === 'event' ? 'events' : type === 'venue' ? 'venues' : 'users';
+    const collection =
+      type === 'event'
+        ? 'events'
+        : type === 'venue'
+          ? 'venues'
+          : type === 'promoter'
+            ? 'promoters'
+            : type === 'host'
+              ? 'hosts'
+              : 'users';
     const docRef = db.collection(collection).doc(targetId);
 
     await docRef.update({

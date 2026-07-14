@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export function ApprovalGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading, isApproved, onboardingStatus, signOut } = useDashboardAuth();
+  const { user, loading, isApproved, onboardingStatus, signOut, isBanned, isPartnerSuspended } =
+    useDashboardAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -35,6 +36,34 @@ export function ApprovalGuard({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <>{children}</>;
+  }
+
+  if (isBanned || isPartnerSuspended) {
+    return (
+      <div className="min-h-screen bg-surface-tertiary flex items-center justify-center p-6 font-sans">
+        <div className="max-w-md w-full bg-surface-elevated rounded-[3rem] p-12 shadow-2xl border border-border-subtle text-center animate-in fade-in zoom-in-95 duration-500">
+          <div className="h-20 w-20 rounded-[2rem] bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto mb-8 shadow-lg shadow-red-500/10">
+            <AlertCircle className="h-10 w-10" />
+          </div>
+          <h2 className="text-3xl font-black text-text-primary tracking-tight mb-4 uppercase">
+            Account Restricted
+          </h2>
+          <p className="text-text-tertiary font-medium leading-relaxed mb-8">
+            Your partner profile or account access has been restricted by administration. You cannot
+            perform any operations or view dashboard metrics.
+          </p>
+          <div className="flex flex-col gap-4">
+            <button
+              onClick={() => signOut()}
+              className="flex items-center justify-center gap-2.5 w-full bg-surface-secondary text-text-primary h-14 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] hover:text-red-500 hover:bg-surface-tertiary transition-all shadow-lg"
+            >
+              <LogOut className="h-4 w-4" />
+              System Exit
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!isApproved) {

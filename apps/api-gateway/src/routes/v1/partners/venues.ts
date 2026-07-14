@@ -683,12 +683,20 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
       try {
         requireType(ctx, 'venue');
+        const venueDoc = await fastify.db
+          .collection('venues')
+          .doc(ctx.partnerId)
+          .get()
+          .catch(() => null);
+        const warnings = venueDoc && venueDoc.exists ? venueDoc.data()?.warnings || [] : [];
+
         const cacheKey = `partners:venue:overview:${ctx.partnerId}:contract-v1`;
         const cached = await fastify.cache.get('partners', cacheKey);
-        if (cached)
+        if (cached) {
           return reply
             .header('Cache-Control', 'private, max-age=120')
-            .send({ ...cached, fromCache: true });
+            .send({ ...cached, warnings, fromCache: true });
+        }
 
         const [result, legacyBody] = await Promise.all([
           venueService.getOverview(ctx),
@@ -712,6 +720,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           tonightOps: result.tonightOps,
           alerts: result.alerts,
           finance: (legacyBody as any).finance ?? null,
+          warnings,
           _meta: {
             ...asRecord((legacyBody as any)._meta),
             partnerId: ctx.partnerId,

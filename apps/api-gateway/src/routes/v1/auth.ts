@@ -1465,6 +1465,27 @@ export default async function authRoutes(fastify: FastifyInstance) {
       const { partnerType, role, partnerId } = membership;
       const permissions = getPermissionsForRole(partnerType, role);
       const tabVisibility = getDefaultTabVisibility(partnerType, role);
+
+      let isSuspended = false;
+      try {
+        const partnerCollection =
+          partnerType === 'venue' ? 'venues' : partnerType === 'promoter' ? 'promoters' : 'hosts';
+        const partnerSnap = await fastify.db.collection(partnerCollection).doc(partnerId).get();
+        if (partnerSnap.exists) {
+          const partnerData = partnerSnap.data() || {};
+          if (partnerType === 'venue' || partnerType === 'promoter') {
+            isSuspended = partnerData.status === 'suspended' || partnerData.status === 'disabled';
+          } else if (partnerType === 'host') {
+            isSuspended = partnerData.payoutFrozen === true;
+          }
+        }
+      } catch (err) {
+        fastify.log.warn(
+          { partnerId, partnerType, err },
+          'partner-context: partner lookup failed during context resolution',
+        );
+      }
+
       const context: Record<string, unknown> = {
         partnerId,
         partnerType,
@@ -1472,6 +1493,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         permissions,
         tabVisibility,
         activeMembership: membership,
+        isSuspended,
         ...(partnerType === 'promoter' ? { commissionTiers: PROMOTER_COMMISSION_TIERS } : {}),
       };
       return buildSuccessResponse(context);

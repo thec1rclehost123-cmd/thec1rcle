@@ -368,6 +368,7 @@ export default function AdminPromoters() {
                                 'Temporarily halts all distribution links and platform access.',
                               label: 'Confirm Suspension',
                               type: 'danger',
+                              isTier2: true,
                             })
                           }
                           className="w-full flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-iris/30 hover:bg-iris/5 transition-all group"
@@ -422,6 +423,7 @@ export default function AdminPromoters() {
                             'Permanently removes this partner from the network. This action cannot be undone.',
                           label: 'Execute Deactivation',
                           type: 'danger',
+                          isTier3: true,
                         })
                       }
                       className="w-full flex items-center justify-between p-5 rounded-xl bg-iris/10 border border-iris/20 text-white hover:bg-iris/20 transition-all group"

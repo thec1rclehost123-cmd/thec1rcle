@@ -19,8 +19,8 @@ export const dynamic = 'force-dynamic';
 const GOVERNANCE_CONFIG = {
   DUAL_APPROVAL: {
     EVENT_PAUSE: true,
-    VENUE_SUSPEND: true,
-    VENUE_REINSTATE: true,
+    VENUE_SUSPEND: false,
+    VENUE_REINSTATE: false,
   },
 };
 

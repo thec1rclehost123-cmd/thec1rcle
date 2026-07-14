@@ -1597,12 +1597,21 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
       try {
         requireType(ctx, 'promoter');
+        const promoterDoc = await fastify.db
+          .collection('promoters')
+          .doc(ctx.partnerId)
+          .get()
+          .catch(() => null);
+        const warnings =
+          promoterDoc && promoterDoc.exists ? promoterDoc.data()?.warnings || [] : [];
+
         const cacheKey = `partners:promoter:overview:${ctx.partnerId}:contract-v1`;
         const cached = await fastify.cache.get('partners', cacheKey);
-        if (cached)
+        if (cached) {
           return reply
             .header('Cache-Control', 'private, max-age=120')
-            .send({ ...cached, fromCache: true });
+            .send({ ...cached, warnings, fromCache: true });
+        }
 
         const [result, assignmentsPayload] = await Promise.all([
           promoterService.getOverview(ctx),
@@ -1656,6 +1665,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           recentActivity: asArray(result.recentActivity),
           activeLinks: toNumber(result.stats.totalLinks),
           upcomingEvents: assignments.length,
+          warnings,
         };
 
         await fastify.cache.set('partners', cacheKey, normalized, 120);
