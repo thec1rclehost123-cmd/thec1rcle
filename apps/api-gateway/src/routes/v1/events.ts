@@ -2532,31 +2532,74 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           }),
         );
 
-      // workspaceId from x-workspace-id header or auth context activeMembership.
-      // For solo owners (no partner_memberships doc), both may be null — derive from the event itself.
-      let workspaceId: string | null = request.workspaceId || null;
-      let existingEventSnap: any = null;
-      if (!workspaceId) {
-        const snap = await fastify.db
-          .collection('events')
-          .doc(id)
-          .get()
-          .catch(() => null);
-        if (snap?.exists) {
-          existingEventSnap = snap.data() as any;
-          const candidate: string =
-            existingEventSnap.workspaceId ||
-            existingEventSnap.creatorId ||
-            existingEventSnap.hostId ||
-            '';
-          if (candidate) {
-            const ok =
-              candidate === userId ||
-              (await fastify.verifyPartnerAccess(request, candidate).catch(() => false));
-            if (ok) workspaceId = candidate;
+      // Fetch the event record from database to verify and resolve target workspaceId
+      const snap = await fastify.db
+        .collection('events')
+        .doc(id)
+        .get()
+        .catch(() => null);
+      if (!snap?.exists) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Event not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      let existingEventSnap = snap.data() as any;
+
+      const eventWorkspaceId =
+        existingEventSnap.workspaceId ||
+        existingEventSnap.creatorId ||
+        existingEventSnap.hostId ||
+        '';
+
+      let hasAccess = false;
+      if (userId) {
+        const activePartnerId = request.user?.activeMembership?.partnerId;
+        if (
+          eventWorkspaceId === userId ||
+          existingEventSnap.creatorId === userId ||
+          existingEventSnap.hostId === userId ||
+          (activePartnerId &&
+            (eventWorkspaceId === activePartnerId ||
+              existingEventSnap.hostId === activePartnerId ||
+              existingEventSnap.venueId === activePartnerId))
+        ) {
+          hasAccess = true;
+        } else {
+          // Check access via verifyPartnerAccess
+          if (eventWorkspaceId) {
+            hasAccess = await fastify
+              .verifyPartnerAccess(request, eventWorkspaceId)
+              .catch(() => false);
+          }
+          if (!hasAccess && existingEventSnap.hostId) {
+            hasAccess = await fastify
+              .verifyPartnerAccess(request, existingEventSnap.hostId)
+              .catch(() => false);
+          }
+          if (!hasAccess && existingEventSnap.venueId) {
+            hasAccess = await fastify
+              .verifyPartnerAccess(request, existingEventSnap.venueId)
+              .catch(() => false);
           }
         }
       }
+
+      if (!hasAccess) {
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'FORBIDDEN',
+            message: 'Access denied to this event',
+            requestId: request.id,
+          }),
+        );
+      }
+
+      // Use the event's actual workspaceId to satisfy the strict repository partition check
+      let workspaceId: string | null = eventWorkspaceId || request.workspaceId || null;
       if (!workspaceId)
         return reply.status(400).send(
           buildErrorResponse({
@@ -3231,7 +3274,6 @@ export default async function eventRoutes(fastify: FastifyInstance) {
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
-      const workspaceId = request.workspaceId;
       const { id } = request.params;
       if (!userId)
         return reply.status(401).send(
@@ -3241,16 +3283,84 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             requestId: request.id,
           }),
         );
-      if (!workspaceId)
-        return reply.status(400).send(
-          buildErrorResponse({
-            code: 'MISSING_SCOPE',
-            message: 'Missing x-workspace-id header',
-            requestId: request.id,
-          }),
-        );
 
       try {
+        const snap = await fastify.db
+          .collection('events')
+          .doc(id)
+          .get()
+          .catch(() => null);
+        if (!snap?.exists) {
+          return reply.status(404).send(
+            buildErrorResponse({
+              code: 'NOT_FOUND',
+              message: 'Event not found',
+              requestId: request.id,
+            }),
+          );
+        }
+        const existingEventSnap = snap.data() as any;
+
+        const eventWorkspaceId =
+          existingEventSnap.workspaceId ||
+          existingEventSnap.creatorId ||
+          existingEventSnap.hostId ||
+          '';
+
+        let hasAccess = false;
+        if (userId) {
+          const activePartnerId = request.user?.activeMembership?.partnerId;
+          if (
+            eventWorkspaceId === userId ||
+            existingEventSnap.creatorId === userId ||
+            existingEventSnap.hostId === userId ||
+            (activePartnerId &&
+              (eventWorkspaceId === activePartnerId ||
+                existingEventSnap.hostId === activePartnerId ||
+                existingEventSnap.venueId === activePartnerId))
+          ) {
+            hasAccess = true;
+          } else {
+            // Check access via verifyPartnerAccess
+            if (eventWorkspaceId) {
+              hasAccess = await fastify
+                .verifyPartnerAccess(request, eventWorkspaceId)
+                .catch(() => false);
+            }
+            if (!hasAccess && existingEventSnap.hostId) {
+              hasAccess = await fastify
+                .verifyPartnerAccess(request, existingEventSnap.hostId)
+                .catch(() => false);
+            }
+            if (!hasAccess && existingEventSnap.venueId) {
+              hasAccess = await fastify
+                .verifyPartnerAccess(request, existingEventSnap.venueId)
+                .catch(() => false);
+            }
+          }
+        }
+
+        if (!hasAccess) {
+          return reply.status(403).send(
+            buildErrorResponse({
+              code: 'FORBIDDEN',
+              message: 'Access denied to delete this event',
+              requestId: request.id,
+            }),
+          );
+        }
+
+        const workspaceId = eventWorkspaceId || request.workspaceId;
+        if (!workspaceId) {
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'MISSING_SCOPE',
+              message: 'Missing workspace scope',
+              requestId: request.id,
+            }),
+          );
+        }
+
         await fastify.eventService.deleteEvent(id, userId, workspaceId);
 
         // Invalidate cache

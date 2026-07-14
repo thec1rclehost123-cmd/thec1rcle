@@ -23,6 +23,7 @@ import {
   FileEdit,
   ArrowUpRight,
   BarChart3,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { DashboardEventCard } from '@c1rcle/ui';
@@ -137,78 +138,81 @@ export default function EventsManagementPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchEvents = useCallback(async () => {
     if (!user) return;
     // activeMembership may be null for direct venue owners — gateway resolves identity from auth token
     const venueId = profile?.activeMembership?.partnerId ?? null;
+    setLoading(true);
 
-    (async () => {
-      try {
-        const token = await user.getIdToken();
-        const res = await fetch(`/api/partners/venues/events`, {
-          headers: { Authorization: `Bearer ${token}` },
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/partners/venues/events`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('API Route failed');
+      const { events: raw } = await res.json();
+      const mapped: Event[] = raw
+        .map((r: any) => {
+          const m = mapEventForClient(r, r.id) as any;
+          return {
+            ...m,
+            title: m.title || m.name || 'Untitled Event',
+            date: parseAsIST(m.startDate || m.date),
+            hostName: m.hostName || m.host || 'Unknown Host',
+            hostId: m.hostId || m.creatorId,
+            venueId: m.venueId || r.venueId || venueId,
+            venueName:
+              m.venueName ||
+              r.venueName ||
+              r.venue ||
+              profile?.activeMembership?.partnerName ||
+              'Your Venue',
+            status: m.lifecycle as any,
+            ticketsSold: m.stats?.ticketsSold || 0,
+            ticketsTotal: m.capacity || r.ticketsTotal || 0,
+            expectedCrowd: m.expectedCrowd || m.capacity || 0,
+            promotersCount: m.promoterSettings?.allowedPromoterIds?.length || 0,
+            revenue: m.stats?.revenue || 0,
+          };
+        })
+        .filter(
+          (e: any) =>
+            !(
+              e.eventType === 'host' &&
+              venueId &&
+              e.creatorId !== venueId &&
+              e.lifecycle === 'draft'
+            ),
+        )
+        .sort((a: any, b: any) => {
+          const now = new Date();
+          const dateA = a.date instanceof Date ? a.date : new Date(a.date);
+          const dateB = b.date instanceof Date ? b.date : new Date(b.date);
+
+          const isFutureA = dateA > now && a.status !== 'draft';
+          const isFutureB = dateB > now && b.status !== 'draft';
+
+          if (isFutureA && !isFutureB) return -1;
+          if (!isFutureA && isFutureB) return 1;
+
+          if (isFutureA && isFutureB) {
+            return dateA.getTime() - dateB.getTime();
+          }
+
+          return dateB.getTime() - dateA.getTime();
         });
-        if (!res.ok) throw new Error('API Route failed');
-        const { events: raw } = await res.json();
-        const mapped: Event[] = raw
-          .map((r: any) => {
-            const m = mapEventForClient(r, r.id) as any;
-            return {
-              ...m,
-              title: m.title || m.name || 'Untitled Event',
-              date: parseAsIST(m.startDate || m.date),
-              hostName: m.hostName || m.host || 'Unknown Host',
-              hostId: m.hostId || m.creatorId,
-              venueId: m.venueId || r.venueId || venueId,
-              venueName:
-                m.venueName ||
-                r.venueName ||
-                r.venue ||
-                profile?.activeMembership?.partnerName ||
-                'Your Venue',
-              status: m.lifecycle as any,
-              ticketsSold: m.stats?.ticketsSold || 0,
-              ticketsTotal: m.capacity || r.ticketsTotal || 0,
-              expectedCrowd: m.expectedCrowd || m.capacity || 0,
-              promotersCount: m.promoterSettings?.allowedPromoterIds?.length || 0,
-              revenue: m.stats?.revenue || 0,
-            };
-          })
-          .filter(
-            (e: any) =>
-              !(
-                e.eventType === 'host' &&
-                venueId &&
-                e.creatorId !== venueId &&
-                e.lifecycle === 'draft'
-              ),
-          )
-          .sort((a: any, b: any) => {
-            const now = new Date();
-            const dateA = a.date instanceof Date ? a.date : new Date(a.date);
-            const dateB = b.date instanceof Date ? b.date : new Date(b.date);
-
-            const isFutureA = dateA > now && a.status !== 'draft';
-            const isFutureB = dateB > now && b.status !== 'draft';
-
-            if (isFutureA && !isFutureB) return -1;
-            if (!isFutureA && isFutureB) return 1;
-
-            if (isFutureA && isFutureB) {
-              return dateA.getTime() - dateB.getTime();
-            }
-
-            return dateB.getTime() - dateA.getTime();
-          });
-        setEvents(mapped);
-        setFetchError(null);
-      } catch {
-        setFetchError('Failed to load events. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    })();
+      setEvents(mapped);
+      setFetchError(null);
+    } catch {
+      setFetchError('Failed to load events. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [profile, user]);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
 
   const handleEventUpdate = useCallback(
     async (action: string, data?: any, overrideEventId?: string) => {
@@ -557,6 +561,13 @@ export default function EventsManagementPage() {
                 </button>
               )}
             </div>
+            <button
+              onClick={fetchEvents}
+              className="p-2.5 rounded-2xl flex items-center justify-center transition-all bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[var(--v-text-tertiary)] hover:text-[var(--v-text-primary)] shrink-0"
+              title="Refresh Events"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
           </div>
 
           {fetchError ? (

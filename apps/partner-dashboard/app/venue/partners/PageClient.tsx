@@ -92,6 +92,11 @@ export default function VenuePartnersPage() {
     fetchData();
   }, [fetchData]);
 
+  const handleRefresh = useCallback(() => {
+    setDiscoverRefresh((n) => n + 1);
+    fetchData();
+  }, [fetchData]);
+
   const handleApprove = async (connectionId: string) => {
     const conn = connections.find((c) => c.id === connectionId);
     setProcessingId(connectionId);
@@ -441,14 +446,15 @@ export default function VenuePartnersPage() {
                     Delhi
                   </option>
                 </select>
-                <button
-                  onClick={() => setDiscoverRefresh((n) => n + 1)}
-                  className="p-2.5 rounded-2xl flex items-center justify-center transition-all bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[var(--v-text-tertiary)] shrink-0"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
               </>
             )}
+            <button
+              onClick={handleRefresh}
+              className="p-2.5 rounded-2xl flex items-center justify-center transition-all bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[var(--v-text-tertiary)] hover:text-[var(--v-text-primary)] shrink-0"
+              title="Refresh Partner Data"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
           </div>
         </div>
       </motion.div>

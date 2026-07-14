@@ -81,6 +81,11 @@ export default function PromoterPartnershipsPage() {
   const { data, isLoading: loading } = usePromoterPartnerships(promoterId);
   const partnerships: Partnership[] = data?.connections || [];
 
+  const handleRefresh = () => {
+    setDiscoverRefresh((n) => n + 1);
+    queryClient.invalidateQueries({ queryKey: ['promoter-partnerships', promoterId || ''] });
+  };
+
   const allPending = partnerships.filter((p) => p.status === 'pending');
   const pendingIncoming = allPending.filter((p) => p.initiatedBy !== 'promoter');
   const pendingOutgoing = allPending.filter((p) => p.initiatedBy === 'promoter');
@@ -324,74 +329,71 @@ export default function PromoterPartnershipsPage() {
               )}
             </div>
 
-            <div
-              className="flex items-center gap-0.5 p-1 rounded-2xl shrink-0"
-              style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.06)',
-              }}
-            >
-              {[
-                { value: 'all', label: 'All' },
-                { value: 'venue', label: 'Venues' },
-                { value: 'host', label: 'Hosts' },
-              ].map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setDiscoverType(opt.value)}
-                  className="px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
-                  style={
-                    discoverType === opt.value
-                      ? { background: 'var(--v-elevated)', color: 'var(--v-text-primary)' }
-                      : { color: 'var(--v-text-tertiary)' }
-                  }
+            {activeTab === 'discover' && (
+              <>
+                <div
+                  className="flex items-center gap-0.5 p-1 rounded-2xl shrink-0"
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                  }}
                 >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <select
-              value={discoverCity}
-              onChange={(e) => setDiscoverCity(e.target.value)}
-              className="border-none outline-none text-[12px] font-semibold cursor-pointer px-4 py-2.5 rounded-2xl shrink-0 appearance-none bg-no-repeat bg-[right_1rem_center]"
-              style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                color: 'var(--v-text-primary)',
-              }}
-            >
-              <option value="" className="bg-[#18181B]">
-                All Cities
-              </option>
-              <option value="Pune" className="bg-[#18181B]">
-                Pune
-              </option>
-              <option value="Mumbai" className="bg-[#18181B]">
-                Mumbai
-              </option>
-              <option value="Goa" className="bg-[#18181B]">
-                Goa
-              </option>
-              <option value="Bengaluru" className="bg-[#18181B]">
-                Bengaluru
-              </option>
-              <option value="Delhi" className="bg-[#18181B]">
-                Delhi
-              </option>
-            </select>
+                  {[
+                    { value: 'all', label: 'All' },
+                    { value: 'venue', label: 'Venues' },
+                    { value: 'host', label: 'Hosts' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setDiscoverType(opt.value)}
+                      className="px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
+                      style={
+                        discoverType === opt.value
+                          ? { background: 'var(--v-elevated)', color: 'var(--v-text-primary)' }
+                          : { color: 'var(--v-text-tertiary)' }
+                      }
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <select
+                  value={discoverCity}
+                  onChange={(e) => setDiscoverCity(e.target.value)}
+                  className="border-none outline-none text-[12px] font-semibold cursor-pointer px-4 py-2.5 rounded-2xl shrink-0 appearance-none bg-no-repeat bg-[right_1rem_center]"
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    color: 'var(--v-text-primary)',
+                  }}
+                >
+                  <option value="" className="bg-[#18181B]">
+                    All Cities
+                  </option>
+                  <option value="Pune" className="bg-[#18181B]">
+                    Pune
+                  </option>
+                  <option value="Mumbai" className="bg-[#18181B]">
+                    Mumbai
+                  </option>
+                  <option value="Goa" className="bg-[#18181B]">
+                    Goa
+                  </option>
+                  <option value="Bengaluru" className="bg-[#18181B]">
+                    Bengaluru
+                  </option>
+                  <option value="Delhi" className="bg-[#18181B]">
+                    Delhi
+                  </option>
+                </select>
+              </>
+            )}
             <button
-              onClick={() => {
-                if (activeTab === 'discover') {
-                  setDiscoverRefresh((n) => n + 1);
-                } else {
-                  queryClient.invalidateQueries({
-                    queryKey: ['promoter-partnerships', promoterId || ''],
-                  });
-                }
-              }}
-              className="p-2.5 rounded-2xl flex items-center justify-center transition-all bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[var(--v-text-tertiary)] shrink-0"
+              onClick={handleRefresh}
+              className="p-2.5 rounded-2xl flex items-center justify-center transition-all bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[var(--v-text-tertiary)] hover:text-[var(--v-text-primary)] shrink-0"
+              title="Refresh Partnerships Data"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>

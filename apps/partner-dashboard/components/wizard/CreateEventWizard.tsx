@@ -423,7 +423,10 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
   const [showGuestlist, setShowGuestlist] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [savedDraftId, setSavedDraftId] = useState<string | null>(null);
+  const [savedDraftId, setSavedDraftId] = useState<string | null>(() => {
+    const id = searchParams.get('id');
+    return id && id !== 'new' ? id : null;
+  });
   const [createdEventId, setCreatedEventId] = useState<string | null>(null);
 
   // Initialize form data

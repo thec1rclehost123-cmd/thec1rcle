@@ -111,34 +111,9 @@ export function WizardNavigation({
         })}
       </div>
 
-      {/* Current Step Header */}
-      <div className="mt-4 mb-3">
-        <div className="flex items-center gap-2.5">
-          <div
-            className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-              stepValidation[currentStep]?.isValid === false
-                ? 'bg-yellow-500/10 text-yellow-500'
-                : 'bg-indigo-500/10 text-indigo-500'
-            }`}
-          >
-            {(() => {
-              const CurrentIcon = steps[currentStepIndex]?.icon;
-              return CurrentIcon ? <CurrentIcon className="w-4 h-4" /> : null;
-            })()}
-          </div>
-          <div>
-            <h2 className="text-[15px] font-black uppercase tracking-tight leading-tight">
-              {steps[currentStepIndex]?.label}
-            </h2>
-            <p className="text-[11px] text-text-tertiary font-medium">
-              {steps[currentStepIndex]?.description}
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Validation Issues Banner */}
-      {stepValidation[currentStep] &&
+      {currentStep !== 'identity' &&
+        stepValidation[currentStep] &&
         !stepValidation[currentStep].isValid &&
         stepValidation[currentStep].issues.length > 0 && (
           <motion.div

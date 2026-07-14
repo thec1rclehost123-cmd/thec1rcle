@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Edit3,
   Share2,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -204,6 +205,7 @@ export default function EventsManagementPage() {
             EVENT_LIFECYCLE.LIVE,
           ].includes(s as string);
         if (filter === 'approved') match = s === EVENT_LIFECYCLE.SUBMITTED;
+        if (filter === 'completed') match = s === EVENT_LIFECYCLE.COMPLETED;
         return (
           match &&
           (e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -247,11 +249,17 @@ export default function EventsManagementPage() {
     [events],
   );
 
+  const completedCount = useMemo(
+    () => events.filter((e) => getStatus(e) === EVENT_LIFECYCLE.COMPLETED).length,
+    [events],
+  );
+
   const filterTabs = [
     { label: 'All', value: 'all', count: allCount },
     { label: 'Live', value: 'live', count: liveCount },
     { label: 'Published', value: 'approved', count: publishedCount },
     { label: 'Drafts', value: 'draft', count: draftCount },
+    { label: 'Completed', value: 'completed', count: completedCount },
   ];
 
   return (
@@ -301,23 +309,32 @@ export default function EventsManagementPage() {
         <div className="space-y-6">
           <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
             <VenueFilterTabs tabs={filterTabs} active={filter} onChange={setFilter} />
-            <div className="relative w-full lg:max-w-md px-4 py-2 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3 focus-within:border-orange-500/50 transition-colors">
-              <Search className="w-4 h-4 text-white/30" />
-              <input
-                type="text"
-                placeholder="Search events..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-transparent border-none outline-none text-[13px] text-white placeholder:text-white/20"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="text-white/30 hover:text-white"
-                >
-                  ×
-                </button>
-              )}
+            <div className="flex items-center gap-2 w-full lg:max-w-md">
+              <div className="relative flex-1 px-4 py-2 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3 focus-within:border-orange-500/50 transition-colors">
+                <Search className="w-4 h-4 text-white/30" />
+                <input
+                  type="text"
+                  placeholder="Search events..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-transparent border-none outline-none text-[13px] text-white placeholder:text-white/20"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="text-white/30 hover:text-white"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={fetchEvents}
+                className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-white/30 hover:text-white transition-colors shrink-0 flex items-center justify-center"
+                title="Refresh Events"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
             </div>
           </div>
 

@@ -213,7 +213,13 @@ export function HostClientWrapper({ children }: HostClientWrapperProps) {
             >
               <AppleTopBar primaryAction={hostPrimaryAction} />
             </div>
-            <main className="flex-1 min-w-0 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-6 lg:px-8 lg:py-8 xl:px-10 xl:py-10">
+            <main
+              className={
+                pathname?.endsWith('/create')
+                  ? 'flex-1 min-w-0 p-0'
+                  : 'flex-1 min-w-0 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-6 lg:px-8 lg:py-8 xl:px-10 xl:py-10'
+              }
+            >
               <BankingBanner />
               <motion.div
                 initial={{ opacity: 0, y: 10 }}

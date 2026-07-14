@@ -290,7 +290,10 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
   const [showGuestlist, setShowGuestlist] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [savedDraftId, setSavedDraftId] = useState<string | null>(null);
+  const [savedDraftId, setSavedDraftId] = useState<string | null>(() => {
+    const id = searchParams.get('id');
+    return id && id !== 'new' ? id : null;
+  });
   const [partnerships, setPartnerships] = useState<any[]>([]);
   const [drafts, setDrafts] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -454,7 +457,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
           if (!slot || slot.status === 'available') return false;
 
           // If checking overlap with self, ignore
-          const targetId = searchParams.get('id');
+          const targetId = savedDraftId || searchParams.get('id');
           if (targetId && (slot.id === targetId || slot.eventId === targetId)) {
             return false;
           }
@@ -1435,8 +1438,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
   return (
     <>
-      <div className="min-h-screen bg-surface-base">
-        <div className="max-w-6xl mx-auto px-6 pt-1 pb-4">
+      <div className="min-h-screen bg-[#111113]">
+        <div className="w-full px-6 pt-6 pb-6">
           <div className="flex items-center justify-between mb-2">
             <div>
               <h1 className="text-title-lg text-text-primary uppercase tracking-tight font-black">
@@ -1467,7 +1470,25 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.2 }}
+                  className="bg-[#111113] border border-border-subtle rounded-[24px] p-6 space-y-6 flex flex-col justify-between"
                 >
+                  {/* Step Header */}
+                  <div className="flex items-center gap-3 pb-4 border-b border-border-subtle/50">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                      {(() => {
+                        const CurrentIcon = STEPS[currentStepIndex]?.icon;
+                        return CurrentIcon ? <CurrentIcon className="w-4.5 h-4.5" /> : null;
+                      })()}
+                    </div>
+                    <div>
+                      <h2 className="text-[16px] font-black text-text-primary uppercase tracking-tight leading-tight">
+                        {STEPS[currentStepIndex]?.label}
+                      </h2>
+                      <p className="text-[11px] text-text-tertiary font-medium mt-0.5">
+                        {STEPS[currentStepIndex]?.description}
+                      </p>
+                    </div>
+                  </div>
                   {/* Recovery Banner */}
                   <AnimatePresence>
                     {showRecoveryBanner && (
@@ -1526,6 +1547,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                       partnerships={partnerships}
                       profile={profile}
                       prefilledSlot={prefilledSlot}
+                      stepValidation={stepValidation}
                     />
                   )}
 
