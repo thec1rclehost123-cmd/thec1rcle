@@ -49,15 +49,19 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
       return genericNotFound();
     }
 
-    // Hybrid fail strategy: admin routes are critical — 5 req/min/IP in degraded mode
-    const reqIp =
-      req.headers.get('x-real-ip') ||
-      req.headers.get('x-forwarded-for')?.split(',').pop()?.trim() ||
-      computeClientFingerprint(req);
-    const critical = checkCriticalEndpoint(`admin:ip:${reqIp}`, 5, 60_000);
-    if (!critical.allowed) {
-      logAuthEvent('REDIS_DEGRADED_RATE_LIMITED', { ip: reqIp, path: req.nextUrl?.pathname });
-      return genericNotFound();
+    const isDev = process.env.NODE_ENV === 'development';
+
+    if (!isDev) {
+      // Hybrid fail strategy: admin routes are critical — 5 req/min/IP in degraded mode
+      const reqIp =
+        req.headers.get('x-real-ip') ||
+        req.headers.get('x-forwarded-for')?.split(',').pop()?.trim() ||
+        computeClientFingerprint(req);
+      const critical = checkCriticalEndpoint(`admin:ip:${reqIp}`, 5, 60_000);
+      if (!critical.allowed) {
+        logAuthEvent('REDIS_DEGRADED_RATE_LIMITED', { ip: reqIp, path: req.nextUrl?.pathname });
+        return genericNotFound();
+      }
     }
 
     const token = authHeader.split('Bearer ')[1];
@@ -68,7 +72,6 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
       // Task 1: Strict Token Verification
       // checkRevoked=true makes a roundtrip to Firebase to confirm the token hasn't been
       // revoked. In dev this extra call frequently fails/times out → false 404s.
-      const isDev = process.env.NODE_ENV === 'development';
       const decodedToken = await auth.verifyIdToken(token, !isDev);
 
       const { role, admin_role, admin: isAdminClaim } = decodedToken;

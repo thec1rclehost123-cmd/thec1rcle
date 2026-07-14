@@ -30,6 +30,7 @@ export default function AdminHosts() {
 
   const fetchHosts = async () => {
     try {
+      setLoading(true);
       const token = await user.getIdToken();
       const res = await fetch('/api/list?collection=hosts', {
         headers: { Authorization: `Bearer ${token}` },
@@ -244,6 +245,7 @@ export default function AdminHosts() {
       <DataTable
         columns={columns}
         data={filteredHosts}
+        loading={loading}
         searchPlaceholder="Find organizer by name, ID or owner profile..."
         onRowClick={(host) => {
           setSelectedHost(host);

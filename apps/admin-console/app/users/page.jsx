@@ -232,6 +232,7 @@ export default function AdminUsers() {
       <DataTable
         columns={columns}
         data={filtered}
+        loading={loading}
         searchPlaceholder="Filter members by name, email or ID..."
         onRowClick={(user) => {
           setSelectedUser(user);

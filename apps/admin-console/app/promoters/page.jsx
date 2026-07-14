@@ -37,6 +37,7 @@ export default function AdminPromoters() {
 
   const fetchPromoters = async () => {
     try {
+      setLoading(true);
       const token = await user.getIdToken();
       const res = await fetch('/api/list?collection=promoters', {
         headers: { Authorization: `Bearer ${token}` },
