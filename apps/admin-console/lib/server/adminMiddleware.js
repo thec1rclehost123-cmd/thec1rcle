@@ -157,8 +157,14 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
 
       // Active defense: reject suspended admins — checked AFTER token verify
       // so we know the UID before consulting Redis
-      const suspensionStatus = await isAdminSuspended(decodedToken.uid);
-      if (suspensionStatus.suspended) {
+      let suspensionStatus = { suspended: false };
+      try {
+        suspensionStatus = await isAdminSuspended(decodedToken.uid);
+      } catch (redisErr) {
+        console.error('[SECURITY] Redis suspension check failed (fail-open):', redisErr.message);
+      }
+
+      if (suspensionStatus && suspensionStatus.suspended) {
         logAuthEvent('SUSPENDED_ADMIN_REJECTED', {
           uid: decodedToken.uid,
           admin_role,

@@ -44,6 +44,7 @@ describe('guest-auth contracts', () => {
       partnerId: null,
       onboardingStatus: null,
       isApproved: false,
+      isBanned: false,
       contactPerson: null,
       area: null,
       website: null,
