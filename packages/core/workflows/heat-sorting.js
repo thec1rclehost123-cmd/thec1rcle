@@ -28,33 +28,36 @@ export const recalculateHeatScores = inngest.createFunction(
 
     // Batch update heat scores
     await step.run('update-heat-scores', async () => {
-      const batch = db.batch();
       const now = new Date();
+      const BATCH_LIMIT = 500;
 
-      for (const event of events) {
-        // Formula: (Tickets Sold * 10) + (Heat Signal * 5) - (Days to Event penalty)
-        // Simplified for Phase 2:
-        const ticketsSold = event.ticketsStats?.totalSold || 0;
-        const views = event.analytics?.views || 0;
+      for (let i = 0; i < events.length; i += BATCH_LIMIT) {
+        const batch = db.batch();
+        const chunk = events.slice(i, i + BATCH_LIMIT);
 
-        // Base score
-        let score = ticketsSold * 10 + views * 0.5;
+        for (const event of chunk) {
+          // Formula: (Tickets Sold * 10) + (Heat Signal * 5) - (Days to Event penalty)
+          const ticketsSold = event.ticketsStats?.totalSold ?? 0;
+          const views = event.analytics?.views ?? 0;
 
-        // Recency/Urgency: More heat if event is soon (but not past)
-        const eventStart = new Date(event.startDate);
-        const diffDays = (eventStart - now) / (1000 * 60 * 60 * 24);
+          let score = ticketsSold * 10 + views * 0.5;
 
-        if (diffDays > 0 && diffDays < 7) {
-          score += (7 - diffDays) * 20; // Up to 140 points for urgency
+          const eventStart = new Date(event.startDate);
+          const diffDays = (eventStart - now) / (1000 * 60 * 60 * 24);
+
+          if (diffDays > 0 && diffDays < 7) {
+            score += (7 - diffDays) * 20;
+          }
+
+          batch.update(db.collection('events').doc(event.id), {
+            heatScore: score,
+            heatScoreUpdatedAt: now.toISOString(),
+          });
         }
 
-        batch.update(db.collection('events').doc(event.id), {
-          heatScore: score,
-          heatScoreUpdatedAt: now.toISOString(),
-        });
+        await batch.commit();
       }
 
-      await batch.commit();
       return { updated: events.length };
     });
   },

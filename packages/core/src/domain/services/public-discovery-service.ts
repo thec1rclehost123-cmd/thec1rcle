@@ -128,7 +128,9 @@ function decodeDiscoveryCursor(rawCursor: any): DiscoveryListCursor | null {
         id: parsed.id,
       };
     }
-  } catch {}
+  } catch (e) {
+    console.warn('Failed to decode discovery cursor:', e);
+  }
   return null;
 }
 

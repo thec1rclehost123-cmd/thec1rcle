@@ -74,13 +74,10 @@ export async function sendEvent(eventName, data, options = {}) {
   };
 
   try {
-    // Add a timeout to prevent hanging if Inngest server is unreachable (port 8288 closed)
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Inngest send timeout')), 2000),
-    );
-
-    const result = await Promise.race([inngest.send(event), timeout]);
-
+    // Inngest SDK has built-in timeout/retry. If the dev server is unreachable,
+    // the SDK will reject naturally — no need for a separate race timeout that
+    // could fire prematurely and cause duplicate ticket issuance.
+    const result = await inngest.send(event);
     return { success: true, ids: result.ids };
   } catch (error) {
     telemetry.error(`[Inngest] Failed to send event ${eventName}`, error, { eventName, data });

@@ -776,6 +776,7 @@ export function useCheckoutSession({
 
         await launchRazorpayCheckout(initiateData, {
           paymentVerifyKey: buildCheckoutPhaseIdempotencyKey(checkoutActionId, 'verify'),
+          paymentMethod,
         });
       } else {
         finishSuccessfulCheckout(initiateData.order.id);
@@ -806,6 +807,7 @@ export function useCheckoutSession({
     hasExpiredReservation,
     isQuoteSyncing,
     launchRazorpayCheckout,
+    paymentMethod,
     persistPendingOrder,
     persistReservation,
     pricingResult,

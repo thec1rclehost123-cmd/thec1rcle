@@ -11,8 +11,8 @@ export default [
   },
   {
     rules: {
-      'no-unused-vars': 'warn',
-      'no-undef': 'off',
+      'no-unused-vars': 'error',
+      'no-undef': 'error',
     },
   },
 ];
