@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getAdminDb, isFirebaseConfigured } from '../firebase/admin';
 import { getEvent } from './eventStore';
-import { sendTicketEmail } from '../email'; // Import email sender for delayed sending
 
 const ORDERS_COLLECTION = 'orders';
 

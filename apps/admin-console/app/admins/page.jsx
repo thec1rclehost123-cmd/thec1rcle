@@ -28,11 +28,12 @@ const rolesList = [
   { id: 'finance', label: 'Finance', desc: 'Payouts, refunds, and financial reporting.' },
   { id: 'support', label: 'Support', desc: 'User support, disputes, and limited writes.' },
   { id: 'content', label: 'Content', desc: 'Media moderation and event reviewing.' },
+  { id: 'readonly', label: 'Read Only', desc: 'ReadOnly access across administrative modules.' },
 ];
 
 export default function AdminsManagement() {
   const { user, profile } = useAuth();
-  const { showToast } = useToast();
+  const { toast } = useToast();
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedAdmin, setSelectedAdmin] = useState(null);
@@ -40,17 +41,29 @@ export default function AdminsManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isProvisionOpen, setIsProvisionOpen] = useState(false);
 
+  const isSuperAdmin = profile?.admin_role === 'super';
+
   const fetchAdmins = async () => {
     try {
       const token = await user.getIdToken();
-      const res = await fetch('/api/list?collection=admins', {
+      const res = await fetch('/api/admins/team', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
-      setAdmins(json.data || []);
+
+      const mapped = (json.members || []).map((m) => ({
+        id: m.membershipId,
+        displayName: m.displayName,
+        email: m.email,
+        admin_role: m.role,
+        status: m.status,
+        uid: m.uid,
+      }));
+
+      setAdmins(mapped);
     } catch (err) {
       console.error('Failed to fetch admins', err);
-      showToast('Failed to fetch admins', 'error');
+      toast({ type: 'error', message: 'Failed to fetch admins' });
     } finally {
       setLoading(false);
     }
@@ -63,22 +76,25 @@ export default function AdminsManagement() {
   const handleAction = async (reason, targetId, inputValue) => {
     try {
       const token = await user.getIdToken();
-      const res = await fetch('/api/actions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: modalConfig.action,
-          targetId: targetId || selectedAdmin.id,
-          reason,
-          params: {
-            admin_role: modalConfig.action === 'ADMIN_ROLE_UPDATE' ? inputValue : undefined,
-            type: 'admin',
+      let res;
+
+      if (modalConfig.action === 'ADMIN_ROLE_UPDATE') {
+        res = await fetch(`/api/admins/team/${targetId}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
           },
-        }),
-      });
+          body: JSON.stringify({ role: inputValue }),
+        });
+      } else if (modalConfig.action === 'ADMIN_ACCESS_REVOKE') {
+        res = await fetch(`/api/admins/team/${targetId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      }
 
       if (!res.ok) {
         const json = await res.json();
@@ -86,28 +102,29 @@ export default function AdminsManagement() {
       }
 
       await fetchAdmins();
+      setSelectedAdmin(null);
       setModalConfig(null);
-      showToast('Action applied effectively.', 'success');
+      toast({ type: 'success', message: 'Action applied effectively.' });
     } catch (err) {
-      showToast(err.message, 'error');
+      toast({ type: 'error', message: err.message });
     }
   };
 
   const handleProvision = async ({ email, name, role }) => {
     try {
       const token = await user.getIdToken();
-      const res = await fetch('/api/actions', {
+
+      const parts = name.trim().split(' ');
+      const firstName = parts[0] || 'Team';
+      const lastName = parts.slice(1).join(' ') || 'Member';
+
+      const res = await fetch('/api/admins/team', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          action: 'ADMIN_PROVISION',
-          targetId: email,
-          reason: `System setup by ${profile.displayName}`,
-          params: { email, name, role },
-        }),
+        body: JSON.stringify({ email, firstName, lastName, role }),
       });
 
       if (!res.ok) {
@@ -116,9 +133,9 @@ export default function AdminsManagement() {
       }
 
       await fetchAdmins();
-      showToast(`Provisioned ${name} as ${role} successfully.`, 'success');
+      toast({ type: 'success', message: `Invited ${name} successfully.` });
     } catch (err) {
-      showToast(`Setup Error: ${err.message}`, 'error');
+      toast({ type: 'error', message: `Setup Error: ${err.message}` });
       throw err;
     }
   };
@@ -131,7 +148,7 @@ export default function AdminsManagement() {
   );
 
   return (
-    <div className="space-y-12 pb-24">
+    <div className="space-y-12 pb-24 text-white">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
         <div>
@@ -146,13 +163,15 @@ export default function AdminsManagement() {
             Manage administrative access, define permissions, and audit authority levels.
           </p>
         </div>
-        <button
-          onClick={() => setIsProvisionOpen(true)}
-          className="flex items-center gap-2.5 px-6 py-3 rounded-lg bg-white text-black text-[11px] font-bold uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-lg shadow-white/5"
-        >
-          <UserPlus className="h-4 w-4" />
-          New Staff Member
-        </button>
+        {isSuperAdmin && (
+          <button
+            onClick={() => setIsProvisionOpen(true)}
+            className="flex items-center gap-2.5 px-6 py-3 rounded-lg bg-white text-black text-[11px] font-bold uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-lg shadow-white/5"
+          >
+            <UserPlus className="h-4 w-4" />
+            New Staff Member
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -207,7 +226,9 @@ export default function AdminsManagement() {
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-4">
                           <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center font-bold text-xs text-zinc-500 shadow-inner group-hover:text-white transition-colors">
-                            {adm.displayName?.[0] || adm.email?.[0]}
+                            {adm.displayName?.[0]?.toUpperCase() ||
+                              adm.email?.[0]?.toUpperCase() ||
+                              '?'}
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-white truncate">
@@ -223,17 +244,29 @@ export default function AdminsManagement() {
                         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-white/5 border border-white/5">
                           <Shield className="h-3 w-3 text-white opacity-50" strokeWidth={1.5} />
                           <span className="text-[10px] font-bold uppercase tracking-widest text-white">
-                            {adm.admin_role ?? 'readonly'}
+                            {rolesList.find((r) => r.id === adm.admin_role)?.label ||
+                              adm.admin_role ||
+                              'Read Only'}
                           </span>
                         </div>
                       </td>
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-2">
                           <div
-                            className={`h-1 w-1 rounded-full ${adm.status === 'suspended' ? 'bg-iris' : 'bg-emerald-500'} shadow-[0_0_8px_rgba(16,185,129,0.4)]`}
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              adm.status === 'invited'
+                                ? 'bg-amber-500'
+                                : adm.status === 'suspended'
+                                  ? 'bg-red-500'
+                                  : 'bg-emerald-500'
+                            }`}
                           />
                           <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-                            {adm.status === 'suspended' ? 'Suspended' : 'Active'}
+                            {adm.status === 'invited'
+                              ? 'Invited'
+                              : adm.status === 'suspended'
+                                ? 'Suspended'
+                                : 'Active'}
                           </span>
                         </div>
                       </td>
@@ -274,14 +307,19 @@ export default function AdminsManagement() {
 
                 <div className="flex flex-col items-center text-center space-y-4 pt-2">
                   <div className="h-20 w-20 rounded-2xl bg-zinc-900 border border-white/5 flex items-center justify-center font-bold text-2xl text-white shadow-inner">
-                    {selectedAdmin.displayName?.[0] || selectedAdmin.email?.[0]}
+                    {selectedAdmin.displayName?.[0]?.toUpperCase() ||
+                      selectedAdmin.email?.[0]?.toUpperCase() ||
+                      '?'}
                   </div>
                   <div>
                     <h3 className="text-2xl font-semibold tracking-tight text-white mb-1.5">
                       {selectedAdmin.displayName}
                     </h3>
                     <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
-                      {selectedAdmin.admin_role || 'readonly'} Authority
+                      {rolesList.find((r) => r.id === selectedAdmin.admin_role)?.label ||
+                        selectedAdmin.admin_role ||
+                        'Read Only'}{' '}
+                      Authority
                     </p>
                   </div>
                 </div>
@@ -300,89 +338,96 @@ export default function AdminsManagement() {
                       </div>
                     </div>
                     <p className="text-[11px] font-medium text-zinc-400 italic leading-relaxed">
-                      &quot;Authorized access to {selectedAdmin.admin_role || 'readonly'} modules
-                      and specific operational endpoints.&quot;
+                      &quot;Authorized access to{' '}
+                      {rolesList.find((r) => r.id === selectedAdmin.admin_role)?.label ||
+                        selectedAdmin.admin_role ||
+                        'Read Only'}{' '}
+                      modules and specific operational endpoints.&quot;
                     </p>
                   </div>
 
-                  <div className="space-y-4 pt-2">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600 px-1">
-                      Authority Management
-                    </p>
-                    <div className="space-y-2">
-                      {rolesList.map((role) => (
-                        <button
-                          key={role.id}
-                          disabled={selectedAdmin.admin_role === role.id}
-                          onClick={() =>
-                            setModalConfig({
-                              action: 'ADMIN_ROLE_UPDATE',
-                              title: `Assign ${role.label}`,
-                              message: `Update ${selectedAdmin.displayName}'s authority level to ${role.label}.`,
-                              label: 'Update Permissions',
-                              inputValue: role.id,
-                              type: 'info',
-                            })
-                          }
-                          className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all text-left group ${
-                            selectedAdmin.admin_role === role.id
-                              ? 'bg-white/[0.05] border-white/10'
-                              : 'bg-black/20 border-white/[0.02] hover:border-white/10 hover:bg-white/[0.02]'
-                          }`}
-                        >
-                          <div className="min-w-0">
-                            <p
-                              className={`text-[11px] font-bold uppercase tracking-widest ${selectedAdmin.admin_role === role.id ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'}`}
+                  {isSuperAdmin && selectedAdmin.uid !== user?.uid && (
+                    <>
+                      <div className="space-y-4 pt-2">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600 px-1">
+                          Authority Management
+                        </p>
+                        <div className="space-y-2">
+                          {rolesList.map((role) => (
+                            <button
+                              key={role.id}
+                              disabled={selectedAdmin.admin_role === role.id}
+                              onClick={() =>
+                                setModalConfig({
+                                  action: 'ADMIN_ROLE_UPDATE',
+                                  title: `Assign ${role.label}`,
+                                  message: `Update ${selectedAdmin.displayName}'s authority level to ${role.label}.`,
+                                  label: 'Update Permissions',
+                                  inputValue: role.id,
+                                  type: 'info',
+                                })
+                              }
+                              className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all text-left group ${
+                                selectedAdmin.admin_role === role.id
+                                  ? 'bg-white/[0.05] border-white/10'
+                                  : 'bg-black/20 border-white/[0.02] hover:border-white/10 hover:bg-white/[0.02]'
+                              }`}
                             >
-                              {role.label}
-                            </p>
-                            <p className="text-[9px] text-zinc-600 font-medium mt-0.5 truncate pr-8">
-                              {role.desc}
-                            </p>
-                          </div>
-                          {selectedAdmin.admin_role === role.id && (
-                            <CheckCircle2
-                              className="h-4 w-4 text-emerald-500 flex-shrink-0"
-                              strokeWidth={1.5}
-                            />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="pt-6 border-t border-[#ffffff05]">
-                    <button
-                      onClick={() =>
-                        setModalConfig({
-                          action: 'ADMIN_ACCESS_REVOKE',
-                          title: 'Revoke Permissions',
-                          message:
-                            'Immediately terminate all administrative access for this staff member.',
-                          label: 'Confirm Revocation',
-                          type: 'danger',
-                          isTier3: true,
-                        })
-                      }
-                      className="w-full flex items-center justify-between p-5 rounded-xl bg-iris/10 border border-iris/20 text-white hover:bg-iris/20 transition-all group"
-                    >
-                      <div className="flex items-center gap-4 text-left">
-                        <ShieldAlert className="h-6 w-6 text-iris" strokeWidth={1.5} />
-                        <div>
-                          <span className="block text-sm font-bold tracking-tight">
-                            Full Revoke
-                          </span>
-                          <span className="block text-[9px] text-iris font-bold uppercase tracking-widest mt-0.5 opacity-80">
-                            Terminate Clearance
-                          </span>
+                              <div className="min-w-0">
+                                <p
+                                  className={`text-[11px] font-bold uppercase tracking-widest ${selectedAdmin.admin_role === role.id ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'}`}
+                                >
+                                  {role.label}
+                                </p>
+                                <p className="text-[9px] text-zinc-600 font-medium mt-0.5 truncate pr-8">
+                                  {role.desc}
+                                </p>
+                              </div>
+                              {selectedAdmin.admin_role === role.id && (
+                                <CheckCircle2
+                                  className="h-4 w-4 text-emerald-500 flex-shrink-0"
+                                  strokeWidth={1.5}
+                                />
+                              )}
+                            </button>
+                          ))}
                         </div>
                       </div>
-                      <ChevronRight
-                        className="h-4 w-4 text-iris group-hover:translate-x-1 transition-transform"
-                        strokeWidth={1.5}
-                      />
-                    </button>
-                  </div>
+
+                      <div className="pt-6 border-t border-[#ffffff05]">
+                        <button
+                          onClick={() =>
+                            setModalConfig({
+                              action: 'ADMIN_ACCESS_REVOKE',
+                              title: 'Revoke Permissions',
+                              message:
+                                'Immediately terminate all administrative access for this staff member.',
+                              label: 'Confirm Revocation',
+                              type: 'danger',
+                              isTier3: true,
+                            })
+                          }
+                          className="w-full flex items-center justify-between p-5 rounded-xl bg-iris/10 border border-iris/20 text-white hover:bg-iris/20 transition-all group"
+                        >
+                          <div className="flex items-center gap-4 text-left">
+                            <ShieldAlert className="h-6 w-6 text-iris" strokeWidth={1.5} />
+                            <div>
+                              <span className="block text-sm font-bold tracking-tight">
+                                Full Revoke
+                              </span>
+                              <span className="block text-[9px] text-iris font-bold uppercase tracking-widest mt-0.5 opacity-80">
+                                Terminate Clearance
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronRight
+                            className="h-4 w-4 text-iris group-hover:translate-x-1 transition-transform"
+                            strokeWidth={1.5}
+                          />
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="pt-2 text-center">
