@@ -2,6 +2,9 @@ import { getAdminDb, getAdminAuth } from '@/lib/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
 import { getRedisClient } from '@c1rcle/core/redis';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+export const adminStoreContext = new AsyncLocalStorage();
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM_ADDR =
@@ -932,6 +935,10 @@ export const adminStore = {
   },
 
   // --- 📝 6. Logging & Audit ---
+  runWithContext(context, fn) {
+    return adminStoreContext.run(context, fn);
+  },
+
   async logAdminAction({
     adminId,
     adminRole,
@@ -946,19 +953,111 @@ export const adminStore = {
     idempotencyKey,
   }) {
     const db = getAdminDb();
+    const activeCtx = adminStoreContext.getStore() || {};
+
+    if (activeCtx.skipInternalLog) {
+      // Skip internal logging to let actions/route.js write a single unified log
+      return;
+    }
+
+    const finalAdminId = adminId || activeCtx.adminId || 'system';
+    const finalAdminRole = adminRole || activeCtx.adminRole || null;
+    let email = context?.actorEmail || context?.adminEmail || activeCtx.actorEmail || null;
+    let name = context?.actorName || context?.adminName || activeCtx.actorName || null;
+
+    if (!email && finalAdminId && finalAdminId !== 'system') {
+      try {
+        const adminDoc = await db.collection('admins').doc(finalAdminId).get();
+        if (adminDoc.exists) {
+          const ad = adminDoc.data();
+          email = ad.email || null;
+          name = ad.displayName || null;
+        } else {
+          const userDoc = await db.collection('users').doc(finalAdminId).get();
+          if (userDoc.exists) {
+            const ud = userDoc.data();
+            email = ud.email || null;
+            name = ud.displayName || null;
+          }
+        }
+      } catch (_) {
+        /* proceed with defaults */
+      }
+    }
+
+    // Dynamic resolution of Target Name
+    let targetName = null;
+    if (targetId && targetType) {
+      try {
+        const COLLECTION_MAP = {
+          venue: 'venues',
+          host: 'hosts',
+          promoter: 'promoters',
+          event: 'events',
+          order: 'orders',
+          admin: 'admins',
+          ticket: 'tickets',
+          webhook: 'failed_webhooks',
+          support_ticket: 'support_tickets',
+          safety_report: 'safety_reports',
+          user: 'users',
+          onboarding_request: 'onboarding_requests',
+        };
+        const col = COLLECTION_MAP[targetType];
+        if (col) {
+          const snap = await db.collection(col).doc(targetId).get();
+          if (snap.exists) {
+            const data = snap.data();
+            if (targetType === 'venue') {
+              targetName = data.name || data.venueName || null;
+            } else if (targetType === 'event') {
+              targetName = data.title || data.name || null;
+            } else if (targetType === 'user') {
+              targetName = data.displayName || data.name || data.email || null;
+            } else if (targetType === 'onboarding_request') {
+              targetName = data.data?.name || data.name || null;
+            } else {
+              targetName = data.name || data.displayName || null;
+            }
+          }
+        }
+      } catch (_) {
+        // ignore target name resolution errors
+      }
+    }
+
+    const finalContext = {
+      ipAddress: context?.ipAddress || activeCtx.ipAddress || null,
+      userAgent: context?.userAgent || activeCtx.userAgent || null,
+      requestId: context?.requestId || activeCtx.requestId || null,
+      actorEmail: email || 'system',
+      actorName: name || null,
+    };
+
     const log = {
-      adminId,
-      adminRole: adminRole || null,
+      adminId: finalAdminId,
+      admin_uid: finalAdminId, // compatibility
+      adminRole: finalAdminRole,
+      admin_role: finalAdminRole || 'admin', // compatibility
+      actorEmail: email || 'system', // compatibility
+      adminEmail: email || 'system', // compatibility
+      actorName: name || null,
+      displayName: name || null,
       action,
-      targetId,
-      targetType,
+      actionType: action, // compatibility
+      targetId: targetId || 'unknown',
+      targetType: targetType || 'system',
+      targetName: targetName || null,
       reason: reason || '',
       evidence: evidence || null,
       before: before || null,
       after: after || null,
-      context: context || {},
+      context: finalContext,
+      ip: finalContext.ipAddress || 'internal-node', // compatibility
+      status: 'success', // compatibility
       ...(idempotencyKey ? { idempotencyKey } : {}),
       timestamp: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(), // compatibility
     };
 
     await db.collection('admin_audit_logs').add(log);
@@ -1761,13 +1860,21 @@ export const adminStore = {
     return { id: snap.id, ...d };
   },
 
-  async appendAuditDelta(targetId, action, adminId, { before, after }, context) {
+  async appendAuditDelta(
+    targetId,
+    action,
+    adminId,
+    { before, after },
+    context,
+    targetType = 'audit_delta',
+    reason = 'State delta captured for audit trail',
+  ) {
     await this.logAdminAction({
       adminId,
       action: `${action}:DELTA`,
       targetId,
-      targetType: 'audit_delta',
-      reason: 'State delta captured for audit trail',
+      targetType,
+      reason,
       before,
       after,
       context,
@@ -1838,16 +1945,35 @@ export const adminStore = {
     const docs = snapshot.docs.slice(0, pageLimit);
     const hasMore = snapshot.docs.length > pageLimit;
     const nextCursor = hasMore ? docs[docs.length - 1].id : null;
+
+    const safeDate = (val) => {
+      if (!val) return undefined;
+      if (typeof val.toDate === 'function') {
+        return val.toDate().toISOString();
+      }
+      if (val instanceof Date) {
+        return val.toISOString();
+      }
+      if (typeof val === 'string') {
+        return val;
+      }
+      if (val.seconds !== undefined) {
+        return new Date(val.seconds * 1000).toISOString();
+      }
+      return undefined;
+    };
+
     const items = docs.map((doc) => {
       const d = doc.data();
+      const tsVal = safeDate(d.timestamp) || safeDate(d.ts) || safeDate(d.createdAt);
       return {
         id: doc.id,
         ...d,
-        timestamp: d.timestamp?.toDate?.()?.toISOString() || d.ts?.toDate?.()?.toISOString(),
-        createdAt: d.createdAt?.toDate?.()?.toISOString() || d.createdAt,
-        updatedAt: d.updatedAt?.toDate?.()?.toISOString() || d.updatedAt,
-        submittedAt: d.submittedAt?.toDate?.()?.toISOString(),
-        ts: d.ts?.toDate?.()?.toISOString() || d.ts,
+        timestamp: tsVal,
+        createdAt: safeDate(d.createdAt) || tsVal,
+        updatedAt: safeDate(d.updatedAt) || tsVal,
+        submittedAt: safeDate(d.submittedAt),
+        ts: safeDate(d.ts) || tsVal,
       };
     });
     return items; // backward-compatible: callers that just use the array still work
