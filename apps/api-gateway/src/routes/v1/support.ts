@@ -330,7 +330,7 @@ export default async function supportRoutes(fastify: FastifyInstance) {
           return reply.status(404).send({ error: 'Ticket data not found' });
         }
         // Ownership guard: users may only act on their own tickets
-        if (String(data.userId || '') !== request.user.uid) {
+        if (String(data.userId || '') !== userId) {
           return reply.status(403).send({ error: 'Forbidden' });
         }
         const oldTimeline = data.timeline || [];
@@ -381,6 +381,7 @@ export default async function supportRoutes(fastify: FastifyInstance) {
     },
     async (request: any, reply) => {
       try {
+        const userId = request.user.uid;
         const userEmail = request.user.email || 'anonymous@thec1rcle.com';
         const { id } = request.params as { id: string };
         const body = request.body as z.infer<typeof FeedbackSchema>;
@@ -396,7 +397,7 @@ export default async function supportRoutes(fastify: FastifyInstance) {
           return reply.status(404).send({ error: 'Ticket data not found' });
         }
         // Ownership guard: users may only act on their own tickets
-        if (String(data.userId || '') !== request.user.uid) {
+        if (String(data.userId || '') !== userId) {
           return reply.status(403).send({ error: 'Forbidden' });
         }
         const oldTimeline = data.timeline || [];
@@ -442,6 +443,7 @@ export default async function supportRoutes(fastify: FastifyInstance) {
     },
     async (request: any, reply) => {
       try {
+        const userId = request.user.uid;
         const userEmail = request.user.email || 'anonymous@thec1rcle.com';
         const { id } = request.params as { id: string };
 
@@ -456,7 +458,7 @@ export default async function supportRoutes(fastify: FastifyInstance) {
           return reply.status(404).send({ error: 'Ticket data not found' });
         }
         // Ownership guard: users may only act on their own tickets
-        if (String(data.userId || '') !== request.user.uid) {
+        if (String(data.userId || '') !== userId) {
           return reply.status(403).send({ error: 'Forbidden' });
         }
         const oldTimeline = data.timeline || [];

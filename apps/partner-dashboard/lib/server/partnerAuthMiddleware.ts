@@ -138,23 +138,6 @@ export async function requirePartnerAccess(
     return buildPartnerAuthError(req, 400, `Missing ${idName} or X-Partner-ID`);
   }
 
-  // JWT claims fast-path — skips all Firestore reads
-  // Promoter: bypass on any valid promoter claim
-  // Venue: bypass only for OWNER (staff need resolveEffectiveProfile)
-  // Host: no bypass — always verify via partner_memberships
-  const claimsMatch = claims.partnerId === partnerId && claims.partnerType === type;
-  const claimsRole = String(claims.partnerRole || '').toUpperCase();
-  if (claimsMatch && (type === 'promoter' || (type === 'venue' && claimsRole === 'OWNER'))) {
-    return {
-      uid,
-      partnerId,
-      partnerType: type,
-      role: claimsRole || (type === 'promoter' ? 'PROMOTER' : 'OWNER'),
-      membershipId: 'claims',
-      displayName: claims.name || claims.email || uid,
-    };
-  }
-
   const db = getAdminDb();
 
   // partner_memberships lookup — no isActive filter in query so both
@@ -188,6 +171,18 @@ export async function requirePartnerAccess(
     const promoterDoc = await db.collection('promoters').doc(uid).get();
     if (promoterDoc.exists) {
       const pd = promoterDoc.data()!;
+      const isActive =
+        pd.isActive !== false &&
+        pd.status !== 'inactive' &&
+        pd.status !== 'suspended' &&
+        pd.status !== 'banned';
+      if (!isActive) {
+        return buildPartnerAuthError(
+          req,
+          403,
+          'Forbidden: promoter account is inactive or suspended',
+        );
+      }
       return {
         uid,
         partnerId: uid,
