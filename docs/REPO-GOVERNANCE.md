@@ -12,10 +12,14 @@
 
 Rulesets are the **single source of truth** — the classic branch protection rules were
 deleted on 2026-07-17 after their stricter settings were folded into `release-gates`.
-Code-owner review is deliberately OFF: `.github/CODEOWNERS` is outdated (a single
-account); enforcing it would funnel every PR through one person. Re-enable in the
-ruleset only after CODEOWNERS is rewritten. "Require signed commits" is also off
-everywhere: team commits are unsigned, so enabling it deadlocks the release train.
+Code-owner review is ON (2026-07-17): `.github/CODEOWNERS` was rewritten with
+path-based ownership (backend → rautsagar1625/shriyashsawant/deepx12, mobile →
+aayushdivase333-lab/thec1rclehost123-cmd/deepx12, `.github`+`docs` → shriyashsawant,
+`packages/ui` → shared). The file was fast-pathed onto `staging` and `main` because
+GitHub resolves owners from the PR's **base branch**. Caveat: an author's own
+approval never counts — PRs by shriyashsawant touching `.github/` or `docs/` need
+the admin bypass, since they are the sole owner there. "Require signed commits"
+stays off everywhere: team commits are unsigned, so enabling it deadlocks the train.
 
 The 14 required check names and their caveats (en-dash in Vercel names, `, true`
 suffix on admin-console) are listed in `docs/BRANCH-AUDIT.md`.
