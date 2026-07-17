@@ -42,7 +42,7 @@ export default async function guestProfileRoutes(fastify: FastifyInstance) {
           }),
         );
 
-      const bucket = (fastify as any).firebase.storage().bucket();
+      const bucket = fastify.storage.bucket();
       const extension = (data.filename?.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
       const fileName = `guest-profiles/${userId}/avatar-${Date.now()}.${extension || 'jpg'}`;
       const file = bucket.file(fileName);

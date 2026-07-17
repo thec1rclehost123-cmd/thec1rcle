@@ -32,7 +32,7 @@ const VIBES = [
 ];
 const ROLES = ['Promoter', 'DJ', 'Collective'];
 const STATUSES = ['Verified', 'Trending', 'Popular'];
-const SORTS = ['Popular', 'Soonest event', 'Most followed'];
+const SORTS = ['All', 'Popular', 'Soonest event', 'Most followed'];
 
 export default function DiscoveryPage({
   initialVenues = [],
@@ -46,7 +46,7 @@ export default function DiscoveryPage({
   const [activeVibe, setActiveVibe] = useState(null);
   const [activeRole, setActiveRole] = useState(null);
   const [activeStatus, setActiveStatus] = useState(null);
-  const [activeSort, setActiveSort] = useState('Popular');
+  const [activeSort, setActiveSort] = useState('All');
   const [tablesOnly, setTablesOnly] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -58,14 +58,13 @@ export default function DiscoveryPage({
     !activeVibe &&
     !activeRole &&
     !activeStatus &&
-    activeSort === 'Popular' &&
+    activeSort === 'All' &&
     !tablesOnly;
   const activeInitialResults = activeTab === 'venues' ? initialVenues : initialHosts;
-  const usingInitialResults =
-    fetchStatus === 'idle' && storeResults.length === 0 && activeInitialResults.length > 0;
+  const usingInitialResults = hasDefaultFilters && activeInitialResults.length > 0;
 
-  // Use server-prefetched data on first render if store is still idle/empty,
-  // otherwise use store results (which includes any filtered/loaded state)
+  // Default tab views should stay tied to their server-prefetched list; filtered
+  // views use the store so persisted results cannot leak across Venues/Hosts.
   const results = usingInitialResults ? activeInitialResults : storeResults;
 
   useEffect(() => {
@@ -137,7 +136,7 @@ export default function DiscoveryPage({
     setActiveRole(null);
     setActiveStatus(null);
     setTablesOnly(false);
-    setActiveSort('Popular');
+    setActiveSort('All');
   };
 
   const isVenues = activeTab === 'venues';

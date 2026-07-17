@@ -38,6 +38,7 @@ export default function ExploreClient({
     setSearchTerm,
     setSelectedCity,
     status,
+    setCustomDate,
   } = useExplorePageState({ initialEvents, initialFeaturedEvents });
 
   const heroSection = featuredSlides.length ? (
@@ -56,11 +57,13 @@ export default function ExploreClient({
         </section>
 
         <div className="relative z-[20] -mt-12 mb-16 flex justify-center">
-          <div className="w-full overflow-x-auto scrollbar-hide">
+          <div className="w-full overflow-visible">
             <ExploreFilterBar
               city={selectedCity}
               cityOptions={cityDropdownOptions}
               date={filters.datePreset}
+              startDate={filters.startDate}
+              setCustomDate={setCustomDate}
               searchTerm={searchTerm}
               setCity={setSelectedCity}
               setDate={(value) => handleFilterChange('datePreset', value)}

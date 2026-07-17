@@ -33,10 +33,7 @@ import {
 // Guard against prototype-pollution / remote property injection when a
 // user-provided value (promoterId, ticketTierId, …) is used as an object key.
 const isUnsafeObjectKey = (key: unknown): boolean =>
-  typeof key !== 'string' ||
-  key === '__proto__' ||
-  key === 'constructor' ||
-  key === 'prototype';
+  typeof key !== 'string' || key === '__proto__' || key === 'constructor' || key === 'prototype';
 
 const ExploreEventListQuery = z
   .object({

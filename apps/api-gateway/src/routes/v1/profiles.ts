@@ -4,6 +4,7 @@ import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contract
 import {
   buildGuestProfileCreatePayload,
   buildGuestProfileUpdates,
+  GUEST_PHONE_REGEX,
   normalizeGuestProfile,
 } from '../../lib/guest-auth';
 import {
@@ -21,14 +22,22 @@ const ProfilePostsQuery = z
   .object({ type: z.string().optional(), limit: z.string().optional() })
   .strict();
 
+const guestPhoneSchema = z
+  .string()
+  .max(20)
+  .refine((value) => value === '' || GUEST_PHONE_REGEX.test(value), {
+    message: 'Phone number must contain exactly 10 digits',
+  })
+  .optional();
+
 const PersonalUpdateSchema = z
   .object({
     displayName: z.string().max(100).optional(),
     age: z.number().min(1).max(150).optional(),
     gender: z.string().max(20).optional(),
     city: z.string().max(100).optional(),
-    phone: z.string().max(20).optional(),
-    phoneNumber: z.string().max(20).optional(),
+    phone: guestPhoneSchema,
+    phoneNumber: guestPhoneSchema,
     onboardingComplete: z.boolean().optional(),
   })
   .strict();

@@ -5,6 +5,7 @@ import {
   normalizeCity,
 } from './events.js';
 import { calculateHeatScore, resolveStartingPrice } from './event-engine.js';
+import { getEventTimestamps } from './time.js';
 
 export function toIso(value) {
   if (!value) return null;
@@ -48,12 +49,14 @@ export function normalizeGuestDiscoverySort(value) {
 export const normalizeEventSort = normalizeGuestDiscoverySort;
 
 export function normalizeDiscoverySort(value) {
-  const normalized = String(value || 'followersCount')
+  const normalized = String(value || 'all')
     .trim()
     .toLowerCase();
   if (['soonest event', 'soonest', 'nexteventat'].includes(normalized)) return 'nextEventAt';
   if (['new', 'newest', 'updatedat'].includes(normalized)) return 'updatedAt';
-  return 'followersCount';
+  if (['most followed', 'followerscount'].includes(normalized)) return 'followersCount';
+  if (['popular', 'heat', 'heatscore', 'trending'].includes(normalized)) return 'heatScore';
+  return 'id';
 }
 
 export function normalizeGuestDiscoveryLimit(value, fallback = 24, max = 100) {
@@ -88,11 +91,7 @@ export function isCurrentOrUpcomingGuestEvent(event) {
   // exactly at their end time, accounting for indexing lag and user session drift.
   const GRACE_PERIOD_MS = 30 * 60 * 1000;
   const now = Date.now();
-  const startAt = toEventBoundaryTime(event.startAt || event.startDate, 'start');
-  const endAt = toEventBoundaryTime(
-    event.endAt || event.endDate || event.startAt || event.startDate,
-    'end',
-  );
+  const { startAt, endAt } = getEventTimestamps(event);
 
   if (!startAt || !endAt) return false;
 
@@ -108,11 +107,7 @@ export function isCurrentOrUpcomingGuestEvent(event) {
 export function normalizeStatusKey(event = {}) {
   const raw = String(event.status || event.lifecycle || '').toLowerCase();
   if (raw.includes('cancel')) return 'canceled';
-  const startAt = toEventBoundaryTime(event.startAt || event.startDate, 'start');
-  const endAt = toEventBoundaryTime(
-    event.endAt || event.endDate || event.startAt || event.startDate,
-    'end',
-  );
+  const { startAt, endAt } = getEventTimestamps(event);
   const now = Date.now();
   if (endAt && endAt < now) return 'ended';
   if (startAt && startAt <= now && (!endAt || endAt >= now)) return 'live';
@@ -190,6 +185,48 @@ export function computeHeatScore(event = {}) {
   const hoursUntil = Math.max(1, (startAt - Date.now()) / (1000 * 60 * 60));
   const freshness = hoursUntil < 48 ? 30 : hoursUntil < 168 ? 15 : 5;
   return Math.round(followers * 0.1 + views * 0.05 + rsvps * 2 + ticketSales * 4 + freshness);
+}
+
+export function computeProfileHeatScore({
+  followersCount = 0,
+  upcomingEventsCount = 0,
+  verified = false,
+  trending = false,
+} = {}) {
+  return Math.round(
+    Number(followersCount || 0) * 0.1 +
+      Number(upcomingEventsCount || 0) * 8 +
+      (verified ? 20 : 0) +
+      (trending ? 15 : 0),
+  );
+}
+
+export function computeHostHeatScore({
+  followersCount = 0,
+  clickCount = 0,
+  ticketSalesCount = 0,
+  recentClickCount = 0,
+} = {}) {
+  return Math.round(
+    Number(followersCount || 0) * 2 +
+      Number(clickCount || 0) * 1 +
+      Number(ticketSalesCount || 0) * 10 +
+      Number(recentClickCount || 0) * 5,
+  );
+}
+
+export function computeVenueHeatScore({
+  followersCount = 0,
+  clickCount = 0,
+  ticketSalesCount = 0,
+  recentClickCount = 0,
+} = {}) {
+  return Math.round(
+    Number(followersCount || 0) * 2 +
+      Number(clickCount || 0) * 1 +
+      Number(ticketSalesCount || 0) * 10 +
+      Number(recentClickCount || 0) * 5,
+  );
 }
 
 function toFiniteNumber(value) {
@@ -497,6 +534,11 @@ export function buildHostSummaryReadModel(
     .filter((event) => event.statusKey === 'upcoming')
     .sort((a, b) => String(a.startAt).localeCompare(String(b.startAt)));
 
+  const verified = Boolean(host.verified);
+  const trending = Boolean(host.trending);
+  const followersCount = Number(host.followersCount ?? host.followers ?? 0);
+  const upcomingEventsCount = upcoming.length;
+
   return {
     hostId: host.id,
     id: host.id,
@@ -533,15 +575,25 @@ export function buildHostSummaryReadModel(
       : Array.isArray(host.vibes)
         ? host.vibes
         : [],
-    verified: Boolean(host.verified),
-    trending: Boolean(host.trending),
-    popular: Boolean(host.popular || Number(host.followersCount ?? host.followers ?? 0) >= 1000),
-    followers: Number(host.followers ?? host.followersCount ?? 0),
-    followersCount: Number(host.followersCount ?? host.followers ?? 0),
-    upcomingEventsCount: upcoming.length,
+    verified,
+    trending,
+    popular: Boolean(host.popular || followersCount >= 1000),
+    followers: followersCount,
+    followersCount,
+    upcomingEventsCount,
     nextEventDate: upcoming[0]?.startAt || null,
     nextEventAt: upcoming[0]?.startAt || null,
     featuredEventIds: upcoming.slice(0, 3).map((event) => event.id),
+    clickCount: Number(host.clickCount || 0),
+    recentClickCount: Number(host.recentClickCount || 0),
+    ticketSalesCount: Number(host.ticketSalesCount || 0),
+    lastVisitedAt: host.lastVisitedAt || null,
+    heatScore: computeHostHeatScore({
+      followersCount,
+      clickCount: Number(host.clickCount || 0),
+      ticketSalesCount: Number(host.ticketSalesCount || 0),
+      recentClickCount: Number(host.recentClickCount || 0),
+    }),
     bioShort: host.bio || host.description || null,
     bio: host.bio || host.description || null,
     searchText: buildSearchText([
@@ -573,6 +625,15 @@ export function buildVenueSummaryReadModel(
     .filter((event) => event.statusKey === 'upcoming')
     .sort((a, b) => String(a.startAt).localeCompare(String(b.startAt)));
 
+  const verified = Boolean(venue.isVerified ?? venue.verified);
+  const followersCount = Number(venue.followersCount ?? venue.followers ?? 0);
+  const upcomingEventsCount = upcoming.length;
+
+  const clickCount = Number(venue.clickCount ?? 0);
+  const ticketSalesCount = Number(venue.ticketSalesCount ?? 0);
+  const recentClickCount = Number(venue.recentClickCount ?? 0);
+  const lastVisitedAt = venue.lastVisitedAt || null;
+
   return {
     venueId: venue.id,
     id: venue.id,
@@ -600,13 +661,23 @@ export function buildVenueSummaryReadModel(
     vibes: Array.isArray(venue.vibes) ? venue.vibes : Array.isArray(venue.tags) ? venue.tags : [],
     tablesAvailable: Boolean(venue.tablesAvailable),
     verified: Boolean(venue.verified),
-    isVerified: Boolean(venue.isVerified ?? venue.verified),
+    isVerified: verified,
     venueType: venue.venueType || venue.category || venue.type || null,
     category: venue.category || venue.venueType || venue.type || null,
-    followers: Number(venue.followers ?? venue.followersCount ?? 0),
-    followersCount: Number(venue.followersCount ?? venue.followers ?? 0),
-    upcomingEventsCount: upcoming.length,
+    followers: followersCount,
+    followersCount,
+    upcomingEventsCount,
     nextEventAt: upcoming[0]?.startAt || null,
+    clickCount,
+    ticketSalesCount,
+    recentClickCount,
+    lastVisitedAt,
+    heatScore: computeVenueHeatScore({
+      followersCount,
+      clickCount,
+      ticketSalesCount,
+      recentClickCount,
+    }),
     menuAvailable,
     highlightsCount,
     bioShort: venue.bio || venue.description || null,

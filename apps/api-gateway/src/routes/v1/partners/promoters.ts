@@ -3727,10 +3727,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       try {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
-        await (fastify as any).firebaseAdmin
-          .auth()
-          .revokeRefreshTokens(ctx.uid)
-          .catch(() => {});
+        await fastify.auth.revokeRefreshTokens(ctx.uid).catch(() => {});
         return reply.send({ success: true });
       } catch (err: any) {
         if (err.statusCode)

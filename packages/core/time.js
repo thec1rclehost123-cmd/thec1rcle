@@ -155,3 +155,100 @@ export function toISODateIST(dateValue) {
   const day = date.toLocaleString(IN_LOCALE, { timeZone: IST_TIMEZONE, day: '2-digit' });
   return `${year}-${month}-${day}`;
 }
+
+/**
+ * Resolves precise, timezone-aware startAt and endAt timestamps in IST (Asia/Kolkata)
+ * for an event. Accounts for event date, start time, end date, and end time.
+ * Includes overnight support when end time is numerically less than start time.
+ */
+export function getEventTimestamps(event = {}) {
+  const dateStr = event.startAt || event.startDate || event.startDateTime;
+  const timeStr = event.startTime || event.time;
+
+  const endDateStr = event.endAt || event.endDate || event.endDateTime || dateStr;
+  const endTimeStr = event.endTime;
+
+  let startTs = 0;
+  let endTs = 0;
+
+  // Helper to convert Firestore timestamp/Date/string to ISO string
+  const toIsoLocal = (value) => {
+    if (!value) return null;
+    if (typeof value === 'string') return value;
+    if (typeof value?.toDate === 'function') return value.toDate().toISOString();
+    if (value instanceof Date) return value.toISOString();
+    return null;
+  };
+
+  const isDateOnly = (val) => typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val.trim());
+
+  const isoDate = toIsoLocal(dateStr);
+  const isoEndDate = toIsoLocal(endDateStr);
+
+  // Parse startAt
+  if (isoDate) {
+    const trimmed = isoDate.trim();
+    if (isDateOnly(trimmed)) {
+      let timePart = '00:00:00';
+      if (timeStr && typeof timeStr === 'string') {
+        const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})/);
+        if (match) {
+          timePart = `${match[1].padStart(2, '0')}:${match[2]}:00`;
+        }
+      }
+      startTs = new Date(`${trimmed}T${timePart}+05:30`).getTime();
+    } else {
+      startTs = new Date(trimmed).getTime();
+    }
+  }
+
+  if (Number.isNaN(startTs)) startTs = 0;
+
+  // Parse endAt
+  if (isoEndDate) {
+    const trimmed = isoEndDate.trim();
+    if (isDateOnly(trimmed)) {
+      let timePart = '23:59:59.999';
+      if (endTimeStr && typeof endTimeStr === 'string') {
+        const match = endTimeStr.trim().match(/^(\d{1,2}):(\d{2})/);
+        if (match) {
+          timePart = `${match[1].padStart(2, '0')}:${match[2]}:00`;
+        }
+      }
+      endTs = new Date(`${trimmed}T${timePart}+05:30`).getTime();
+    } else {
+      endTs = new Date(trimmed).getTime();
+    }
+  }
+
+  if (Number.isNaN(endTs)) endTs = 0;
+
+  // Apply Overnight Support
+  // If start and end date strings are date-only and match,
+  // and the end time is numerically less than the start time, shift endTs by 1 day (24 hours).
+  if (
+    typeof isoDate === 'string' &&
+    typeof isoEndDate === 'string' &&
+    isDateOnly(isoDate) &&
+    isDateOnly(isoEndDate) &&
+    isoDate.trim() === isoEndDate.trim() &&
+    timeStr &&
+    endTimeStr
+  ) {
+    const startMatch = String(timeStr)
+      .trim()
+      .match(/^(\d{1,2}):(\d{2})/);
+    const endMatch = String(endTimeStr)
+      .trim()
+      .match(/^(\d{1,2}):(\d{2})/);
+    if (startMatch && endMatch) {
+      const startMins = parseInt(startMatch[1], 10) * 60 + parseInt(startMatch[2], 10);
+      const endMins = parseInt(endMatch[1], 10) * 60 + parseInt(endMatch[2], 10);
+      if (endMins < startMins) {
+        endTs += 24 * 60 * 60 * 1000; // Add 1 day in milliseconds
+      }
+    }
+  }
+
+  return { startAt: startTs, endAt: endTs };
+}

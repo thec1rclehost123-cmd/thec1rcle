@@ -1,5 +1,7 @@
 const GENDER_CHANGE_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 
+export const GUEST_PHONE_REGEX = /^\d{10}$/;
+
 const GUEST_PROFILE_UPDATE_FIELDS = new Set([
   'displayName',
   'photoURL',
@@ -224,6 +226,21 @@ export function buildGuestProfileUpdates(
 
   if (safeUpdates.phoneNumber !== undefined && safeUpdates.phone === undefined) {
     safeUpdates.phone = safeUpdates.phoneNumber;
+  }
+
+  if (safeUpdates.phone !== undefined) {
+    const trimmedPhone = String(safeUpdates.phone).trim();
+
+    if (trimmedPhone && !GUEST_PHONE_REGEX.test(trimmedPhone)) {
+      return {
+        safeUpdates: {},
+        error: 'Phone number must contain exactly 10 digits.',
+        statusCode: 400,
+      };
+    }
+
+    safeUpdates.phone = trimmedPhone;
+    safeUpdates.phoneNumber = trimmedPhone;
   }
 
   if (safeUpdates.photoURL !== undefined && safeUpdates.avatar === undefined) {

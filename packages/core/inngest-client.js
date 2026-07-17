@@ -54,6 +54,8 @@ export const Events = {
 
   // Analytics & Maintenance
   HOST_STATS_SYNC: 'analytics/host-stats-sync',
+  VENUE_CLICK: 'venue/click',
+  HOST_CLICK: 'host/click',
   MAINTENANCE_PING: 'maintenance/ping',
 };
 
@@ -176,6 +178,104 @@ export async function sendEvent(eventName, data, options = {}) {
         telemetry.error(`[Fallback] Failed to issue tickets for ${data.orderId}`, fallbackError, {
           orderId: data.orderId,
         });
+      }
+    }
+
+    // Development Fallback: Execute venue click manually if Inngest is missing
+    if (eventName === Events.VENUE_CLICK && process.env.NODE_ENV !== 'production') {
+      try {
+        const { getAdminDb } = await import('./admin.js');
+        const { computeVenueHeatScore } = await import('./guest-discovery-engine.js');
+
+        const db = getAdminDb();
+        const { venueId, timestamp } = data;
+
+        // Run the logic directly
+        const eventsSnap = await db.collection('events').where('venueId', '==', venueId).get();
+        let ticketSalesCount = 0;
+        eventsSnap.forEach((doc) => {
+          const eventData = doc.data() || {};
+          ticketSalesCount += eventData.ticketsStats?.totalSold || 0;
+        });
+
+        const venueSummaryRef = db.collection('venue_summary').doc(venueId);
+        await db.runTransaction(async (transaction) => {
+          const doc = await transaction.get(venueSummaryRef);
+          if (!doc.exists) return;
+
+          const summaryData = doc.data() || {};
+          const newClickCount = Number(summaryData.clickCount || 0) + 1;
+          const newRecentClickCount = Number(summaryData.recentClickCount || 0) + 1;
+          const followersCount = Number(summaryData.followersCount || 0);
+
+          const newHeatScore = computeVenueHeatScore({
+            followersCount,
+            clickCount: newClickCount,
+            ticketSalesCount,
+            recentClickCount: newRecentClickCount,
+          });
+
+          transaction.update(venueSummaryRef, {
+            clickCount: newClickCount,
+            recentClickCount: newRecentClickCount,
+            ticketSalesCount,
+            lastVisitedAt: timestamp || new Date().toISOString(),
+            heatScore: newHeatScore,
+            updatedAt: new Date().toISOString(),
+          });
+        });
+        console.log(`[Inngest Fallback] Successfully processed venue click for ${venueId}`);
+      } catch (fallbackError) {
+        console.error('[Inngest Fallback] Failed to process venue click manually', fallbackError);
+      }
+    }
+
+    // Development Fallback: Execute host click manually if Inngest is missing
+    if (eventName === Events.HOST_CLICK && process.env.NODE_ENV !== 'production') {
+      try {
+        const { getAdminDb } = await import('./admin.js');
+        const { computeHostHeatScore } = await import('./guest-discovery-engine.js');
+
+        const db = getAdminDb();
+        const { hostId, timestamp } = data;
+
+        // Run the logic directly
+        const eventsSnap = await db.collection('events').where('hostId', '==', hostId).get();
+        let ticketSalesCount = 0;
+        eventsSnap.forEach((doc) => {
+          const eventData = doc.data() || {};
+          ticketSalesCount += eventData.ticketsStats?.totalSold || 0;
+        });
+
+        const hostSummaryRef = db.collection('host_summary').doc(hostId);
+        await db.runTransaction(async (transaction) => {
+          const doc = await transaction.get(hostSummaryRef);
+          if (!doc.exists) return;
+
+          const summaryData = doc.data() || {};
+          const newClickCount = Number(summaryData.clickCount || 0) + 1;
+          const newRecentClickCount = Number(summaryData.recentClickCount || 0) + 1;
+          const followersCount = Number(summaryData.followersCount || 0);
+
+          const newHeatScore = computeHostHeatScore({
+            followersCount,
+            clickCount: newClickCount,
+            ticketSalesCount,
+            recentClickCount: newRecentClickCount,
+          });
+
+          transaction.update(hostSummaryRef, {
+            clickCount: newClickCount,
+            recentClickCount: newRecentClickCount,
+            ticketSalesCount,
+            lastVisitedAt: timestamp || new Date().toISOString(),
+            heatScore: newHeatScore,
+            updatedAt: new Date().toISOString(),
+          });
+        });
+        console.log(`[Inngest Fallback] Successfully processed host click for ${hostId}`);
+      } catch (fallbackError) {
+        console.error('[Inngest Fallback] Failed to process host click manually', fallbackError);
       }
     }
 
