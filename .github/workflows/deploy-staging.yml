@@ -9,6 +9,10 @@ on:
 # before this code could merge to staging via branch protection.
 # No redundant validation step needed here — just deploy.
 
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
 jobs:
   sonar-analysis:
     runs-on: ubuntu-latest
