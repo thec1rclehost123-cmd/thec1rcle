@@ -7,10 +7,35 @@ on:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-  GCP_REGION: us-central1
+  # The real, currently-live service is `apii-gateway` (note the double "i")
+  # in asia-east1 — a manual deploy that predates this workflow. Previously
+  # this pointed at `api-gateway`/us-central1, which doesn't exist, so this
+  # job has never actually deployed anything.
+  GCP_SERVICE: apii-gateway
+  GCP_REGION: asia-east1
   GCR_HOSTNAME: gcr.io
 
 jobs:
+  # ── Detect which app areas changed, so e.g. a guest-portal-only push
+  # ── doesn't also rebuild and redeploy the untouched Cloud Run backend ──
+  detect-changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'apps/api-gateway/**'
+              - 'packages/core/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'turbo.json'
+
   # ── Shared setup ─────────────────────────────────────────────────
   install:
     name: Install
@@ -81,7 +106,8 @@ jobs:
   # ── API Gateway → Cloud Run ───────────────────────────────────────
   deploy-api-gateway:
     name: Deploy API Gateway (Cloud Run)
-    needs: install
+    needs: [install, detect-changes]
+    if: needs.detect-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     environment: production
     permissions:
@@ -107,14 +133,24 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
-      - name: Build & push to GCR
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker ${{ env.GCR_HOSTNAME }} --quiet
+      - name: Build & push image
+        # This monorepo's apps/api-gateway/Dockerfile does `COPY . .` and
+        # relies on turbo to prune the workspace, so it must be built with
+        # the repo root as context — `gcloud builds submit apps/api-gateway`
+        # (the previous version of this step) only uploaded that subfolder,
+        # which could never have satisfied the Dockerfile's own COPY.
         run: |
-          gcloud builds submit apps/api-gateway \
-            --tag ${{ env.GCR_HOSTNAME }}/${{ secrets.GCP_PROJECT_ID }}/api-gateway:${{ github.sha }}
+          docker build \
+            -f apps/api-gateway/Dockerfile \
+            -t ${{ env.GCR_HOSTNAME }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.GCP_SERVICE }}:${{ github.sha }} \
+            .
+          docker push ${{ env.GCR_HOSTNAME }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.GCP_SERVICE }}:${{ github.sha }}
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy api-gateway \
-            --image ${{ env.GCR_HOSTNAME }}/${{ secrets.GCP_PROJECT_ID }}/api-gateway:${{ github.sha }} \
+          gcloud run deploy ${{ env.GCP_SERVICE }} \
+            --image ${{ env.GCR_HOSTNAME }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.GCP_SERVICE }}:${{ github.sha }} \
             --region ${{ env.GCP_REGION }} \
             --platform managed
 
@@ -122,6 +158,11 @@ jobs:
   sentry-release:
     name: Sentry Release
     needs: [deploy-web, deploy-api-gateway]
+    # deploy-api-gateway is conditionally skipped when nothing backend-related
+    # changed (see detect-changes) — GitHub Actions treats a skipped dependency
+    # as not-successful by default, which would wrongly skip this job too on a
+    # web-only release. Only require deploy-web to have actually succeeded.
+    if: ${{ !cancelled() && needs.deploy-web.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

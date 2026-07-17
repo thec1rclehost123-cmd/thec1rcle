@@ -304,7 +304,7 @@ class EventCardIndexRepository {
     areaKey,
     hostId,
     venueId,
-    minStartAt,
+    minEndAt,
   }: {
     limit?: number;
     orderByField?: string;
@@ -321,30 +321,14 @@ class EventCardIndexRepository {
       if (areaKey) query = query.where('areaKey', '==', areaKey);
       if (hostId) query = query.where('hostId', '==', hostId);
       if (venueId) query = query.where('venueId', '==', venueId);
-      if (minStartAt && orderByField === 'startAt') {
-        query = query.where('startAt', '>=', minStartAt);
+      // Bound the Firestore-side fetch to non-past events when sorting
+      // soonest-first, so a growing backlog of past events (ordinary once
+      // the platform has been live a while) can't crowd every upcoming
+      // event out of the `limit` window before the in-memory
+      // isCurrentOrUpcomingGuestEvent filter ever runs.
+      if (minEndAt && orderByField === 'startAt' && direction === 'asc') {
+        query = query.where('startAt', '>=', minEndAt);
       }
-
-      // If we don't have cityKey, do sorting/limiting in-memory to avoid missing index error
-      if (!cityKey) {
-        const snapshot = await query.get();
-        const items = snapshot.docs.map(serializeDoc);
-
-        // Sort in memory
-        const multiplier = direction === 'desc' ? -1 : 1;
-        items.sort((left: any, right: any) => {
-          const a = left?.[orderByField] ?? null;
-          const b = right?.[orderByField] ?? null;
-          if (a === b) return 0;
-          if (a === null) return 1;
-          if (b === null) return -1;
-          if (typeof a === 'number' && typeof b === 'number') return (a - b) * multiplier;
-          return String(a).localeCompare(String(b)) * multiplier;
-        });
-
-        return items.slice(0, limit);
-      }
-
       const snapshot = await query.orderBy(orderByField, direction).limit(limit).get();
       return snapshot.docs.map(serializeDoc);
     } catch (error: any) {
@@ -961,17 +945,27 @@ export class PublicDiscoveryService {
         venueId: venueId || query.venueId || null,
       };
 
-      const resolvedShape = this.resolveEventQueryShape({ ...query, hostId, venueId });
-      const now = Date.now();
-      const minStartAt = new Date(now - 12 * 60 * 60 * 1000).toISOString();
+      const eventQueryShape = this.resolveEventQueryShape({ ...query, hostId, venueId });
+      // Firestore can only combine a `startAt` range filter with `orderBy('startAt')` —
+      // it can't be pushed alongside an orderBy on a different field (e.g. heatScore).
+      // For those sorts, over-fetch a much larger pool so enough upcoming events survive
+      // the isCurrentOrUpcomingGuestEvent filter below instead of being crowded out by a
+      // backlog of higher-ranked past events before the requested `limit` is ever applied.
+      const canFilterUpcomingInFirestore =
+        eventQueryShape.orderByField === 'startAt' && eventQueryShape.direction === 'asc';
+      const fetchLimit = canFilterUpcomingInFirestore
+        ? Math.min(Math.max(limit * 2, 24), 48)
+        : Math.min(Math.max(limit * 8, 96), 200);
 
-      const items = await this.events.queryList({
-        ...resolvedShape,
-        hostId,
-        venueId,
-        limit: 100,
-        minStartAt: resolvedShape.orderByField === 'startAt' ? minStartAt : undefined,
-      });
+      const items = searchNeedle
+        ? await this.events.querySearchPrefix(searchNeedle, Math.min(Math.max(limit * 2, 18), 48))
+        : await this.events.queryList({
+            ...eventQueryShape,
+            hostId,
+            venueId,
+            limit: fetchLimit,
+            minEndAt: new Date().toISOString().slice(0, 10),
+          });
       const normalizedItems = items.map((item: any) =>
         buildEventCardReadModel(item, {
           readModelVersion: item?.readModelVersion || EVENT_CARD_INDEX_VERSION,
@@ -1035,7 +1029,10 @@ export class PublicDiscoveryService {
         ...this.resolveEventQueryShape({ ...query, hostId, venueId, sort: 'heat' }),
         hostId,
         venueId,
-        limit: Math.min(Math.max(limit * 2, 12), 24),
+        // heatScore ordering can't carry a startAt range filter in Firestore, so
+        // over-fetch (see listEvents) rather than risk a backlog of higher-heat
+        // past events crowding every upcoming one out of a tight limit.
+        limit: Math.min(Math.max(limit * 8, 96), 200),
         orderByField: 'heatScore',
         direction: 'desc',
       });
@@ -1203,51 +1200,57 @@ export class PublicDiscoveryService {
   }
 
   async getHostPublicProfile(slug: string) {
-    try {
-      const host = await this.hosts.getBySlug(slug);
-      if (!host) return null;
-      const [rawDoc, postsSnap, highlightsSnap, statsSnap, allEvents] = await Promise.all([
-        this.db.collection('hosts').doc(host.id).get(),
-        this.db
-          .collection(PROFILE_POSTS)
-          .where('profileId', '==', host.id)
-          .where('profileType', '==', 'host')
-          .limit(12)
-          .get(),
-        this.db
-          .collection(PROFILE_HIGHLIGHTS)
-          .where('profileId', '==', host.id)
-          .where('profileType', '==', 'host')
-          .get(),
-        this.db.collection(PROFILE_STATS).doc(`host_${host.id}`).get(),
-        this.events.queryList({
+    const host = await this.hosts.getBySlug(slug);
+    if (!host) return null;
+    const [rawDoc, postsSnap, highlightsSnap, statsSnap, allEvents] = await Promise.all([
+      this.db
+        .collection('hosts')
+        .doc(host.id)
+        .get()
+        .catch(() => null),
+      this.db
+        .collection(PROFILE_POSTS)
+        .where('profileId', '==', host.id)
+        .where('profileType', '==', 'host')
+        .limit(12)
+        .get()
+        .catch(() => null),
+      this.db
+        .collection(PROFILE_HIGHLIGHTS)
+        .where('profileId', '==', host.id)
+        .where('profileType', '==', 'host')
+        .get()
+        .catch(() => null),
+      this.db
+        .collection(PROFILE_STATS)
+        .doc(`host_${host.id}`)
+        .get()
+        .catch(() => null),
+      this.events
+        .queryList({
           hostId: host.id,
           limit: 48,
           orderByField: 'startAt',
           direction: 'asc',
-        }),
-      ]);
-      const hostEvents = allEvents
-        .filter((event: any) => event.hostId === host.id)
-        .sort((a: any, b: any) => String(a.startAt || '').localeCompare(String(b.startAt || '')));
-      const rawHost = rawDoc?.exists ? serializeDoc(rawDoc) : {};
-      if (!isGuestPublicProfileEnabled({ ...rawHost, ...host })) return null;
-      return {
-        host: projectGuestHostDetail(rawHost, host),
-        stats: statsSnap?.exists
-          ? serializeDoc(statsSnap)
-          : { followersCount: host.followersCount, upcomingEventsCount: host.upcomingEventsCount },
-        posts: postsSnap?.docs?.map(serializeDoc) || [],
-        highlights: highlightsSnap?.docs?.map(serializeDoc) || [],
-        upcomingEvents: hostEvents
-          .filter((event: any) => event.statusKey === 'upcoming')
-          .slice(0, 6),
-        pastEvents: hostEvents.filter((event: any) => event.statusKey === 'ended').slice(0, 6),
-      };
-    } catch (error: any) {
-      console.error(`[PublicDiscoveryService] getHostPublicProfile failed for ${slug}:`, error);
-      throw error;
-    }
+          minEndAt: new Date().toISOString().slice(0, 10),
+        })
+        .catch(() => []),
+    ]);
+    const hostEvents = allEvents
+      .filter((event: any) => event.hostId === host.id)
+      .sort((a: any, b: any) => String(a.startAt || '').localeCompare(String(b.startAt || '')));
+    const rawHost = rawDoc?.exists ? serializeDoc(rawDoc) : {};
+    if (!isGuestPublicProfileEnabled({ ...rawHost, ...host })) return null;
+    return {
+      host: projectGuestHostDetail(rawHost, host),
+      stats: statsSnap?.exists
+        ? serializeDoc(statsSnap)
+        : { followersCount: host.followersCount, upcomingEventsCount: host.upcomingEventsCount },
+      posts: postsSnap?.docs?.map(serializeDoc) || [],
+      highlights: highlightsSnap?.docs?.map(serializeDoc) || [],
+      upcomingEvents: hostEvents.filter((event: any) => event.statusKey === 'upcoming').slice(0, 6),
+      pastEvents: hostEvents.filter((event: any) => event.statusKey === 'ended').slice(0, 6),
+    };
   }
 
   async listVenues(query: ListParams) {
@@ -1315,67 +1318,76 @@ export class PublicDiscoveryService {
   }
 
   async getVenuePublicProfile(slug: string) {
-    try {
-      const venue = await this.venues.getBySlug(slug);
-      if (!venue) return null;
-      const [rawDoc, highlightsSnap, statsSnap, menuSnap, allEvents, allVenues] = await Promise.all(
-        [
-          this.db.collection('venues').doc(venue.id).get(),
-          this.db
-            .collection(PROFILE_HIGHLIGHTS)
-            .where('profileId', '==', venue.id)
-            .where('profileType', '==', 'venue')
-            .get(),
-          this.db.collection(PROFILE_STATS).doc(`venue_${venue.id}`).get(),
-          this.db.collection(VENUE_MENU).where('venueId', '==', venue.id).limit(1).get(),
-          this.events.queryList({
-            venueId: venue.id,
-            limit: 96,
-            orderByField: 'startAt',
-            direction: 'asc',
-          }),
-          this.venues.queryList({
-            cityKey: venue.cityKey || null,
-            areaKey: venue.areaKey || null,
-            limit: 24,
-            orderByField: 'followersCount',
-            direction: 'desc',
-          }),
-        ],
-      );
-      const venueEvents = allEvents
-        .filter((event: any) => event.venueId === venue.id)
-        .sort((a: any, b: any) => String(a.startAt || '').localeCompare(String(b.startAt || '')));
-      const menuDoc = menuSnap && !menuSnap.empty ? serializeDoc(menuSnap.docs[0]) : null;
-      const similarVenues = allVenues
-        .filter(
-          (item: any) =>
-            item.id !== venue.id &&
-            (item.cityKey === venue.cityKey || item.areaKey === venue.areaKey),
-        )
-        .slice(0, 6);
-      const rawVenue = rawDoc?.exists ? serializeDoc(rawDoc) : {};
-      if (!isGuestPublicProfileEnabled({ ...rawVenue, ...venue })) return null;
-      return {
-        venue: projectGuestVenueDetail(rawVenue, venue, menuDoc as any),
-        stats: statsSnap?.exists
-          ? serializeDoc(statsSnap)
-          : {
-              followersCount: venue.followersCount,
-              upcomingEventsCount: venue.upcomingEventsCount,
-            },
-        highlights: highlightsSnap?.docs?.map(serializeDoc) || [],
-        upcomingEvents: venueEvents
-          .filter((event: any) => event.statusKey === 'upcoming')
-          .slice(0, 6),
-        pastEvents: venueEvents.filter((event: any) => event.statusKey === 'ended').slice(0, 20),
-        similarVenues,
-        menu: menuDoc,
-      };
-    } catch (error: any) {
-      console.error(`[PublicDiscoveryService] getVenuePublicProfile failed for ${slug}:`, error);
-      throw error;
-    }
+    const venue = await this.venues.getBySlug(slug);
+    if (!venue) return null;
+    const [rawDoc, highlightsSnap, statsSnap, menuSnap, allEvents, allVenues] = await Promise.all([
+      this.db
+        .collection('venues')
+        .doc(venue.id)
+        .get()
+        .catch(() => null),
+      this.db
+        .collection(PROFILE_HIGHLIGHTS)
+        .where('profileId', '==', venue.id)
+        .where('profileType', '==', 'venue')
+        .get()
+        .catch(() => null),
+      this.db
+        .collection(PROFILE_STATS)
+        .doc(`venue_${venue.id}`)
+        .get()
+        .catch(() => null),
+      this.db
+        .collection(VENUE_MENU)
+        .where('venueId', '==', venue.id)
+        .limit(1)
+        .get()
+        .catch(() => null),
+      this.events
+        .queryList({
+          venueId: venue.id,
+          limit: 96,
+          orderByField: 'startAt',
+          direction: 'asc',
+          minEndAt: new Date().toISOString().slice(0, 10),
+        })
+        .catch(() => []),
+      this.venues
+        .queryList({
+          cityKey: venue.cityKey || null,
+          areaKey: venue.areaKey || null,
+          limit: 24,
+          orderByField: 'followersCount',
+          direction: 'desc',
+        })
+        .catch(() => []),
+    ]);
+    const venueEvents = allEvents
+      .filter((event: any) => event.venueId === venue.id)
+      .sort((a: any, b: any) => String(a.startAt || '').localeCompare(String(b.startAt || '')));
+    const menuDoc = menuSnap && !menuSnap.empty ? serializeDoc(menuSnap.docs[0]) : null;
+    const similarVenues = allVenues
+      .filter(
+        (item: any) =>
+          item.id !== venue.id &&
+          (item.cityKey === venue.cityKey || item.areaKey === venue.areaKey),
+      )
+      .slice(0, 6);
+    const rawVenue = rawDoc?.exists ? serializeDoc(rawDoc) : {};
+    if (!isGuestPublicProfileEnabled({ ...rawVenue, ...venue })) return null;
+    return {
+      venue: projectGuestVenueDetail(rawVenue, venue, menuDoc as any),
+      stats: statsSnap?.exists
+        ? serializeDoc(statsSnap)
+        : { followersCount: venue.followersCount, upcomingEventsCount: venue.upcomingEventsCount },
+      highlights: highlightsSnap?.docs?.map(serializeDoc) || [],
+      upcomingEvents: venueEvents
+        .filter((event: any) => event.statusKey === 'upcoming')
+        .slice(0, 6),
+      pastEvents: venueEvents.filter((event: any) => event.statusKey === 'ended').slice(0, 20),
+      similarVenues,
+      menu: menuDoc,
+    };
   }
 
   async search(query: string, limit = 6) {

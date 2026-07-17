@@ -415,6 +415,14 @@
         ]
       }
     },
+    "/tickets/public/{entitlementId}": {
+      "get": {
+        "operationId": "getPublicTicket",
+        "tags": [
+          "tickets"
+        ]
+      }
+    },
     "/tickets/share": {
       "post": {
         "operationId": "createTicketShareBundle",

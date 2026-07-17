@@ -105,8 +105,8 @@ const CheckoutInitiateBody = z
     eventId: z.string().min(1).max(64).optional(),
     items: z.array(CheckoutItem).max(20).optional(),
     reservationId: z.string().min(1).max(128).optional(),
-    promoCode: z.string().min(2).max(50).optional(),
-    promoterCode: z.string().min(2).max(50).optional(),
+    promoCode: z.string().min(2).max(50).optional().nullable(),
+    promoterCode: z.string().min(2).max(50).optional().nullable(),
     linkId: z.string().min(1).max(128).optional().nullable(),
     deviceId: z.string().max(128).optional(),
     guestInputs: z.array(GuestInput).max(20).optional(),
@@ -909,6 +909,27 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           return reply
             .status(409)
             .send({ success: false, error: 'Checkout temporarily unavailable, please retry.' });
+        }
+
+        if (
+          error.message === 'Payment gateway is not configured' ||
+          error.message === 'Payment verification is not configured'
+        ) {
+          // Distinguish a real misconfiguration (missing RAZORPAY_KEY_ID/SECRET)
+          // from a generic failure so it's diagnosable from logs/alerts instead
+          // of looking identical to an unrelated 500 — the guest-facing message
+          // stays generic on purpose.
+          fastify.log.error(
+            `Checkout initiate blocked: Razorpay is not configured on this environment (${error.message})`,
+          );
+          Sentry.captureException(error, {
+            level: 'error',
+            tags: { type: 'payment_gateway_misconfigured', route: 'checkout_initiate' },
+          });
+          return reply.status(503).send({
+            success: false,
+            error: 'Payments are temporarily unavailable. Please try again shortly.',
+          });
         }
 
         fastify.log.error(`Initiate checkout failed: ${error.message}`);

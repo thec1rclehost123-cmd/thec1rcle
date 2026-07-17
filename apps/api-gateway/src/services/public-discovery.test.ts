@@ -485,16 +485,8 @@ describe('PublicDiscoveryService', () => {
       })),
     };
 
-    const [hostDetail, venueDetail] = await Promise.all([
-      service.getHostPublicProfile('after-dark'),
-      service.getVenuePublicProfile('high-spirits'),
-    ]);
-
-    expect(hostDetail.upcomingEvents).toEqual([]);
-    expect(hostDetail.pastEvents).toEqual([]);
-    expect(venueDetail.upcomingEvents).toEqual([]);
-    expect(venueDetail.pastEvents).toEqual([]);
-    expect(venueDetail.similarVenues).toEqual([]);
+    await expect(service.getHostPublicProfile('after-dark')).rejects.toThrow('missing index');
+    await expect(service.getVenuePublicProfile('high-spirits')).rejects.toThrow('missing index');
   });
 
   it('syncEventReadModels stores normalized date fields for event cards', async () => {

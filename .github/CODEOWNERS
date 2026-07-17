@@ -1,9 +1,18 @@
-# CI/CD workflow files require owner approval
-.github/workflows/**   @thec1rclehost123-cmd
+# Code owners — the last matching pattern wins.
+# Owners must have write access. When code-owner review is required,
+# a PR touching a path needs an approval from at least one of its owners.
 
-# Firebase and deployment config
-firebase.json          @thec1rclehost123-cmd
-functions/             @thec1rclehost123-cmd
+# Backend core
+/apps/api-gateway/ @rautsagar1625 @shriyashsawant @deepx12
+/packages/core/    @rautsagar1625 @shriyashsawant @deepx12
 
-# Core package (shared business logic)
-packages/core/         @thec1rclehost123-cmd
+# Mobile apps
+/apps/mobile-app/  @aayushdivase333-lab @thec1rclehost123-cmd @deepx12
+/apps/scanner-app/ @aayushdivase333-lab @thec1rclehost123-cmd @deepx12
+
+# CI, workflows, governance, and documentation
+/.github/ @shriyashsawant
+/docs/    @shriyashsawant
+
+# Shared UI
+/packages/ui/ @shriyashsawant @deepx12 @aayushdivase333-lab @thec1rclehost123-cmd

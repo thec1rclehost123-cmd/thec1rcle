@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { Download, Share2, ArrowLeft, Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 import ShimmerImage from '../../../components/ShimmerImage';
 import { formatEventDate, formatTimeIST } from '@c1rcle/core/time';
+import { getPublicTicket } from '../../../features/tickets/ticketApi';
 
 const QRCodeSVG = dynamic(() => import('qrcode.react').then((mod) => mod.QRCodeSVG), {
   ssr: false,
@@ -26,12 +27,8 @@ export default function TicketPageClient({ params: paramsPromise }) {
 
   const fetchTicket = async () => {
     try {
-      const res = await fetch(`/api/v1/tickets/public/${id}`);
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to load ticket details');
-      }
-      setTicket(data.ticket);
+      const data = await getPublicTicket(id);
+      setTicket(data);
     } catch (err) {
       setError(err.message);
     } finally {

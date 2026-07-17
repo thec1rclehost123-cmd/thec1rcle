@@ -470,6 +470,59 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         return { success: true, orderId, status: 'payment_pending' };
       }
 
+      const refundEntity = payload?.payload?.refund?.entity || payload?.refund || null;
+
+      if ((eventType === 'refund.processed' || eventType === 'refund.failed') && refundEntity?.id) {
+        const refundsSnap = await fastify.db
+          .collection('refund_requests')
+          .where('razorpayRefundId', '==', refundEntity.id)
+          .limit(1)
+          .get();
+
+        if (refundsSnap.empty) {
+          fastify.log.warn(`Webhook ${eventType} received for unknown refund ${refundEntity.id}`);
+          return { success: true, ignored: true, reason: 'refund_not_found' };
+        }
+
+        const refundDoc = refundsSnap.docs[0];
+        const refundData = refundDoc.data() as any;
+        const now = new Date().toISOString();
+
+        if (eventType === 'refund.processed') {
+          if (refundData.status !== 'completed') {
+            await fastify.db.runTransaction(async (t: any) => {
+              t.update(refundDoc.ref, { status: 'completed', updatedAt: now });
+              t.update(fastify.db.collection('orders').doc(refundData.orderId), {
+                refundStatus: 'completed',
+                updatedAt: now,
+              });
+            });
+          }
+        } else if (refundData.status !== 'failed') {
+          const previousStatus = refundData.previousStatus || 'confirmed';
+          const orderUpdate: any = { refundStatus: 'failed', updatedAt: now };
+          if (refundData.fullyRefunded) {
+            orderUpdate.status = previousStatus;
+          }
+          await fastify.db.runTransaction(async (t: any) => {
+            t.update(refundDoc.ref, {
+              status: 'failed',
+              failureReason: 'Razorpay reported refund.failed',
+              updatedAt: now,
+            });
+            t.update(fastify.db.collection('orders').doc(refundData.orderId), orderUpdate);
+          });
+        }
+
+        logPaymentEvent(request, `WEBHOOK_${eventType.toUpperCase().replace('.', '_')}`, {
+          orderId: refundData.orderId,
+          razorpayRefundId: refundEntity.id,
+          eventType,
+        });
+
+        return { success: true, orderId: refundData.orderId, eventType };
+      }
+
       const payoutEntity = payload?.payload?.payout?.entity || payload?.payout || null;
 
       if (eventType === 'payout.processed' && payoutEntity) {

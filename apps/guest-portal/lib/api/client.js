@@ -93,6 +93,11 @@ export async function guestApiFetch(path, options = {}) {
     headers: nextHeaders,
     credentials,
     cache,
+    // A hung request (dropped connection, backend restart mid-flight, etc.)
+    // must surface as an error rather than leave callers awaiting forever —
+    // this matters most for payment verification, where an infinite hang
+    // strands the guest on the processing screen with no feedback at all.
+    signal: rest.signal || AbortSignal.timeout(20000),
     ...rest,
   };
 
@@ -291,6 +296,8 @@ export const guestApi = Object.freeze({
     wallet: (options) => guestApiOperationJson('getGuestTickets', options),
     get: (ticketId, options) =>
       guestApiOperationJson('getGuestTicket', { params: { ticketId }, ...options }),
+    getPublic: (entitlementId, options) =>
+      guestApiOperationJson('getPublicTicket', { params: { entitlementId }, ...options }),
     share: (body, options) =>
       guestApiOperationJson('createTicketShareBundle', { body, ...options }),
     shareBundle: (query = '', options) =>
