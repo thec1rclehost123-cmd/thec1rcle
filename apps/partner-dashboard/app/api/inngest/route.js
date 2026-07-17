@@ -11,7 +11,11 @@ import {
   autoSyncOnPublish,
 } from '@c1rcle/core/workflows/search-sync';
 import { syncHostStats } from '@c1rcle/core/workflows/host-analytics';
-import { recalculateHeatScores } from '@c1rcle/core/workflows/heat-sorting';
+import {
+  recalculateHeatScores,
+  processVenueClick,
+  processHostClick,
+} from '@c1rcle/core/workflows/heat-sorting';
 import { maintenanceWarmup } from '@c1rcle/core/workflows/maintenance';
 
 /**
@@ -39,6 +43,8 @@ export const { GET, POST, PUT } = serve({
     // Analytics
     syncHostStats,
     recalculateHeatScores,
+    processVenueClick,
+    processHostClick,
 
     // Maintenance
     maintenanceWarmup,

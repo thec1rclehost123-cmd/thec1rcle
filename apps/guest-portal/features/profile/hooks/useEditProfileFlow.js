@@ -15,6 +15,8 @@ function buildInitialForm(profile) {
   };
 }
 
+const PHONE_DIGITS_REGEX = /^\d{10}$/;
+
 function normalizeProfileUpdate(formData, user) {
   const nextProfile = { ...formData };
   if (nextProfile.photoURL?.includes('firebasestorage.googleapis.com')) {
@@ -67,7 +69,9 @@ export function useEditProfileFlow({ onClose }) {
     fileInputRef: avatarCropper.fileInputRef,
     formData,
     handleChange: (event) => {
-      setFormData((previous) => ({ ...previous, [event.target.name]: event.target.value }));
+      const { name, value } = event.target;
+      const nextValue = name === 'phoneNumber' ? value.replace(/\D/g, '').slice(0, 10) : value;
+      setFormData((previous) => ({ ...previous, [name]: nextValue }));
     },
     handleCropCancel: avatarCropper.resetCropper,
     handleCropSave: async () => {
@@ -96,6 +100,10 @@ export function useEditProfileFlow({ onClose }) {
       setError('');
       setSuccess('');
       try {
+        if (formData.phoneNumber && !PHONE_DIGITS_REGEX.test(formData.phoneNumber)) {
+          throw new Error('Phone number must contain exactly 10 digits.');
+        }
+
         const normalizedProfile = normalizeProfileUpdate(formData, user);
         await updateUserProfile(normalizedProfile);
 

@@ -225,10 +225,14 @@ export default function EditProfileModal({ open, onClose }) {
                             <input
                               type="tel"
                               name="phoneNumber"
+                              inputMode="numeric"
+                              autoComplete="tel-national"
+                              maxLength={10}
+                              pattern="\d{10}"
                               value={formData.phoneNumber}
                               onChange={handleChange}
                               className="h-14 w-full rounded-2xl border border-black/[0.08] dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.05] px-6 text-sm font-bold tracking-wide text-black dark:text-white transition-all focus:border-orange/40 focus:bg-black/[0.05] dark:focus:bg-white/[0.08] focus:outline-none focus:ring-4 focus:ring-orange/5 placeholder:text-black/30 dark:placeholder:text-white/30"
-                              placeholder="+91 ••••• •••••"
+                              placeholder="10-digit mobile number"
                             />
                           </div>
                         </div>

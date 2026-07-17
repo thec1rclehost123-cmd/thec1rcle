@@ -1,5 +1,6 @@
 import { inngest, Events } from '../inngest-client.js';
 import { getAdminDb } from '../admin.js';
+import { computeVenueHeatScore, computeHostHeatScore } from '../guest-discovery-engine.js';
 
 /**
  * PRODUCTION WORKFLOW: Recalculate Event Heat Scores
@@ -60,5 +61,129 @@ export const recalculateHeatScores = inngest.createFunction(
 
       return { updated: events.length };
     });
+  },
+);
+
+/**
+ * PRODUCTION WORKFLOW: Process Venue Click
+ *
+ * Triggered by venue/click events. Recalculates popular analytics and heatScore.
+ */
+export const processVenueClick = inngest.createFunction(
+  {
+    id: 'process-venue-click',
+    name: 'Process Venue Click',
+  },
+  { event: 'venue/click' },
+  async ({ event, step }) => {
+    const { venueId, visitorId, timestamp } = event.data;
+    const db = getAdminDb();
+
+    // 1. Fetch ticket sales count from events collection
+    const ticketSalesCount = await step.run('fetch-ticket-sales-count', async () => {
+      const eventsSnap = await db.collection('events').where('venueId', '==', venueId).get();
+      let totalSales = 0;
+      eventsSnap.forEach((doc) => {
+        const eventData = doc.data() || {};
+        totalSales += eventData.ticketsStats?.totalSold || 0;
+      });
+      return totalSales;
+    });
+
+    // 2. Perform atomic transaction to update clicks and recalculate heatScore
+    await step.run('update-venue-popularity', async () => {
+      const venueSummaryRef = db.collection('venue_summary').doc(venueId);
+
+      await db.runTransaction(async (transaction) => {
+        const doc = await transaction.get(venueSummaryRef);
+        if (!doc.exists) return;
+
+        const data = doc.data() || {};
+        const newClickCount = Number(data.clickCount || 0) + 1;
+        const newRecentClickCount = Number(data.recentClickCount || 0) + 1;
+        const followersCount = Number(data.followersCount || 0);
+
+        // Compute heatScore
+        const newHeatScore = computeVenueHeatScore({
+          followersCount,
+          clickCount: newClickCount,
+          ticketSalesCount,
+          recentClickCount: newRecentClickCount,
+        });
+
+        transaction.update(venueSummaryRef, {
+          clickCount: newClickCount,
+          recentClickCount: newRecentClickCount,
+          ticketSalesCount,
+          lastVisitedAt: timestamp || new Date().toISOString(),
+          heatScore: newHeatScore,
+          updatedAt: new Date().toISOString(),
+        });
+      });
+    });
+
+    return { success: true };
+  },
+);
+
+/**
+ * PRODUCTION WORKFLOW: Process Host Click
+ *
+ * Triggered by host/click events. Recalculates popular analytics and heatScore.
+ */
+export const processHostClick = inngest.createFunction(
+  {
+    id: 'process-host-click',
+    name: 'Process Host Click',
+  },
+  { event: 'host/click' },
+  async ({ event, step }) => {
+    const { hostId, visitorId, timestamp } = event.data;
+    const db = getAdminDb();
+
+    // 1. Fetch ticket sales count from events collection
+    const ticketSalesCount = await step.run('fetch-ticket-sales-count', async () => {
+      const eventsSnap = await db.collection('events').where('hostId', '==', hostId).get();
+      let totalSales = 0;
+      eventsSnap.forEach((doc) => {
+        const eventData = doc.data() || {};
+        totalSales += eventData.ticketsStats?.totalSold || 0;
+      });
+      return totalSales;
+    });
+
+    // 2. Perform atomic transaction to update clicks and recalculate heatScore
+    await step.run('update-host-popularity', async () => {
+      const hostSummaryRef = db.collection('host_summary').doc(hostId);
+
+      await db.runTransaction(async (transaction) => {
+        const doc = await transaction.get(hostSummaryRef);
+        if (!doc.exists) return;
+
+        const data = doc.data() || {};
+        const newClickCount = Number(data.clickCount || 0) + 1;
+        const newRecentClickCount = Number(data.recentClickCount || 0) + 1;
+        const followersCount = Number(data.followersCount || 0);
+
+        // Compute heatScore
+        const newHeatScore = computeHostHeatScore({
+          followersCount,
+          clickCount: newClickCount,
+          ticketSalesCount,
+          recentClickCount: newRecentClickCount,
+        });
+
+        transaction.update(hostSummaryRef, {
+          clickCount: newClickCount,
+          recentClickCount: newRecentClickCount,
+          ticketSalesCount,
+          lastVisitedAt: timestamp || new Date().toISOString(),
+          heatScore: newHeatScore,
+          updatedAt: new Date().toISOString(),
+        });
+      });
+    });
+
+    return { success: true };
   },
 );

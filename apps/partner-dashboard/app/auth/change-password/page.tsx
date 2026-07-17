@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Shield, Loader2, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
@@ -24,21 +24,9 @@ function ChangePasswordContent() {
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  useEffect(() => {
-    // Check if temporary password is saved in session storage or URL query
-    if (typeof window !== 'undefined') {
-      const savedTemp = sessionStorage.getItem('tempPassword');
-      if (savedTemp) {
-        setCurrentPassword(savedTemp);
-      } else {
-        const urlParams = new URLSearchParams(window.location.search);
-        const queryTemp = urlParams.get('temp');
-        if (queryTemp) {
-          setCurrentPassword(queryTemp);
-        }
-      }
-    }
-  }, []);
+  // The temporary password is never stored client-side (browser storage / URL
+  // both leak secrets). Staff enter the temp password they received by email
+  // into the "current password" field below.
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,11 +66,6 @@ function ChangePasswordContent() {
         setErrorMsg(message);
         setSubmitting(false);
         return;
-      }
-
-      // Clear the temporary password from session storage on success
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('tempPassword');
       }
 
       setSuccess(true);

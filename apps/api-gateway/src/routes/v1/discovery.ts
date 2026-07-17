@@ -376,6 +376,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/',
     {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: DiscoveryPatchSchema })],
     },
     async (request: any, reply) => {
@@ -545,7 +546,6 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             initiatedBy: data.requesterType,
             fromPartnerId: data.requesterType === 'promoter' ? promoterId : data.requesterId,
             toPartnerId: data.targetType === 'promoter' ? promoterId : data.targetId,
-            createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
 
@@ -571,7 +571,16 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             }
           }
 
-          const ref = await fastify.db.collection(PROMOTER_CONNECTIONS_COL).add(doc);
+          let ref;
+          if (!existingConn.empty) {
+            const existingDoc = existingConn.docs[0];
+            ref = existingDoc.ref;
+            await ref.update(doc);
+            doc.createdAt = existingDoc.data()?.createdAt || new Date().toISOString();
+          } else {
+            doc.createdAt = new Date().toISOString();
+            ref = await fastify.db.collection(PROMOTER_CONNECTIONS_COL).add(doc);
+          }
 
           // Write notification for the recipient partner
           const isPromoterInitiated = doc.initiatedBy === 'promoter';
@@ -591,7 +600,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             title: 'New Connection Request',
             message: `${senderName} wants to connect with you.`,
             read: false,
-            createdAt: doc.createdAt,
+            createdAt: new Date().toISOString(),
             data: {
               connectionId: ref.id,
               promoterId: doc.promoterId,
@@ -634,7 +643,6 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             initiatedBy: data.requesterType,
             fromPartnerId: data.requesterId,
             toPartnerId: data.targetId,
-            createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
 
@@ -650,7 +658,16 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             partnershipDoc.hostName = data.targetName;
           }
 
-          const ref = await fastify.db.collection(PARTNERSHIPS_COL).add(partnershipDoc);
+          let ref;
+          if (!existingPartnership.empty) {
+            const existingDoc = existingPartnership.docs[0];
+            ref = existingDoc.ref;
+            await ref.update(partnershipDoc);
+            partnershipDoc.createdAt = existingDoc.data()?.createdAt || new Date().toISOString();
+          } else {
+            partnershipDoc.createdAt = new Date().toISOString();
+            ref = await fastify.db.collection(PARTNERSHIPS_COL).add(partnershipDoc);
+          }
 
           // Write notification for the recipient partner
           const initiatedBy = partnershipDoc.initiatedBy || 'host';
@@ -670,7 +687,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             title: 'New Connection Request',
             message: `${senderName} wants to connect with you.`,
             read: false,
-            createdAt: partnershipDoc.createdAt,
+            createdAt: new Date().toISOString(),
             data: {
               partnershipId: ref.id,
               hostId: partnershipDoc.hostId,

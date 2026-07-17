@@ -1,4 +1,5 @@
 // @ts-nocheck
+// Triggering reload for compiled packages/core/dist changes
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import compress from '@fastify/compress';
@@ -80,7 +81,7 @@ const __dirname = path.dirname(__filename);
 
 const server = Fastify({
   trustProxy: process.env.NODE_ENV === 'production',
-  bodyLimit: 1048576, // 🛡️ Security: Limit request body to 1MB to prevent OOM attacks
+  bodyLimit: 11 * 1024 * 1024, // 🛡️ Security: bound request body size (OOM protection) while covering the 10MB multipart fileSize limit registered below
   genReqId: function (req) {
     return (req.headers['x-request-id'] as string) || crypto.randomUUID();
   },

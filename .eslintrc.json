@@ -9,14 +9,23 @@
     "sourceType": "module"
   },
   "rules": {
-    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ],
     "no-undef": "error",
     "prefer-const": "warn",
     "no-console": "off"
   },
   "overrides": [
     {
-      "files": ["*.ts", "*.tsx"],
+      "files": [
+        "*.ts",
+        "*.tsx"
+      ],
       "parser": "@typescript-eslint/parser",
       "parserOptions": {
         "ecmaVersion": 2022,
@@ -29,12 +38,21 @@
       }
     },
     {
-      "files": ["*.d.ts"],
+      "files": [
+        "*.d.ts"
+      ],
       "rules": {
         "no-unused-vars": "off",
         "no-undef": "off"
       }
     }
   ],
-  "ignorePatterns": ["node_modules", ".next", "dist", "build", "coverage", ".turbo"]
+  "ignorePatterns": [
+    "node_modules",
+    ".next",
+    "dist",
+    "build",
+    "coverage",
+    ".turbo"
+  ]
 }

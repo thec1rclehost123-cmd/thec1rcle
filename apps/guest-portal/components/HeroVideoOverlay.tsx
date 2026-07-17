@@ -5,7 +5,7 @@ import Link from 'next/link';
 export default function HeroVideoOverlay() {
   return (
     <>
-      <style jsx>{`
+      <style>{`
         @keyframes fade-in-up {
           from {
             opacity: 0;

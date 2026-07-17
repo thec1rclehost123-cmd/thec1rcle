@@ -339,10 +339,26 @@ export async function recordConversion(linkId, orderId, orderAmount, ticketTierI
   const linkDoc = await db.collection(LINKS_COLLECTION).doc(linkId).get();
   if (!linkDoc.exists) return null;
   const link = linkDoc.data();
+
+  // Custom compensation model: look up this tier's own rate. Falls back to the
+  // link's flat rate for Standard (one rate for everyone) and Salary (rate 0).
+  const tierCommission = ticketTierId ? link.tierCommissions?.[ticketTierId] : null;
+  const commissionRate = tierCommission ? tierCommission.rate : link.commissionRate;
+  const commissionType = tierCommission ? tierCommission.type : link.commissionType;
+
+  // Use ?? rather than || so an intentional 0% / ₹0 commission (a valid,
+  // explicitly-allowed value for the Custom compensation model) isn't
+  // silently replaced by the fallback default.
+  //
+  // A zero-value order means a free (RSVP) ticket — a fixed/flat commission
+  // rate must never fire on it, or promoters would earn a payout on tickets
+  // that generated no revenue.
   const commissionAmount =
-    link.commissionType === 'percentage'
-      ? Math.round(orderAmount * ((link.commissionRate ?? 15) / 100))
-      : (link.commissionRate ?? 50);
+    orderAmount > 0
+      ? commissionType === 'percentage'
+        ? Math.round(orderAmount * ((commissionRate ?? 15) / 100))
+        : (commissionRate ?? 50)
+      : 0;
   const now = new Date().toISOString();
   const commissionId = randomUUID();
   const commissionRecord = {
@@ -354,8 +370,8 @@ export async function recordConversion(linkId, orderId, orderAmount, ticketTierI
     orderId,
     orderAmount,
     ticketTierId: ticketTierId || 'multi',
-    commissionRate: link.commissionRate,
-    commissionType: link.commissionType,
+    commissionRate,
+    commissionType,
     commissionAmount,
     status: 'pending',
     createdAt: now,

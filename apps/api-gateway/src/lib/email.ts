@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 
 export function generateTemporaryPassword(): string {
   const uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -7,24 +7,29 @@ export function generateTemporaryPassword(): string {
   const symbols = '!@#$%&*';
 
   const all = uppercase + lowercase + numbers + symbols;
-  let pwd = '';
 
-  // Ensure at least one of each category
-  pwd += uppercase[randomBytes(1)[0] % uppercase.length];
-  pwd += lowercase[randomBytes(1)[0] % lowercase.length];
-  pwd += numbers[randomBytes(1)[0] % numbers.length];
-  pwd += symbols[randomBytes(1)[0] % symbols.length];
+  // randomInt uses rejection sampling, so it is unbiased (unlike `bytes % len`).
+  const chars: string[] = [
+    // Ensure at least one of each category
+    uppercase[randomInt(uppercase.length)],
+    lowercase[randomInt(lowercase.length)],
+    numbers[randomInt(numbers.length)],
+    symbols[randomInt(symbols.length)],
+  ];
 
   // Fill the rest up to 12 chars
   for (let i = 0; i < 8; i++) {
-    pwd += all[randomBytes(1)[0] % all.length];
+    chars.push(all[randomInt(all.length)]);
   }
 
-  // Shuffle password characters
-  return pwd
-    .split('')
-    .sort(() => randomBytes(1)[0] - 128)
-    .join('');
+  // Fisher-Yates shuffle (unbiased) so the guaranteed categories are not
+  // always in the first four positions.
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join('');
 }
 
 export async function sendInvitationEmail({
@@ -49,15 +54,11 @@ export async function sendInvitationEmail({
     if (process.env.NODE_ENV === 'production') {
       throw new Error('Email provider (Resend API key) not configured');
     }
-    console.log('\n========================================');
-    console.log(`MOCK EMAIL INVITATION for ${recipient}:`);
-    console.log(`To: ${name}`);
-    console.log(`Venue: ${venueName}`);
-    console.log(`Role: ${roleLabel}`);
-    console.log(`Temp Password: ${tempPassword}`);
-    console.log(`Accept Link: ${acceptLink}`);
-    console.log(`Set Password Link: ${setPasswordLink}`);
-    console.log('========================================\n');
+    // Resend not configured (local dev). Do not log invitation details —
+    // recipient/name/venue are user-controlled (log injection) and the temp
+    // password is a secret. The temp password is returned to the caller in the
+    // API response for dev testing.
+    console.log('[dev] Resend API key not configured — invitation email not sent (mock).');
     return;
   }
 
@@ -135,13 +136,9 @@ export async function sendHostInvitationEmail({
     if (process.env.NODE_ENV === 'production') {
       throw new Error('Email provider (Resend API key) not configured');
     }
-    console.log('\n========================================');
-    console.log(`MOCK EMAIL INVITATION for ${recipient}:`);
-    console.log(`To: ${name}`);
-    console.log(`Host: ${partnerName}`);
-    console.log(`Role: ${roleLabel}`);
-    console.log(`Accept Link: ${acceptLink}`);
-    console.log('========================================\n');
+    // Resend not configured (local dev). Do not log user-controlled invitation
+    // details (log injection) or secrets.
+    console.log('[dev] Resend API key not configured — host invitation email not sent (mock).');
     return;
   }
 

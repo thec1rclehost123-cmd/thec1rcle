@@ -329,6 +329,10 @@ export default async function supportRoutes(fastify: FastifyInstance) {
         if (!data) {
           return reply.status(404).send({ error: 'Ticket data not found' });
         }
+        // Ownership guard: users may only act on their own tickets
+        if (String(data.userId || '') !== request.user.uid) {
+          return reply.status(403).send({ error: 'Forbidden' });
+        }
         const oldTimeline = data.timeline || [];
         const oldMessages = data.messages || [];
 
@@ -391,6 +395,10 @@ export default async function supportRoutes(fastify: FastifyInstance) {
         if (!data) {
           return reply.status(404).send({ error: 'Ticket data not found' });
         }
+        // Ownership guard: users may only act on their own tickets
+        if (String(data.userId || '') !== request.user.uid) {
+          return reply.status(403).send({ error: 'Forbidden' });
+        }
         const oldTimeline = data.timeline || [];
 
         const feedback = {
@@ -446,6 +454,10 @@ export default async function supportRoutes(fastify: FastifyInstance) {
         const data = doc.data();
         if (!data) {
           return reply.status(404).send({ error: 'Ticket data not found' });
+        }
+        // Ownership guard: users may only act on their own tickets
+        if (String(data.userId || '') !== request.user.uid) {
+          return reply.status(403).send({ error: 'Forbidden' });
         }
         const oldTimeline = data.timeline || [];
 

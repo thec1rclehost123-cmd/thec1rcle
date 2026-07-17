@@ -35,7 +35,7 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
-      <body className="antialiased">
+      <body className="antialiased" suppressHydrationWarning>
         <WebVitals />
         <ThemeProvider
           attribute="class"

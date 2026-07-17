@@ -58,9 +58,11 @@ function StaffInviteContent() {
           setErrorMsg(data.error);
           setStep('error');
         } else if (data.status === 'active' || data.status === 'accepted') {
+          // Never carry the temp password in the URL (leaks via history / referer
+          // / server logs). Staff enter it manually on the change-password page.
           const redirectUrl = isHost
-            ? `/auth/change-password?code=${code}&host=${hostId}&status=accepted&temp=${tempPasswordParam}`
-            : `/auth/change-password?code=${code}&venue=${venueId}&status=accepted&temp=${tempPasswordParam}`;
+            ? `/auth/change-password?code=${code}&host=${hostId}&status=accepted`
+            : `/auth/change-password?code=${code}&venue=${venueId}&status=accepted`;
           router.replace(redirectUrl);
         } else {
           setInviteInfo(data);
@@ -98,19 +100,15 @@ function StaffInviteContent() {
 
       const tempPassword = tempPasswordParam || data.tempPassword;
 
-      // Store temporary password in session storage for the change password page
-      if (typeof window !== 'undefined' && tempPassword) {
-        sessionStorage.setItem('tempPassword', tempPassword);
-      }
-
-      // Sign in the user using Firebase Auth client
+      // Sign in with the temp password (used in-memory only; never persisted to
+      // browser storage or the URL — staff re-enter it on the change-password page).
       await signIn(inviteInfo?.email || data.email, tempPassword);
 
       setStep('success');
       setTimeout(() => {
-        router.replace(
-          tempPassword ? `/auth/change-password?temp=${tempPassword}` : '/auth/change-password',
-        );
+        // Do not put the temp password in the URL (leaks via history / referer /
+        // server logs). The change-password page reads it from sessionStorage.
+        router.replace('/auth/change-password');
       }, 1500);
     } catch (err: any) {
       console.error(err);

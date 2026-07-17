@@ -1547,14 +1547,31 @@ export const adminStore = {
       liveUsers: 0,
       liveHosts: 0,
       liveVenues: 0,
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date(0).toISOString(),
     };
-    const baseStats = statsDoc.exists ? { ...defaultStats, ...statsDoc.data() } : defaultStats;
+    let baseStats = statsDoc.exists ? { ...defaultStats, ...statsDoc.data() } : defaultStats;
 
     // 2. Detect staleness (> 30 mins)
     const lastSyncDate = new Date(baseStats.updatedAt || 0);
     const staleThresholdMs = 30 * 60 * 1000;
-    const isStale = Date.now() - lastSyncDate.getTime() > staleThresholdMs;
+    let isStale = Date.now() - lastSyncDate.getTime() > staleThresholdMs;
+
+    // Auto-compute if stats are missing or stale (especially important for dev local mode)
+    if (
+      !statsDoc.exists ||
+      isStale ||
+      baseStats.liveUsers === undefined ||
+      baseStats.revenue?.total === undefined ||
+      baseStats.hosts_pending === undefined
+    ) {
+      try {
+        console.log('[PlatformStats] Stats are stale or missing. Auto-computing stats...');
+        baseStats = await this.computePlatformStats();
+        isStale = false;
+      } catch (err) {
+        console.error('Failed to auto-compute platform stats:', err);
+      }
+    }
 
     // 3. Fetch truly transient data that shouldn't be lagged (audit logs)
     const logsSnapshot = await db
@@ -1578,9 +1595,9 @@ export const adminStore = {
       pendingReviewsCount: baseStats.pendingReviewsCount,
       activeIncidentsCount: baseStats.activeIncidentsCount,
       liveEvents: baseStats.liveEvents,
-      liveUsers: baseStats.liveUsers,
-      liveHosts: baseStats.liveHosts,
-      liveVenues: baseStats.liveVenues,
+      liveUsers: baseStats.liveUsers || baseStats.users_total || 0,
+      liveHosts: baseStats.liveHosts || baseStats.hosts_total || 0,
+      liveVenues: baseStats.liveVenues || baseStats.venues_total?.active || 0,
       recentLogs,
       lastSync: baseStats.updatedAt,
       isStale,
@@ -1595,16 +1612,59 @@ export const adminStore = {
     const db = getAdminDb();
     console.log('[PlatformStats] Starting heavy aggregation...');
 
-    const [pendingSnap, incidentSnap, eventSnap, userSnap, hostSnap, venueSnap] = await Promise.all(
-      [
-        db.collection('onboarding_requests').where('status', '==', 'pending').count().get(),
-        db.collection('incidents').where('status', '==', 'active').count().get(),
-        db.collection('events').where('status', '==', 'live').count().get(),
-        db.collection('users').count().get(),
-        db.collection('hosts').count().get(),
-        db.collection('venues').where('status', '==', 'active').count().get(),
-      ],
-    );
+    const [
+      pendingSnap,
+      incidentSnap,
+      eventSnap,
+      userSnap,
+      hostSnap,
+      activeVenueSnap,
+      suspendedVenueSnap,
+      totalEventsSnap,
+      pendingVenueOnboardingSnap,
+      pendingHostOnboardingSnap,
+    ] = await Promise.all([
+      db.collection('onboarding_requests').where('status', '==', 'pending').count().get(),
+      db.collection('incidents').where('status', '==', 'active').count().get(),
+      db.collection('events').where('status', '==', 'live').count().get(),
+      db.collection('users').count().get(),
+      db.collection('hosts').count().get(),
+      db.collection('venues').where('status', '==', 'active').count().get(),
+      db.collection('venues').where('status', '==', 'suspended').count().get(),
+      db.collection('events').count().get(),
+      db
+        .collection('onboarding_requests')
+        .where('status', '==', 'pending')
+        .where('type', '==', 'venue')
+        .count()
+        .get(),
+      db
+        .collection('onboarding_requests')
+        .where('status', '==', 'pending')
+        .where('type', '==', 'host')
+        .count()
+        .get(),
+    ]);
+
+    // Query orders to compute total revenue and tickets sold
+    let totalRevenue = 0;
+    let ticketsSoldTotal = 0;
+    try {
+      const ordersSnap = await db.collection('orders').get();
+      ordersSnap.forEach((doc) => {
+        const order = doc.data();
+        if (order.status === 'confirmed' || order.status === 'checked_in') {
+          totalRevenue += Number(order.totalAmount) || 0;
+          if (Array.isArray(order.tickets)) {
+            order.tickets.forEach((ticket) => {
+              ticketsSoldTotal += Number(ticket.quantity) || 0;
+            });
+          }
+        }
+      });
+    } catch (err) {
+      console.error('Error scanning orders for revenue calculation:', err);
+    }
 
     const stats = {
       pendingReviewsCount: pendingSnap.data().count,
@@ -1612,12 +1672,28 @@ export const adminStore = {
       liveEvents: eventSnap.data().count,
       liveUsers: userSnap.data().count,
       liveHosts: hostSnap.data().count,
-      liveVenues: venueSnap.data().count,
+      liveVenues: activeVenueSnap.data().count,
+      users_total: userSnap.data().count,
+      events_total: totalEventsSnap.data().count,
+      hosts_total: hostSnap.data().count,
+      venues_total: {
+        active: activeVenueSnap.data().count,
+        pending: pendingVenueOnboardingSnap.data().count,
+        suspended: suspendedVenueSnap.data().count,
+      },
+      hosts_pending: pendingHostOnboardingSnap.data().count,
+      revenue: {
+        total: totalRevenue,
+        ticket_commissions: totalRevenue * 0.15,
+        boosts: 0,
+        subscriptions: 0,
+      },
+      tickets_sold_total: ticketsSoldTotal,
       updatedAt: new Date().toISOString(),
     };
 
     await db.collection('platform_stats').doc('current').set(stats, { merge: true });
-    console.log('[PlatformStats] Computed and sync successfully.');
+    console.log('[PlatformStats] Computed and synced successfully.');
     return stats;
   },
 
