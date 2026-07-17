@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { getAdminDb } from './admin.js';
 import {
   MONEY_STATES,

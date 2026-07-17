@@ -873,8 +873,11 @@ export const adminStore = {
         const result = await redis.set(key, '1', 'EX', IDEMPOTENCY_TTL_SEC, 'NX');
         return result === null;
       }
-    } catch (_) {
-      /* Redis unavailable — fall through to Firestore */
+    } catch (error) {
+      console.warn(
+        '[adminStore] Redis unavailable for idempotency check, falling back to Firestore:',
+        error,
+      );
     }
 
     // ── Fallback: Firestore transaction ───────────────────────────────────
@@ -899,8 +902,11 @@ export const adminStore = {
           createdAt: FieldValue.serverTimestamp(),
         });
       });
-    } catch (_) {
-      /* Transaction error — fail open to avoid blocking legitimate actions */
+    } catch (error) {
+      console.error(
+        '[adminStore] Idempotency Firestore transaction failed, failing open to avoid blocking:',
+        error,
+      );
     }
     return duplicate;
   },
@@ -1597,8 +1603,9 @@ export const adminStore = {
     });
     try {
       await auth.setCustomUserClaims(adminId, { admin_role: newRole });
-    } catch (_) {
-      /* non-critical — DB updated, claims refresh on next login */
+    } catch (error) {
+      console.error(`[adminStore] Failed to set custom user claims for admin ${adminId}:`, error);
+      throw error;
     }
     await this.logAdminAction({
       adminId: actingAdminId,
@@ -1803,6 +1810,7 @@ export const adminStore = {
       });
     } catch (err) {
       console.error('Error scanning orders for revenue calculation:', err);
+      throw err;
     }
 
     const stats = {
@@ -1933,8 +1941,8 @@ export const adminStore = {
     const [field, dir] = sortBy ? [sortBy, 'desc'] : ORDER_MAP[collection] || defaultOrder;
     try {
       query = query.orderBy(field, dir);
-    } catch (_) {
-      /* no orderBy if field missing */
+    } catch (error) {
+      console.warn(`[adminStore] Failed to order collection ${collection} by ${field}:`, error);
     }
     if (cursor) {
       const cursorDoc = await db.collection(collection).doc(cursor).get();

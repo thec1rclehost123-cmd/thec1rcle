@@ -3,11 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
 import { generateTemporaryPassword, sendInvitationEmail } from '../../../lib/email.js';
-import {
-  getPartnerProfileSummary,
-  getConnectionForViewer,
-  getPartnerProfileWithPii,
-} from '../../../utils/partner-profiles.js';
+import { getPartnerProfileWithPii } from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { VenueService } from '../../../services/unified/venue-service.js';
 import { SchedulingService } from '../../../services/unified/scheduling-service.js';
@@ -5720,12 +5716,11 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
         if (rest.startsWith('partners/') && request.method === 'GET') {
           const partnerId = rest.slice('partners/'.length);
-          const result = await getPartnerProfileWithPii(
-            fastify.db,
+          const result = await getPartnerProfileWithPii(fastify.db, {
+            viewerRole: ctx.type,
+            viewerId: ctx.partnerId,
             partnerId,
-            ctx.type,
-            ctx.partnerId,
-          );
+          });
           if (!result) {
             return reply.status(404).send(
               buildErrorResponse({

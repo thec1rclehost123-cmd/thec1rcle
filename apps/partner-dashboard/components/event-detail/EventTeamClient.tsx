@@ -119,7 +119,7 @@ function AddTeamMemberModal({
 
   function handleContinue(e: React.FormEvent) {
     e.preventDefault();
-    if (!manual.firstName.trim()) return;
+    if (!manual.firstName.trim() || !manual.email.trim()) return;
     onAdd(manual);
     handleClose();
   }
@@ -324,7 +324,7 @@ function AddTeamMemberModal({
                   className="block text-[11px] font-semibold mb-1.5"
                   style={{ color: 'var(--v-text-secondary)' }}
                 >
-                  Email
+                  Email *
                 </label>
                 <input
                   style={inputStyle}
@@ -332,6 +332,7 @@ function AddTeamMemberModal({
                   placeholder="email@example.com"
                   value={manual.email}
                   onChange={setM('email')}
+                  required
                   onFocus={focusOrange}
                   onBlur={blurBorder}
                 />
@@ -530,11 +531,13 @@ export default function EventTeamClient({ eventId }: { eventId: string }) {
 
   async function handleAddStaff(manual: ManualForm) {
     if (!venueId) return;
+    if (!manual.email?.trim()) {
+      alert('Email is required.');
+      return;
+    }
     setStaffLoading(true);
     const name = `${manual.firstName} ${manual.lastName}`.trim();
-    const email =
-      manual.email ||
-      `${manual.firstName.toLowerCase()}.${manual.lastName.toLowerCase()}@example.com`;
+    const email = manual.email.trim();
     try {
       const res = await authedFetch(`/api/partners/venues/staff`, {
         method: 'POST',

@@ -128,7 +128,12 @@ function decodeDiscoveryCursor(rawCursor: any): DiscoveryListCursor | null {
         id: parsed.id,
       };
     }
-  } catch {}
+  } catch (error: any) {
+    console.warn(
+      '[PublicDiscoveryService] decodeDiscoveryCursor failed to parse cursor:',
+      error.message,
+    );
+  }
   return null;
 }
 
@@ -283,11 +288,12 @@ class EventCardIndexRepository {
   }
 
   async delete(id: string) {
-    await this.db
-      .collection(EVENT_CARD_INDEX)
-      .doc(id)
-      .delete()
-      .catch(() => undefined);
+    try {
+      await this.db.collection(EVENT_CARD_INDEX).doc(id).delete();
+    } catch (error: any) {
+      console.error(`[EventCardRepository] delete failed for ${id}:`, error);
+      throw error;
+    }
   }
 
   async queryList({
@@ -343,8 +349,7 @@ class EventCardIndexRepository {
       return snapshot.docs.map(serializeDoc);
     } catch (error: any) {
       console.error(`[PublicDiscoveryService] queryList failed for ${EVENT_CARD_INDEX}`, error);
-      // 🛡️ Reliability: Do NOT fallback to listAll(). Return empty to protect scale.
-      return [];
+      throw error;
     }
   }
 
@@ -368,7 +373,7 @@ class EventCardIndexRepository {
         `[PublicDiscoveryService] querySearchPrefix failed for ${EVENT_CARD_INDEX}`,
         error,
       );
-      return [];
+      throw error;
     }
   }
 }
@@ -432,7 +437,7 @@ class HostSummaryRepository {
       return snapshot.docs.map(serializeDoc);
     } catch (error: any) {
       console.error(`[PublicDiscoveryService] queryList failed for ${HOST_SUMMARY}`, error);
-      return [];
+      throw error;
     }
   }
 
@@ -453,7 +458,7 @@ class HostSummaryRepository {
       return snapshot.docs.map(serializeDoc);
     } catch (error: any) {
       console.error(`[PublicDiscoveryService] querySearchPrefix failed for ${HOST_SUMMARY}`, error);
-      return [];
+      throw error;
     }
   }
 }
@@ -515,7 +520,7 @@ class VenueSummaryRepository {
       return snapshot.docs.map(serializeDoc);
     } catch (error: any) {
       console.error(`[PublicDiscoveryService] queryList failed for ${VENUE_SUMMARY}`, error);
-      return [];
+      throw error;
     }
   }
 
@@ -539,7 +544,7 @@ class VenueSummaryRepository {
         `[PublicDiscoveryService] querySearchPrefix failed for ${VENUE_SUMMARY}`,
         error,
       );
-      return [];
+      throw error;
     }
   }
 }
@@ -601,16 +606,26 @@ export class PublicDiscoveryService {
     if (query.hostId) return String(query.hostId);
     const slug = query.hostSlug || query.host || null;
     if (!slug) return null;
-    const host = await this.hosts.getBySlug(String(slug)).catch(() => null);
-    return host?.id || null;
+    try {
+      const host = await this.hosts.getBySlug(String(slug));
+      return host?.id || null;
+    } catch (error: any) {
+      console.error(`[PublicDiscoveryService] resolveHostId failed for slug ${slug}:`, error);
+      throw error;
+    }
   }
 
   private async resolveVenueId(query: ListParams = {}) {
     if (query.venueId) return String(query.venueId);
     const slug = query.venueSlug || query.venue || null;
     if (!slug) return null;
-    const venue = await this.venues.getBySlug(String(slug)).catch(() => null);
-    return venue?.id || null;
+    try {
+      const venue = await this.venues.getBySlug(String(slug));
+      return venue?.id || null;
+    } catch (error: any) {
+      console.error(`[PublicDiscoveryService] resolveVenueId failed for slug ${slug}:`, error);
+      throw error;
+    }
   }
 
   async bootstrapReadModels(log: BootstrapLogger = console) {
@@ -653,13 +668,14 @@ export class PublicDiscoveryService {
   }
 
   private async getBootstrapState(): Promise<BootstrapState | null> {
-    const doc = await this.db
-      .collection(SYSTEM_META)
-      .doc(PUBLIC_DISCOVERY_BOOTSTRAP_DOC)
-      .get()
-      .catch(() => null);
-    if (!doc?.exists) return null;
-    return doc.data() as BootstrapState;
+    try {
+      const doc = await this.db.collection(SYSTEM_META).doc(PUBLIC_DISCOVERY_BOOTSTRAP_DOC).get();
+      if (!doc?.exists) return null;
+      return doc.data() as BootstrapState;
+    } catch (error: any) {
+      console.error('[PublicDiscoveryService] getBootstrapState failed:', error);
+      throw error;
+    }
   }
 
   private isBootstrapStateCurrent(state: BootstrapState | null) {
@@ -814,8 +830,12 @@ export class PublicDiscoveryService {
     const card = buildEventCardReadModel(event, { readModelVersion: EVENT_CARD_INDEX_VERSION });
     await this.events.upsert(event.id, card);
     // ⚡ Performance: Invalidate the public discovery cache for events
-    await bumpCacheVersion('events').catch(() => null);
-    await bumpCacheVersion('search').catch(() => null);
+    await bumpCacheVersion('events').catch((error: any) => {
+      console.error('[PublicDiscoveryService] bumpCacheVersion failed for events:', error);
+    });
+    await bumpCacheVersion('search').catch((error: any) => {
+      console.error('[PublicDiscoveryService] bumpCacheVersion failed for search:', error);
+    });
   }
 
   async syncHostReadModels(hostId: string) {
@@ -833,7 +853,16 @@ export class PublicDiscoveryService {
       (event) => event.hostId === host.id && event.visibility === 'public',
     );
     // Load existing popularity statistics to prevent rebuild overwrites
-    const existingSummary = await this.hosts.get(host.id).catch(() => null);
+    let existingSummary = null;
+    try {
+      existingSummary = await this.hosts.get(host.id);
+    } catch (error: any) {
+      console.error(
+        `[PublicDiscoveryService] syncHostReadModelsFromSnapshot: failed to get host ${host.id}:`,
+        error,
+      );
+      throw error;
+    }
     const summary = buildHostSummaryReadModel(
       {
         ...host,
@@ -849,8 +878,12 @@ export class PublicDiscoveryService {
     );
     await this.hosts.upsert(host.id, summary);
     // ⚡ Performance: Invalidate the public discovery cache for hosts
-    await bumpCacheVersion('hosts').catch(() => null);
-    await bumpCacheVersion('search').catch(() => null);
+    await bumpCacheVersion('hosts').catch((error: any) => {
+      console.error('[PublicDiscoveryService] bumpCacheVersion failed for hosts:', error);
+    });
+    await bumpCacheVersion('search').catch((error: any) => {
+      console.error('[PublicDiscoveryService] bumpCacheVersion failed for search:', error);
+    });
   }
 
   async syncVenueReadModels(venueId: string) {
@@ -867,23 +900,26 @@ export class PublicDiscoveryService {
     const eventCards = (eventCardsOverride || (await this.events.listAll())).filter(
       (event) => event.venueId === venue.id && event.visibility === 'public',
     );
-    const menuSnapshot = await this.db
-      .collection(VENUE_MENU)
-      .where('venueId', '==', venue.id)
-      .limit(1)
-      .get()
-      .catch(() => null);
-    const highlightsSnapshot = await this.db
-      .collection(PROFILE_HIGHLIGHTS)
-      .where('profileId', '==', venue.id)
-      .where('profileType', '==', 'venue')
-      .get()
-      .catch(() => null);
-    const existingSummaryDoc = await this.db
-      .collection(VENUE_SUMMARY)
-      .doc(venue.id)
-      .get()
-      .catch(() => null);
+    let menuSnapshot;
+    let highlightsSnapshot;
+    let existingSummaryDoc;
+    try {
+      [menuSnapshot, highlightsSnapshot, existingSummaryDoc] = await Promise.all([
+        this.db.collection(VENUE_MENU).where('venueId', '==', venue.id).limit(1).get(),
+        this.db
+          .collection(PROFILE_HIGHLIGHTS)
+          .where('profileId', '==', venue.id)
+          .where('profileType', '==', 'venue')
+          .get(),
+        this.db.collection(VENUE_SUMMARY).doc(venue.id).get(),
+      ]);
+    } catch (error: any) {
+      console.error(
+        `[PublicDiscoveryService] syncVenueReadModelsFromSnapshot: failed to fetch venue ${venue.id} summaries:`,
+        error,
+      );
+      throw error;
+    }
     const existingData = existingSummaryDoc?.exists ? existingSummaryDoc.data() : {};
 
     const venueWithStats = {
@@ -902,8 +938,12 @@ export class PublicDiscoveryService {
     });
     await this.venues.upsert(venue.id, summary);
     // ⚡ Performance: Invalidate the public discovery cache for venues
-    await bumpCacheVersion('venues').catch(() => null);
-    await bumpCacheVersion('search').catch(() => null);
+    await bumpCacheVersion('venues').catch((error: any) => {
+      console.error('[PublicDiscoveryService] bumpCacheVersion failed for venues:', error);
+    });
+    await bumpCacheVersion('search').catch((error: any) => {
+      console.error('[PublicDiscoveryService] bumpCacheVersion failed for search:', error);
+    });
   }
 
   async listEvents(query: ListParams) {
@@ -951,7 +991,7 @@ export class PublicDiscoveryService {
       } else {
         console.error('[PublicDiscoveryService] listEvents failed', error);
       }
-      return { items: [], nextCursor: null, hasMore: false, appliedFilters: {} };
+      throw error;
     }
   }
 
@@ -966,11 +1006,16 @@ export class PublicDiscoveryService {
         hostId: hostId || query.hostId || null,
         venueId: venueId || query.venueId || null,
       };
-      const settings = await this.db
-        .collection('platform_settings')
-        .doc('spotlights')
-        .get()
-        .catch(() => null);
+      let settings;
+      try {
+        settings = await this.db.collection('platform_settings').doc('spotlights').get();
+      } catch (error: any) {
+        console.error(
+          '[PublicDiscoveryService] listFeaturedEvents: failed to fetch platform spotlights:',
+          error,
+        );
+        throw error;
+      }
       const pinnedIds = Array.isArray(settings?.data?.()?.featured)
         ? settings.data()!.featured.filter((id: any) => typeof id === 'string' && id.trim())
         : [];
@@ -1028,69 +1073,73 @@ export class PublicDiscoveryService {
       } else {
         console.error('[PublicDiscoveryService] listFeaturedEvents failed', error);
       }
-      return { items: [], nextCursor: null, hasMore: false, appliedFilters: { sort: 'heatScore' } };
+      throw error;
     }
   }
 
   async getEventDetail(idOrSlug: string) {
-    const indexed = await this.events.getByIdOrSlug(idOrSlug);
-    let raw = indexed?.id
-      ? await this.db
+    try {
+      const indexed = await this.events.getByIdOrSlug(idOrSlug);
+      let raw = indexed?.id ? await this.db.collection('events').doc(indexed.id).get() : null;
+
+      if (!raw?.exists) {
+        const direct = await this.db.collection('events').doc(idOrSlug).get();
+        if (direct?.exists) raw = direct;
+      }
+
+      if (!raw?.exists) {
+        const slugSnap = await this.db
           .collection('events')
-          .doc(indexed.id)
-          .get()
-          .catch(() => null)
-      : null;
+          .where('slug', '==', idOrSlug)
+          .limit(1)
+          .get();
+        if (slugSnap && !slugSnap.empty) raw = slugSnap.docs[0];
+      }
 
-    if (!raw?.exists) {
-      const direct = await this.db
-        .collection('events')
-        .doc(idOrSlug)
-        .get()
-        .catch(() => null);
-      if (direct?.exists) raw = direct;
+      if (!indexed && !raw?.exists) return null;
+
+      const details = raw?.exists ? mapEventForClient(serializeDoc(raw), raw.id) : {};
+      const eventSource = {
+        ...(indexed || {}),
+        ...(details || {}),
+        id: details?.id || indexed?.id,
+      };
+      if (!eventSource.id || !isGuestEventPublic(eventSource)) return null;
+
+      const normalizedCard = buildEventCardReadModel(eventSource, {
+        readModelVersion: indexed?.readModelVersion || EVENT_CARD_INDEX_VERSION,
+      });
+      const normalizedLifecycle = derivePublicLifecycleForDetail(
+        eventSource,
+        normalizedCard.statusKey,
+      );
+      const event = {
+        ...(details || {}),
+        ...(indexed || {}),
+        ...normalizedCard,
+        id: normalizedCard.id,
+        lifecycle: normalizedLifecycle,
+        status: normalizedLifecycle,
+        statusKey: normalizedCard.statusKey,
+      };
+      if (!event.id || !isGuestEventDetailVisible(event)) return null;
+
+      const interestedData = await getEventInterested(this.db, event.id, 20).catch((error) => {
+        console.error(
+          `[PublicDiscoveryService] getEventDetail: failed to load interested data for event ${event.id}:`,
+          error,
+        );
+        return {
+          count: Number(event.stats?.saves || 0),
+          users: [],
+        };
+      });
+
+      return { event, interestedData };
+    } catch (error: any) {
+      console.error(`[PublicDiscoveryService] getEventDetail failed for ${idOrSlug}:`, error);
+      throw error;
     }
-
-    if (!raw?.exists) {
-      const slugSnap = await this.db
-        .collection('events')
-        .where('slug', '==', idOrSlug)
-        .limit(1)
-        .get()
-        .catch(() => null);
-      if (slugSnap && !slugSnap.empty) raw = slugSnap.docs[0];
-    }
-
-    if (!indexed && !raw?.exists) return null;
-
-    const details = raw?.exists ? mapEventForClient(serializeDoc(raw), raw.id) : {};
-    const eventSource = { ...(indexed || {}), ...(details || {}), id: details?.id || indexed?.id };
-    if (!eventSource.id || !isGuestEventPublic(eventSource)) return null;
-
-    const normalizedCard = buildEventCardReadModel(eventSource, {
-      readModelVersion: indexed?.readModelVersion || EVENT_CARD_INDEX_VERSION,
-    });
-    const normalizedLifecycle = derivePublicLifecycleForDetail(
-      eventSource,
-      normalizedCard.statusKey,
-    );
-    const event = {
-      ...(details || {}),
-      ...(indexed || {}),
-      ...normalizedCard,
-      id: normalizedCard.id,
-      lifecycle: normalizedLifecycle,
-      status: normalizedLifecycle,
-      statusKey: normalizedCard.statusKey,
-    };
-    if (!event.id || !isGuestEventDetailVisible(event)) return null;
-
-    const interestedData = await getEventInterested(this.db, event.id, 20).catch(() => ({
-      count: Number(event.stats?.saves || 0),
-      users: [],
-    }));
-
-    return { event, interestedData };
   }
 
   async listHosts(query: ListParams) {
@@ -1154,51 +1203,51 @@ export class PublicDiscoveryService {
   }
 
   async getHostPublicProfile(slug: string) {
-    const host = await this.hosts.getBySlug(slug);
-    if (!host) return null;
-    const [rawDoc, postsSnap, highlightsSnap, statsSnap, allEvents] = await Promise.all([
-      this.db
-        .collection('hosts')
-        .doc(host.id)
-        .get()
-        .catch(() => null),
-      this.db
-        .collection(PROFILE_POSTS)
-        .where('profileId', '==', host.id)
-        .where('profileType', '==', 'host')
-        .limit(12)
-        .get()
-        .catch(() => null),
-      this.db
-        .collection(PROFILE_HIGHLIGHTS)
-        .where('profileId', '==', host.id)
-        .where('profileType', '==', 'host')
-        .get()
-        .catch(() => null),
-      this.db
-        .collection(PROFILE_STATS)
-        .doc(`host_${host.id}`)
-        .get()
-        .catch(() => null),
-      this.events
-        .queryList({ hostId: host.id, limit: 48, orderByField: 'startAt', direction: 'asc' })
-        .catch(() => []),
-    ]);
-    const hostEvents = allEvents
-      .filter((event: any) => event.hostId === host.id)
-      .sort((a: any, b: any) => String(a.startAt || '').localeCompare(String(b.startAt || '')));
-    const rawHost = rawDoc?.exists ? serializeDoc(rawDoc) : {};
-    if (!isGuestPublicProfileEnabled({ ...rawHost, ...host })) return null;
-    return {
-      host: projectGuestHostDetail(rawHost, host),
-      stats: statsSnap?.exists
-        ? serializeDoc(statsSnap)
-        : { followersCount: host.followersCount, upcomingEventsCount: host.upcomingEventsCount },
-      posts: postsSnap?.docs?.map(serializeDoc) || [],
-      highlights: highlightsSnap?.docs?.map(serializeDoc) || [],
-      upcomingEvents: hostEvents.filter((event: any) => event.statusKey === 'upcoming').slice(0, 6),
-      pastEvents: hostEvents.filter((event: any) => event.statusKey === 'ended').slice(0, 6),
-    };
+    try {
+      const host = await this.hosts.getBySlug(slug);
+      if (!host) return null;
+      const [rawDoc, postsSnap, highlightsSnap, statsSnap, allEvents] = await Promise.all([
+        this.db.collection('hosts').doc(host.id).get(),
+        this.db
+          .collection(PROFILE_POSTS)
+          .where('profileId', '==', host.id)
+          .where('profileType', '==', 'host')
+          .limit(12)
+          .get(),
+        this.db
+          .collection(PROFILE_HIGHLIGHTS)
+          .where('profileId', '==', host.id)
+          .where('profileType', '==', 'host')
+          .get(),
+        this.db.collection(PROFILE_STATS).doc(`host_${host.id}`).get(),
+        this.events.queryList({
+          hostId: host.id,
+          limit: 48,
+          orderByField: 'startAt',
+          direction: 'asc',
+        }),
+      ]);
+      const hostEvents = allEvents
+        .filter((event: any) => event.hostId === host.id)
+        .sort((a: any, b: any) => String(a.startAt || '').localeCompare(String(b.startAt || '')));
+      const rawHost = rawDoc?.exists ? serializeDoc(rawDoc) : {};
+      if (!isGuestPublicProfileEnabled({ ...rawHost, ...host })) return null;
+      return {
+        host: projectGuestHostDetail(rawHost, host),
+        stats: statsSnap?.exists
+          ? serializeDoc(statsSnap)
+          : { followersCount: host.followersCount, upcomingEventsCount: host.upcomingEventsCount },
+        posts: postsSnap?.docs?.map(serializeDoc) || [],
+        highlights: highlightsSnap?.docs?.map(serializeDoc) || [],
+        upcomingEvents: hostEvents
+          .filter((event: any) => event.statusKey === 'upcoming')
+          .slice(0, 6),
+        pastEvents: hostEvents.filter((event: any) => event.statusKey === 'ended').slice(0, 6),
+      };
+    } catch (error: any) {
+      console.error(`[PublicDiscoveryService] getHostPublicProfile failed for ${slug}:`, error);
+      throw error;
+    }
   }
 
   async listVenues(query: ListParams) {
@@ -1266,70 +1315,67 @@ export class PublicDiscoveryService {
   }
 
   async getVenuePublicProfile(slug: string) {
-    const venue = await this.venues.getBySlug(slug);
-    if (!venue) return null;
-    const [rawDoc, highlightsSnap, statsSnap, menuSnap, allEvents, allVenues] = await Promise.all([
-      this.db
-        .collection('venues')
-        .doc(venue.id)
-        .get()
-        .catch(() => null),
-      this.db
-        .collection(PROFILE_HIGHLIGHTS)
-        .where('profileId', '==', venue.id)
-        .where('profileType', '==', 'venue')
-        .get()
-        .catch(() => null),
-      this.db
-        .collection(PROFILE_STATS)
-        .doc(`venue_${venue.id}`)
-        .get()
-        .catch(() => null),
-      this.db
-        .collection(VENUE_MENU)
-        .where('venueId', '==', venue.id)
-        .limit(1)
-        .get()
-        .catch(() => null),
-      this.events
-        .queryList({ venueId: venue.id, limit: 96, orderByField: 'startAt', direction: 'asc' })
-        .catch(() => []),
-      this.venues
-        .queryList({
-          cityKey: venue.cityKey || null,
-          areaKey: venue.areaKey || null,
-          limit: 24,
-          orderByField: 'followersCount',
-          direction: 'desc',
-        })
-        .catch(() => []),
-    ]);
-    const venueEvents = allEvents
-      .filter((event: any) => event.venueId === venue.id)
-      .sort((a: any, b: any) => String(a.startAt || '').localeCompare(String(b.startAt || '')));
-    const menuDoc = menuSnap && !menuSnap.empty ? serializeDoc(menuSnap.docs[0]) : null;
-    const similarVenues = allVenues
-      .filter(
-        (item: any) =>
-          item.id !== venue.id &&
-          (item.cityKey === venue.cityKey || item.areaKey === venue.areaKey),
-      )
-      .slice(0, 6);
-    const rawVenue = rawDoc?.exists ? serializeDoc(rawDoc) : {};
-    if (!isGuestPublicProfileEnabled({ ...rawVenue, ...venue })) return null;
-    return {
-      venue: projectGuestVenueDetail(rawVenue, venue, menuDoc as any),
-      stats: statsSnap?.exists
-        ? serializeDoc(statsSnap)
-        : { followersCount: venue.followersCount, upcomingEventsCount: venue.upcomingEventsCount },
-      highlights: highlightsSnap?.docs?.map(serializeDoc) || [],
-      upcomingEvents: venueEvents
-        .filter((event: any) => event.statusKey === 'upcoming')
-        .slice(0, 6),
-      pastEvents: venueEvents.filter((event: any) => event.statusKey === 'ended').slice(0, 20),
-      similarVenues,
-      menu: menuDoc,
-    };
+    try {
+      const venue = await this.venues.getBySlug(slug);
+      if (!venue) return null;
+      const [rawDoc, highlightsSnap, statsSnap, menuSnap, allEvents, allVenues] = await Promise.all(
+        [
+          this.db.collection('venues').doc(venue.id).get(),
+          this.db
+            .collection(PROFILE_HIGHLIGHTS)
+            .where('profileId', '==', venue.id)
+            .where('profileType', '==', 'venue')
+            .get(),
+          this.db.collection(PROFILE_STATS).doc(`venue_${venue.id}`).get(),
+          this.db.collection(VENUE_MENU).where('venueId', '==', venue.id).limit(1).get(),
+          this.events.queryList({
+            venueId: venue.id,
+            limit: 96,
+            orderByField: 'startAt',
+            direction: 'asc',
+          }),
+          this.venues.queryList({
+            cityKey: venue.cityKey || null,
+            areaKey: venue.areaKey || null,
+            limit: 24,
+            orderByField: 'followersCount',
+            direction: 'desc',
+          }),
+        ],
+      );
+      const venueEvents = allEvents
+        .filter((event: any) => event.venueId === venue.id)
+        .sort((a: any, b: any) => String(a.startAt || '').localeCompare(String(b.startAt || '')));
+      const menuDoc = menuSnap && !menuSnap.empty ? serializeDoc(menuSnap.docs[0]) : null;
+      const similarVenues = allVenues
+        .filter(
+          (item: any) =>
+            item.id !== venue.id &&
+            (item.cityKey === venue.cityKey || item.areaKey === venue.areaKey),
+        )
+        .slice(0, 6);
+      const rawVenue = rawDoc?.exists ? serializeDoc(rawDoc) : {};
+      if (!isGuestPublicProfileEnabled({ ...rawVenue, ...venue })) return null;
+      return {
+        venue: projectGuestVenueDetail(rawVenue, venue, menuDoc as any),
+        stats: statsSnap?.exists
+          ? serializeDoc(statsSnap)
+          : {
+              followersCount: venue.followersCount,
+              upcomingEventsCount: venue.upcomingEventsCount,
+            },
+        highlights: highlightsSnap?.docs?.map(serializeDoc) || [],
+        upcomingEvents: venueEvents
+          .filter((event: any) => event.statusKey === 'upcoming')
+          .slice(0, 6),
+        pastEvents: venueEvents.filter((event: any) => event.statusKey === 'ended').slice(0, 20),
+        similarVenues,
+        menu: menuDoc,
+      };
+    } catch (error: any) {
+      console.error(`[PublicDiscoveryService] getVenuePublicProfile failed for ${slug}:`, error);
+      throw error;
+    }
   }
 
   async search(query: string, limit = 6) {

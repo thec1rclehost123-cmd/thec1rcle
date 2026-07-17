@@ -3,11 +3,7 @@ import { sendHostInvitationEmail, generateTemporaryPassword } from '../../../lib
 import { getHostAnalytics } from '@c1rcle/core/analytics-engine';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
-import {
-  getPartnerProfileSummary,
-  getConnectionForViewer,
-  getPartnerProfileWithPii,
-} from '../../../utils/partner-profiles.js';
+import { getPartnerProfileWithPii } from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { HostService } from '../../../services/unified/host-service.js';
 import { SchedulingService } from '../../../services/unified/scheduling-service.js';
@@ -2288,12 +2284,11 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
         if (rest.startsWith('partners/') && request.method === 'GET') {
           const partnerId = rest.slice('partners/'.length);
-          const result = await getPartnerProfileWithPii(
-            fastify.db,
+          const result = await getPartnerProfileWithPii(fastify.db, {
+            viewerRole: ctx.type,
+            viewerId: ctx.partnerId,
             partnerId,
-            ctx.type,
-            ctx.partnerId,
-          );
+          });
           if (!result) {
             return reply.status(404).send(
               buildErrorResponse({

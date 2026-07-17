@@ -313,7 +313,7 @@ export async function resolvePartnerDocument(db: any, id: string) {
   return null;
 }
 
-export async function getPartnerProfileSummary(db: any, id: string, includePii: boolean = false) {
+async function getPartnerProfileSummaryInternal(db: any, id: string) {
   let resolved = await resolvePartnerDocument(db, id);
   let isUserFallback = false;
   let userData: Record<string, any> = {};
@@ -384,8 +384,6 @@ export async function getPartnerProfileSummary(db: any, id: string, includePii: 
     x: pickString(doc.x, doc.twitter, doc.twitterHandle, onboardingData.twitter),
     website: pickString(doc.website, onboardingData.website),
     spotify: pickString(doc.spotify, onboardingData.spotify),
-    phone: includePii ? resolvedPhone || '' : '',
-    email: includePii ? resolvedEmail || '' : '',
   });
 
   const normalizedEvents = eventDocs
@@ -436,75 +434,114 @@ export async function getPartnerProfileSummary(db: any, id: string, includePii: 
     normalizedEvents.length || manualUpcomingEvents.length + manualPastEvents.length;
 
   return {
-    id: resolved.id,
-    type,
-    name: pickString(
-      doc.displayName,
-      doc.name,
-      doc.brandName,
-      doc.venueName,
-      onboardingData.name,
-      resolvedUserData.displayName,
-      'Unknown Partner',
-    ),
-    legalName: pickString(
-      doc.legalName,
-      doc.name,
-      onboardingData.contactPerson,
-      onboardingData.name,
-    ),
-    bio: pickString(doc.bio, doc.description, doc.summary, onboardingData.bio),
-    city: pickString(doc.city, onboardingData.city),
-    area: pickString(doc.area, onboardingData.area),
-    locationLabel: compactLocation(
-      pickString(doc.city, onboardingData.city),
-      pickString(doc.area, onboardingData.area),
-    ),
-    // SEC-8 fix: phone and email are PII — omitted from the public profile response.
-    // Expose them only after verifying an active mutual connection at the call site.
-    ...(includePii
-      ? {
-          _pii: {
-            email: resolvedEmail,
-            phone: resolvedPhone,
-          },
-        }
-      : {}),
-    avatarUrl: await signStorageUrl(
-      pickString(
-        doc.profileImage,
-        doc.avatar,
-        doc.avatarUrl,
-        doc.photoURL,
-        doc.photoUrl,
-        doc.logoUrl,
-        doc.logoImage,
-        doc.logo,
+    profile: {
+      id: resolved.id,
+      type,
+      name: pickString(
+        doc.displayName,
+        doc.name,
+        doc.brandName,
+        doc.venueName,
+        onboardingData.name,
+        resolvedUserData.displayName,
+        'Unknown Partner',
       ),
-    ),
-    coverImageUrl: await signStorageUrl(pickString(doc.coverImage, doc.bannerImage, doc.heroImage)),
-    website: pickString(doc.website, onboardingData.website),
-    socialLinks,
-    isVerified: Boolean(
-      doc.isVerified ||
-      doc.isApproved ||
-      resolvedUserData.isApproved ||
-      onboarding?.status === 'approved' ||
-      onboarding?.status === 'verified' ||
-      doc.status === 'active',
-    ),
-    memberSinceLabel: createdAt
-      ? createdAt.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-      : '',
-    stats: {
-      totalEvents: pickNumber(doc.eventsCount, totalEvents),
-      upcomingEvents: upcomingEvents.length,
-      pastEvents: pastEvents.length,
-      contactPoints,
+      legalName: pickString(
+        doc.legalName,
+        doc.name,
+        onboardingData.contactPerson,
+        onboardingData.name,
+      ),
+      bio: pickString(doc.bio, doc.description, doc.summary, onboardingData.bio),
+      city: pickString(doc.city, onboardingData.city),
+      area: pickString(doc.area, onboardingData.area),
+      locationLabel: compactLocation(
+        pickString(doc.city, onboardingData.city),
+        pickString(doc.area, onboardingData.area),
+      ),
+      avatarUrl: await signStorageUrl(
+        pickString(
+          doc.profileImage,
+          doc.avatar,
+          doc.avatarUrl,
+          doc.photoURL,
+          doc.photoUrl,
+          doc.logoUrl,
+          doc.logoImage,
+          doc.logo,
+        ),
+      ),
+      coverImageUrl: await signStorageUrl(
+        pickString(doc.coverImage, doc.bannerImage, doc.heroImage),
+      ),
+      website: pickString(doc.website, onboardingData.website),
+      socialLinks,
+      isVerified: Boolean(
+        doc.isVerified ||
+        doc.isApproved ||
+        resolvedUserData.isApproved ||
+        onboarding?.status === 'approved' ||
+        onboarding?.status === 'verified' ||
+        doc.status === 'active',
+      ),
+      memberSinceLabel: createdAt
+        ? createdAt.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+        : '',
+      stats: {
+        totalEvents: pickNumber(doc.eventsCount, totalEvents),
+        upcomingEvents: upcomingEvents.length,
+        pastEvents: pastEvents.length,
+        contactPoints,
+      },
+      upcomingEvents,
+      pastEvents,
     },
-    upcomingEvents,
-    pastEvents,
+    resolvedEmail,
+    resolvedPhone,
   };
+}
+
+export async function getPartnerProfileSummary(db: any, id: string) {
+  const result = await getPartnerProfileSummaryInternal(db, id);
+  if (!result) return null;
+  return result.profile;
+}
+
+export async function getPartnerProfileWithPii(
+  db: any,
+  params: {
+    viewerRole?: string;
+    viewerId?: string;
+    partnerId: string;
+  },
+) {
+  const { viewerRole, viewerId, partnerId } = params;
+  const result = await getPartnerProfileSummaryInternal(db, partnerId);
+  if (!result) return null;
+
+  const { profile, resolvedEmail, resolvedPhone } = result;
+
+  const connection = await getConnectionForViewer(db, {
+    viewerRole,
+    viewerId,
+    partnerId,
+    partnerType: profile.type,
+  });
+
+  const isSelf = viewerId === partnerId;
+  const hasPermission =
+    isSelf || (connection && (connection.status === 'active' || connection.status === 'approved'));
+
+  if (hasPermission) {
+    (profile as any).email = resolvedEmail;
+    (profile as any).phone = resolvedPhone;
+    if (profile.socialLinks) {
+      if (resolvedEmail) profile.socialLinks.email = resolvedEmail;
+      if (resolvedPhone) profile.socialLinks.phone = resolvedPhone;
+    }
+  }
+
+  return { profile, connection };
 }
 
 export async function getConnectionForViewer(

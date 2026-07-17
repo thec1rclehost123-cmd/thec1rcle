@@ -4,11 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { getPromoterStats, listConnections, manageConnection } from '@c1rcle/core/promoter-engine';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
-import {
-  getPartnerProfileSummary,
-  getConnectionForViewer,
-  getPartnerProfileWithPii,
-} from '../../../utils/partner-profiles.js';
+import { getPartnerProfileWithPii } from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { PromoterService } from '../../../services/unified/promoter-service.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
@@ -3493,12 +3489,11 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
         const partnerId = String(request.params.id || '');
-        const result = await getPartnerProfileWithPii(
-          fastify.db,
+        const result = await getPartnerProfileWithPii(fastify.db, {
+          viewerRole: ctx.type,
+          viewerId: ctx.partnerId,
           partnerId,
-          ctx.type,
-          ctx.partnerId,
-        );
+        });
         if (!result) {
           return reply.status(404).send(
             buildErrorResponse({

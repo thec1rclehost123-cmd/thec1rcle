@@ -40,6 +40,26 @@ export default function HostVerificationForm({ onClose }) {
 
     try {
       const storage = getFirebaseStorage();
+
+      if (!files.idDocument || !files.instaScreenshot) {
+        throw new Error('Please select both your Government ID and Instagram screenshot files.');
+      }
+
+      // Upload ID document
+      const idExtension = files.idDocument.name.split('.').pop() || 'jpg';
+      const idRef = ref(storage, `host-verifications/${user.uid}-id-${Date.now()}.${idExtension}`);
+      await uploadBytes(idRef, files.idDocument);
+      const idUrl = await getDownloadURL(idRef);
+
+      // Upload Instagram screenshot
+      const instaExtension = files.instaScreenshot.name.split('.').pop() || 'jpg';
+      const instaRef = ref(
+        storage,
+        `host-verifications/${user.uid}-insta-${Date.now()}.${instaExtension}`,
+      );
+      await uploadBytes(instaRef, files.instaScreenshot);
+      const instaUrl = await getDownloadURL(instaRef);
+
       // Save Application via API Proxy
       const token = await user.getIdToken();
       const res = await fetch('/api/auth/host-verification', {

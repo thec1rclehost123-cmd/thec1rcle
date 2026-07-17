@@ -26,7 +26,7 @@ export class EventService {
       return { events: data, nextCursor, hasMore };
     } catch (error: any) {
       console.error('EventService.listEvents failed:', error.message);
-      return { events: [], nextCursor: null, hasMore: false };
+      throw error;
     }
   }
 
