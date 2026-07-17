@@ -41,17 +41,17 @@
     "@commitlint/config-conventional": "^19.8.1",
     "@lhci/cli": "^0.15.1",
     "@size-limit/file": "^12.1.0",
-    "@vitest/coverage-v8": "4.1.9",
+    "@vitest/coverage-v8": "4.1.10",
     "cross-env": "^10.1.0",
     "expo": "^56.0.12",
     "husky": "^9.1.7",
     "lint-staged": "^15.2.11",
-    "prettier": "^3.8.4",
+    "prettier": "^3.9.5",
     "size-limit": "^12.1.0",
-    "stylelint": "^17.13.0",
+    "stylelint": "^17.14.0",
     "stylelint-config-standard": "^40.0.0",
-    "turbo": "^2.7.3",
-    "vitest": "4.1.9"
+    "turbo": "^2.10.5",
+    "vitest": "4.1.10"
   },
   "overrides": {
     "@types/react": "^19.1.1",
