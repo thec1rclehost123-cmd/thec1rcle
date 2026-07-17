@@ -22,9 +22,6 @@ export async function createOrder(payload: any) {
   return await db.runTransaction(async (transaction: any) => {
     const orderId = reservationId ? `ORD-${reservationId}` : `ORD-${Date.now()}`;
 
-    // Inject dependencies for core engine
-    transaction.db = db;
-
     const orderData: any = {
       ...payload,
       id: orderId,
@@ -101,8 +98,6 @@ export async function confirmOrderPayment(
     }
 
     // 2. SAFETY VALVE: Handle Payment for Expired/Timed-out Orders
-    // If the order was 'expired', the inventory has already been returned to the pool by 'failStaleOrders'.
-    // We must re-check if the tickets are still available before confirming.
     const eventRef = db.collection('events').doc(order.eventId);
     const eventDoc = await transaction.get(eventRef);
     if (!eventDoc.exists) throw new Error('Event not found for confirmation');
@@ -118,11 +113,10 @@ export async function confirmOrderPayment(
       let canRestore = true;
 
       for (const ot of orderTickets) {
-        // Check sharded inventory
         const stats = await getTierInventoryStats(order.eventId, ot.ticketId);
         const tier = (event.tickets || []).find((t: any) => t.id === ot.ticketId);
         const totalCapacity = Number(tier?.quantity || 0);
-        const available = totalCapacity - stats.sold; // Don't count locks since it's an expired restoration check
+        const available = totalCapacity - stats.sold;
 
         if (ot.quantity > available) {
           canRestore = false;
@@ -147,7 +141,6 @@ export async function confirmOrderPayment(
         return refundOrder;
       }
 
-      // Inventory is available, re-deduct it from shards
       const shardId = order.shardId || Math.floor(Math.random() * 10).toString();
       for (const ot of orderTickets) {
         const shardRef = eventRef.collection('ticket_shards').doc(`${ot.ticketId}_${shardId}`);
@@ -180,16 +173,7 @@ export async function confirmOrderPayment(
       updatedAt: new Date().toISOString(),
     };
 
-    // Generate QR codes
     updatedOrder.qrCodes = generateOrderQRCodes(updatedOrder, event);
-
-    // Record promo redemption if applicable
-    if (updatedOrder.promoCodeId) {
-      const { recordRedemption } = await import('./promos');
-      await recordRedemption(updatedOrder.promoCodeId, orderId, updatedOrder.userId, {
-        discountAmount: updatedOrder.discountAmount || 0,
-      });
-    }
 
     transaction.update(orderRef, updatedOrder);
 
@@ -198,7 +182,6 @@ export async function confirmOrderPayment(
       .collection('public_attendees')
       .doc(`${updatedOrder.userId}_${updatedOrder.eventId}`);
 
-    // Fetch profile for denormalization
     const userDoc = await transaction.get(db.collection('users').doc(updatedOrder.userId));
     const userData = userDoc.exists ? userDoc.data() : {};
 
@@ -236,7 +219,6 @@ export async function createRSVPOrder(payload: any) {
   let persistedOrder = orderData;
 
   await db.runTransaction(async (transaction: any) => {
-    transaction.db = db;
     persistedOrder = await coreExecuteOrderCreation(transaction, {
       db,
       event,

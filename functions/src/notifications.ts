@@ -183,7 +183,9 @@ export const notifyOrderConfirmed = onDocumentUpdated('orders/{orderId}', async 
   if (before.status !== 'confirmed' && after.status === 'confirmed') {
     const userId = after.userId;
     const eventTitle = after.eventTitle || 'Event';
-    const ticketCount = after.tickets?.length || 1;
+    const ticketCount = Array.isArray(after.tickets)
+      ? after.tickets.reduce((sum, t) => sum + (t.quantity ?? t.qty ?? 1), 0)
+      : 1;
 
     await sendPushNotification(userId, 'ticket_confirmed', {
       title: 'Tickets Confirmed',
@@ -245,6 +247,7 @@ export const sendEventReminders = onSchedule('every 1 hours', async () => {
       .collection('orders')
       .where('eventId', '==', eventId)
       .where('status', '==', 'confirmed')
+      .limit(500)
       .get();
 
     for (const orderDoc of ordersSnapshot.docs) {
@@ -270,11 +273,13 @@ export const notifyEventUpdated = onDocumentUpdated('events/{eventId}', async (e
 
   if (!before || !after) return;
 
+  const CANCELLED = 'cancelled';
   const significantChange =
     before.startDate !== after.startDate ||
     before.venue !== after.venue ||
     before.location !== after.location ||
-    after.status === 'cancelled';
+    after.lifecycle === CANCELLED ||
+    after.status === CANCELLED;
 
   if (!significantChange) return;
 

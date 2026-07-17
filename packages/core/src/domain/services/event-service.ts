@@ -25,7 +25,7 @@ export class EventService {
 
       return { events: data, nextCursor, hasMore };
     } catch (error: any) {
-      console.error('EventService.listEvents failed:', error.message);
+      console.error('EventService.listEvents failed:', error?.message || error);
       throw error;
     }
   }
@@ -99,7 +99,7 @@ export class EventService {
     return events
       .map((data: any) => {
         const coords = data.coordinates;
-        if (!coords?.latitude || !coords?.longitude) return null;
+        if (coords?.latitude == null || coords?.longitude == null) return null;
         const distance = haversine(lat, lng, coords.latitude, coords.longitude);
         return { ...data, distance };
       })

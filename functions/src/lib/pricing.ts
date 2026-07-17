@@ -38,7 +38,7 @@ export async function calculatePricingInternal(event: any, items: any[], options
     pricing.fees.formatted = {
       platform: `₹${pricing.fees.platform.toLocaleString()}`,
       payment: `₹${pricing.fees.payment.toLocaleString()}`,
-      gst: `₹${pricing.fees.gst.toLocaleString()}`,
+      gst: `₹${(pricing.fees.gst ?? pricing.fees.tax ?? 0).toLocaleString()}`,
       total: `₹${pricing.fees.total.toLocaleString()}`,
     };
   }

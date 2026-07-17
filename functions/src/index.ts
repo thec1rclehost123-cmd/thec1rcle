@@ -30,6 +30,14 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
+// Validate required secrets at cold start — never silently fall back to empty
+if (!process.env.RAZORPAY_KEY_SECRET) {
+  console.error('RAZORPAY_KEY_SECRET is not configured — payment verification will fail');
+}
+if (!process.env.RAZORPAY_WEBHOOK_SECRET) {
+  console.error('RAZORPAY_WEBHOOK_SECRET is not configured — webhook verification will fail');
+}
+
 /**
  * 1. Reserve Tickets
  */
@@ -105,7 +113,10 @@ export const calculatePricing = functions.https.onCall(async (data, context) => 
 export const initiateCheckout = functions.https.onCall(async (data, context) => {
   // data = { reservationId, userDetails: {email, name, phone}, promoCode?, promoterCode? }
 
-  const userId = context.auth?.uid || data.userId || 'anonymous';
+  const userId = context.auth?.uid;
+  if (!userId) {
+    throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
+  }
 
   try {
     const reservation: any = await getReservation(data.reservationId);
@@ -232,7 +243,13 @@ export const verifyPayment = functions.https.onCall(async (data, context) => {
   const { orderId, razorpay_payment_id, razorpay_signature, razorpay_order_id } = data;
 
   // 1. Signature Verification
-  const secret = process.env.RAZORPAY_KEY_SECRET || '';
+  const secret = process.env.RAZORPAY_KEY_SECRET;
+  if (!secret) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Payment verification not configured',
+    );
+  }
   const body = razorpay_order_id + '|' + razorpay_payment_id;
   const expectedSignature = crypto
     .createHmac('sha256', secret)
@@ -260,13 +277,19 @@ export const verifyPayment = functions.https.onCall(async (data, context) => {
  */
 export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
   const signature = req.headers['x-razorpay-signature'] as string;
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET || '';
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!secret) {
+    functions.logger.error('RAZORPAY_WEBHOOK_SECRET is not configured');
+    res.status(500).send('Server configuration error');
+    return;
+  }
 
   // Verify Webhook Signature
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(JSON.stringify(req.body))
-    .digest('hex');
+  // Firebase Functions parses the JSON body before this handler runs, so we
+  // re-stringify with sorted keys for deterministic output. Use req.rawBody
+  // if available in future GCF versions.
+  const rawBody = JSON.stringify(req.body, Object.keys(req.body).sort());
+  const expectedSignature = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
 
   if (expectedSignature !== signature) {
     res.status(403).send('Invalid signature');
