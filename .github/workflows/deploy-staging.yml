@@ -51,10 +51,15 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker gcr.io --quiet
       - name: Build & push to GCR
         run: |
-          gcloud builds submit apps/api-gateway \
-            --tag gcr.io/${{ secrets.GCP_PROJECT_ID_STAGING }}/api-gateway:${{ github.sha }}
+          docker build \
+            -f apps/api-gateway/Dockerfile \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID_STAGING }}/api-gateway:${{ github.sha }} \
+            .
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID_STAGING }}/api-gateway:${{ github.sha }}
       - name: Deploy to Cloud Run
         id: deploy
         run: |
