@@ -23,12 +23,12 @@ jobs:
     name: Install
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 20, cache: npm }
       - run: npm cache clean --force
       - run: npm ci
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             node_modules
@@ -41,10 +41,10 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: nm-cache
         with:
           path: |
@@ -62,10 +62,10 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: nm-cache
         with:
           path: |
@@ -83,10 +83,10 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: nm-cache
         with:
           path: |
@@ -102,7 +102,7 @@ jobs:
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
           SKIP_ENV_VALIDATION: '1'
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             apps/guest-portal/.next
@@ -116,10 +116,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: nm-cache
         with:
           path: |
@@ -129,7 +129,7 @@ jobs:
           key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             apps/guest-portal/.next
@@ -145,10 +145,10 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: nm-cache
         with:
           path: |
