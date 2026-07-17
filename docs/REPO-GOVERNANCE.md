@@ -7,8 +7,15 @@
 
 | Ruleset | Targets | Rules |
 |---|---|---|
-| `release-gates` (id 19114987) | `main`, `staging` | No deletion, no force push, PR required (2 approvals, dismiss stale, merge-commit only), 14 required status checks, 3 Vercel Preview deployments required. Bypass: Repository admin. |
+| `release-gates` (id 19114987) | `main`, `staging` | No deletion, no force push, PR required (2 approvals, dismiss stale, last-push approval by someone else, conversations resolved, merge-commit only), 14 required status checks **with up-to-date-branch policy**, 3 Vercel Preview deployments required. Bypass: Repository admin. |
 | `pre-staging-shield` (id 19115001) | `pre-staging` | No deletion, no force push. Shields the branch from auto-delete when its PRs merge. |
+
+Rulesets are the **single source of truth** — the classic branch protection rules were
+deleted on 2026-07-17 after their stricter settings were folded into `release-gates`.
+Code-owner review is deliberately OFF: `.github/CODEOWNERS` is outdated (a single
+account); enforcing it would funnel every PR through one person. Re-enable in the
+ruleset only after CODEOWNERS is rewritten. "Require signed commits" is also off
+everywhere: team commits are unsigned, so enabling it deadlocks the release train.
 
 The 14 required check names and their caveats (en-dash in Vercel names, `, true`
 suffix on admin-console) are listed in `docs/BRANCH-AUDIT.md`.
