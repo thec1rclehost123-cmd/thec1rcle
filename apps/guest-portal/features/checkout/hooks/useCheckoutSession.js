@@ -607,6 +607,7 @@ export function useCheckoutSession({
     onPaymentError: (paymentError) => {
       setError(paymentError.message);
       setIsProcessing(false);
+      setProcessingState('');
     },
     onPaymentStateChange: setProcessingState,
     onPaymentVerified: async (initiateData) => {
