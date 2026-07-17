@@ -2,10 +2,11 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    target-branch: staging
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     groups:
       production-deps:
         dependency-type: production
@@ -13,8 +14,29 @@ updates:
       dev-deps:
         dependency-type: development
         update-types: [minor, patch]
+      major-deps:
+        patterns: ["*"]
+        update-types: [major]
+
+  - package-ecosystem: npm
+    directory: /functions
+    target-branch: staging
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      functions-deps:
+        patterns: ["*"]
+        update-types: [minor, patch, major]
 
   - package-ecosystem: github-actions
     directory: /
+    target-branch: staging
     schedule:
       interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns: ["*"]
+        update-types: [minor, patch, major]
