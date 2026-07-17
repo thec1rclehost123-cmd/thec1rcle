@@ -277,6 +277,8 @@ function getPasswordResetContinueUrl(explicit?: string, email?: string) {
 }
 
 function encodeState(payload: Record<string, any>) {
+  // base64url is encoding, not encryption. Only use for non-secret data
+  // like redirect URLs. Never put tokens or PII in the state payload.
   return Buffer.from(JSON.stringify(payload)).toString('base64url');
 }
 

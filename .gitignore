@@ -33,6 +33,7 @@ expo-env.d.ts
 .env.staging
 .env.production
 .env.*.local
+.env.vercel-preview
 !.env.example
 
 # ── Logs & Debug ──────────────────────────────────────────────────────────────

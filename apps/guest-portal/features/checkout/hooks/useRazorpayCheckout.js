@@ -32,6 +32,11 @@ export function useRazorpayCheckout({
     async (initiateData, checkoutOptions = {}) => {
       const paymentVerifyKey =
         checkoutOptions.paymentVerifyKey || checkoutOptions.paymentAttemptId || null;
+      const prefillMethod = ['card', 'upi', 'netbanking', 'wallet', 'emi', 'paylater'].includes(
+        checkoutOptions.paymentMethod,
+      )
+        ? checkoutOptions.paymentMethod
+        : undefined;
       if (initiateData?.razorpay?.orderId?.startsWith('order_mock_')) {
         throw new Error('Payment gateway is not configured for this checkout.');
       }
@@ -89,6 +94,7 @@ export function useRazorpayCheckout({
             name: attendeeDetails.name,
             email: attendeeDetails.email,
             contact: attendeeDetails.phone,
+            ...(prefillMethod ? { method: prefillMethod } : {}),
           },
           theme: { color: '#1d1d1f' },
         };

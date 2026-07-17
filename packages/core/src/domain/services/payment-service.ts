@@ -1,6 +1,16 @@
+import Razorpay from 'razorpay';
 import { IOrderRepository, Order, PaymentRecord } from '../repositories/order-repository.js';
 
 const PAYMENT_ORDER_REUSE_WINDOW_MS = 30 * 60 * 1000;
+const RAZORPAY_REQUEST_TIMEOUT_MS = 10_000;
+
+function withTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), RAZORPAY_REQUEST_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+}
 
 export class PaymentService {
   constructor(private orderRepo: IOrderRepository) {}
@@ -58,39 +68,22 @@ export class PaymentService {
       };
     }
 
-    const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
 
-    let response: Response;
+    let rzpOrder: any;
     try {
-      response = await fetch('https://api.razorpay.com/v1/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${authHeader}`,
-        },
-        body: JSON.stringify({
+      rzpOrder = await withTimeout(
+        razorpay.orders.create({
           amount: Math.round(order.totalAmount * 100),
           currency: 'INR',
           receipt: order.id,
           notes: { orderId: order.id, userId },
         }),
-        signal: controller.signal,
-      });
+        'Razorpay request timed out after 10s',
+      );
     } catch (e: any) {
-      if (e.name === 'AbortError') throw new Error('Razorpay request timed out after 10s');
-      throw e;
-    } finally {
-      clearTimeout(timeoutId);
+      throw new Error(e?.error?.description || e?.message || 'Razorpay order failed');
     }
-
-    if (!response.ok) {
-      const err = (await response.json()) as any;
-      throw new Error(err.error?.description || 'Razorpay order failed');
-    }
-
-    const rzpOrder = (await response.json()) as any;
 
     await this.orderRepo.createPaymentRecord({
       orderId: order.id,
@@ -175,35 +168,20 @@ export class PaymentService {
       throw new Error('Payment verification is not configured');
     }
 
-    const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
 
-    let response: Response;
+    let payment: any;
     try {
-      response = await fetch(
-        `https://api.razorpay.com/v1/payments/${encodeURIComponent(razorpayPaymentId)}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Basic ${authHeader}`,
-          },
-          signal: controller.signal,
-        },
+      payment = await withTimeout(
+        razorpay.payments.fetch(razorpayPaymentId),
+        'Razorpay payment lookup timed out after 10s',
       );
     } catch (e: any) {
-      if (e.name === 'AbortError') throw new Error('Razorpay payment lookup timed out after 10s');
-      throw e;
-    } finally {
-      clearTimeout(timeoutId);
+      throw new Error(
+        e?.error?.description || e?.message || 'Unable to verify payment with Razorpay',
+      );
     }
 
-    if (!response.ok) {
-      const err = (await response.json().catch(() => ({}) as any)) as any;
-      throw new Error(err.error?.description || 'Unable to verify payment with Razorpay');
-    }
-
-    const payment = (await response.json()) as any;
     const expectedAmountPaise = Math.round(Number(paymentRecord.amount || 0) * 100);
     const paymentStatus = String(payment?.status || '').toLowerCase();
     const paymentCurrency = String(payment?.currency || '').toUpperCase();
