@@ -313,7 +313,7 @@ class EventCardIndexRepository {
     areaKey?: string | null;
     hostId?: string | null;
     venueId?: string | null;
-    minStartAt?: string | null;
+    minEndAt?: string | null;
   }) {
     try {
       let query: any = this.db.collection(EVENT_CARD_INDEX).where('visibility', '==', 'public');
