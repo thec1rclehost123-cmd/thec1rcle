@@ -203,6 +203,47 @@ export default function VenueDashboardHome() {
         </>
       }
     >
+      {summary?.warnings && summary.warnings.length > 0 && (
+        <motion.div
+          {...mp(0.01)}
+          className="mb-6 rounded-[28px] p-6 flex flex-col gap-4 bg-red-950/20 border border-red-500/20 text-red-200"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-[14px] font-black uppercase tracking-wider text-red-500">
+                Compliance Notice: Warnings Issued ({summary.warnings.length})
+              </h3>
+              <p className="text-[12px] text-zinc-400 mt-1">
+                Your venue profile has active compliance warnings from the platform administration.
+                Please ensure compliance to prevent account restriction or feature lock.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {summary.warnings.map((w: any, idx: number) => (
+              <div
+                key={idx}
+                className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1.5"
+              >
+                <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                  <span>Warning #{idx + 1}</span>
+                  <span>
+                    {w.timestamp
+                      ? new Date(w.timestamp).toLocaleDateString(undefined, { dateStyle: 'medium' })
+                      : 'Unknown Date'}
+                  </span>
+                </div>
+                <p className="text-[13px] text-white font-medium">{w.message}</p>
+                {w.auditReason && (
+                  <p className="text-[11px] text-red-400/80 italic">Reason: {w.auditReason}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {/* Dashboard Grid */}
       <div className="flex flex-col gap-4">
         {/* Row 1: Pulse & Primary Targets */}

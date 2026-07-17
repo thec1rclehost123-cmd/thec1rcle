@@ -3,7 +3,14 @@
 import Link from 'next/link';
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarDays, ChevronRight, Image as ImageIcon, Search, ShoppingBag } from 'lucide-react';
+import {
+  CalendarDays,
+  ChevronRight,
+  Image as ImageIcon,
+  Search,
+  ShoppingBag,
+  AlertTriangle,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 import { VenuePageShell, VenueActionButton } from '@/components/venue-layout/VenuePageShell';
 import VenueChart, { ChartSkeleton } from '@/components/ui/VenueChart';
@@ -449,6 +456,23 @@ export default function HostDashboardStreaming() {
   const [selectedMetric, setSelectedMetric] = useState<OverviewMetric>('tickets');
   const [orderSearch, setOrderSearch] = useState('');
 
+  const warningsQuery = useQuery({
+    queryKey: ['host', hostId, 'overview-warnings'],
+    enabled: Boolean(hostId && user),
+    queryFn: async () => {
+      const token = await user!.getIdToken();
+      const res = await fetch(`/api/partners/hosts/overview?range=1m&metric=tickets`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to fetch host overview');
+      return res.json();
+    },
+    staleTime: 60_000,
+    refetchOnMount: false,
+  });
+
+  const warnings = warningsQuery.data?.warnings || [];
+
   useEffect(() => {
     if (selectedMetric === 'revenue' && !canViewRevenue) {
       setSelectedMetric('tickets');
@@ -600,6 +624,51 @@ export default function HostDashboardStreaming() {
           </Link>
         }
       >
+        {warnings.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1], delay: 0.01 }}
+            className="mb-6 rounded-[28px] p-6 flex flex-col gap-4 bg-red-950/20 border border-red-500/20 text-red-200"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-[14px] font-black uppercase tracking-wider text-red-500">
+                  Compliance Notice: Warnings Issued ({warnings.length})
+                </h3>
+                <p className="text-[12px] text-zinc-400 mt-1">
+                  Your host profile has active compliance warnings from the platform administration.
+                  Please ensure compliance to prevent account restriction or feature lock.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {warnings.map((w: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1.5"
+                >
+                  <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                    <span>Warning #{idx + 1}</span>
+                    <span>
+                      {w.timestamp
+                        ? new Date(w.timestamp).toLocaleDateString(undefined, {
+                            dateStyle: 'medium',
+                          })
+                        : 'Unknown Date'}
+                    </span>
+                  </div>
+                  <p className="text-[13px] text-white font-medium">{w.message}</p>
+                  {w.auditReason && (
+                    <p className="text-[11px] text-red-400/80 italic">Reason: {w.auditReason}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         <div className="flex flex-col gap-2">
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.85fr)_minmax(320px,0.95fr)] gap-6 xl:items-stretch">
             <section className="rounded-[32px] px-4 pt-4 pb-2 h-full" style={cardStyle()}>

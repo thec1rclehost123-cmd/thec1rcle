@@ -232,6 +232,7 @@ export default function AdminUsers() {
       <DataTable
         columns={columns}
         data={filtered}
+        loading={loading}
         searchPlaceholder="Filter members by name, email or ID..."
         onRowClick={(user) => {
           setSelectedUser(user);
@@ -401,6 +402,7 @@ export default function AdminUsers() {
           message={modalConfig.message}
           actionLabel={modalConfig.label}
           type={modalConfig.type}
+          isTier2={modalConfig.isTier2}
           isTier3={modalConfig.isTier3}
         />
       )}

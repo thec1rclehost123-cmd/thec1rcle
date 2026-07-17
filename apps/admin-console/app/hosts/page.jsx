@@ -14,6 +14,8 @@ import {
   X,
   AlertCircle,
   RotateCw,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { DataTable } from '@/components/ui/DataTable';
 import { ActionDrawer } from '@/components/ui/ActionDrawer';
@@ -30,6 +32,7 @@ export default function AdminHosts() {
 
   const fetchHosts = async () => {
     try {
+      setLoading(true);
       const token = await user.getIdToken();
       const res = await fetch('/api/list?collection=hosts', {
         headers: { Authorization: `Bearer ${token}` },
@@ -244,6 +247,7 @@ export default function AdminHosts() {
       <DataTable
         columns={columns}
         data={filteredHosts}
+        loading={loading}
         searchPlaceholder="Find organizer by name, ID or owner profile..."
         onRowClick={(host) => {
           setSelectedHost(host);
@@ -258,40 +262,42 @@ export default function AdminHosts() {
         subtitle={`Organizer ID: ${selectedHost?.id}`}
         footer={
           <div className="space-y-3">
-            <button
-              onClick={() =>
-                setModalConfig({
-                  action: 'PAYOUT_FREEZE',
-                  title: 'Restrict Payouts',
-                  message:
-                    'Immediately prevent all outgoing payments to this organizer. Requires security clearance.',
-                  label: 'Confirm Restriction',
-                  type: 'danger',
-                  isTier3: true,
-                })
-              }
-              className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-iris/10 border border-iris/20 text-white hover:bg-iris/20 transition-all font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-iris/10"
-            >
-              <Ban className="h-4 w-4" strokeWidth={2} />
-              Restrict Payouts
-            </button>
-
-            <button
-              onClick={() =>
-                setModalConfig({
-                  action: 'PAYOUT_RELEASE',
-                  title: 'Resume Payouts',
-                  message: 'Restore standard payment processing for this organizer profile.',
-                  label: 'Authorize Resume',
-                  type: 'info',
-                  isTier3: false,
-                })
-              }
-              className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10 text-zinc-600 hover:text-white hover:bg-white/10 transition-all font-bold text-[10px] uppercase tracking-widest"
-            >
-              <RotateCcw className="h-4 w-4" strokeWidth={1.5} />
-              Restore Payouts
-            </button>
+            {selectedHost?.status === 'suspended' ? (
+              <button
+                onClick={() =>
+                  setModalConfig({
+                    action: 'HOST_REINSTATE',
+                    title: 'Restore Partner',
+                    message: 'Allow this organizer to resume event hosting and platform access.',
+                    label: 'Restore Partner',
+                    type: 'info',
+                    isTier2: true,
+                  })
+                }
+                className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/20 transition-all font-bold text-[11px] uppercase tracking-widest"
+              >
+                <Unlock className="h-4 w-4" strokeWidth={2} />
+                Restore Partner
+              </button>
+            ) : (
+              <button
+                onClick={() =>
+                  setModalConfig({
+                    action: 'HOST_SUSPEND',
+                    title: 'Restrict Collaboration',
+                    message:
+                      'Deactivate partner operations immediately. Requires security clearance.',
+                    label: 'Confirm Restriction',
+                    type: 'danger',
+                    isTier2: true,
+                  })
+                }
+                className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-iris/10 border border-iris/20 text-white hover:bg-iris/20 transition-all font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-iris/10"
+              >
+                <Lock className="h-4 w-4" strokeWidth={2} />
+                Restrict Partner
+              </button>
+            )}
           </div>
         }
       >
@@ -384,6 +390,7 @@ export default function AdminHosts() {
           inputLabel={modalConfig.inputLabel}
           inputType={modalConfig.inputType}
           inputPlaceholder={modalConfig.inputPlaceholder}
+          isTier2={modalConfig.isTier2}
           isTier3={modalConfig.isTier3}
         />
       )}

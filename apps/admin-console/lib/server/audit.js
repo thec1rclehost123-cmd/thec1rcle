@@ -19,9 +19,11 @@ export async function logAdminAction(context, action, data = {}, reason = '') {
 
     await auditRef.set({
       createdAt: FieldValue.serverTimestamp(),
-      timestamp: new Date().toISOString(),
+      timestamp: FieldValue.serverTimestamp(), // consistent Timestamp
       admin_uid: uid,
+      adminId: uid, // compatibility
       actorEmail: email, // Changed from admin_email for UI consistency
+      adminEmail: email, // compatibility
       admin_role: admin_role || 'admin',
       actionType: action.toUpperCase(), // Changed from action for UI consistency
       action: action.toUpperCase(), // Keep for backward compatibility
@@ -30,6 +32,9 @@ export async function logAdminAction(context, action, data = {}, reason = '') {
       reason: reason || 'Routine administrative task.',
       status: 'committed', // Every logged action is committed
       ip: context.ip || 'internal-node',
+      context: {
+        ipAddress: context.ip || 'internal-node', // compatibility
+      },
       userAgent: context.userAgent || 'system',
     });
 

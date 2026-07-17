@@ -163,6 +163,8 @@ export default function AdminDashboard() {
       USER_UNBAN: 'Access Restored',
       VENUE_SUSPEND: 'Partner Restricted',
       VENUE_REINSTATE: 'Partner Restored',
+      HOST_SUSPEND: 'Partner Restricted',
+      HOST_REINSTATE: 'Partner Restored',
       PROMOTER_SUSPEND: 'Network Access Restricted',
       PROMOTER_ACTIVATE: 'Network Access Restored',
       PROMOTER_DISABLE: 'Access Permanently Revoked',

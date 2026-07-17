@@ -45,6 +45,7 @@ interface MeApiResponse {
     displayName?: string;
     username?: string;
     isApproved?: boolean;
+    isBanned?: boolean;
     kycStatus?: string;
     onboardingEntityType?: string;
     subscriptionPlan?: string;
@@ -72,6 +73,8 @@ interface AuthContextValue {
   profile: DashboardProfile | null;
   loading: boolean;
   isApproved: boolean;
+  isBanned: boolean;
+  isPartnerSuspended: boolean;
   onboardingStatus: string | null;
   kycStatus: string | null;
   entityType: string | null;
@@ -106,6 +109,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isApproved, setIsApproved] = useState(false);
+  const [isBanned, setIsBanned] = useState(false);
+  const [isPartnerSuspended, setIsPartnerSuspended] = useState(false);
   const [onboardingStatus, setOnboardingStatus] = useState<string | null>(null);
   const [kycStatus, setKycStatus] = useState<string | null>(null);
   const [entityType, setEntityType] = useState<string | null>(null);
@@ -142,6 +147,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
       if (!firebaseUser) {
         setProfile(null);
         setIsApproved(false);
+        setIsBanned(false);
+        setIsPartnerSuspended(false);
         setOnboardingStatus(null);
         setKycStatus(null);
         setEntityType(null);
@@ -158,6 +165,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         // /api/auth/me fetch is in-flight — causing the wrong account to render.
         setProfile(null);
         setIsApproved(false);
+        setIsBanned(false);
+        setIsPartnerSuspended(false);
         setPermissions(EMPTY_PERMISSIONS);
         setLoading(true);
       }
@@ -220,6 +229,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         const approvedState = approvedByDoc || approvedByClaims;
 
         setIsApproved(approvedState);
+        setIsBanned(userData.isBanned || false);
 
         if (!approvedState) {
           if (onboardingRequest) {
@@ -279,6 +289,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 const payload = ctx.data || ctx;
                 setGrantedPermissions(payload.permissions ?? []);
                 setServerDefaultTabVisibility(payload.tabVisibility ?? null);
+                setIsPartnerSuspended(payload.isSuspended ?? false);
               }
             })
             .catch(() => {});
@@ -520,6 +531,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         profile,
         loading,
         isApproved,
+        isBanned,
+        isPartnerSuspended,
         onboardingStatus,
         kycStatus,
         entityType,

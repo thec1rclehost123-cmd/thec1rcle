@@ -92,6 +92,7 @@ export function normalizeGuestProfile(
     partnerId: asNullableString(merged.partnerId),
     onboardingStatus: asNullableString(merged.onboardingStatus),
     isApproved: merged.isApproved === true,
+    isBanned: merged.isBanned === true,
     // Partner onboarding fields
     contactPerson: asNullableString(merged.contactPerson),
     area: asNullableString(merged.area),

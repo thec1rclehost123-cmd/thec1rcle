@@ -10,6 +10,7 @@ const ALLOWED_COLLECTIONS = [
   'hosts',
   'promoters',
   'admins',
+  'admin_team_invitations',
   'events',
   'orders',
   'onboarding_requests',

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GATEWAY_URL, proxyToGateway } from '@/lib/server/apiGateway';
 import { requireVenueAccess } from '@/lib/rbac/staffProfileEnforcer';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 const FORWARDED_HEADERS = [
   'authorization',
@@ -45,6 +46,38 @@ async function handleComputedAnalytics(req: NextRequest, id: string): Promise<Ne
         },
       },
       { status: ctx.status },
+    );
+  }
+
+  // Cross-Tenant Analytics IDOR Check: verify event exists and belongs to this venue
+  const db = getAdminDb();
+  const eventDoc = await db.collection('events').doc(id).get();
+  if (!eventDoc.exists) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Event not found',
+          requestId: req.headers.get('x-request-id') || crypto.randomUUID(),
+        },
+      },
+      { status: 404 },
+    );
+  }
+
+  const eventData = eventDoc.data();
+  if (!eventData || eventData.venueId !== ctx.venueId) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Forbidden: Event does not belong to this venue',
+          requestId: req.headers.get('x-request-id') || crypto.randomUUID(),
+        },
+      },
+      { status: 403 },
     );
   }
 

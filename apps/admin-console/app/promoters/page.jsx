@@ -23,6 +23,8 @@ import {
   X,
   User,
   RotateCw,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import AdminConfirmModal from '@/components/admin/AdminConfirmModal';
 
@@ -37,6 +39,7 @@ export default function AdminPromoters() {
 
   const fetchPromoters = async () => {
     try {
+      setLoading(true);
       const token = await user.getIdToken();
       const res = await fetch('/api/list?collection=promoters', {
         headers: { Authorization: `Bearer ${token}` },
@@ -363,19 +366,20 @@ export default function AdminPromoters() {
                           onClick={() =>
                             setModalConfig({
                               action: 'PROMOTER_SUSPEND',
-                              title: 'Suspend Partner',
+                              title: 'Restrict Collaboration',
                               message:
-                                'Temporarily halts all distribution links and platform access.',
-                              label: 'Confirm Suspension',
+                                'Deactivate partner operations immediately. Requires security clearance.',
+                              label: 'Confirm Restriction',
                               type: 'danger',
+                              isTier2: true,
                             })
                           }
                           className="w-full flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-iris/30 hover:bg-iris/5 transition-all group"
                         >
                           <div className="flex items-center gap-3">
-                            <Ban className="h-4 w-4 text-iris" strokeWidth={1.5} />
+                            <Lock className="h-4 w-4 text-iris" strokeWidth={1.5} />
                             <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-300">
-                              Suspend Access
+                              Restrict Partner
                             </span>
                           </div>
                           <ChevronRight className="h-3.5 w-3.5 text-zinc-600 transition-transform group-hover:translate-x-1" />
@@ -385,60 +389,26 @@ export default function AdminPromoters() {
                           onClick={() =>
                             setModalConfig({
                               action: 'PROMOTER_ACTIVATE',
-                              title: 'Activate Partner',
+                              title: 'Restore Partner',
                               message:
                                 'Restores full distribution capabilities and platform access.',
-                              label: 'Confirm Activation',
+                              label: 'Restore Partner',
                               type: 'info',
+                              isTier2: true,
                             })
                           }
                           className="w-full flex items-center justify-between p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/20 transition-all group shadow-lg shadow-emerald-500/10"
                         >
                           <div className="flex items-center gap-3">
-                            <CheckCircle2 className="h-4 w-4" strokeWidth={1.5} />
+                            <Unlock className="h-4 w-4" strokeWidth={1.5} />
                             <span className="text-[11px] font-bold uppercase tracking-widest">
-                              Restore Access
+                              Restore Partner
                             </span>
                           </div>
                           <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
                         </button>
                       )}
                     </div>
-                  </div>
-
-                  <div className="pt-6 border-t border-[#ffffff05] space-y-4">
-                    <div className="flex items-center gap-2 px-1">
-                      <ShieldAlert className="h-4 w-4 text-iris" strokeWidth={1.5} />
-                      <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-iris">
-                        Admin Revocation
-                      </p>
-                    </div>
-                    <button
-                      onClick={() =>
-                        setModalConfig({
-                          action: 'PROMOTER_DISABLE',
-                          title: 'Permanently Deactivate',
-                          message:
-                            'Permanently removes this partner from the network. This action cannot be undone.',
-                          label: 'Execute Deactivation',
-                          type: 'danger',
-                        })
-                      }
-                      className="w-full flex items-center justify-between p-5 rounded-xl bg-iris/10 border border-iris/20 text-white hover:bg-iris/20 transition-all group"
-                    >
-                      <div className="flex items-center gap-4 text-left">
-                        <ShieldAlert className="h-6 w-6 text-iris" strokeWidth={1.5} />
-                        <div>
-                          <span className="block text-sm font-bold tracking-tight">
-                            Deactivate Partner
-                          </span>
-                          <span className="block text-[9px] text-iris font-bold uppercase tracking-widest mt-0.5 opacity-80">
-                            Permanent Removal
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-iris group-hover:translate-x-1 transition-transform" />
-                    </button>
                   </div>
                 </div>
 
@@ -474,6 +444,8 @@ export default function AdminPromoters() {
           inputLabel={modalConfig.inputLabel}
           inputType={modalConfig.inputType}
           inputPlaceholder={modalConfig.inputPlaceholder}
+          isTier2={modalConfig.isTier2}
+          isTier3={modalConfig.isTier3}
         />
       )}
     </div>
