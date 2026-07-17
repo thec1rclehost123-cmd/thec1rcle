@@ -135,6 +135,54 @@ export class PaymentService {
       .catch(() => undefined);
   }
 
+  async createRefund(params: {
+    razorpayPaymentId: string;
+    amount: number;
+    receipt?: string;
+    notes?: Record<string, string>;
+    config: {
+      keyId?: string;
+      keySecret?: string;
+      allowMockPayment?: boolean;
+    };
+  }): Promise<{ id: string; status: string; amount: number }> {
+    const { razorpayPaymentId, amount, receipt, notes, config } = params;
+    const { keyId, keySecret, allowMockPayment } = config;
+    const isMockPayment = String(razorpayPaymentId || '').startsWith('pay_mock_');
+
+    if (isMockPayment) {
+      if (!allowMockPayment) {
+        throw new Error('Mock payments are disabled');
+      }
+      return {
+        id: `rfnd_mock_${Date.now()}`,
+        status: 'processed',
+        amount: Math.round(amount * 100),
+      };
+    }
+
+    if (!keyId || !keySecret) {
+      throw new Error('Payment gateway is not configured');
+    }
+
+    const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+
+    try {
+      const refund: any = await withTimeout(
+        razorpay.payments.refund(razorpayPaymentId, {
+          amount: Math.round(amount * 100),
+          speed: 'normal',
+          notes,
+          receipt,
+        }),
+        'Razorpay refund request timed out after 10s',
+      );
+      return { id: refund.id, status: refund.status, amount: refund.amount };
+    } catch (e: any) {
+      throw new Error(e?.error?.description || e?.message || 'Razorpay refund failed');
+    }
+  }
+
   async validateGatewayPayment(params: {
     paymentRecord: PaymentRecord;
     razorpayOrderId: string;
