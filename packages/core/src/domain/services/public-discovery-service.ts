@@ -1226,15 +1226,13 @@ export class PublicDiscoveryService {
         .doc(`host_${host.id}`)
         .get()
         .catch(() => null),
-      this.events
-        .queryList({
-          hostId: host.id,
-          limit: 48,
-          orderByField: 'startAt',
-          direction: 'asc',
-          minEndAt: new Date().toISOString().slice(0, 10),
-        })
-        .catch(() => []),
+      this.events.queryList({
+        hostId: host.id,
+        limit: 48,
+        orderByField: 'startAt',
+        direction: 'asc',
+        minEndAt: new Date().toISOString().slice(0, 10),
+      }),
     ]);
     const hostEvents = allEvents
       .filter((event: any) => event.hostId === host.id)
@@ -1343,15 +1341,13 @@ export class PublicDiscoveryService {
         .limit(1)
         .get()
         .catch(() => null),
-      this.events
-        .queryList({
-          venueId: venue.id,
-          limit: 96,
-          orderByField: 'startAt',
-          direction: 'asc',
-          minEndAt: new Date().toISOString().slice(0, 10),
-        })
-        .catch(() => []),
+      this.events.queryList({
+        venueId: venue.id,
+        limit: 96,
+        orderByField: 'startAt',
+        direction: 'asc',
+        minEndAt: new Date().toISOString().slice(0, 10),
+      }),
       this.venues
         .queryList({
           cityKey: venue.cityKey || null,

@@ -192,7 +192,7 @@ describe('PublicDiscoveryService', () => {
     expect(service.events.queryList).toHaveBeenCalledWith(
       expect.objectContaining({
         cityKey: 'pune-in',
-        limit: 100,
+        limit: 24,
       }),
     );
     expect(service.events.listAll).not.toHaveBeenCalled();
