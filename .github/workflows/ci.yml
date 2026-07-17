@@ -18,14 +18,14 @@ jobs:
     name: Install
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
       - run: npm ci
       - name: Cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             node_modules
@@ -39,10 +39,10 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: nm-cache
         with:
           path: |
@@ -71,10 +71,10 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: nm-cache
         with:
           path: |
@@ -115,10 +115,10 @@ jobs:
           - workspace: apps/mobile-app
             test-command: npx jest --testPathPattern=scanner --verbose
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: nm-cache
         with:
           path: |
@@ -135,7 +135,7 @@ jobs:
         run: |
           cd ${{ matrix.workspace }}
           ${{ matrix.test-command }}
-      - uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@v7
         if: always()
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -148,13 +148,13 @@ jobs:
     needs: [lint, typecheck, test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - run: git fetch --no-tags --depth=500 origin main
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: nm-cache
         with:
           path: |
@@ -177,11 +177,11 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: nm-cache
         with:
           path: |
