@@ -16,6 +16,26 @@ env:
   GCR_HOSTNAME: gcr.io
 
 jobs:
+  # ── Detect which app areas changed, so e.g. a guest-portal-only push
+  # ── doesn't also rebuild and redeploy the untouched Cloud Run backend ──
+  detect-changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'apps/api-gateway/**'
+              - 'packages/core/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'turbo.json'
+
   # ── Shared setup ─────────────────────────────────────────────────
   install:
     name: Install
@@ -86,7 +106,8 @@ jobs:
   # ── API Gateway → Cloud Run ───────────────────────────────────────
   deploy-api-gateway:
     name: Deploy API Gateway (Cloud Run)
-    needs: install
+    needs: [install, detect-changes]
+    if: needs.detect-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     environment: production
     permissions:
@@ -137,6 +158,11 @@ jobs:
   sentry-release:
     name: Sentry Release
     needs: [deploy-web, deploy-api-gateway]
+    # deploy-api-gateway is conditionally skipped when nothing backend-related
+    # changed (see detect-changes) — GitHub Actions treats a skipped dependency
+    # as not-successful by default, which would wrongly skip this job too on a
+    # web-only release. Only require deploy-web to have actually succeeded.
+    if: ${{ !cancelled() && needs.deploy-web.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
