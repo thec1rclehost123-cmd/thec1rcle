@@ -357,27 +357,25 @@ async function getPartnerProfileSummaryInternal(db: any, id: string) {
   const resolvedUserData = userSnap?.exists ? userSnap.data() || {} : {};
   const onboardingData = (onboarding?.data || onboarding || {}) as Record<string, any>;
 
-  const resolvedEmail = includePii
-    ? pickString(
-        doc.email,
-        doc.supportEmail,
-        doc.contactEmail,
-        doc.promoterEmail,
-        resolvedUserData.email,
-        onboardingData.email,
-      ) || null
-    : null;
+  const resolvedEmail =
+    pickString(
+      doc.email,
+      doc.supportEmail,
+      doc.contactEmail,
+      doc.promoterEmail,
+      resolvedUserData.email,
+      onboardingData.email,
+    ) || null;
 
-  const resolvedPhone = includePii
-    ? pickString(
-        doc.phone,
-        doc.contactPhone,
-        doc.legalPhone,
-        doc.phoneNumber,
-        onboardingData.phone,
-        resolvedUserData.phoneNumber,
-      ) || null
-    : null;
+  const resolvedPhone =
+    pickString(
+      doc.phone,
+      doc.contactPhone,
+      doc.legalPhone,
+      doc.phoneNumber,
+      onboardingData.phone,
+      resolvedUserData.phoneNumber,
+    ) || null;
 
   const socialLinks = normalizeSocialLinks(onboardingData.socialLinks, doc.socialLinks, {
     instagram: pickString(doc.instagram, doc.instagramHandle, onboardingData.instagram),
@@ -613,39 +611,4 @@ export async function getConnectionForViewer(
   }
 
   return null;
-}
-
-export async function getPartnerProfileWithPii(
-  db: any,
-  id: string,
-  viewerRole: string,
-  viewerId: string,
-) {
-  // Retrieve profile summary without PII by default
-  const profile = await getPartnerProfileSummary(db, id, false);
-  if (!profile) return null;
-
-  // Resolve connection for the viewer
-  const connection = await getConnectionForViewer(db, {
-    viewerRole,
-    viewerId,
-    partnerId: id,
-    partnerType: profile.type,
-  });
-
-  const isConnected =
-    connection && (connection.status === 'active' || connection.status === 'approved');
-
-  if (isConnected) {
-    // If active mutual connection exists, fetch profile WITH PII
-    const profileWithPii = await getPartnerProfileSummary(db, id, true);
-    if (profileWithPii && (profileWithPii as any)._pii) {
-      (profileWithPii as any).email = (profileWithPii as any)._pii.email;
-      (profileWithPii as any).phone = (profileWithPii as any)._pii.phone;
-      delete (profileWithPii as any)._pii;
-    }
-    return { profile: profileWithPii, connection };
-  }
-
-  return { profile, connection };
 }

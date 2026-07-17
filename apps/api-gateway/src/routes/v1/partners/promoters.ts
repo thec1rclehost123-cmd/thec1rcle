@@ -4,7 +4,10 @@ import { randomUUID } from 'node:crypto';
 import { getPromoterStats, listConnections, manageConnection } from '@c1rcle/core/promoter-engine';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
-import { getPartnerProfileWithPii } from '../../../utils/partner-profiles.js';
+import {
+  getPartnerProfileSummary,
+  getPartnerProfileWithPii,
+} from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { PromoterService } from '../../../services/unified/promoter-service.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';

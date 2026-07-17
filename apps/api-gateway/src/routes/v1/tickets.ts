@@ -1063,6 +1063,15 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         );
       }
       const entitlement = entDoc.data();
+      if (!entitlement) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Ticket not found',
+            requestId: request.id,
+          }),
+        );
+      }
       const eventDoc = await fastify.db.collection('events').doc(entitlement.eventId).get();
       const event = eventDoc.exists ? eventDoc.data() : null;
 
