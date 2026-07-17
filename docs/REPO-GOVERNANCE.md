@@ -12,14 +12,17 @@
 
 Rulesets are the **single source of truth** — the classic branch protection rules were
 deleted on 2026-07-17 after their stricter settings were folded into `release-gates`.
-Code-owner review is ON (2026-07-17): `.github/CODEOWNERS` was rewritten with
-path-based ownership (backend → rautsagar1625/shriyashsawant/deepx12, mobile →
-aayushdivase333-lab/thec1rclehost123-cmd/deepx12, `.github`+`docs` → shriyashsawant,
-`packages/ui` → shared). The file was fast-pathed onto `staging` and `main` because
-GitHub resolves owners from the PR's **base branch**. Caveat: an author's own
-approval never counts — PRs by shriyashsawant touching `.github/` or `docs/` need
-the admin bypass, since they are the sole owner there. "Require signed commits"
-stays off everywhere: team commits are unsigned, so enabling it deadlocks the train.
+Code-owner review is **OFF, pending**: `.github/CODEOWNERS` was rewritten
+(2026-07-17) with path-based ownership (backend → rautsagar1625/shriyashsawant/
+deepx12, mobile → aayushdivase333-lab/thec1rclehost123-cmd/deepx12,
+`.github`+`docs` → shriyashsawant, `packages/ui` → shared) and rides PR #88 to
+staging. GitHub resolves owners from the PR's **base branch**, so
+`require_code_owner_review` must be flipped to true in ruleset 19114987 only
+**after #88 merges** — flipping earlier would enforce the old single-owner file.
+Caveat once on: an author's own approval never counts, so PRs by shriyashsawant
+touching `.github/` or `docs/` need the admin bypass (sole owner there).
+"Require signed commits" stays off everywhere: team commits are unsigned, so
+enabling it deadlocks the train.
 
 The 14 required check names and their caveats (en-dash in Vercel names, `, true`
 suffix on admin-console) are listed in `docs/BRANCH-AUDIT.md`.
