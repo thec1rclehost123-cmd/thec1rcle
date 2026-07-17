@@ -7,7 +7,12 @@ on:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-  GCP_REGION: us-central1
+  # The real, currently-live service is `apii-gateway` (note the double "i")
+  # in asia-east1 — a manual deploy that predates this workflow. Previously
+  # this pointed at `api-gateway`/us-central1, which doesn't exist, so this
+  # job has never actually deployed anything.
+  GCP_SERVICE: apii-gateway
+  GCP_REGION: asia-east1
   GCR_HOSTNAME: gcr.io
 
 jobs:
@@ -107,14 +112,24 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
-      - name: Build & push to GCR
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker ${{ env.GCR_HOSTNAME }} --quiet
+      - name: Build & push image
+        # This monorepo's apps/api-gateway/Dockerfile does `COPY . .` and
+        # relies on turbo to prune the workspace, so it must be built with
+        # the repo root as context — `gcloud builds submit apps/api-gateway`
+        # (the previous version of this step) only uploaded that subfolder,
+        # which could never have satisfied the Dockerfile's own COPY.
         run: |
-          gcloud builds submit apps/api-gateway \
-            --tag ${{ env.GCR_HOSTNAME }}/${{ secrets.GCP_PROJECT_ID }}/api-gateway:${{ github.sha }}
+          docker build \
+            -f apps/api-gateway/Dockerfile \
+            -t ${{ env.GCR_HOSTNAME }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.GCP_SERVICE }}:${{ github.sha }} \
+            .
+          docker push ${{ env.GCR_HOSTNAME }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.GCP_SERVICE }}:${{ github.sha }}
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy api-gateway \
-            --image ${{ env.GCR_HOSTNAME }}/${{ secrets.GCP_PROJECT_ID }}/api-gateway:${{ github.sha }} \
+          gcloud run deploy ${{ env.GCP_SERVICE }} \
+            --image ${{ env.GCR_HOSTNAME }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.GCP_SERVICE }}:${{ github.sha }} \
             --region ${{ env.GCP_REGION }} \
             --platform managed
 
