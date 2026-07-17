@@ -58,8 +58,12 @@ export async function issueEntitlements(order, items, transaction = null) {
     for (let i = 0; i < (item.quantity || 1); i++) {
       // Deterministic ID: stable across retries, no UUID randomness.
       const tierId = (item.ticketId || item.tierId || 'GEN').replace(/\//g, '-');
+      const entId = `ENT-${order.id}-${tierId}-${i + 1}`.toUpperCase();
       const entitlement = {
-        id: `ENT-${order.id}-${tierId}-${i + 1}`.toUpperCase(),
+        id: entId,
+        entitlementId: entId,
+        qrCode: entId,
+        checkedIn: false,
         eventId: order.eventId,
         orderId: order.id,
         ownerUserId: order.userId,
@@ -288,6 +292,7 @@ export async function processEntryScan(qrPayload, scannerId, eventId, context = 
       t.update(entRef, {
         scanCountUsed: newCountUsed,
         state: isFull ? ENTITLEMENT_STATES.CONSUMED : entitlement.state,
+        checkedIn: true,
         lastScannerId: scannerId,
         consumedMetadata: context,
         ...(isFirstScan
@@ -320,6 +325,7 @@ export async function processEntryScan(qrPayload, scannerId, eventId, context = 
     t.update(entRef, {
       scanCountUsed: newCountUsed,
       state: newState,
+      checkedIn: true,
       consumedAt: timestamp,
       lastScannerId: scannerId,
       consumedMetadata: context,

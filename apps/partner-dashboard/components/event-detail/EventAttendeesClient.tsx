@@ -53,7 +53,9 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
 
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'online' | 'walk-in'>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'online' | 'walk-in' | 'checked-in'>(
+    'all',
+  );
 
   // ── Live data hook ──────────────────────────────────────────────────────
   const { attendees, totalCount, isLoading, isError, refresh } = useEventAttendees(
@@ -69,7 +71,8 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
       const matchesSource =
         sourceFilter === 'all' ||
         (sourceFilter === 'online' && a.source === 'online') ||
-        (sourceFilter === 'walk-in' && (a.source === 'door' || a.source === 'manual'));
+        (sourceFilter === 'walk-in' && (a.source === 'door' || a.source === 'manual')) ||
+        (sourceFilter === 'checked-in' && a.status === 'checked_in');
       return matchesSearch && matchesSource;
     });
   }, [search, sourceFilter, attendees]);
@@ -138,6 +141,11 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
                 >
                   {src.label}
                 </span>
+                {row.status === 'checked_in' && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide bg-emerald-500/10 text-emerald-400">
+                    Checked In
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -351,6 +359,7 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
               { label: 'All', value: 'all' },
               { label: 'Online', value: 'online' },
               { label: 'Walk-in', value: 'walk-in' },
+              { label: 'Checked In', value: 'checked-in' },
             ].map((t) => {
               const isActive = sourceFilter === t.value;
               return (

@@ -144,7 +144,8 @@ export async function getGuestWalletTicket(dbOrUserId, authOrTicketId, maybeUser
 
   if (ticket && ticket.status === 'active' && !ticket.genderMismatch && !ticket.isTransferPending) {
     if (ticket.entitlementId) {
-      ticket.qrPayload = ticket.entitlementId;
+      const { generateEntitlementQR } = await import('./entitlement-engine.js');
+      ticket.qrPayload = JSON.stringify(generateEntitlementQR(ticket.entitlementId));
     } else {
       // Import here to avoid circular dependency or heavy boot
       const { signTicketId } = await import('./ticket-engine.js');

@@ -161,11 +161,29 @@ function toNumber(value: any): number {
  * predates `promoterCompensation` entirely.
  */
 function resolveEventCommissionRate(event: Record<string, any>, promoterId: string): number {
+  if (event.isRSVP === true) {
+    return 0;
+  }
   if (event.promoterCompensation) {
     const pc = normalizeCompensationForRead(event.promoterCompensation);
     return toNumber(resolveEffectiveCommission(pc, promoterId).rate);
   }
   return toNumber(event.promoterSettings?.commissionRate || event.commissionRate || 0);
+}
+
+function resolveEventCommissionType(
+  event: Record<string, any>,
+  promoterId: string,
+): 'percentage' | 'fixed' {
+  if (event.isRSVP === true) {
+    return 'percentage';
+  }
+  if (event.promoterCompensation) {
+    const pc = normalizeCompensationForRead(event.promoterCompensation);
+    return resolveEffectiveCommission(pc, promoterId).type;
+  }
+  const type = event.promoterSettings?.commissionType || event.commissionType;
+  return type === 'flat' || type === 'fixed' ? 'fixed' : 'percentage';
 }
 
 function toIso(value: any): string | null {
@@ -420,7 +438,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       revenue: toNumber(link.revenue),
       commission: toNumber(link.commission),
       clearedCommission: toNumber(link.clearedCommission ?? link.commission),
-      commissionRate: toNumber(link.commissionRate),
+      commissionType: link.commissionType || 'percentage',
+      tierCommissions: link.tierCommissions || null,
       fullUrl: pickString(link.fullUrl, link.url) || null,
       vanityPrefix: pickString(link.vanityPrefix) || null,
       vanitySlug: pickString(link.vanitySlug) || null,
@@ -444,13 +463,28 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     activeLink?: Record<string, any>,
     promoterId?: string,
   ) => {
+    let overallRate = resolveEventCommissionRate(event, promoterId || '');
+    let overallType = resolveEventCommissionType(event, promoterId || '');
+    let tierCommissionsMap = activeLink?.tierCommissions || null;
+
+    if (!tierCommissionsMap && event.promoterCompensation) {
+      const pc = normalizeCompensationForRead(event.promoterCompensation);
+      tierCommissionsMap = resolveEffectiveCommission(pc, promoterId || '').tierCommissions;
+    }
+
     const tickets = Array.isArray(event.tickets)
-      ? event.tickets.map((ticket: any, index: number) => ({
-          id: String(ticket?.id || ticket?.ticketTierId || index),
-          name: pickString(ticket?.name, ticket?.title, `Tier ${index + 1}`),
-          price: toNumber(ticket?.price || ticket?.amount),
-          promoterEnabled: ticket?.promoterEnabled !== false,
-        }))
+      ? event.tickets.map((ticket: any, index: number) => {
+          const tierId = String(ticket?.id || ticket?.ticketTierId || index);
+          const tierComm = tierCommissionsMap ? tierCommissionsMap[tierId] : null;
+          return {
+            id: tierId,
+            name: pickString(ticket?.name, ticket?.title, `Tier ${index + 1}`),
+            price: toNumber(ticket?.price || ticket?.amount),
+            promoterEnabled: ticket?.promoterEnabled !== false,
+            commissionRate: tierComm ? toNumber(tierComm.rate) : toNumber(overallRate),
+            commissionType: tierComm ? tierComm.type : overallType,
+          };
+        })
       : [];
 
     return {
@@ -473,9 +507,12 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         min: tickets.length ? Math.min(...tickets.map((ticket: any) => toNumber(ticket.price))) : 0,
         max: tickets.length ? Math.max(...tickets.map((ticket: any) => toNumber(ticket.price))) : 0,
       },
+      compensationModel: event.promoterCompensation?.model || event.compensationModel || 'standard',
       commissionRate: toNumber(
         activeLink?.commissionRate || resolveEventCommissionRate(event, promoterId || ''),
       ),
+      commissionType:
+        activeLink?.commissionType || resolveEventCommissionType(event, promoterId || ''),
       tickets,
       stats: {
         interested: toNumber(event.interestedCount || event.rsvpCount || event.views || 0),
@@ -653,6 +690,18 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
     const now = new Date().toISOString();
     const id = randomUUID();
+    let resolvedRate = assignment.commissionRate || resolveEventCommissionRate(event, promoterId);
+    const resolvedType = resolveEventCommissionType(event, promoterId);
+    let resolvedTierCommissions = null;
+    if (event.promoterCompensation) {
+      const pc = normalizeCompensationForRead(event.promoterCompensation);
+      resolvedTierCommissions = resolveEffectiveCommission(pc, promoterId).tierCommissions;
+    }
+
+    if (resolvedType === 'percentage') {
+      resolvedRate = normalizePromoterCommissionRate(resolvedRate);
+    }
+
     const link = {
       id,
       promoterId,
@@ -661,10 +710,9 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       eventTitle: pickString(body.eventTitle, event.title, event.name),
       campaignLabel: pickString(body.campaignLabel),
       ticketTierIds: Array.isArray(body.ticketTierIds) ? body.ticketTierIds : [],
-      commissionRate: normalizePromoterCommissionRate(
-        assignment.commissionRate || resolveEventCommissionRate(event, promoterId),
-      ),
-      commissionType: pickString(body.commissionType, 'percentage'),
+      commissionRate: resolvedRate,
+      commissionType: resolvedType,
+      tierCommissions: resolvedTierCommissions,
       code,
       clicks: 0,
       conversions: 0,
@@ -1236,34 +1284,37 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     // Firestore `in` query limits to 30 items
     const codes = allCodes.slice(0, 30);
 
-    let query = fastify.db.collection('orders').where('promoterCode', 'in', codes);
-
-    if (eventId) {
-      query = query.where('eventId', '==', eventId);
-    }
-
-    if (status === 'checked_in') {
-      // Must have checkedInAt or be explicitly marked checked_in
-      // For simplicity, if we filter by status we'll use the 'status' field.
-      // Assuming 'checked_in' is a valid status string
-      query = query.where('status', '==', 'checked_in');
-    } else if (status === 'pending') {
-      query = query.where('status', '==', 'confirmed');
-    }
-
-    query = query.orderBy('createdAt', 'desc').limit(limit + 1);
-
-    if (cursor) {
-      const cursorDoc = await fastify.db.collection('orders').doc(cursor).get();
-      if (cursorDoc.exists) {
-        query = query.startAfter(cursorDoc);
+    const buildQuery = (collectionName: string, useOrderBy: boolean) => {
+      let q = fastify.db.collection(collectionName).where('promoterCode', 'in', codes);
+      if (eventId) {
+        q = q.where('eventId', '==', eventId);
       }
-    }
+      if (status === 'checked_in') {
+        q = q.where('status', '==', 'checked_in');
+      } else if (status === 'pending') {
+        q = q.where('status', '==', 'confirmed');
+      }
+      if (useOrderBy) {
+        q = q.orderBy('createdAt', 'desc');
+      }
+      return q;
+    };
 
-    let snap;
+    let orderDocs: any[] = [];
+    let rsvpDocs: any[] = [];
     let fallbackUsed = false;
+
     try {
-      snap = await query.get();
+      const [orderSnap, rsvpSnap] = await Promise.all([
+        buildQuery('orders', true)
+          .limit(Math.max(limit + 50, 150))
+          .get(),
+        buildQuery('rsvp_orders', true)
+          .limit(Math.max(limit + 50, 150))
+          .get(),
+      ]);
+      orderDocs = orderSnap.docs;
+      rsvpDocs = rsvpSnap.docs;
     } catch (err: any) {
       const errMsg = String(err.message || err.details || '');
       if (err.code === 9 || errMsg.includes('index') || errMsg.includes('FAILED_PRECONDITION')) {
@@ -1271,49 +1322,66 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           errMsg.match(/https:\/\/console\.firebase\.google\.com\S+/)?.[0] ||
           'Check Firebase Console';
         fastify.log.warn(
-          `[resolvePromoterGuests] Missing Firestore composite index. You can create it here: ${url}`,
+          `[resolvePromoterGuests] Missing Firestore composite index, falling back to in-memory sort. URL: ${url}`,
         );
 
-        let fallbackQuery = fastify.db.collection('orders').where('promoterCode', 'in', codes);
-        if (eventId) {
-          fallbackQuery = fallbackQuery.where('eventId', '==', eventId);
-        }
-        if (status === 'checked_in') {
-          fallbackQuery = fallbackQuery.where('status', '==', 'checked_in');
-        } else if (status === 'pending') {
-          fallbackQuery = fallbackQuery.where('status', '==', 'confirmed');
-        }
-
-        snap = await fallbackQuery.limit(500).get();
+        const [orderSnap, rsvpSnap] = await Promise.all([
+          buildQuery('orders', false).limit(500).get(),
+          buildQuery('rsvp_orders', false).limit(500).get(),
+        ]);
+        orderDocs = orderSnap.docs;
+        rsvpDocs = rsvpSnap.docs;
         fallbackUsed = true;
       } else {
         throw err;
       }
     }
 
-    let allDocs = snap.docs;
-    if (fallbackUsed) {
-      // Sort in-memory by createdAt desc
-      allDocs.sort((a: any, b: any) => {
-        const dateA = a.data().createdAt ? new Date(a.data().createdAt).getTime() : 0;
-        const dateB = b.data().createdAt ? new Date(b.data().createdAt).getTime() : 0;
-        return dateB - dateA;
-      });
+    let allDocs = [...orderDocs, ...rsvpDocs];
 
-      // Handle cursor pagination in-memory
-      if (cursor) {
-        const cursorIndex = allDocs.findIndex((d: any) => d.id === cursor);
-        if (cursorIndex !== -1) {
-          allDocs = allDocs.slice(cursorIndex + 1);
+    // Sort in-memory by createdAt desc
+    allDocs.sort((a: any, b: any) => {
+      const dateA = a.data().createdAt ? new Date(a.data().createdAt).getTime() : 0;
+      const dateB = b.data().createdAt ? new Date(b.data().createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    // Handle cursor pagination in-memory
+    if (cursor) {
+      const cursorIndex = allDocs.findIndex((d: any) => d.id === cursor);
+      if (cursorIndex !== -1) {
+        allDocs = allDocs.slice(cursorIndex + 1);
+      } else {
+        // Fallback: fetch the cursor doc's createdAt timestamp if not in slice
+        const cursorDoc =
+          (await fastify.db
+            .collection('orders')
+            .doc(cursor)
+            .get()
+            .catch(() => null)) ||
+          (await fastify.db
+            .collection('rsvp_orders')
+            .doc(cursor)
+            .get()
+            .catch(() => null));
+        if (cursorDoc && cursorDoc.exists) {
+          const cursorData = cursorDoc.data();
+          const cursorTime = cursorData?.createdAt ? new Date(cursorData.createdAt).getTime() : 0;
+          allDocs = allDocs.filter((d: any) => {
+            const dTime = d.data().createdAt ? new Date(d.data().createdAt).getTime() : 0;
+            if (dTime < cursorTime) return true;
+            if (dTime === cursorTime) return d.id > cursor; // tie-breaker
+            return false;
+          });
         }
       }
     }
 
     const hasMore = allDocs.length > limit;
-    const orderDocs = allDocs.slice(0, limit);
+    const finalDocs = allDocs.slice(0, limit);
 
     const eventIds = [
-      ...new Set(orderDocs.map((d: any) => String(d.data().eventId || '')).filter(Boolean)),
+      ...new Set(finalDocs.map((d: any) => String(d.data().eventId || '')).filter(Boolean)),
     ];
     const eventSnaps =
       eventIds.length > 0
@@ -1324,7 +1392,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       if (doc.exists)
         eventMap.set(doc.id, (doc.data() as any).title || (doc.data() as any).name || '');
     }
-    const guests = orderDocs.map((doc: any) => {
+    const guests = finalDocs.map((doc: any) => {
       const order = doc.data() as Record<string, any>;
       const totalPaise = toNumber(order.totalPaise || 0);
       const amount = totalPaise > 0 ? totalPaise / 100 : toNumber(order.amount || 0);

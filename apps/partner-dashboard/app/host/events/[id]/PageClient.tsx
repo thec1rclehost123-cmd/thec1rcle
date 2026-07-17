@@ -1890,6 +1890,65 @@ export default function HostEventWorkspacePage() {
                   className="h-12 w-full rounded-full border border-white/[0.05] bg-[#090A0C] pl-11 pr-5 text-[15px] text-white outline-none ring-0 placeholder:text-white/35"
                 />
               </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttendeeSource('');
+                    setAttendeeStatus('');
+                  }}
+                  className={`rounded-full px-4 py-2 text-[11px] font-semibold tracking-wide uppercase transition-all ${
+                    !attendeeSource && !attendeeStatus
+                      ? 'bg-white text-black'
+                      : 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-white'
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttendeeSource('walkin');
+                    setAttendeeStatus('');
+                  }}
+                  className={`rounded-full px-4 py-2 text-[11px] font-semibold tracking-wide uppercase transition-all ${
+                    attendeeSource === 'walkin' && !attendeeStatus
+                      ? 'bg-white text-black'
+                      : 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-white'
+                  }`}
+                >
+                  Walk-in
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttendeeSource('online');
+                    setAttendeeStatus('');
+                  }}
+                  className={`rounded-full px-4 py-2 text-[11px] font-semibold tracking-wide uppercase transition-all ${
+                    attendeeSource === 'online' && !attendeeStatus
+                      ? 'bg-white text-black'
+                      : 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-white'
+                  }`}
+                >
+                  Online
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttendeeSource('');
+                    setAttendeeStatus('checked_in');
+                  }}
+                  className={`rounded-full px-4 py-2 text-[11px] font-semibold tracking-wide uppercase transition-all ${
+                    !attendeeSource && attendeeStatus === 'checked_in'
+                      ? 'bg-white text-black'
+                      : 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-white'
+                  }`}
+                >
+                  Checked In
+                </button>
+              </div>
             </div>
 
             <div className="overflow-hidden rounded-[28px] border border-white/[0.05] bg-[#161719]">

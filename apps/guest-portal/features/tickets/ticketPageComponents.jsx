@@ -18,6 +18,8 @@ import {
   Sparkles,
   XCircle,
   Share2,
+  Download,
+  Check,
 } from 'lucide-react';
 import { ShareModal } from './ShareModal';
 import { TransferModal } from './TransferModal';
@@ -360,36 +362,50 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
 
                 {ticket.status === 'active' && !ticket.isTransferPending && (
                   <div className="flex gap-2 flex-shrink-0">
-                    {ticket.isPrimaryBuyer && remainingToClaim > 0 && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onShare(ticket);
-                        }}
-                        className="group/btn h-9 w-9 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
-                      >
-                        <Share2 className="h-4 w-4 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />
-                      </button>
-                    )}
-                    {ticket.isPrimaryBuyer && (existingShareToken || remainingToClaim > 0) && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (existingShareToken) {
-                            const url = `${window.location.origin}/tickets/claim/${existingShareToken}`;
-                            window.open(
-                              `https://wa.me/?text=${encodeURIComponent(`You're invited! Claim your ticket for ${ticket.eventTitle}: ${url}`)}`,
-                            );
-                          } else {
-                            onShare(ticket);
-                          }
-                        }}
-                        title="Share to WhatsApp"
-                        className="group/btn h-9 w-9 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 hover:border-[#25D366]/30 shadow-sm"
-                      >
-                        <WaIcon />
-                      </button>
-                    )}
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const shareUrl = `${window.location.origin}/ticket/${ticket.entitlementId}`;
+                        if (typeof navigator !== 'undefined' && navigator.share) {
+                          try {
+                            await navigator.share({
+                              title: `Ticket for ${ticket.eventTitle}`,
+                              text: `Here is my ticket for ${ticket.eventTitle}:`,
+                              url: shareUrl,
+                            });
+                          } catch (err) {}
+                        } else {
+                          navigator.clipboard.writeText(shareUrl);
+                          alert('Ticket share link copied to clipboard!');
+                        }
+                      }}
+                      title="Share Ticket"
+                      className="group/btn h-9 w-9 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
+                    >
+                      <Share2 className="h-4 w-4 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />
+                    </button>
+
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const QRCode = (await import('qrcode')).default;
+                        const canvas = document.createElement('canvas');
+                        const qrValue = ticket.qrPayload || ticket.entitlementId || ticket.ticketId;
+                        await QRCode.toCanvas(canvas, qrValue, {
+                          width: 300,
+                          margin: 2,
+                        });
+                        const link = document.createElement('a');
+                        link.download = `ticket-${ticket.entitlementId || ticket.ticketId}.png`;
+                        link.href = canvas.toDataURL();
+                        link.click();
+                      }}
+                      title="Download Ticket QR"
+                      className="group/btn h-9 w-9 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
+                    >
+                      <Download className="h-4 w-4 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />
+                    </button>
+
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -735,36 +751,67 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
                     </div>
                   )}
 
-                  <div className="flex flex-wrap justify-center gap-4 mt-8">
-                    {currentTicket.isPrimaryBuyer &&
-                      !currentTicket.isClaimedByOther &&
-                      !currentTicket.isClaimed && (
-                        <button
-                          onClick={async () => {
-                            // Try native share if it's an individual ticket and already has a token
-                            if (
-                              currentTicket.shareToken &&
-                              typeof navigator !== 'undefined' &&
-                              navigator.share
-                            ) {
-                              try {
-                                await navigator.share({
-                                  title: `Ticket for ${currentTicket.eventTitle}`,
-                                  text: `Claim your ticket for ${currentTicket.eventTitle}:`,
-                                  url: `${window.location.origin}/tickets/claim/${currentTicket.shareToken}`,
-                                });
-                                return;
-                              } catch (err) {
-                                // Fallback to modal if cancelled or fails
-                              }
-                            }
-                            onShare(ticket);
-                          }}
-                          className="group/btn h-12 w-12 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
-                        >
-                          <Share2 className="h-5 w-5 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />
-                        </button>
+                  {/* Check-in Status Badge */}
+                  <div className="mt-2 flex items-center gap-2">
+                    <span
+                      className={clsx(
+                        'px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border',
+                        isUsed
+                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
+                          : 'bg-blue-500/10 border-blue-500/20 text-blue-500',
                       )}
+                    >
+                      {isUsed ? 'Checked In' : 'Active'}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap justify-center gap-4 mt-8">
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const shareUrl = `${window.location.origin}/ticket/${currentTicket.entitlementId || currentTicket.ticketId}`;
+                        if (typeof navigator !== 'undefined' && navigator.share) {
+                          try {
+                            await navigator.share({
+                              title: `Ticket for ${currentTicket.eventTitle}`,
+                              text: `Here is my ticket for ${currentTicket.eventTitle}:`,
+                              url: shareUrl,
+                            });
+                          } catch (err) {}
+                        } else {
+                          navigator.clipboard.writeText(shareUrl);
+                          alert('Ticket share link copied to clipboard!');
+                        }
+                      }}
+                      title="Share Ticket"
+                      className="group/btn h-12 w-12 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
+                    >
+                      <Share2 className="h-5 w-5 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />
+                    </button>
+
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const QRCode = (await import('qrcode')).default;
+                        const canvas = document.createElement('canvas');
+                        const qrValue =
+                          currentTicket.qrPayload ||
+                          currentTicket.entitlementId ||
+                          currentTicket.ticketId;
+                        await QRCode.toCanvas(canvas, qrValue, {
+                          width: 300,
+                          margin: 2,
+                        });
+                        const link = document.createElement('a');
+                        link.download = `ticket-${currentTicket.entitlementId || currentTicket.ticketId}.png`;
+                        link.href = canvas.toDataURL();
+                        link.click();
+                      }}
+                      title="Download Ticket QR"
+                      className="group/btn h-12 w-12 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
+                    >
+                      <Download className="h-5 w-5 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />
+                    </button>
 
                     {!currentTicket.isClaimedByOther && !currentTicket.isTransferPending && (
                       <button

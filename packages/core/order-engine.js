@@ -60,9 +60,6 @@ export async function validateOrder(event, items, userContext, options = {}) {
 
   // 1. RSVP Specific Rules
   if (isRSVP) {
-    if (totalRequested !== 1) {
-      return { success: false, error: 'RSVP is limited to 1 person per registration' };
-    }
     if (hasExistingRSVP) {
       return { success: false, error: "You have already RSVP'd for this event" };
     }

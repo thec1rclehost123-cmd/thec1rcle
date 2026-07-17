@@ -3,6 +3,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { createHmac } from 'node:crypto';
 import { cacheGet, cacheSet, cacheDel } from '@c1rcle/core/redis';
 import { getTicketSecret } from './secret-registry.js';
+import { getEventTimestamps } from './time.js';
 
 function isFirebaseConfigured() {
   return true;
@@ -549,8 +550,10 @@ export async function getUserTickets(userId) {
     const event = eventsData[order.eventId];
     if (!event) return;
 
-    const eventStart = new Date(event.startDate || event.startAt);
-    const isEventPast = eventStart < now;
+    const { endAt } = getEventTimestamps(event);
+    const isEventPast = endAt
+      ? endAt < now.getTime()
+      : new Date(event.startDate || event.startAt).getTime() < now.getTime();
 
     if (order.status === 'pending_payment' || order.status === 'payment_pending') {
       // We NO LONGER show pending orders in the Tickets dashboard to prevent "ticket hoarding".

@@ -80,7 +80,21 @@ export async function settleEvent(eventId) {
         );
 
         // Calculate splits for this order
-        const splits = calculateOrderSplits(order, event);
+        let resolvedPromoterCommission = null;
+        if (order.promoterLinkId) {
+          const commSnapshot = await transaction.get(
+            db.collection('promoter_commissions').where('orderId', '==', order.id).limit(1),
+          );
+          if (!commSnapshot.empty) {
+            const commData = commSnapshot.docs[0].data();
+            resolvedPromoterCommission = {
+              amount: Number(commData.commissionAmount) || 0,
+              promoterId: commData.promoterId || 'UNKNOWN_PROMOTER',
+            };
+          }
+        }
+
+        const splits = calculateOrderSplits(order, event, resolvedPromoterCommission);
 
         // Distribute to PAYABLE (writes explicit split entries)
         await allocateToPayable(order, splits, transaction);
@@ -127,7 +141,7 @@ export async function getEligibleEventsForSettlement(options = {}) {
 /**
  * Internal logic to determine who gets what from an order
  */
-export function calculateOrderSplits(order, event) {
+export function calculateOrderSplits(order, event, resolvedPromoterCommission = null) {
   const total = Number(order.totalAmount);
   if (total === 0) return [];
 
@@ -138,10 +152,16 @@ export function calculateOrderSplits(order, event) {
   if (order.promoterLinkId) {
     // Commission logic: In Phase 1, we might have a fixed commission or percentage
     // For now, let's assume 10% or use attribution details if present
-    const commissionAmount = order.promoterAttribution?.commissionAmount || Math.round(total * 0.1);
+    const commissionAmount = resolvedPromoterCommission
+      ? resolvedPromoterCommission.amount
+      : order.promoterAttribution?.commissionAmount || Math.round(total * 0.1);
+    const promoterId = resolvedPromoterCommission
+      ? resolvedPromoterCommission.promoterId
+      : order.promoterAttribution?.promoterId || 'UNKNOWN_PROMOTER';
+
     if (commissionAmount > 0) {
       splits.push({
-        actorId: order.promoterAttribution?.promoterId || 'UNKNOWN_PROMOTER',
+        actorId: promoterId,
         actorType: 'promoter',
         amount: Math.min(commissionAmount, remaining),
         description: `Promoter Commission for ${order.id}`,

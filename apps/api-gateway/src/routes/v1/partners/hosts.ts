@@ -2610,60 +2610,121 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           const ev = event as PlainRecord;
           const page = parseInt(String(query.page || '1'), 10) || 1;
           const limit = Math.min(parseInt(String(query.limit || '50'), 10) || 50, 100);
-          let q: any = fastify.db
+
+          let qOrders: any = fastify.db
             .collection('orders')
             .where('eventId', '==', evtId)
             .where('status', 'in', ['confirmed', 'paid']);
-          if (query.tierId) q = q.where('tierId', '==', query.tierId);
-          const snap = await q
-            .limit(500)
-            .get()
-            .catch(() => ({ docs: [] as any[] }));
-          let orderDocs = (snap as any).docs || [];
-          if (query.status && query.status !== 'all') {
-            if (query.status === 'checked_in')
-              orderDocs = orderDocs.filter((d: any) => !!d.data().checkedInAt);
-            else if (query.status === 'not_arrived')
-              orderDocs = orderDocs.filter((d: any) => !d.data().checkedInAt);
-          }
-          if (query.q) {
-            const term = String(query.q).toLowerCase();
-            orderDocs = orderDocs.filter((d: any) => {
-              const o = d.data();
-              return (
-                (o.buyerName || '').toLowerCase().includes(term) ||
-                (o.buyerPhone || '').includes(term)
-              );
-            });
-          }
-          const total = orderDocs.length;
-          const totalPages = Math.ceil(total / limit);
-          const paged = orderDocs.slice((page - 1) * limit, page * limit);
-          const attendees = paged.map((doc: any) => {
+          if (query.tierId) qOrders = qOrders.where('tierId', '==', query.tierId);
+
+          let qRsvps: any = fastify.db
+            .collection('rsvp_orders')
+            .where('eventId', '==', evtId)
+            .where('status', '==', 'confirmed');
+          if (query.tierId) qRsvps = qRsvps.where('tierId', '==', query.tierId);
+
+          const [ordersSnap, rsvpsSnap, entitlementsSnap] = await Promise.all([
+            qOrders
+              .limit(500)
+              .get()
+              .catch(() => ({ docs: [] })),
+            qRsvps
+              .limit(500)
+              .get()
+              .catch(() => ({ docs: [] })),
+            fastify.db
+              .collection('entitlements')
+              .where('eventId', '==', evtId)
+              .get()
+              .catch(() => ({ docs: [] })),
+          ]);
+
+          const orderCheckedInTimes = new Map<string, string>();
+          entitlementsSnap.docs.forEach((doc: any) => {
+            const data = doc.data();
+            if (
+              data.orderId &&
+              (data.state === 'CONSUMED' || (data.scanCountUsed && data.scanCountUsed > 0))
+            ) {
+              if (data.consumedAt) {
+                orderCheckedInTimes.set(data.orderId, data.consumedAt);
+              } else {
+                orderCheckedInTimes.set(data.orderId, new Date().toISOString());
+              }
+            }
+          });
+
+          let orderDocs = [
+            ...ordersSnap.docs.map((d: any) => ({ doc: d, isRSVP: false })),
+            ...rsvpsSnap.docs.map((d: any) => ({ doc: d, isRSVP: true })),
+          ];
+
+          let attendeesList = orderDocs.map((item: any) => {
+            const doc = item.doc;
             const o = doc.data() || {};
+            const isRSVP = item.isRSVP;
+            const rawName = o.buyerName || o.customerName || o.name || 'Guest';
+            const checkedInAt = o.checkedInAt || orderCheckedInTimes.get(doc.id) || null;
+            const source = isRSVP ? 'online' : o.source || 'online';
+
             return {
               id: doc.id,
               attendeeId: doc.id,
-              fullName: o.buyerName || 'Guest',
-              email: o.buyerEmail || '',
-              phone: o.buyerPhone || '',
+              fullName: rawName,
+              email: o.buyerEmail || o.email || '',
+              phone: o.buyerPhone || o.phone || '',
               instagram: o.instagram || '',
-              ticketTier: o.tierName || '',
+              ticketTier: o.tierName || (isRSVP ? 'RSVP' : ''),
               tierId: o.tierId || '',
-              quantity: toNumber(o.ticketCount || 1),
-              totalSpend: toNumber(o.totalPaise || 0) / 100,
-              source: o.source || 'online',
-              status: o.checkedInAt ? 'checked_in' : 'paid',
+              quantity: toNumber(o.ticketCount || o.quantity || 1),
+              totalSpend: isRSVP
+                ? 0
+                : toNumber(o.totalPaise || Math.round((o.amount || o.totalAmount || 0) * 100)) /
+                  100,
+              source,
+              status: checkedInAt ? 'checked_in' : 'paid',
               purchasedAt: o.createdAt || null,
-              checkedInAt: o.checkedInAt || null,
+              checkedInAt,
               city: o.city || '',
               area: o.area || '',
               isVip: !!o.isVip,
               tags: o.tags || [],
               orderId: doc.id,
-              orderSummary: `${o.ticketCount || 1} ticket(s)`,
+              orderSummary: `${o.ticketCount || o.quantity || 1} ticket(s)`,
             };
           });
+
+          // Apply filters
+          if (query.source && query.source !== 'all') {
+            attendeesList = attendeesList.filter((a: any) => a.source === query.source);
+          }
+          if (query.status && query.status !== 'all') {
+            if (query.status === 'checked_in') {
+              attendeesList = attendeesList.filter((a: any) => !!a.checkedInAt);
+            } else if (query.status === 'not_arrived') {
+              attendeesList = attendeesList.filter((a: any) => !a.checkedInAt);
+            }
+          }
+          if (query.q) {
+            const term = String(query.q).toLowerCase();
+            attendeesList = attendeesList.filter(
+              (a: any) =>
+                (a.fullName || '').toLowerCase().includes(term) ||
+                (a.phone || '').includes(term) ||
+                (a.email || '').toLowerCase().includes(term),
+            );
+          }
+
+          // Sort by purchasedAt descending
+          attendeesList.sort((a: any, b: any) => {
+            const ad = a.purchasedAt ? new Date(a.purchasedAt).getTime() : 0;
+            const bd = b.purchasedAt ? new Date(b.purchasedAt).getTime() : 0;
+            return bd - ad;
+          });
+
+          const total = attendeesList.length;
+          const totalPages = Math.ceil(total / limit);
+          const attendees = attendeesList.slice((page - 1) * limit, page * limit);
           const rawTiers = asArray(ev.ticketTiers || ev.tiers || []);
           const tierOptions = rawTiers.map((t: any, i: number) => ({
             id: t.id || String(i),

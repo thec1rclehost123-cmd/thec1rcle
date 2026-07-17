@@ -337,7 +337,12 @@ export default async function scanRoutes(fastify: FastifyInstance) {
 
       let payload: any;
       try {
-        payload = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
+        if (typeof qrData === 'string' && qrData.trim().startsWith('ENT-')) {
+          const { generateEntitlementQR } = await import('@c1rcle/core/entitlement-engine');
+          payload = generateEntitlementQR(qrData.trim());
+        } else {
+          payload = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
+        }
       } catch (e) {
         return reply.status(400).send({ error: 'Invalid QR format', result: 'invalid' });
       }
@@ -1140,36 +1145,60 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         if (!access.allowed) return reply.status(access.status).send({ error: access.error });
       }
 
-      const [ordersSnap, scansSnap] = await Promise.all([
+      const [ordersSnap, rsvpsSnap, entitlementsSnap] = await Promise.all([
         fastify.db
           .collection('orders')
           .where('eventId', '==', eventId)
-          .where('status', 'in', ['confirmed', 'checked_in'])
+          .where('status', 'in', ['confirmed', 'paid', 'checked_in'])
           .get(),
         fastify.db
-          .collection('ticket_scans')
+          .collection('rsvp_orders')
           .where('eventId', '==', eventId)
-          .where('result', '==', 'valid')
+          .where('status', '==', 'confirmed')
           .get(),
+        fastify.db
+          .collection('entitlements')
+          .where('eventId', '==', eventId)
+          .get()
+          .catch(() => ({ docs: [] })),
       ]);
+
       const scannedIds = new Set<string>();
       const scanTimes = new Map<string, string>();
-      scansSnap.docs.forEach((d: any) => {
-        scannedIds.add(d.data().orderId);
-        scanTimes.set(d.data().orderId, d.data().scannedAt);
+
+      entitlementsSnap.docs.forEach((doc: any) => {
+        const data = doc.data();
+        if (
+          data.orderId &&
+          (data.state === 'CONSUMED' || (data.scanCountUsed && data.scanCountUsed > 0))
+        ) {
+          scannedIds.add(data.orderId);
+          if (data.consumedAt) {
+            scanTimes.set(data.orderId, data.consumedAt);
+          } else {
+            scanTimes.set(data.orderId, new Date().toISOString());
+          }
+        }
       });
 
-      const guests = ordersSnap.docs.map((doc: any) => {
+      const orderDocs = [
+        ...ordersSnap.docs.map((d: any) => ({ doc: d, isRSVP: false })),
+        ...rsvpsSnap.docs.map((d: any) => ({ doc: d, isRSVP: true })),
+      ];
+
+      const guests = orderDocs.map((item: any) => {
+        const doc = item.doc;
         const order = doc.data();
         const ticket = order.tickets?.[0] || {};
-        const entered = scannedIds.has(doc.id) || order.status === 'checked_in';
+        const entered =
+          scannedIds.has(doc.id) || order.status === 'checked_in' || !!order.checkedInAt;
         return {
           id: doc.id,
-          name: order.userName || 'Guest',
-          ticketType: ticket.name || 'Entry',
-          entryType: ticket.entryType || 'general',
+          name: order.buyerName || order.userName || order.customerName || order.name || 'Guest',
+          ticketType: ticket.name || (item.isRSVP ? 'RSVP' : 'Entry'),
+          entryType: ticket.entryType || (item.isRSVP ? 'rsvp' : 'general'),
           quantity: ticket.quantity || 1,
-          source: order.source || 'online',
+          source: item.isRSVP ? 'online' : order.source || 'online',
           status: entered ? 'entered' : 'not_entered',
           enteredAt: scanTimes.get(doc.id) || order.checkedInAt || null,
         };

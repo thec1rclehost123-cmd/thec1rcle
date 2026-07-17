@@ -53,6 +53,8 @@ type PromoLink = {
   commission?: number;
   clearedCommission?: number;
   commissionRate?: number;
+  commissionType?: string | null;
+  tierCommissions?: Record<string, { rate: number; type: 'percentage' | 'fixed' }> | null;
   fullUrl?: string | null;
 };
 
@@ -604,9 +606,14 @@ export default function PromoLinksPage() {
                               style={{ width: '100%' }}
                             />
                             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-zinc-950/90 px-2 py-0.5 text-[11px] font-medium text-text-tertiary">
-                              {link.commissionRate
-                                ? `${link.commissionRate}% commission`
-                                : 'Tracked link'}
+                              {link.tierCommissions && Object.keys(link.tierCommissions).length > 0
+                                ? 'Varying commission'
+                                : link.commissionRate
+                                  ? link.commissionType === 'fixed' ||
+                                    link.commissionType === 'flat'
+                                    ? `₹${link.commissionRate} commission`
+                                    : `${link.commissionRate}% commission`
+                                  : 'Tracked link'}
                             </div>
                           </div>
                         </div>
