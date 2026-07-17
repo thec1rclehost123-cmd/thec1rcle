@@ -2,7 +2,9 @@
 
 ## Overview
 
-This monorepo uses **GitHub Actions** with **Turbo 2.7** for orchestration. There are 7 workflow files under `.github/workflows/`, each serving a specific purpose.
+> Refreshed against the repo on 2026-07-17. If this doc and a workflow file disagree, trust the file.
+
+This monorepo uses **GitHub Actions** with **Turbo 2.7** for orchestration. There are **13 workflow files** under `.github/workflows/`, plus **two deploy pipelines that live entirely outside GitHub Actions** — a GCP Cloud Build trigger and Render's native git integration. See [Non-GitHub-Actions deploy pipelines](#non-github-actions-deploy-pipelines) before assuming `release.yml` is the only thing that ships the API.
 
 ## End-to-End Flow
 
@@ -13,16 +15,28 @@ pre-commit (husky)      # lint-staged: Prettier + ESLint on staged files only
     ↓
 git commit -m "feat: …" # commit-msg (husky): commitlint validates message format
     ↓
-git push                # Triggers GitHub Actions
+git push                # Triggers GitHub Actions (+ GCP Cloud Build / Render if pushing to staging)
     ↓
 ci.yml                  # Turbo lint (diff), prettier, typecheck, 6-matrix test, build, security
+actionlint / codeql / dependency-review   # Lint workflow YAML, static analysis, dep review
+    ↓
+[if staging branch]
+GCP Cloud Build trigger # NOT a workflow file — native GCP↔GitHub integration → apii-gateway (Cloud Run, secondary)
+Render (native)         # NOT a workflow file — native Render↔GitHub integration → thec1rcle (primary backend)
     ↓
 [if main branch]
-release.yml             # Vercel deploy (3 web apps) + GCR deploy (api-gateway)
+release.yml             # Vercel deploy (3 web apps) + Cloud Run deploy (api-gateway, path-filtered)
 firebase.yml            # Functions + rules deploy (path-filtered)
 inngest.yml             # Sync Inngest function manifest
 mobile.yml              # EAS builds for both mobile apps
+Render (native)         # thec1rcle-main service also deploys on push to main
+    ↓
+[scheduled / manual]
+daily-health-check.yml  # Smoke-tests staging URLs once a day
+scorecard.yml           # OSSF Scorecard, weekly
 ```
+
+**Deployment architecture note:** Render is the **primary** backend host (`thec1rcle` tracks `staging`, `thec1rcle-main` tracks `main`, both via Render's own auto-deploy-on-push). Cloud Run (`apii-gateway`) is the **secondary/failover** backend, kept warm by `release.yml` on `main` and a separate GCP Cloud Build trigger on `staging`.
 
 ---
 
@@ -84,18 +98,20 @@ install → lint
 ### Jobs
 
 ```
-deploy-web (matrix: 3 web apps) ─┐
-deploy-api-gateway ───────────────┤
-deploy-functions ─────────────────┤
-                                  ├──→ sentry-release
+detect-changes ──→ deploy-api-gateway (only if backend paths changed) ─┐
+install ─────────→ deploy-web (matrix: 3 web apps) ─────────────────────┼──→ sentry-release
 ```
 
 | Job | Destination | What it deploys |
 |---|---|---|
+| **detect-changes** | — | `dorny/paths-filter@v3` — sets `backend=true` only when `apps/api-gateway/**`, `packages/core/**`, `package.json`, `package-lock.json`, or `turbo.json` changed |
 | **deploy-web** | Vercel | `guest-portal`, `partner-dashboard`, `admin-console` |
-| **deploy-api-gateway** | Google Cloud Run (GCR) | `apps/api-gateway` Docker image |
-| **deploy-functions** | Firebase Functions | `functions/` via `firebase-tools deploy` |
-| **sentry-release** | Sentry | Creates Sentry release + uploads source maps |
+| **deploy-api-gateway** | Google Cloud Run, service **`apii-gateway`** (note the double "i"), region **`asia-east1`** | Builds `apps/api-gateway/Dockerfile` with **repo root as build context** (`docker build -f apps/api-gateway/Dockerfile .`), pushes to GCR, `gcloud run deploy`. Skipped entirely when `detect-changes` finds no backend-path changes. |
+| **sentry-release** | Sentry | Creates Sentry release + uploads source maps. Gated on `deploy-web` succeeding only — a *skipped* (not failed) `deploy-api-gateway` doesn't block it. |
+
+There is no `deploy-functions` job in `release.yml` — Firebase Functions deploy through the separate path-filtered `firebase.yml` workflow below.
+
+⚠ **Build context matters.** The Dockerfile does `COPY . .` and relies on `turbo prune` to trim the workspace, so it must be built with the monorepo root as context. `gcloud builds submit apps/api-gateway` or any command that only uploads the `apps/api-gateway` subfolder will build without error but silently produce a broken/incomplete image — this exact bug existed in both this workflow and the GCP Cloud Build trigger before both were fixed. `deploy-staging.yml` (below) still has it.
 
 ### Required Secrets & Variables
 
@@ -103,16 +119,54 @@ deploy-functions ─────────────────┤
 |---|---|
 | `VERCEL_TOKEN` | Vercel API authentication |
 | `VERCEL_ORG_ID` | Vercel organization ID |
-| `VERCEL_PROJECT_ID_GUEST_PORTAL` | Vercel project ID |
-| `VERCEL_PROJECT_ID_PARTNER_DASHBOARD` | Vercel project ID |
-| `VERCEL_PROJECT_ID_ADMIN_CONSOLE` | Vercel project ID |
+| `VERCEL_PROJECT_ID_GUEST` | Vercel project ID (guest-portal) |
+| `VERCEL_PROJECT_ID_PARTNER` | Vercel project ID (partner-dashboard) |
+| `VERCEL_PROJECT_ID_ADMIN` | Vercel project ID (admin-console) |
 | `GCP_WIF_PROVIDER` | Workload Identity Federation provider |
 | `GCP_SA_EMAIL` | GCP service account email |
-| `GCP_PROJECT` (var) | GCP project ID |
-| `FIREBASE_TOKEN` | Firebase CI token |
+| `GCP_PROJECT_ID` | GCP project ID — **this is a secret**, not a repo variable, despite similarly-named vars elsewhere |
+| `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` | Passed as build-time env to `deploy-web` so Next.js apps can prerender with Firebase Admin |
 | `SENTRY_AUTH_TOKEN` | Sentry auth token |
 | `SENTRY_ORG` (var) | Sentry organization slug |
 | `SENTRY_PROJECT` (var) | Sentry project slug |
+
+---
+
+## Non-GitHub-Actions deploy pipelines
+
+These are not `.github/workflows/*` files — they're configured directly in each provider's console/API — but they are load-bearing parts of the deploy story and are easy to miss when reading only the workflows folder.
+
+### Render (primary backend host)
+
+Two independent services, each with Render's own native "auto-deploy on push" (no GitHub Actions involved):
+
+| Service | ID | Tracks branch | Region | Plan |
+|---|---|---|---|---|
+| `thec1rcle` | `srv-d8q7sulckfvc73e06u70` | `staging` | Singapore | Free |
+| `thec1rcle-main` | `srv-d9d0p88js32c738hkn50` | `main` | Singapore | Free |
+
+Both have `buildFilter.paths` set to the same backend path list used by `release.yml`'s `detect-changes` job (`apps/api-gateway/**`, `packages/core/**`, `package.json`, `package-lock.json`, `turbo.json`) so an unrelated frontend-only push doesn't trigger a rebuild.
+
+`thec1rcle-main` will keep failing to build until `main` actually receives current backend code — `main` is currently ~430 commits behind `pre-staging`, so this is an expected/honest failure signal, not a misconfiguration.
+
+Free-tier Render services spin down on inactivity; `daily-health-check.yml`'s smoke test (and any external cron pinger hitting the service URL) doubles as a keep-alive.
+
+### GCP Cloud Build trigger (secondary backend, Cloud Run)
+
+Trigger name: `rmgpgab-apii-gateway-asia-east1-thec1rclehost123-cmd-circle-xmv`, project `c1rcle-staging`. Fires on push to `staging` (regex `^staging$`) against `github.com/thec1rclehost123-cmd/circle`. Builds `apps/api-gateway/Dockerfile` with **repo root as context**, pushes to Artifact Registry, and runs `gcloud run services update apii-gateway --region=asia-east1`. Has `includedFiles` path-filtering matching the same backend path list as above.
+
+This is the mechanism that keeps the Cloud Run failover warm on `staging` pushes — `release.yml`'s `deploy-api-gateway` job only fires on `main`.
+
+### `deploy-staging.yml` — likely legacy/duplicate, do not assume it works
+
+This workflow (`.github/workflows/deploy-staging.yml`) also triggers on push to `staging` and tries to build/deploy the API gateway to Cloud Run, but:
+
+- Builds with `gcloud builds submit apps/api-gateway` — the **subfolder-only build context bug** (see the ⚠ note under `release.yml`), so even if it runs it will not produce a working image the way the Dockerfile expects.
+- Targets a Cloud Run service literally named `api-gateway` in `us-central1` — **neither of which is the real, live service** (`apii-gateway` in `asia-east1`).
+- Requires a `GCP_PROJECT_ID_STAGING` secret that is not part of the currently-known secret set (`release.yml` and the Cloud Build trigger both use `GCP_PROJECT_ID` / the `c1rcle-staging` project directly).
+- Its `deploy-web` job pushes a `GATEWAY_URL` env var to Vercel preview/production pointing at whatever Cloud Run URL it thinks it deployed — which, given the above, is unreliable.
+
+Net effect: on every push to `staging`, this workflow most likely fails outright or silently deploys nothing useful, while the two pipelines above (Render + GCP Cloud Build trigger) do the real work. Treat any red ❌ from `Deploy Staging` in the Actions tab as **expected noise** until someone either fixes it to match the real service/project or removes it. Worth a deliberate decision rather than continuing to ignore the failure.
 
 ---
 
@@ -219,6 +273,8 @@ Only triggers when changes touch:
 
 ---
 
+## Workflow 8: `code-quality.yml` — Extended Quality Checks
+
 **Trigger:** PR/push to staging/main + weekly schedule (Sunday 04:00 IST).
 
 **Purpose:** Deep code quality checks that are too slow for per-PR CI.
@@ -230,6 +286,58 @@ Only triggers when changes touch:
 | **bundle-size** | size-limit | Bundle size thresholds per app |
 | **guardrails** | Scripts | Backend boundary compliance + guest portal architecture audit |
 | **lhci** | Lighthouse CI | Performance, accessibility, best-practices, SEO audits |
+
+---
+
+## Workflow 9: `codeql.yml` — CodeQL Security Analysis
+
+**Trigger:** Push/PR to `main` or `staging`, plus a weekly schedule (Monday 06:00 UTC).
+
+**Purpose:** GitHub's static analysis for security vulnerabilities and code quality (`security-and-quality` query suite, JS/TS).
+
+| Job | What it does |
+|---|---|
+| **analyze** | `codeql-action/init` → `autobuild` → `analyze`, results appear under the repo's Security tab |
+
+---
+
+## Workflow 10: `dependency-review.yml` — Dependency Review
+
+**Trigger:** PRs targeting `main` or `staging`.
+
+**Purpose:** Blocks a PR from merging if it introduces a critical-severity vulnerable dependency or a disallowed license (GPL/AGPL/LGPL/SSPL family).
+
+---
+
+## Workflow 11: `actionlint.yml` — Workflow YAML Linting
+
+**Trigger:** Push/PR to `main` or `staging` that touches `.github/workflows/**`.
+
+**Purpose:** Lints the workflow files themselves (`rhysd/actionlint`) — catches invalid step syntax, unknown context references, and shell-script issues inside `run:` blocks before they fail at runtime.
+
+---
+
+## Workflow 12: `daily-health-check.yml` — Staging Smoke Test
+
+**Trigger:** Daily at 02:00 IST, or manual dispatch.
+
+**Purpose:** Runs `scripts/smoke-test.js` against the deployed staging URLs (guest-portal, admin-console, api-gateway) and surfaces an `::error::` annotation on failure. Also incidentally keeps the free-tier Render staging service from spinning down.
+
+### Required Variables
+
+| Variable | Purpose |
+|---|---|
+| `STAGING_GUEST_URL` | Deployed guest-portal staging URL |
+| `STAGING_ADMIN_URL` | Deployed admin-console staging URL |
+| `STAGING_API_URL` | Deployed api-gateway staging URL |
+
+---
+
+## Workflow 13: `scorecard.yml` — OSSF Scorecard
+
+**Trigger:** Weekly (Monday 06:15 UTC) or manual dispatch.
+
+**Purpose:** Runs the [OSSF Scorecard](https://github.com/ossf/scorecard) supply-chain security check and uploads results as a SARIF file to the Security tab.
 
 ---
 
@@ -290,9 +398,18 @@ npm run architecture:guest # Guest portal architecture audit
 | File | Purpose |
 |---|---|
 | `.github/workflows/ci.yml` | Main CI pipeline |
-| `.github/workflows/release.yml` | Production deployment |
+| `.github/workflows/release.yml` | Production deployment (main) |
+| `.github/workflows/deploy-staging.yml` | Legacy/likely-broken staging deploy — see note above |
 | `.github/workflows/mobile.yml` | Mobile EAS builds |
 | `.github/workflows/code-quality.yml` | Extended quality checks |
+| `.github/workflows/codeql.yml` | CodeQL security analysis |
+| `.github/workflows/dependency-review.yml` | PR dependency/license review |
+| `.github/workflows/actionlint.yml` | Workflow YAML linting |
+| `.github/workflows/daily-health-check.yml` | Staging smoke test |
+| `.github/workflows/scorecard.yml` | OSSF Scorecard |
+| `.github/workflows/firebase.yml` | Firebase Functions + rules deploy |
+| `.github/workflows/inngest.yml` | Inngest function manifest sync |
+| `.github/workflows/lighthouse.yml` | Lighthouse CI |
 | `knip.json` | Knip config per workspace (entry points, ignore patterns) |
 | `cspell.json` | Custom dictionary (500+ domain terms) |
 | `commitlint.config.js` | Conventional commit rules + allowed scopes |
@@ -307,36 +424,47 @@ npm run architecture:guest # Guest portal architecture audit
 
 ## Required Repository Secrets — Full List
 
+> This list is generated from an actual `grep` of `secrets.*`/`vars.*` references across every current workflow file — treat it as ground truth over hand-maintained lists. Re-run `grep -rohE 'secrets\.[A-Z_0-9]+|vars\.[A-Z_0-9]+' .github/workflows/*.yml | sort -u` to refresh.
+
 To make all workflows work, add these to GitHub → Settings → Secrets and variables → Actions:
 
 ### Secrets
 ```
-TURBO_TOKEN                         # Turbo remote cache
-VERCEL_TOKEN                        # Vercel deploy
-VERCEL_ORG_ID                       # Vercel org
-VERCEL_PROJECT_ID_GUEST_PORTAL      # Vercel project
-VERCEL_PROJECT_ID_PARTNER_DASHBOARD # Vercel project
-VERCEL_PROJECT_ID_ADMIN_CONSOLE     # Vercel project
-GCP_WIF_PROVIDER                    # GCP Workload Identity
-GCP_SA_EMAIL                        # GCP service account
-FIREBASE_SA_EMAIL                   # Firebase service account (firebase.yml)
-FIREBASE_TOKEN                      # Firebase deploy (legacy)
-SENTRY_AUTH_TOKEN                   # Sentry
-EXPO_TOKEN                          # EAS builds
-LHCI_GITHUB_APP_TOKEN               # Lighthouse CI (optional)
-SONAR_TOKEN                         # SonarCloud scan
-QODANA_TOKEN_422694098              # Qodana scan
-INNGEST_SIGNING_KEY                 # Inngest deploy hook auth (inngest.yml)
-INNGEST_API_KEY                     # Inngest Cloud API key (inngest.yml)
+TURBO_TOKEN            # Turbo remote cache
+CODECOV_TOKEN          # Test coverage upload (ci.yml)
+VERCEL_TOKEN            # Vercel deploy
+VERCEL_ORG_ID           # Vercel org
+VERCEL_PROJECT_ID_GUEST    # Vercel project (guest-portal)
+VERCEL_PROJECT_ID_PARTNER  # Vercel project (partner-dashboard)
+VERCEL_PROJECT_ID_ADMIN    # Vercel project (admin-console)
+GCP_WIF_PROVIDER        # GCP Workload Identity
+GCP_SA_EMAIL             # GCP service account
+GCP_PROJECT_ID            # GCP project ID — used by release.yml (production Cloud Run deploy)
+GCP_PROJECT_ID_STAGING     # Referenced by deploy-staging.yml only — likely NOT actually set; see the legacy/broken note above
+FIREBASE_SA_EMAIL           # Firebase service account (firebase.yml)
+FIREBASE_TOKEN                # Firebase deploy (legacy, deploy-staging.yml)
+FIREBASE_PROJECT_ID             # Also used as a secret in release.yml's deploy-web build env (in addition to being a var — see below)
+FIREBASE_CLIENT_EMAIL             # Firebase Admin build-time env (release.yml deploy-web)
+FIREBASE_PRIVATE_KEY                # Firebase Admin build-time env (release.yml deploy-web)
+SENTRY_AUTH_TOKEN                     # Sentry
+EXPO_TOKEN                              # EAS builds
+SONAR_TOKEN                               # SonarCloud scan (deploy-staging.yml sonar-analysis job)
+INNGEST_SIGNING_KEY                         # Inngest deploy hook auth (inngest.yml)
+INNGEST_API_KEY                               # Inngest Cloud API key (inngest.yml)
+RENDER_API_KEY                                  # Added 2026-07-17; not yet consumed by any workflow — reserved for future use
 ```
+
+`LHCI_GITHUB_APP_TOKEN` and `QODANA_TOKEN_422694098`, previously listed here, are not referenced by any current workflow file — Lighthouse CI and Qodana (if still active) run without an explicit workflow secret, likely via a GitHub App installation instead. `GCP_PROJECT` (var) was also removed from this list for the same reason — nothing reads it.
 
 ### Variables
 ```
 TURBO_TEAM          # Turbo team slug
-GCP_PROJECT         # GCP project ID
-FIREBASE_PROJECT_ID # Firebase project ID (firebase.yml)
+FIREBASE_PROJECT_ID # Firebase project ID (firebase.yml --project flag)
 SENTRY_ORG          # Sentry org slug
 SENTRY_PROJECT      # Sentry project slug
 GUEST_URL           # Deployed guest-portal URL (inngest.yml)
 BACKEND_URL         # Deployed api-gateway URL (inngest.yml)
+STAGING_GUEST_URL   # Deployed guest-portal staging URL (daily-health-check.yml)
+STAGING_ADMIN_URL   # Deployed admin-console staging URL (daily-health-check.yml)
+STAGING_API_URL     # Deployed api-gateway staging URL (daily-health-check.yml)
 ```

@@ -300,7 +300,7 @@ class EventCardIndexRepository {
     areaKey,
     hostId,
     venueId,
-    minStartAt,
+    minEndAt,
   }: {
     limit?: number;
     orderByField?: string;
@@ -309,7 +309,7 @@ class EventCardIndexRepository {
     areaKey?: string | null;
     hostId?: string | null;
     venueId?: string | null;
-    minStartAt?: string | null;
+    minEndAt?: string | null;
   }) {
     try {
       let query: any = this.db.collection(EVENT_CARD_INDEX).where('visibility', '==', 'public');
@@ -317,30 +317,14 @@ class EventCardIndexRepository {
       if (areaKey) query = query.where('areaKey', '==', areaKey);
       if (hostId) query = query.where('hostId', '==', hostId);
       if (venueId) query = query.where('venueId', '==', venueId);
-      if (minStartAt && orderByField === 'startAt') {
-        query = query.where('startAt', '>=', minStartAt);
+      // Bound the Firestore-side fetch to non-past events when sorting
+      // soonest-first, so a growing backlog of past events (ordinary once
+      // the platform has been live a while) can't crowd every upcoming
+      // event out of the `limit` window before the in-memory
+      // isCurrentOrUpcomingGuestEvent filter ever runs.
+      if (minEndAt && orderByField === 'startAt' && direction === 'asc') {
+        query = query.where('startAt', '>=', minEndAt);
       }
-
-      // If we don't have cityKey, do sorting/limiting in-memory to avoid missing index error
-      if (!cityKey) {
-        const snapshot = await query.get();
-        const items = snapshot.docs.map(serializeDoc);
-
-        // Sort in memory
-        const multiplier = direction === 'desc' ? -1 : 1;
-        items.sort((left: any, right: any) => {
-          const a = left?.[orderByField] ?? null;
-          const b = right?.[orderByField] ?? null;
-          if (a === b) return 0;
-          if (a === null) return 1;
-          if (b === null) return -1;
-          if (typeof a === 'number' && typeof b === 'number') return (a - b) * multiplier;
-          return String(a).localeCompare(String(b)) * multiplier;
-        });
-
-        return items.slice(0, limit);
-      }
-
       const snapshot = await query.orderBy(orderByField, direction).limit(limit).get();
       return snapshot.docs.map(serializeDoc);
     } catch (error: any) {
@@ -923,17 +907,27 @@ export class PublicDiscoveryService {
         venueId: venueId || query.venueId || null,
       };
 
-      const resolvedShape = this.resolveEventQueryShape({ ...query, hostId, venueId });
-      const now = Date.now();
-      const minStartAt = new Date(now - 12 * 60 * 60 * 1000).toISOString();
+      const eventQueryShape = this.resolveEventQueryShape({ ...query, hostId, venueId });
+      // Firestore can only combine a `startAt` range filter with `orderBy('startAt')` —
+      // it can't be pushed alongside an orderBy on a different field (e.g. heatScore).
+      // For those sorts, over-fetch a much larger pool so enough upcoming events survive
+      // the isCurrentOrUpcomingGuestEvent filter below instead of being crowded out by a
+      // backlog of higher-ranked past events before the requested `limit` is ever applied.
+      const canFilterUpcomingInFirestore =
+        eventQueryShape.orderByField === 'startAt' && eventQueryShape.direction === 'asc';
+      const fetchLimit = canFilterUpcomingInFirestore
+        ? Math.min(Math.max(limit * 2, 24), 48)
+        : Math.min(Math.max(limit * 8, 96), 200);
 
-      const items = await this.events.queryList({
-        ...resolvedShape,
-        hostId,
-        venueId,
-        limit: 100,
-        minStartAt: resolvedShape.orderByField === 'startAt' ? minStartAt : undefined,
-      });
+      const items = searchNeedle
+        ? await this.events.querySearchPrefix(searchNeedle, Math.min(Math.max(limit * 2, 18), 48))
+        : await this.events.queryList({
+            ...eventQueryShape,
+            hostId,
+            venueId,
+            limit: fetchLimit,
+            minEndAt: new Date().toISOString().slice(0, 10),
+          });
       const normalizedItems = items.map((item: any) =>
         buildEventCardReadModel(item, {
           readModelVersion: item?.readModelVersion || EVENT_CARD_INDEX_VERSION,
@@ -992,7 +986,10 @@ export class PublicDiscoveryService {
         ...this.resolveEventQueryShape({ ...query, hostId, venueId, sort: 'heat' }),
         hostId,
         venueId,
-        limit: Math.min(Math.max(limit * 2, 12), 24),
+        // heatScore ordering can't carry a startAt range filter in Firestore, so
+        // over-fetch (see listEvents) rather than risk a backlog of higher-heat
+        // past events crowding every upcoming one out of a tight limit.
+        limit: Math.min(Math.max(limit * 8, 96), 200),
         orderByField: 'heatScore',
         direction: 'desc',
       });
@@ -1183,7 +1180,13 @@ export class PublicDiscoveryService {
         .get()
         .catch(() => null),
       this.events
-        .queryList({ hostId: host.id, limit: 48, orderByField: 'startAt', direction: 'asc' })
+        .queryList({
+          hostId: host.id,
+          limit: 48,
+          orderByField: 'startAt',
+          direction: 'asc',
+          minEndAt: new Date().toISOString().slice(0, 10),
+        })
         .catch(() => []),
     ]);
     const hostEvents = allEvents
@@ -1294,7 +1297,13 @@ export class PublicDiscoveryService {
         .get()
         .catch(() => null),
       this.events
-        .queryList({ venueId: venue.id, limit: 96, orderByField: 'startAt', direction: 'asc' })
+        .queryList({
+          venueId: venue.id,
+          limit: 96,
+          orderByField: 'startAt',
+          direction: 'asc',
+          minEndAt: new Date().toISOString().slice(0, 10),
+        })
         .catch(() => []),
       this.venues
         .queryList({
