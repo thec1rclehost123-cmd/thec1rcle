@@ -93,6 +93,11 @@ export async function guestApiFetch(path, options = {}) {
     headers: nextHeaders,
     credentials,
     cache,
+    // A hung request (dropped connection, backend restart mid-flight, etc.)
+    // must surface as an error rather than leave callers awaiting forever —
+    // this matters most for payment verification, where an infinite hang
+    // strands the guest on the processing screen with no feedback at all.
+    signal: rest.signal || AbortSignal.timeout(20000),
     ...rest,
   };
 

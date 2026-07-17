@@ -128,7 +128,9 @@ function decodeDiscoveryCursor(rawCursor: any): DiscoveryListCursor | null {
         id: parsed.id,
       };
     }
-  } catch {}
+  } catch (e) {
+    console.warn('Failed to decode discovery cursor:', e);
+  }
   return null;
 }
 
@@ -315,6 +317,12 @@ class EventCardIndexRepository {
       if (areaKey) query = query.where('areaKey', '==', areaKey);
       if (hostId) query = query.where('hostId', '==', hostId);
       if (venueId) query = query.where('venueId', '==', venueId);
+      // Bound the Firestore-side fetch to non-past events when sorting by
+      // startAt, so a growing backlog of past events (ordinary once the
+      // platform has been live a while) can't crowd every upcoming event
+      // out of the `limit` window before the in-memory
+      // isCurrentOrUpcomingGuestEvent filter ever runs. Firestore only
+      // allows this range filter alongside orderBy on the same field.
       if (minStartAt && orderByField === 'startAt') {
         query = query.where('startAt', '>=', minStartAt);
       }
@@ -921,17 +929,30 @@ export class PublicDiscoveryService {
         venueId: venueId || query.venueId || null,
       };
 
-      const resolvedShape = this.resolveEventQueryShape({ ...query, hostId, venueId });
-      const now = Date.now();
-      const minStartAt = new Date(now - 12 * 60 * 60 * 1000).toISOString();
+      const eventQueryShape = this.resolveEventQueryShape({ ...query, hostId, venueId });
+      // Firestore can only combine a `startAt` range filter with `orderBy('startAt')` —
+      // it can't be pushed alongside an orderBy on a different field (e.g. heatScore).
+      // For those sorts, over-fetch a much larger pool so enough upcoming events survive
+      // the isCurrentOrUpcomingGuestEvent filter below instead of being crowded out by a
+      // backlog of higher-ranked past events before the requested `limit` is ever applied.
+      const canFilterUpcomingInFirestore = eventQueryShape.orderByField === 'startAt';
+      const fetchLimit = canFilterUpcomingInFirestore
+        ? Math.min(Math.max(limit * 2, 24), 48)
+        : Math.min(Math.max(limit * 8, 96), 200);
 
-      const items = await this.events.queryList({
-        ...resolvedShape,
-        hostId,
-        venueId,
-        limit: 100,
-        minStartAt: resolvedShape.orderByField === 'startAt' ? minStartAt : undefined,
-      });
+      // Lower-bound startAt at now − 12h (not midnight) so late-night events
+      // still in progress from the previous evening stay visible.
+      const minStartAt = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+
+      const items = searchNeedle
+        ? await this.events.querySearchPrefix(searchNeedle, Math.min(Math.max(limit * 2, 18), 48))
+        : await this.events.queryList({
+            ...eventQueryShape,
+            hostId,
+            venueId,
+            limit: fetchLimit,
+            minStartAt,
+          });
       const normalizedItems = items.map((item: any) =>
         buildEventCardReadModel(item, {
           readModelVersion: item?.readModelVersion || EVENT_CARD_INDEX_VERSION,
@@ -990,7 +1011,10 @@ export class PublicDiscoveryService {
         ...this.resolveEventQueryShape({ ...query, hostId, venueId, sort: 'heat' }),
         hostId,
         venueId,
-        limit: Math.min(Math.max(limit * 2, 12), 24),
+        // heatScore ordering can't carry a startAt range filter in Firestore, so
+        // over-fetch (see listEvents) rather than risk a backlog of higher-heat
+        // past events crowding every upcoming one out of a tight limit.
+        limit: Math.min(Math.max(limit * 8, 96), 200),
         orderByField: 'heatScore',
         direction: 'desc',
       });
@@ -1181,7 +1205,13 @@ export class PublicDiscoveryService {
         .get()
         .catch(() => null),
       this.events
-        .queryList({ hostId: host.id, limit: 48, orderByField: 'startAt', direction: 'asc' })
+        .queryList({
+          hostId: host.id,
+          limit: 48,
+          orderByField: 'startAt',
+          direction: 'asc',
+          minStartAt: new Date().toISOString().slice(0, 10),
+        })
         .catch(() => []),
     ]);
     const hostEvents = allEvents
@@ -1292,7 +1322,13 @@ export class PublicDiscoveryService {
         .get()
         .catch(() => null),
       this.events
-        .queryList({ venueId: venue.id, limit: 96, orderByField: 'startAt', direction: 'asc' })
+        .queryList({
+          venueId: venue.id,
+          limit: 96,
+          orderByField: 'startAt',
+          direction: 'asc',
+          minStartAt: new Date().toISOString().slice(0, 10),
+        })
         .catch(() => []),
       this.venues
         .queryList({

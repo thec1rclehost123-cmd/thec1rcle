@@ -1,3 +1,4 @@
+import globals from 'globals';
 import tsParser from '@typescript-eslint/parser';
 
 export default [
@@ -21,10 +22,23 @@ export default [
           jsx: true,
         },
       },
+      // This root config is what lint-staged's repo-root `eslint --fix`
+      // resolves to for any staged file not covered by a more specific
+      // workspace eslint.config (e.g. apps/guest-portal's, which pulls in
+      // eslint-config-next for its own browser globals). Without these,
+      // every window/fetch/document/process/etc. reference in a plain .js
+      // file anywhere in the monorepo fails no-undef on commit.
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
     },
     rules: {
+      // warn, not error: this root config has no eslint-plugin-react, so
+      // imports referenced only in JSX markup are false-positive "unused"
+      // and would block every commit that stages a .jsx file.
       'no-unused-vars': 'warn',
-      'no-undef': 'off',
+      'no-undef': 'error',
     },
   },
   {

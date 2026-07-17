@@ -864,9 +864,8 @@ export const adminStore = {
           const ageMs = Date.now() - (doc.data().createdAt?.toMillis?.() || 0);
           if (ageMs < IDEMPOTENCY_TTL_SEC * 1000) {
             duplicate = true;
-            return; // do not write — just mark duplicate and exit
+            return;
           }
-          // Record exists but has expired — fall through to overwrite
         }
         tx.set(docRef, {
           adminId,

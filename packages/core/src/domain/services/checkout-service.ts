@@ -542,6 +542,16 @@ export class CheckoutService {
     await this.payment.recordPaymentFailure(orderId, razorpayOrderId, razorpayPaymentId);
   }
 
+  async refundPayment(params: {
+    razorpayPaymentId: string;
+    amount: number;
+    receipt?: string;
+    notes?: Record<string, string>;
+    config: { keyId?: string; keySecret?: string; allowMockPayment?: boolean };
+  }): Promise<{ id: string; status: string; amount: number }> {
+    return this.payment.createRefund(params);
+  }
+
   /**
    * Helpers
    */

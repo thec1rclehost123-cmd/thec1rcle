@@ -210,7 +210,7 @@ async function partnerProxy(req: NextRequest, segments: string[]): Promise<NextR
         const text = await req.text();
         if (text) {
           init.body = text;
-          console.log(`[BFF Proxy] Request Body Payload:`, text);
+          console.log(`[BFF Proxy] Request Body Payload length:`, text.length);
         }
       }
     }

@@ -8,15 +8,14 @@ import {
 
 const algorithm = 'aes-256-cbc';
 
-// The encryption key MUST come from the environment. Falling back to a
-// hardcoded secret would mean every "encrypted" value is decryptable by anyone
-// with source access, so we fail fast in production when it is missing.
+// The encryption key MUST come from the environment. A missing key means any
+// "encrypted" value is trivially decryptable — fail hard regardless of NODE_ENV.
 const secret = process.env.ENCRYPTION_KEY;
-if (!secret && process.env.NODE_ENV === 'production') {
-  throw new Error('ENCRYPTION_KEY environment variable is required in production');
+if (!secret) {
+  throw new Error('ENCRYPTION_KEY environment variable is required');
 }
 // Keep the derivation salt stable so previously-encrypted values still decrypt.
-const key = scryptSync(secret || 'c1rcle-super-secret-key-1234567890', 'salt', 32);
+const key = scryptSync(secret, 'salt', 32);
 
 /**
  * Encrypts a plaintext string to AES-256-CBC hex representation with IV prefix

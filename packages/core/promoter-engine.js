@@ -121,12 +121,10 @@ export async function manageConnection(
  * Generates a tracking link for a promoter
  */
 export async function generatePromoterLink(promoterId, eventId) {
-  // In our system, the link usually follows a pattern or uses a specific token
-  // For now, we return a standardized structure that apps can use to build URLs
   return {
     promoterId,
     eventId,
-    token: `p_${promoterId.substring(0, 8)}`,
+    token: `p_${randomUUID().replace(/-/g, '').substring(0, 16)}`,
     url: `/e/${eventId}?ref=${promoterId}`,
   };
 }
@@ -144,16 +142,16 @@ export async function getPromoterStats(promoterId) {
         totalOrders: 0,
         totalRevenue: 0,
         totalCommission: 0,
-        conversionRate: 0,
+        conversionRate: null,
       };
     }
 
     const data = statsDoc.data();
     return {
-      totalOrders: data.totalOrders || 0,
-      totalRevenue: data.totalRevenue || 0,
-      totalCommission: data.totalCommission || 0,
-      conversionRate: 0, // Would require click data from another collection
+      totalOrders: data.totalOrders ?? 0,
+      totalRevenue: data.totalRevenue ?? 0,
+      totalCommission: data.totalCommission ?? 0,
+      conversionRate: null, // Would require click data from another collection
     };
   } catch (e) {
     console.error('Failed to get promoter stats:', e);
@@ -161,7 +159,7 @@ export async function getPromoterStats(promoterId) {
       totalOrders: 0,
       totalRevenue: 0,
       totalCommission: 0,
-      conversionRate: 0,
+      conversionRate: null,
     };
   }
 }
