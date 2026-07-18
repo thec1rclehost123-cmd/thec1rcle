@@ -192,7 +192,10 @@ describe('PublicDiscoveryService', () => {
     expect(service.events.queryList).toHaveBeenCalledWith(
       expect.objectContaining({
         cityKey: 'pune-in',
+        // soonest-first city browse over-fetches 2x the page size (min 24, cap 48)
+        // and lower-bounds startAt Firestore-side instead of scanning the backlog
         limit: 24,
+        minStartAt: expect.any(String),
       }),
     );
     expect(service.events.listAll).not.toHaveBeenCalled();

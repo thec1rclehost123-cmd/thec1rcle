@@ -183,6 +183,33 @@ Caveats to know:
   default branch, regardless of `target-branch`. Those few will still target `main`
   and still need the branch-protection contexts fixed to be mergeable.
 
+### PR #88 conflict resolution (2026-07-17)
+
+`pre-staging → staging` conflicted in four files; resolved by merging `origin/staging`
+into `pre-staging` (merge commit `b6d7855f`). How each was settled:
+
+- **`eslint.config.js`** — union of both sides: staging's file-scoped structure
+  (`**/*.{js,jsx}` + `**/*.{ts,tsx}` with `tsParser`) plus pre-staging's browser/node
+  globals. Rules: `no-undef: error` (pre-staging — works now that globals exist)
+  but `no-unused-vars: warn` (staging — the root config has no eslint-plugin-react,
+  so imports used only in JSX are false-positive "unused" and `error` blocks every
+  commit staging a `.jsx` file; lint-staged proved this during the merge).
+- **`packages/core/promoter-engine.js`** — took staging's side outright: its
+  tier-commission lookup + zero-order guard already includes pre-staging's only
+  change here (`||` → `??`).
+- **`packages/core/src/domain/services/public-discovery-service.ts`** — semantic
+  union: kept staging's `minStartAt` name (now − 12h keeps in-progress late-night
+  events visible) and its no-cityKey in-memory sort fallback; kept pre-staging's
+  search-prefix branch, adaptive over-fetch limits, and comments. Renamed the two
+  other pre-staging call sites from the deleted `minEndAt` param.
+- **`package-lock.json`** — regenerated with `npm install --package-lock-only`
+  from the cleanly-merged package.json files.
+
+Local gotcha hit while pushing: the pre-push suite crashed with `0xC0000409` because
+**C: had 0 bytes free** — `npm cache clean --force` freed ~6 GB and a re-`npm install`
+repaired the torn `node_modules`. If eslint ever exits with that code again, check
+disk space first.
+
 ## Prevention
 
 1. **Enable "Automatically delete head branches"** — Settings → General → Pull Requests.
