@@ -82,6 +82,134 @@ Merge or close the PR and the branch disappears with it.
   ⚠ `react-native-reanimated 3→4` and `@babel/core 7→8` are breaking for the Expo apps — do not
   merge without testing on-device.
 
+### Why the npm PRs show red checks (investigated 2026-07-17)
+
+The failures are **real build breaks caused by the bumps, not CI flakiness** — PR #74
+(actions/checkout bump, touches no app code) passes all 27 checks including all three
+Vercel deploys.
+
+**PR #85 root cause:** `meilisearch 0.55 → 0.59` renamed its export `MeiliSearch` →
+`Meilisearch`. `packages/core/search.js` (lines 1 and 25) still uses the old name, so
+`partner-dashboard` fails to compile, and Bundle Size, Lighthouse, and both Vercel
+deploys cascade-fail from the same broken build. Fix is a 2-line rename pushed onto
+the dependabot branch, or `@dependabot ignore meilisearch` to take the other 21 bumps
+without it. Turbopack log excerpt:
+
+```
+Error: Turbopack build failed with 1 errors:
+./packages/core/search.js:1:1
+Export MeiliSearch doesn't exist in target module
+Did you mean to import Meilisearch?
+```
+
+### Merge blockers that are NOT check failures
+
+Even the fully green PR #74 cannot merge into `main` because branch protection requires:
+
+1. **Two status contexts named `Deploy` and `Tests` that never report on PRs**
+   (stuck at "Expected — Waiting for status"). The real jobs are named
+   `Tests (apps/…, …)` (a matrix) and `Deploy` only runs on push to `main` — so the
+   required names are stale. Fix in Settings → Branches → main: replace them with
+   real PR check names.
+2. **2 approving reviews** — a human still has to approve dependabot PRs.
+
+### Branch protection — agreed configuration (2026-07-17)
+
+Applied to **both `staging` and `main`** (main only receives staging → main release
+PRs, which carry staging's ci.yml, so the names match on both).
+
+Required status checks (names verified against live PR #88 into staging):
+
+```
+Build
+Install
+Lint & Format
+Type Check
+Security
+Tests (apps/guest-portal, npm test)
+Tests (apps/partner-dashboard, npx vitest run)
+Tests (apps/admin-console, npx vitest run --passWithNoTests, true)
+Tests (apps/api-gateway, npx vitest run)
+Tests (packages/core, npx vitest run)
+Tests (apps/mobile-app, npx jest --testPathPattern=scanner --verbose)
+Vercel – thec1rcle-guest-portal
+Vercel – thec1rcle-partner-dashboard
+Vercel – thec1rcle-admin-panel
+```
+
+Plus **"Require deployments to succeed"** for the three *Preview* environments only
+(`Preview – thec1rcle-admin-panel / guest-portal / partner-dashboard`). The
+*Production* environments must stay unchecked — production deploys happen after the
+merge to main, so requiring them would deadlock every PR permanently.
+
+Known caveats of this configuration:
+
+- The Vercel names use an **en-dash (`–`)**, and the admin-console test name ends in
+  `, true` (its `allow-failure` matrix value). Always pick names from the settings
+  autocomplete, never type them.
+- `allow-failure: true` on admin-console means that check reports green even when its
+  tests fail — a strictness hole to close in ci.yml (removing it also renames the
+  check to drop the `, true`; update protection in the same sitting).
+- `Lighthouse CI` / `Architecture Guardrails` / Bundle Size are **not** required:
+  Lighthouse only triggers on path-filtered PRs to main (a required path-filtered
+  check blocks unrelated PRs forever), and the extended quality workflow does not
+  reliably fire on every staging PR sync yet.
+- Dependabot **security** PRs branch off `main` and report main's older matrix names —
+  they will block on the Tests entries and need admin handling case-by-case until
+  staging's ci.yml reaches main.
+- The deployment gate only covers the three Vercel web apps. `api-gateway` (GCR) and
+  Firebase functions have no preview environment — their deployability is proven only
+  by `Build`/`Tests`.
+- If Vercel ever skips creating a preview for a commit (ignored-build-step, paused
+  spending), the deployment requirement can never be satisfied for that PR — rerun
+  the deployment from Vercel or push a new commit.
+
+### Flow decision (2026-07-17): dependabot targets `staging`, not `main`
+
+Dependabot used to target `main`, and `release.yml` deploys to production on every
+push to `main` — merging a dep bump shipped it straight to prod with no staging soak.
+Decision: dependency updates must land in `staging` first and reach `main` only via
+the staging → main release merge. `target-branch: staging` has been added to all three
+ecosystem entries in `.github/dependabot.yml`.
+
+Caveats to know:
+
+- Dependabot reads its config **from the default branch** (`main`), so the change has
+  no effect until this edit reaches `main`.
+- Once active, dependabot closes its open PRs against `main` and re-raises them
+  against `staging` on the next scheduled run (or trigger it manually: Insights →
+  Dependency graph → Dependabot → "Check for updates").
+- **Security updates are the exception** — GitHub always raises those against the
+  default branch, regardless of `target-branch`. Those few will still target `main`
+  and still need the branch-protection contexts fixed to be mergeable.
+
+### PR #88 conflict resolution (2026-07-17)
+
+`pre-staging → staging` conflicted in four files; resolved by merging `origin/staging`
+into `pre-staging` (merge commit `b6d7855f`). How each was settled:
+
+- **`eslint.config.js`** — union of both sides: staging's file-scoped structure
+  (`**/*.{js,jsx}` + `**/*.{ts,tsx}` with `tsParser`) plus pre-staging's browser/node
+  globals. Rules: `no-undef: error` (pre-staging — works now that globals exist)
+  but `no-unused-vars: warn` (staging — the root config has no eslint-plugin-react,
+  so imports used only in JSX are false-positive "unused" and `error` blocks every
+  commit staging a `.jsx` file; lint-staged proved this during the merge).
+- **`packages/core/promoter-engine.js`** — took staging's side outright: its
+  tier-commission lookup + zero-order guard already includes pre-staging's only
+  change here (`||` → `??`).
+- **`packages/core/src/domain/services/public-discovery-service.ts`** — semantic
+  union: kept staging's `minStartAt` name (now − 12h keeps in-progress late-night
+  events visible) and its no-cityKey in-memory sort fallback; kept pre-staging's
+  search-prefix branch, adaptive over-fetch limits, and comments. Renamed the two
+  other pre-staging call sites from the deleted `minEndAt` param.
+- **`package-lock.json`** — regenerated with `npm install --package-lock-only`
+  from the cleanly-merged package.json files.
+
+Local gotcha hit while pushing: the pre-push suite crashed with `0xC0000409` because
+**C: had 0 bytes free** — `npm cache clean --force` freed ~6 GB and a re-`npm install`
+repaired the torn `node_modules`. If eslint ever exits with that code again, check
+disk space first.
+
 ## Prevention
 
 1. **Enable "Automatically delete head branches"** — Settings → General → Pull Requests.

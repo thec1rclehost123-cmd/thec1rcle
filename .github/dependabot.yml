@@ -2,10 +2,12 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    target-branch: staging
     schedule:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    rebase-strategy: disabled
     groups:
       production-deps:
         dependency-type: production
@@ -19,9 +21,11 @@ updates:
 
   - package-ecosystem: npm
     directory: /functions
+    target-branch: staging
     schedule:
       interval: weekly
       day: monday
+    rebase-strategy: disabled
     open-pull-requests-limit: 3
     groups:
       functions-deps:
@@ -30,8 +34,10 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
+    target-branch: staging
     schedule:
       interval: monthly
+    rebase-strategy: disabled
     open-pull-requests-limit: 3
     groups:
       github-actions:

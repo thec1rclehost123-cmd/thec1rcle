@@ -1,5 +1,5 @@
-import tsParser from '@typescript-eslint/parser';
 import globals from 'globals';
+import tsParser from '@typescript-eslint/parser';
 
 export default [
   {
@@ -13,7 +13,15 @@ export default [
     ],
   },
   {
+    files: ['**/*.{js,jsx}'],
     languageOptions: {
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
       // This root config is what lint-staged's repo-root `eslint --fix`
       // resolves to for any staged file not covered by a more specific
       // workspace eslint.config (e.g. apps/guest-portal's, which pulls in
@@ -26,7 +34,10 @@ export default [
       },
     },
     rules: {
-      'no-unused-vars': 'error',
+      // warn, not error: this root config has no eslint-plugin-react, so
+      // imports referenced only in JSX markup are false-positive "unused"
+      // and would block every commit that stages a .jsx file.
+      'no-unused-vars': 'warn',
       'no-undef': 'error',
     },
   },
