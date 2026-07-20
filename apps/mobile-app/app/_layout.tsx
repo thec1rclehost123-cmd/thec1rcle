@@ -1,5 +1,5 @@
 import '../global.css';
-import { useCallback, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Alert, NativeModules, Platform } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
@@ -24,6 +24,7 @@ import { apiFetch } from '@/lib/api';
 import { useProfileStore } from '@/store/profileStore';
 import { useFirstRunStore } from '@/store/firstRunStore';
 import { resolveFirstRunStage } from '@/lib/firstRun';
+import { FIRST_RUN_EVENTS, trackFirstRun } from '@/lib/firstRunAnalytics';
 
 initSentry();
 
@@ -33,6 +34,22 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 
 export default function RootLayout() {
   const RootGestureHandlerView = GestureHandlerRootView;
+  const bootResolved = useAuthStore((state) => state.initialized || state.authSyncFailed);
+  const bootTracked = useRef(false);
+
+  useEffect(() => {
+    trackFirstRun(FIRST_RUN_EVENTS.APP_LAUNCH);
+  }, []);
+
+  useEffect(() => {
+    if (!bootResolved || bootTracked.current) return;
+    bootTracked.current = true;
+    const auth = useAuthStore.getState();
+    trackFirstRun(FIRST_RUN_EVENTS.BOOTSTRAP_RESULT, {
+      outcome: auth.authSyncFailed ? 'failure' : 'success',
+      bootstrapSource: auth.usingCachedSession ? 'cache' : auth.isGuest ? 'guest' : 'server',
+    });
+  }, [bootResolved]);
 
   useEffect(() => initAuthListener(), []);
 
@@ -104,7 +121,14 @@ export default function RootLayout() {
       const user = useAuthStore.getState().user;
 
       if (!user || !pendingPaymentOrderId) return;
-      if (resolveFirstRunStage(user, useProfileStore.getState().profile, useFirstRunStore.getState().snapshot) !== 'complete') return;
+      if (
+        resolveFirstRunStage(
+          user,
+          useProfileStore.getState().profile,
+          useFirstRunStore.getState().snapshot,
+        ) !== 'complete'
+      )
+        return;
       if (recoveryStartedFor === pendingPaymentOrderId) return;
       recoveryStartedFor = pendingPaymentOrderId;
 
@@ -134,28 +158,24 @@ export default function RootLayout() {
       if (hasValidReservation) return;
 
       resumeTimer = setTimeout(() => {
-        Alert.alert(
-          'Resume Payment?',
-          'You have an incomplete payment from a previous session.',
-          [
-            {
-              text: 'Cancel Payment',
-              style: 'destructive',
-              onPress: () => useCartStore.getState().setPendingPaymentOrderId(null),
+        Alert.alert('Resume Payment?', 'You have an incomplete payment from a previous session.', [
+          {
+            text: 'Cancel Payment',
+            style: 'destructive',
+            onPress: () => useCartStore.getState().setPendingPaymentOrderId(null),
+          },
+          {
+            text: 'Resume Payment',
+            onPress: () => {
+              const eventId = items[0]?.eventId;
+              if (eventId) {
+                router.replace(`/checkout/${eventId}`);
+              } else {
+                router.replace('/checkout');
+              }
             },
-            {
-              text: 'Resume Payment',
-              onPress: () => {
-                const eventId = items[0]?.eventId;
-                if (eventId) {
-                  router.replace(`/checkout/${eventId}`);
-                } else {
-                  router.replace('/checkout');
-                }
-              },
-            },
-          ],
-        );
+          },
+        ]);
       }, 1000);
     };
 
@@ -177,19 +197,20 @@ export default function RootLayout() {
     };
   }, []);
 
-  const onLayoutRootView = useCallback(async () => {
-    await SplashScreen.hideAsync();
-  }, []);
+  useEffect(() => {
+    if (bootResolved) {
+      SplashScreen.hideAsync().catch(() => {
+        // The splash may already be hidden during Fast Refresh.
+      });
+    }
+  }, [bootResolved]);
 
   return (
     <QueryProvider>
       <DemoDataProvider>
         <ErrorBoundary>
           <SafeAreaProvider>
-            <RootGestureHandlerView
-              style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}
-              onLayout={onLayoutRootView}
-            >
+            <RootGestureHandlerView style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}>
               <View style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}>
                 <StatusBar style="light" backgroundColor={colors.base.DEFAULT} />
                 <OfflineBanner />
@@ -205,11 +226,13 @@ export default function RootLayout() {
                     <Stack.Screen name="index" />
                     <Stack.Screen name="(auth)" />
                     <Stack.Screen name="(first-run)" />
-                    <Stack.Screen name="profile-setup" />
                     <Stack.Screen name="profile-creation" />
                     <Stack.Screen name="social-setup" />
                     <Stack.Screen name="(tabs)" />
-                    <Stack.Screen name="dating/match" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
+                    <Stack.Screen
+                      name="dating/match"
+                      options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+                    />
                   </Stack>
                 </ThemeProvider>
                 <PremiumPaywallModal />

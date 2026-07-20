@@ -3,8 +3,10 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch } from './api';
+import { recordNotificationPrompt, shouldPromptForNotifications } from './permissions';
 
 const PUSH_TOKEN_KEY = '@c1rcle/pushToken';
 
@@ -20,20 +22,23 @@ Notifications.setNotificationHandler({
 });
 
 // Request notification permissions
+async function ensureAndroidNotificationChannel() {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync('default', {
+    name: 'Default',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#6D5DF6',
+  });
+}
+
 export async function requestNotificationPermissions(): Promise<boolean> {
   if (!Device.isDevice) {
     if (__DEV__) console.log('Push notifications only work on physical devices');
     return false;
   }
 
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#6D5DF6',
-    });
-  }
+  await ensureAndroidNotificationChannel();
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
@@ -66,10 +71,16 @@ export type PushTokenResult =
   | { error: 'system_error'; message: string };
 
 // Get Expo push token
-export async function getExpoPushToken(): Promise<PushTokenResult | null> {
+export async function getExpoPushToken(
+  options: { requestPermission?: boolean } = {},
+): Promise<PushTokenResult | null> {
   try {
-    const hasPermission = await requestNotificationPermissions();
+    const hasPermission = options.requestPermission
+      ? await requestNotificationPermissions()
+      : (await Notifications.getPermissionsAsync()).status === 'granted';
     if (!hasPermission) return { error: 'permission_denied' };
+
+    await ensureAndroidNotificationChannel();
 
     const projectId = getEasProjectId();
     if (!projectId) return { error: 'no_project_id' };
@@ -103,7 +114,7 @@ async function sendDeviceTokenToGateway(token: string): Promise<void> {
 // Register push token with user profile — via API gateway
 export async function registerPushToken(userId: string): Promise<boolean> {
   try {
-    const result = await getExpoPushToken();
+    const result = await getExpoPushToken({ requestPermission: true });
     if (!result || 'error' in result) {
       if (result && result.error === 'permission_denied') {
         if (__DEV__) console.log('Push notification permission not granted');
@@ -225,4 +236,26 @@ export async function refreshPushToken(userId: string): Promise<void> {
   } catch (error) {
     if (__DEV__) console.error('Error refreshing push token:', error);
   }
+}
+
+const NOTIFICATION_ACTION_COPY = {
+  save_event: 'Get a reminder before events you save begin?',
+  follow_venue: 'Get updates when venues you follow announce new nights?',
+  buy_ticket: 'Get important updates about tickets you buy?',
+  join_waitlist: 'Get notified if your waitlist status changes?',
+  choose_reminder: 'Allow notifications so this reminder can reach you?',
+} as const;
+
+export type NotificationPermissionAction = keyof typeof NOTIFICATION_ACTION_COPY;
+
+export async function offerNotificationPermissionForAction(
+  action: NotificationPermissionAction,
+  userId: string,
+): Promise<void> {
+  if (!(await shouldPromptForNotifications(userId))) return;
+  await recordNotificationPrompt(userId);
+  router.push({
+    pathname: '/notification-permission',
+    params: { action, message: NOTIFICATION_ACTION_COPY[action] },
+  } as any);
 }

@@ -200,7 +200,6 @@ export const useTicketsStore = create<TicketsState>((set, get) => {
             error: error?.message || 'Unable to sync ticket wallet. Pull to retry.',
             loading: false,
           });
-          throw error;
         }
       })();
 

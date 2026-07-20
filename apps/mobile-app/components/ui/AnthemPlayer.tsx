@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { Audio } from 'expo-av';
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/lib/design/theme';
@@ -20,51 +20,26 @@ type Props = {
 };
 
 export default function AnthemPlayer({ anthem, onPress, showEdit, variant = 'default' }: Props) {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const player = useAudioPlayer(anthem.previewUrl ?? null);
+  const playback = useAudioPlayerStatus(player);
 
   useEffect(() => {
-    return () => {
-      if (sound) {
-        sound.unloadAsync();
-      }
-    };
-  }, [sound]);
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+  }, []);
 
   const togglePlay = async () => {
     if (!anthem.previewUrl) return;
 
-    if (isPlaying && sound) {
-      await sound.pauseAsync();
-      setIsPlaying(false);
+    if (playback.playing) {
+      player.pause();
       return;
     }
 
-    if (sound) {
-      await sound.playAsync();
-      setIsPlaying(true);
-      return;
-    }
-
-    setIsLoading(true);
     try {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: anthem.previewUrl },
-        { shouldPlay: true },
-      );
-      newSound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && !status.isPlaying && status.didJustFinish) {
-          setIsPlaying(false);
-        }
-      });
-      setSound(newSound);
-      setIsPlaying(true);
+      if (playback.didJustFinish) await player.seekTo(0);
+      player.play();
     } catch {
       // silently fail – preview URL may be expired
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -124,11 +99,11 @@ export default function AnthemPlayer({ anthem, onPress, showEdit, variant = 'def
               style={styles.playButton}
               hitSlop={8}
             >
-              {isLoading ? (
+              {playback.isBuffering ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <Ionicons
-                  name={isPlaying ? 'pause-circle' : 'play-circle'}
+                  name={playback.playing ? 'pause-circle' : 'play-circle'}
                   size={28}
                   color={colors.iris}
                 />

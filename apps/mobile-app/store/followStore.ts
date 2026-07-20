@@ -4,6 +4,7 @@
  */
 import { create } from 'zustand';
 import { apiFetch } from '@/lib/api';
+import { offerNotificationPermissionForAction } from '@/lib/notifications';
 
 interface FollowState {
   followedVenueIds: Set<string>;
@@ -57,6 +58,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
         method: isFollowing ? 'DELETE' : 'POST',
         body: isFollowing ? undefined : JSON.stringify({ venueName }),
       });
+      if (!isFollowing) void offerNotificationPermissionForAction('follow_venue', userId);
     } catch (e) {
       // Rollback
       set({ followedVenueIds });

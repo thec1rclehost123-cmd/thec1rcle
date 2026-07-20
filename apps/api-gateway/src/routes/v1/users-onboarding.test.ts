@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MAX_NIGHTLIFE_TASTES, NIGHTLIFE_TASTES, USER_INTENTS } from '@c1rcle/types';
 import validatePlugin from '../../plugins/validate';
 
 const userService = vi.hoisted(() => ({
@@ -60,6 +61,7 @@ describe('consumer onboarding routes', () => {
         phoneVerified: true,
       },
       onboarding: { version: 2, currentStage: 'identity', completed: false },
+      onboardingProfile: { displayName: 'Aayush', cityId: 'pune' },
       routeAccess: { canBrowsePublicExplore: true, canAccessSignedInExplore: false },
     });
   });
@@ -79,6 +81,7 @@ describe('consumer onboarding routes', () => {
       profile: { uid: 'user_1', phoneNumber: '+919999999999' },
       identity: { phoneVerified: true },
       onboarding: { currentStage: 'identity' },
+      onboardingProfile: { displayName: 'Aayush', cityId: 'pune' },
       routeAccess: { canBrowsePublicExplore: true },
     });
     expect(onboardingService.syncOnboardingAuthState).toHaveBeenCalledWith(
@@ -116,6 +119,73 @@ describe('consumer onboarding routes', () => {
       'user_1',
       { displayName: 'Aayush', dateOfBirth: '2000-01-01' },
     );
+    await server.close();
+  });
+
+  it('accepts every shared taste and intent value', async () => {
+    const server = await buildServer();
+    const response = await server.inject({
+      method: 'PATCH',
+      url: '/api/v1/users/me/onboarding/preferences',
+      payload: { vibeTags: [...NIGHTLIFE_TASTES], intents: [...USER_INTENTS] },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(onboardingService.updateOnboardingPreferences).toHaveBeenCalledWith(
+      expect.anything(),
+      'user_1',
+      { vibeTags: [...NIGHTLIFE_TASTES], intents: [...USER_INTENTS] },
+    );
+    await server.close();
+  });
+
+  it('enforces the shared maximum taste count', async () => {
+    const server = await buildServer();
+    const response = await server.inject({
+      method: 'PATCH',
+      url: '/api/v1/users/me/onboarding/preferences',
+      payload: {
+        vibeTags: [...NIGHTLIFE_TASTES, NIGHTLIFE_TASTES[0]],
+        intents: [USER_INTENTS[0]],
+      },
+    });
+
+    expect(MAX_NIGHTLIFE_TASTES).toBe(NIGHTLIFE_TASTES.length);
+    expect(response.statusCode).toBe(400);
+    expect(onboardingService.updateOnboardingPreferences).not.toHaveBeenCalled();
+    await server.close();
+  });
+
+  it.each(['shown', 'skipped'] as const)(
+    'records the %s recovery-email prompt decision',
+    async (status) => {
+      const server = await buildServer();
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/me/onboarding/email-prompt',
+        payload: { status },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(onboardingService.recordEmailPrompt).toHaveBeenCalledWith(
+        expect.anything(),
+        'user_1',
+        status,
+      );
+      await server.close();
+    },
+  );
+
+  it('rejects client-written email verification state', async () => {
+    const server = await buildServer();
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/users/me/onboarding/email-prompt',
+      payload: { status: 'verified' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(onboardingService.recordEmailPrompt).not.toHaveBeenCalled();
     await server.close();
   });
 });

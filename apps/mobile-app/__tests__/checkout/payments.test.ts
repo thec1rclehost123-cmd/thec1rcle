@@ -10,6 +10,15 @@ jest.mock('../../lib/api', () => ({
   verifyPayment: jest.fn(),
 }));
 
+const mockFirebaseUser = {
+  uid: 'user_1',
+  getIdToken: jest.fn().mockResolvedValue('firebase-token'),
+};
+
+jest.mock('../../lib/firebase', () => ({
+  getFirebaseAuth: jest.fn(() => ({ currentUser: mockFirebaseUser })),
+}));
+
 jest.mock('../../store/ticketsStore', () => ({
   useTicketsStore: {
     getState: jest.fn(() => ({
@@ -109,7 +118,7 @@ describe('processFullCheckout', () => {
     ]);
     expect(useCartStore.getState().pendingReservation).toBeNull();
     expect(useCartStore.getState().pendingPaymentOrderId).toBeNull();
-    expect(mockFetchUserOrders).toHaveBeenCalledWith('');
+    expect(mockFetchUserOrders).toHaveBeenCalledWith();
   });
 
   it('confirms free orders without opening Razorpay or verifying a payment signature', async () => {

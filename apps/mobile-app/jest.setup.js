@@ -59,6 +59,10 @@ jest.mock(
       mockAsyncStorage.delete(key);
     }),
     getAllKeys: jest.fn(async () => Array.from(mockAsyncStorage.keys())),
+    multiGet: jest.fn(async (keys) => keys.map((key) => [key, mockAsyncStorage.get(key) ?? null])),
+    multiSet: jest.fn(async (entries) => {
+      entries.forEach(([key, value]) => mockAsyncStorage.set(key, value));
+    }),
     multiRemove: jest.fn(async (keys) => {
       keys.forEach((key) => mockAsyncStorage.delete(key));
     }),
@@ -140,6 +144,39 @@ jest.mock(
   'expo-network',
   () => ({
     getNetworkStateAsync: jest.fn().mockResolvedValue({ isConnected: true }),
+  }),
+  { virtual: true },
+);
+
+jest.mock(
+  '@react-native-community/netinfo',
+  () => ({
+    __esModule: true,
+    default: {
+      fetch: jest.fn().mockResolvedValue({ isConnected: true, isInternetReachable: true }),
+      addEventListener: jest.fn(() => jest.fn()),
+    },
+  }),
+  { virtual: true },
+);
+
+jest.mock(
+  'expo-notifications',
+  () => ({
+    getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'undetermined' }),
+    requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+    getExpoPushTokenAsync: jest.fn().mockResolvedValue({ data: 'ExponentPushToken[test]' }),
+    setNotificationHandler: jest.fn(),
+    AndroidImportance: { MAX: 5 },
+    setNotificationChannelAsync: jest.fn().mockResolvedValue(undefined),
+  }),
+  { virtual: true },
+);
+
+jest.mock(
+  'expo-device',
+  () => ({
+    isDevice: true,
   }),
   { virtual: true },
 );

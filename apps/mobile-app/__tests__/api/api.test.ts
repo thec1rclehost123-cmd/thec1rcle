@@ -69,8 +69,18 @@ describe('api', () => {
       expect(call[0]).toContain('/api/v1/test');
       expect(call[1]?.headers).toMatchObject({
         Authorization: 'Bearer mock-token',
-        'Content-Type': 'application/json',
       });
+      expect(call[1]?.headers).not.toHaveProperty('Content-Type');
+    });
+
+    it('does not send a JSON content type for a bodyless POST', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ data: 'ok' }));
+
+      await apiFetch('/api/v1/test', { method: 'POST' });
+
+      const headers = fetchMock.mock.calls[0][1]?.headers;
+      expect(headers).toMatchObject({ Authorization: 'Bearer mock-token' });
+      expect(headers).not.toHaveProperty('Content-Type');
     });
 
     it('throws when auth is required but no user', async () => {

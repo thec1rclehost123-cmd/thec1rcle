@@ -36,6 +36,9 @@
       ],
       "fastify-plugin/*": [
         "../../node_modules/fastify-plugin/*"
+      ],
+      "@c1rcle/core/*": [
+        "../../packages/core/*"
       ]
     },
     // Other Outputs

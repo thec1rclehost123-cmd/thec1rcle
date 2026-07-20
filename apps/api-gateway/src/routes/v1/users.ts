@@ -1,5 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import {
+  MAX_NIGHTLIFE_TASTES,
+  MAX_USER_INTENTS,
+  MIN_NIGHTLIFE_TASTES,
+  MIN_USER_INTENTS,
+  NIGHTLIFE_TASTES,
+  USER_INTENTS,
+} from '@c1rcle/types';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 
 const DatingVitalsBody = z
@@ -187,23 +195,18 @@ const OnboardingCityBody = z
   })
   .strict();
 
-const NightlifeTaste = z.enum([
-  'clubs',
-  'live_music',
-  'lounges',
-  'festivals',
-  'college_nights',
-  'underground',
-  'food_culture',
-  'premium',
-]);
+const NightlifeTaste = z.enum(NIGHTLIFE_TASTES);
 
-const UserIntent = z.enum(['discover', 'friends', 'meet_people', 'host_promote']);
+const UserIntent = z.enum(USER_INTENTS);
 
 const OnboardingPreferencesBody = z
   .object({
-    vibeTags: z.array(NightlifeTaste).min(3).max(8).optional(),
-    intents: z.array(UserIntent).min(1).max(4).optional(),
+    vibeTags: z
+      .array(NightlifeTaste)
+      .min(MIN_NIGHTLIFE_TASTES)
+      .max(MAX_NIGHTLIFE_TASTES)
+      .optional(),
+    intents: z.array(UserIntent).min(MIN_USER_INTENTS).max(MAX_USER_INTENTS).optional(),
   })
   .strict()
   .refine((value) => value.vibeTags !== undefined || value.intents !== undefined, {
@@ -274,6 +277,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
           requiresTokenRefresh: true,
           identity: firstRun.identity,
           onboarding: firstRun.onboarding,
+          onboardingProfile: firstRun.onboardingProfile,
           routeAccess: firstRun.routeAccess,
         });
       } catch (error: any) {
@@ -301,15 +305,13 @@ export default async function userRoutes(fastify: FastifyInstance) {
     async (request: any, reply: any) => {
       const userId = request.user?.uid;
       if (!userId)
-        return reply
-          .status(401)
-          .send(
-            buildErrorResponse({
-              code: 'UNAUTHORIZED',
-              message: 'Authentication required',
-              requestId: request.id,
-            }),
-          );
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            requestId: request.id,
+          }),
+        );
       try {
         const authRecord = await loadFirebaseUser(fastify, userId, request.user);
         const { syncOnboardingAuthState } = await import('@c1rcle/core/onboarding-service');
@@ -340,15 +342,13 @@ export default async function userRoutes(fastify: FastifyInstance) {
       async (request: any, reply: any) => {
         const userId = request.user?.uid;
         if (!userId)
-          return reply
-            .status(401)
-            .send(
-              buildErrorResponse({
-                code: 'UNAUTHORIZED',
-                message: 'Authentication required',
-                requestId: request.id,
-              }),
-            );
+          return reply.status(401).send(
+            buildErrorResponse({
+              code: 'UNAUTHORIZED',
+              message: 'Authentication required',
+              requestId: request.id,
+            }),
+          );
         try {
           const service = await import('@c1rcle/core/onboarding-service');
           if (operation === 'identity')
@@ -391,15 +391,13 @@ export default async function userRoutes(fastify: FastifyInstance) {
     async (request: any, reply: any) => {
       const userId = request.user?.uid;
       if (!userId)
-        return reply
-          .status(401)
-          .send(
-            buildErrorResponse({
-              code: 'UNAUTHORIZED',
-              message: 'Authentication required',
-              requestId: request.id,
-            }),
-          );
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            requestId: request.id,
+          }),
+        );
       try {
         const authRecord = await loadFirebaseUser(fastify, userId, request.user);
         const { completeOnboarding } = await import('@c1rcle/core/onboarding-service');

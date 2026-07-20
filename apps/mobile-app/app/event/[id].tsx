@@ -975,34 +975,33 @@ export default function EventDetailScreen() {
     );
   };
 
-  const handleGetDirections = () => {
+  const handleGetDirections = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const query = [event?.venue, (event as any)?.address, event?.location, event?.city]
       .filter(Boolean)
       .join(', ');
     if (!venueCoords) {
       if (query) {
-        void Linking.openURL(
-          `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
-        );
+        const searchUrl =
+          Platform.OS === 'ios'
+            ? `http://maps.apple.com/?q=${encodeURIComponent(query)}`
+            : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(query)}`;
+        await Linking.openURL(searchUrl);
       }
       return;
     }
 
     const { latitude, longitude } = venueCoords;
-    const label = encodeURIComponent(event?.venue || event?.title || 'Event');
-
-    const url = Platform.select({
-      ios: `maps:0,0?q=${label}@${latitude},${longitude}`,
-      android: `geo:0,0?q=${latitude},${longitude}(${label})`,
-    });
-
-    if (url) {
-      Linking.openURL(url).catch(() => {
-        Linking.openURL(
-          `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`,
-        );
-      });
+    const nativeUrl =
+      Platform.OS === 'ios'
+        ? `http://maps.apple.com/?daddr=${latitude},${longitude}&dirflg=d`
+        : `google.navigation:q=${latitude},${longitude}&mode=d`;
+    const fallbackUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
+    try {
+      const supported = await Linking.canOpenURL(nativeUrl);
+      await Linking.openURL(supported ? nativeUrl : fallbackUrl);
+    } catch {
+      await Linking.openURL(fallbackUrl);
     }
   };
 
@@ -1502,16 +1501,7 @@ export default function EventDetailScreen() {
               {addressLabel}
             </Text>
             <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                if (venueCoords) {
-                  router.push({
-                    pathname: `/event/${id}/map` as any,
-                  });
-                } else {
-                  handleGetDirections();
-                }
-              }}
+              onPress={() => void handleGetDirections()}
               style={styles.detailMapShell}
             >
               {venueCoords ? (
@@ -1546,30 +1536,13 @@ export default function EventDetailScreen() {
               )}
               <View style={styles.mapBottomBar}>
                 <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    if (venueCoords) {
-                      router.push({
-                        pathname: `/event/${id}/map` as any,
-                      });
-                    } else {
-                      handleGetDirections();
-                    }
-                  }}
-                  style={styles.mapViewFullButton}
-                >
-                  <Ionicons name="expand-outline" size={16} color="#fff" />
-                  <Text style={styles.mapViewFullText}>Full Map</Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleGetDirections}
-                  style={[
-                    styles.mapDirectionsButton,
-                    { backgroundColor: hexToRgba(accent, 0.25), borderColor: hexToRgba(accent, 0.4) },
-                  ]}
+                  onPress={() => void handleGetDirections()}
+                  style={[styles.mapDirectionsButton, styles.mapExternalButton, { backgroundColor: hexToRgba(accent, 0.28), borderColor: hexToRgba(accent, 0.45) }]}
                 >
                   <Ionicons name="navigate-outline" size={16} color="#fff" />
-                  <Text style={styles.mapDirectionsText}>Directions</Text>
+                  <Text style={styles.mapDirectionsText}>
+                    {Platform.OS === 'ios' ? 'Open in Apple Maps' : 'Open in Google Maps'}
+                  </Text>
                 </Pressable>
               </View>
             </Pressable>
@@ -2964,6 +2937,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  mapExternalButton: {
+    flex: 1,
+    justifyContent: 'center',
   },
   mapDirectionsText: {
     color: '#fff',

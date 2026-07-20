@@ -91,7 +91,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/payments/order',
     {
-      preHandler: [fastify.requireAuth, fastify.validate({ body: PaymentOrderBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: PaymentOrderBody })],
     },
     async (request: { body: any; user: any }, reply) => {
       const { orderId } = request.body;
@@ -177,7 +177,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/payments/verify',
     {
-      preHandler: [fastify.requireAuth, fastify.validate({ body: PaymentVerifyBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: PaymentVerifyBody })],
     },
     async (request: { body: any; user: any }, reply) => {
       const { orderId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = request.body;

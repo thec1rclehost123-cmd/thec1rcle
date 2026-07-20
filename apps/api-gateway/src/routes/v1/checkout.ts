@@ -511,7 +511,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/reserve',
     {
-      preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutReserveBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: CheckoutReserveBody })],
     },
     async (request: any, reply) => {
       const { eventId, items, deviceId, admissionToken } = request.body;
@@ -596,7 +596,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/intent',
     {
-      preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutIntentBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: CheckoutIntentBody })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
@@ -618,7 +618,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
               id: userId,
               name: request.user?.displayName || request.user?.name || null,
               email: request.user?.email || null,
-              phone: request.user?.phoneNumber || request.user?.phone || null,
+              phone: request.user?.phone_number || null,
             },
             deviceId: request.headers['user-agent'] || null,
             workspaceId: request.workspaceId || null,
@@ -803,7 +803,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
     '/checkout/verify',
     {
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutVerifyBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: CheckoutVerifyBody })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
@@ -900,7 +900,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
     '/checkout/initiate',
     {
       config: { rateLimit: { max: 3, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutInitiateBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: CheckoutInitiateBody })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;

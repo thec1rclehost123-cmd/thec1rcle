@@ -1,8 +1,11 @@
 /* global jest, describe, beforeEach, it, expect */
 
 let mockAuthCallback: ((user: any) => void) | null = null;
+const mockFirebaseAuth = { currentUser: null as any };
 const mockUnsubscribe = jest.fn();
 const mockAppStateRemove = jest.fn();
+const mockNetworkUnsubscribe = jest.fn();
+let mockNetworkCallback: ((state: { isConnected: boolean | null }) => void) | null = null;
 const mockProfileState = {
   setProfileFromGateway: jest.fn(),
   loadProfile: jest.fn(),
@@ -21,6 +24,9 @@ const mockSubscriptionState = {
   fetchRevenueCatSubscription: jest.fn(),
   clearSubscription: jest.fn(),
 };
+const mockCacheCanonicalBootSession = jest.fn();
+const mockReadCachedBootSession = jest.fn();
+const mockClearCachedBootSession = jest.fn();
 
 jest.mock('react-native', () => ({
   AppState: {
@@ -28,7 +34,18 @@ jest.mock('react-native', () => ({
   },
 }));
 
+jest.mock('@react-native-community/netinfo', () => ({
+  __esModule: true,
+  default: {
+    addEventListener: jest.fn((callback) => {
+      mockNetworkCallback = callback;
+      return mockNetworkUnsubscribe;
+    }),
+  },
+}));
+
 jest.mock('../../lib/firebase', () => ({
+  getFirebaseAuth: jest.fn(() => mockFirebaseAuth),
   subscribeToAuthState: jest.fn((callback) => {
     mockAuthCallback = callback;
     return mockUnsubscribe;
@@ -48,6 +65,12 @@ jest.mock('../../lib/websocket', () => ({
     start: jest.fn(),
     stop: jest.fn(),
   },
+}));
+
+jest.mock('../../lib/boot/sessionCache', () => ({
+  cacheCanonicalBootSession: (...args: any[]) => mockCacheCanonicalBootSession(...args),
+  readCachedBootSession: (...args: any[]) => mockReadCachedBootSession(...args),
+  clearCachedBootSession: (...args: any[]) => mockClearCachedBootSession(...args),
 }));
 
 jest.mock('../../store/profileStore', () => ({
@@ -80,7 +103,12 @@ describe('authStore server handshake', () => {
   beforeEach(() => {
     jest.useRealTimers();
     jest.clearAllMocks();
+    mockCacheCanonicalBootSession.mockResolvedValue(undefined);
+    mockReadCachedBootSession.mockResolvedValue(null);
+    mockClearCachedBootSession.mockResolvedValue(undefined);
     mockAuthCallback = null;
+    mockFirebaseAuth.currentUser = null;
+    mockNetworkCallback = null;
     useAuthStore.setState({
       user: null,
       loading: true,
@@ -88,6 +116,8 @@ describe('authStore server handshake', () => {
       serverSynced: false,
       authSyncInProgress: false,
       authSyncError: null,
+      authSyncFailed: false,
+      usingCachedSession: false,
       profileSetupJustCompleted: false,
       onboardingJustCompleted: false,
     });
@@ -108,6 +138,7 @@ describe('authStore server handshake', () => {
     });
 
     const cleanup = initAuthListener();
+    mockFirebaseAuth.currentUser = user;
     mockAuthCallback?.(user);
 
     expect(useAuthStore.getState()).toMatchObject({
@@ -126,6 +157,11 @@ describe('authStore server handshake', () => {
       uid: 'user_1',
       role: 'guest',
     });
+    expect(mockCacheCanonicalBootSession).toHaveBeenCalledWith(
+      'user_1',
+      { version: 2, currentStage: 'complete', completed: true },
+      { uid: 'user_1', role: 'guest' },
+    );
     expect(useAuthStore.getState()).toMatchObject({
       user,
       loading: false,
@@ -138,6 +174,51 @@ describe('authStore server handshake', () => {
     await flushPromises();
     expect(wsManager.start).toHaveBeenCalledWith('firebase-token');
 
+    cleanup();
+  });
+
+  it('upgrades a cached session when connectivity returns', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const user = {
+      uid: 'reconnect_user',
+      phoneNumber: '+919876543210',
+      providerData: [{ providerId: 'phone' }],
+      getIdToken: jest.fn(async () => 'reconnect-token'),
+    };
+    (syncAuthSession as jest.Mock)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({
+        profile: { uid: 'reconnect_user' },
+        onboarding: { version: 2, currentStage: 'complete', completed: true },
+        requiresTokenRefresh: false,
+      });
+    mockReadCachedBootSession.mockResolvedValueOnce({
+      uid: 'reconnect_user',
+      profile: { uid: 'reconnect_user' },
+      snapshot: { version: 2, currentStage: 'complete', completed: true },
+      cachedAt: Date.now(),
+    });
+
+    const cleanup = initAuthListener();
+    mockFirebaseAuth.currentUser = user;
+    mockAuthCallback?.(user);
+    await flushPromises();
+    await flushPromises();
+    expect(useAuthStore.getState().usingCachedSession).toBe(true);
+
+    mockNetworkCallback?.({ isConnected: true });
+    await flushPromises();
+    await flushPromises();
+
+    expect(syncAuthSession).toHaveBeenCalledTimes(2);
+    expect(useAuthStore.getState()).toMatchObject({
+      user,
+      serverSynced: true,
+      usingCachedSession: false,
+      authSyncFailed: false,
+    });
+
+    warnSpy.mockRestore();
     cleanup();
   });
 
@@ -193,5 +274,42 @@ describe('authStore server handshake', () => {
     expect(useAuthStore.getState().serverSynced).toBe(false);
 
     warnSpy.mockRestore();
+  });
+
+  it('restores a canonical cached session without claiming the server synchronized', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const user = {
+      uid: 'offline_user',
+      phoneNumber: '+919876543210',
+      providerData: [{ providerId: 'phone' }],
+      getIdToken: jest.fn(async () => 'offline-token'),
+    };
+    (syncAuthSession as jest.Mock).mockRejectedValueOnce(new Error('offline'));
+    mockReadCachedBootSession.mockResolvedValueOnce({
+      uid: 'offline_user',
+      profile: { uid: 'offline_user', displayName: 'Offline User' },
+      snapshot: { version: 2, currentStage: 'complete', completed: true },
+      cachedAt: Date.now(),
+    });
+
+    const cleanup = initAuthListener();
+    mockAuthCallback?.(user);
+    await flushPromises();
+    await flushPromises();
+
+    expect(useAuthStore.getState()).toMatchObject({
+      user,
+      initialized: true,
+      serverSynced: false,
+      authSyncFailed: true,
+      usingCachedSession: true,
+    });
+    expect(mockProfileState.setProfileFromGateway).toHaveBeenCalledWith('offline_user', {
+      uid: 'offline_user',
+      displayName: 'Offline User',
+    });
+
+    warnSpy.mockRestore();
+    cleanup();
   });
 });

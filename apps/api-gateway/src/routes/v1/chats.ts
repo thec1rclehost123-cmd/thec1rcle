@@ -107,7 +107,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/chats',
     {
-      preHandler: [fastify.requireAuth, fastify.validate({ querystring: ChatListQuery })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ querystring: ChatListQuery })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
@@ -145,7 +145,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     '/chats/:id/messages',
     {
       preHandler: [
-        fastify.requireAuth,
+        fastify.requireVerifiedPhone,
         fastify.validate({ params: ChatParams, querystring: ChatMessagesQuery }),
       ],
     },
@@ -186,7 +186,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     '/chats/:id/messages',
     {
       preHandler: [
-        fastify.requireAuth,
+        fastify.requireVerifiedPhone,
         fastify.validate({ params: ChatParams, body: SendChatMessageBody }),
       ],
     },
@@ -223,7 +223,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     '/chats/:chatId/messages/:messageId/report',
     {
       preHandler: [
-        fastify.requireAuth,
+        fastify.requireVerifiedPhone,
         fastify.validate({ params: ReportMessageParams, body: ReportMessageBody }),
       ],
     },

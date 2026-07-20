@@ -221,84 +221,96 @@ function buildSharePreview(bundle: any) {
 }
 
 export default async function ticketRoutes(fastify: FastifyInstance) {
-  fastify.get('/tickets', async (request: any, reply) => {
-    const userId = requireUser(reply, request);
-    if (!userId) return;
+  fastify.get(
+    '/tickets',
+    { preHandler: [fastify.requireVerifiedPhone] },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
 
-    try {
-      const wallet = await getGuestWallet(fastify.db, fastify.auth, userId);
-      // Keep top-level wallet fields for backward compat; add canonical data envelope
-      return { success: true, data: wallet, ...wallet };
-    } catch (error: any) {
-      fastify.log.error(
-        { requestId: request.id, userId, error: error.message },
-        'GET /tickets failed',
-      );
-      return reply.status(500).send(
-        buildErrorResponse({
-          code: 'INTERNAL_ERROR',
-          message: 'Internal server error',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+      try {
+        const wallet = await getGuestWallet(fastify.db, fastify.auth, userId);
+        // Keep top-level wallet fields for backward compat; add canonical data envelope
+        return { success: true, data: wallet, ...wallet };
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'GET /tickets failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
-  fastify.get('/tickets/me', async (request: any, reply) => {
-    const userId = requireUser(reply, request);
-    if (!userId) return;
+  fastify.get(
+    '/tickets/me',
+    { preHandler: [fastify.requireVerifiedPhone] },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
 
-    try {
-      const { getUserTicketsFromCollection } = await import('@c1rcle/core/ticket-engine');
-      const data = await getUserTicketsFromCollection(userId);
-      return buildSuccessResponse(data);
-    } catch (error: any) {
-      fastify.log.error(
-        { requestId: request.id, userId, error: error.message },
-        'GET /tickets/me failed',
-      );
-      return reply.status(500).send(
-        buildErrorResponse({
-          code: 'INTERNAL_ERROR',
-          message: 'Internal server error',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+      try {
+        const { getUserTicketsFromCollection } = await import('@c1rcle/core/ticket-engine');
+        const data = await getUserTicketsFromCollection(userId);
+        return buildSuccessResponse(data);
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'GET /tickets/me failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
-  fastify.get('/tickets/my-wallet', async (request: any, reply) => {
-    const userId = requireUser(reply, request);
-    if (!userId) return;
+  fastify.get(
+    '/tickets/my-wallet',
+    { preHandler: [fastify.requireVerifiedPhone] },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
 
-    try {
-      const wallet = await getUserTicketWallet({ db: fastify.db, userId });
-      return {
-        success: true,
-        data: wallet,
-        orders: wallet.orders,
-        tickets: wallet.tickets,
-        qrTtlSeconds: wallet.qrTtlSeconds,
-      };
-    } catch (error: any) {
-      fastify.log.error(
-        { requestId: request.id, userId, error: error.message },
-        'GET /tickets/my-wallet failed',
-      );
-      return reply.status(error.code === 'UNAUTHORIZED' ? 401 : 500).send(
-        buildErrorResponse({
-          code: error.code === 'UNAUTHORIZED' ? 'UNAUTHORIZED' : 'INTERNAL_ERROR',
-          message: error.code === 'UNAUTHORIZED' ? 'Unauthorized' : 'Internal server error',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+      try {
+        const wallet = await getUserTicketWallet({ db: fastify.db, userId });
+        return {
+          success: true,
+          data: wallet,
+          orders: wallet.orders,
+          tickets: wallet.tickets,
+          qrTtlSeconds: wallet.qrTtlSeconds,
+        };
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'GET /tickets/my-wallet failed',
+        );
+        return reply.status(error.code === 'UNAUTHORIZED' ? 401 : 500).send(
+          buildErrorResponse({
+            code: error.code === 'UNAUTHORIZED' ? 'UNAUTHORIZED' : 'INTERNAL_ERROR',
+            message: error.code === 'UNAUTHORIZED' ? 'Unauthorized' : 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
   fastify.post(
     '/:id/transfer',
     {
-      preHandler: [fastify.validate({ params: GroupTransferParam })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ params: GroupTransferParam })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -332,7 +344,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/claim',
     {
-      preHandler: [fastify.validate({ body: GroupClaimBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: GroupClaimBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -366,7 +378,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/transfer',
     {
-      preHandler: [fastify.validate({ body: TransferBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: TransferBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -427,7 +439,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/tickets/transfer',
     {
-      preHandler: [fastify.validate({ body: AcceptTransferBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: AcceptTransferBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -457,62 +469,70 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.delete('/tickets/transfer', async (request: any, reply) => {
-    const userId = requireUser(reply, request);
-    if (!userId) return;
+  fastify.delete(
+    '/tickets/transfer',
+    { preHandler: [fastify.requireVerifiedPhone] },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
 
-    const transferId = request.query?.transferId;
-    if (!transferId)
-      return reply.status(400).send(
-        buildErrorResponse({
-          code: 'BAD_REQUEST',
-          message: 'transferId query param is required',
-          requestId: request.id,
-        }),
-      );
+      const transferId = request.query?.transferId;
+      if (!transferId)
+        return reply.status(400).send(
+          buildErrorResponse({
+            code: 'BAD_REQUEST',
+            message: 'transferId query param is required',
+            requestId: request.id,
+          }),
+        );
 
-    try {
-      const result = await cancelGuestTransfer(userId, transferId);
-      fastify.log.info({ requestId: request.id, userId, transferId }, 'Guest transfer cancelled');
-      return { success: true, ...result };
-    } catch (error: any) {
-      const status = error.message?.includes('Unauthorized') ? 403 : 400;
-      return reply.status(status).send(
-        buildErrorResponse({
-          code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST',
-          message: error.message || 'Transfer failed',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+      try {
+        const result = await cancelGuestTransfer(userId, transferId);
+        fastify.log.info({ requestId: request.id, userId, transferId }, 'Guest transfer cancelled');
+        return { success: true, ...result };
+      } catch (error: any) {
+        const status = error.message?.includes('Unauthorized') ? 403 : 400;
+        return reply.status(status).send(
+          buildErrorResponse({
+            code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST',
+            message: error.message || 'Transfer failed',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
-  fastify.get('/tickets/transfer/pending', async (request: any, reply) => {
-    const userId = requireUser(reply, request);
-    if (!userId) return;
+  fastify.get(
+    '/tickets/transfer/pending',
+    { preHandler: [fastify.requireVerifiedPhone] },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
 
-    try {
-      const transfers = await getGuestPendingTransfers(userId, request.user?.email || null);
-      return { success: true, transfers };
-    } catch (error: any) {
-      fastify.log.error(
-        { requestId: request.id, userId, error: error.message },
-        'GET /tickets/transfer/pending failed',
-      );
-      return reply.status(500).send(
-        buildErrorResponse({
-          code: 'INTERNAL_ERROR',
-          message: 'Internal server error',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+      try {
+        const transfers = await getGuestPendingTransfers(userId, request.user?.email || null);
+        return { success: true, transfers };
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'GET /tickets/transfer/pending failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
   fastify.post(
     '/tickets/share',
     {
-      preHandler: [fastify.validate({ body: ShareBundleBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: ShareBundleBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -541,7 +561,10 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/share',
     {
-      preHandler: [fastify.validate({ querystring: ShareBundleQuery })],
+      preHandler: [
+        fastify.requireVerifiedPhone,
+        fastify.validate({ querystring: ShareBundleQuery }),
+      ],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -585,7 +608,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/tickets/share',
     {
-      preHandler: [fastify.validate({ body: ShareBundleDeleteBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: ShareBundleDeleteBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -618,7 +641,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/share/revoke',
     {
-      preHandler: [fastify.validate({ body: ShareRevokeBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: ShareRevokeBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -692,7 +715,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/claim/share',
     {
-      preHandler: [fastify.validate({ body: ClaimShareBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: ClaimShareBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -740,6 +763,9 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
           return { success: true, claim: preview };
         }
 
+        await fastify.requireVerifiedPhone(request, reply);
+        if (reply.sent) return;
+
         const userId = requireUser(reply, request);
         if (!userId) return;
         if (!bundleId)
@@ -777,7 +803,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair',
     {
-      preHandler: [fastify.validate({ body: PairClaimBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: PairClaimBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -806,7 +832,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/tickets/pair',
     {
-      preHandler: [fastify.validate({ body: PairCancelBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: PairCancelBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -835,7 +861,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair/link',
     {
-      preHandler: [fastify.validate({ body: PairLinkBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: PairLinkBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -863,7 +889,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair/assign',
     {
-      preHandler: [fastify.validate({ body: PairAssignBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: PairAssignBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -893,7 +919,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair/transfer',
     {
-      preHandler: [fastify.validate({ body: PairTransferBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: PairTransferBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -922,7 +948,10 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/cover-wallet',
     {
-      preHandler: [fastify.validate({ querystring: CoverWalletQuery })],
+      preHandler: [
+        fastify.requireVerifiedPhone,
+        fastify.validate({ querystring: CoverWalletQuery }),
+      ],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -958,7 +987,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/cover-wallets',
     {
-      preHandler: [fastify.validate({ body: CoverWalletBatchBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: CoverWalletBatchBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -990,7 +1019,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/download',
     {
-      preHandler: [fastify.validate({ querystring: DownloadQuery })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ querystring: DownloadQuery })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -1097,7 +1126,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/:ticketId',
     {
-      preHandler: [fastify.validate({ params: TicketIdParam })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ params: TicketIdParam })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -1143,7 +1172,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/:ticketId/refresh-qr',
     {
-      preHandler: [fastify.validate({ params: TicketIdParam })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ params: TicketIdParam })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);

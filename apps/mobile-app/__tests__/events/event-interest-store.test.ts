@@ -15,6 +15,10 @@ jest.mock('../../lib/api', () => ({
   apiFetch: jest.fn(),
 }));
 
+jest.mock('../../lib/notifications', () => ({
+  offerNotificationPermissionForAction: jest.fn().mockResolvedValue(false),
+}));
+
 // Mock Firebase
 jest.mock('../../lib/firebase/client', () => ({
   getFirebaseApp: jest.fn(() => ({})),

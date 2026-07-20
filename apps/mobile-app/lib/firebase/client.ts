@@ -179,16 +179,35 @@ export async function sendPhoneVerificationCode(phoneNumber: string, verifier?: 
   return auth().signInWithPhoneNumber(phoneNumber);
 }
 
+function phoneLinkIntegrityError(message: string) {
+  const error = new Error(message) as Error & { code?: string };
+  error.code = 'auth/phone-link-integrity-check-failed';
+  return error;
+}
+
+function requireExpectedPhoneLinkUser(expectedUid: string, message: string) {
+  const currentUser = auth().currentUser;
+  if (!expectedUid || !currentUser || currentUser.uid !== expectedUid) {
+    throw phoneLinkIntegrityError(message);
+  }
+  return currentUser;
+}
+
 /** Sends an OTP without starting a competing phone sign-in session. */
-export async function sendPhoneLinkVerificationCode(phoneNumber: string) {
+export async function sendPhoneLinkVerificationCode(phoneNumber: string, transactionUid?: string) {
   const currentUser = auth().currentUser;
   if (!currentUser) throw new Error('Sign in again before adding a phone number.');
-  const expectedUid = currentUser.uid;
+  const expectedUid = transactionUid || currentUser.uid;
+  requireExpectedPhoneLinkUser(
+    expectedUid,
+    'Your signed-in account changed before sending the code. Please start again.',
+  );
   const snapshot = await auth().verifyPhoneNumber(phoneNumber);
   if (!snapshot.verificationId) throw new Error('Unable to start phone verification.');
-  if (auth().currentUser?.uid !== expectedUid) {
-    throw new Error('Your signed-in account changed while sending the code. Please try again.');
-  }
+  requireExpectedPhoneLinkUser(
+    expectedUid,
+    'Your signed-in account changed while sending the code. Please try again.',
+  );
   return { verificationId: snapshot.verificationId, expectedUid };
 }
 
@@ -197,29 +216,68 @@ export async function loginWithPhoneVerificationCode(verificationId: string, cod
   return auth().signInWithCredential(credential);
 }
 
-export async function linkWithPhoneVerificationCode(verificationId: string, code: string, expectedUid: string) {
+export async function linkWithPhoneVerificationCode(
+  verificationId: string,
+  code: string,
+  expectedUid: string,
+) {
+  const currentUser = requireExpectedPhoneLinkUser(
+    expectedUid,
+    'Your signed-in account changed. Please start again.',
+  );
+  const originalProviderIds = currentUser.providerData
+    .map((provider) => provider.providerId)
+    .filter((providerId) => providerId && providerId !== 'phone');
   const credential = auth.PhoneAuthProvider.credential(verificationId, code);
-  const currentUser = auth().currentUser;
-  if (!currentUser) throw new Error('No user signed in to link');
-  if (currentUser.uid !== expectedUid) throw new Error('Your signed-in account changed. Please start again.');
   const result = await currentUser.linkWithCredential(credential);
-  if (result.user.uid !== expectedUid || auth().currentUser?.uid !== expectedUid) {
-    throw new Error('Phone linking did not finish on the expected account.');
+  if (result.user.uid !== expectedUid) {
+    throw phoneLinkIntegrityError('Phone linking did not finish on the expected account.');
   }
-  await result.user.getIdToken(true);
+
+  requireExpectedPhoneLinkUser(
+    expectedUid,
+    'Your signed-in account changed while linking the phone number.',
+  );
+
+  const linkedProviderIds = new Set(
+    result.user.providerData.map((provider) => provider.providerId).filter(Boolean),
+  );
+  if (originalProviderIds.some((providerId) => !linkedProviderIds.has(providerId))) {
+    throw phoneLinkIntegrityError('Your original sign-in method was lost while adding the phone.');
+  }
+
+  const tokenResult = await result.user.getIdTokenResult(true);
+  const tokenUid = String(tokenResult?.claims?.sub || tokenResult?.claims?.user_id || '');
+  if (tokenUid !== expectedUid) {
+    throw phoneLinkIntegrityError('The refreshed session belongs to a different account.');
+  }
+  requireExpectedPhoneLinkUser(
+    expectedUid,
+    'Your signed-in account changed after refreshing the session.',
+  );
   return result;
 }
 
 export async function linkEmailToUser(email: string) {
   const currentUser = auth().currentUser;
   if (!currentUser) throw new Error('No user signed in to link');
-  return currentUser.updateEmail(email);
+  await currentUser.updateEmail(email);
+  return currentUser;
 }
 
-export async function sendVerificationLinkToCurrentUser(_url?: string) {
+export async function sendVerificationLinkToCurrentUser(url?: string) {
   const currentUser = auth().currentUser;
   if (!currentUser) throw new Error('No user signed in to verify');
-  return currentUser.sendEmailVerification();
+  return currentUser.sendEmailVerification(
+    url
+      ? {
+          url,
+          handleCodeInApp: true,
+          iOS: { bundleId: 'com.c1rcle.app' },
+          android: { packageName: 'com.c1rcle.app', installApp: false, minimumVersion: '12' },
+        }
+      : undefined,
+  );
 }
 
 export function subscribeToAuthState(callback: (user: FirebaseAuthTypes.User | null) => void) {
@@ -293,15 +351,17 @@ export async function loginWithGoogle(): Promise<{ user: FirebaseAuthTypes.User 
 
     const googleCredential = auth.GoogleAuthProvider.credential(idToken, accessToken);
 
-    const result = await auth().signInWithCredential(googleCredential).catch(async (error) => {
-      await handleAccountExistsWithDifferentCredential(
-        error,
-        googleCredential,
-        signInResult.data?.user?.email,
-        'Google',
-      );
-      throw error;
-    });
+    const result = await auth()
+      .signInWithCredential(googleCredential)
+      .catch(async (error) => {
+        await handleAccountExistsWithDifferentCredential(
+          error,
+          googleCredential,
+          signInResult.data?.user?.email,
+          'Google',
+        );
+        throw error;
+      });
 
     return { user: result.user };
   } catch (e: any) {
@@ -309,10 +369,7 @@ export async function loginWithGoogle(): Promise<{ user: FirebaseAuthTypes.User 
       throw e;
     }
     if (__DEV__) console.error('Google Sign-In failed:', e);
-    throw new Error(
-      e.message ||
-        'Google Sign-In failed.',
-    );
+    throw new Error(e.message || 'Google Sign-In failed.');
   }
 }
 

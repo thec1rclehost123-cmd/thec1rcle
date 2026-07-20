@@ -211,9 +211,20 @@ function PromoModal({
   );
 }
 
-function GlassCard({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+function GlassCard({
+  children,
+  delay = 0,
+  receipt = false,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  receipt?: boolean;
+}) {
   return (
-    <Animated.View entering={FadeInUp.delay(delay).springify().damping(20)} style={styles.glassCard}>
+    <Animated.View
+      entering={FadeInUp.delay(delay).springify().damping(20)}
+      style={[styles.glassCard, receipt && styles.receiptCard]}
+    >
       <BlurView
         blurMethod="dimezisBlurView"
         intensity={28}
@@ -553,10 +564,10 @@ export default function CheckoutScreen() {
           </View>
         </Animated.View>
 
-        <GlassCard delay={80}>
+        <GlassCard delay={80} receipt>
           <View style={styles.cardSectionHeader}>
             <Ionicons name="receipt-outline" size={15} color="rgba(254,248,232,0.6)" />
-            <Text style={styles.cardSectionTitle}>Order</Text>
+            <Text style={styles.cardSectionTitle}>Order summary</Text>
           </View>
 
           <View style={styles.ticketSummaryList}>
@@ -885,6 +896,17 @@ const styles = StyleSheet.create({
   },
   glassCardInner: {
     padding: 18,
+  },
+  receiptCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+    backgroundColor: 'rgba(8,8,10,0.86)',
+    shadowColor: '#000',
+    shadowOpacity: 0.32,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   },
   cardSectionHeader: {
     flexDirection: 'row',

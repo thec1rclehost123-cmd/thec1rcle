@@ -80,10 +80,12 @@ type AuthSyncResponse = {
   claims?: Record<string, any>;
   requiresTokenRefresh?: boolean;
   onboarding?: import('./firstRun').FirstRunSnapshot;
+  onboardingProfile?: Partial<import('./firstRun').FirstRunSnapshot>;
   data?: {
     user?: any;
     profile?: any;
     onboarding?: import('./firstRun').FirstRunSnapshot;
+    onboardingProfile?: Partial<import('./firstRun').FirstRunSnapshot>;
   };
 };
 
@@ -112,24 +114,25 @@ async function apiFetch<T = any>(
   const { requireAuth = true, _retry = false, ...fetchOptions } = options;
 
   const appVersion = Constants.expoConfig?.version ?? 'unknown';
+  const hasBody = fetchOptions.body !== undefined && fetchOptions.body !== null;
   const isFormData = fetchOptions.body instanceof FormData;
   const headers: Record<string, string> = {
-    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(hasBody && !isFormData ? { 'Content-Type': 'application/json' } : {}),
     'X-App-Version': appVersion,
     ...(fetchOptions.headers as Record<string, string>),
   };
 
-    if (requireAuth) {
-      const auth = getFirebaseAuth();
-      const user = auth.currentUser;
-      if (!user) {
-        throw new Error('Authentication required. Please sign in.');
-      }
+  if (requireAuth) {
+    const auth = getFirebaseAuth();
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error('Authentication required. Please sign in.');
+    }
 
-      let token;
-      try {
-        token = await user.getIdToken(_retry);
-      } catch (error: any) {
+    let token;
+    try {
+      token = await user.getIdToken(_retry);
+    } catch (error: any) {
       const isDisabled =
         error.code === 'auth/user-disabled' ||
         error.code === 'auth/user-not-found' ||
@@ -193,6 +196,7 @@ async function apiFetch<T = any>(
       const requestError = new Error(errorMsg);
       (requestError as any).code = data.error?.code || data.code || null;
       (requestError as any).details = data.error?.details || data.details || null;
+      (requestError as any).requestId = data.error?.requestId || data.requestId || null;
       (requestError as any).status = response.status;
       throw requestError;
     }

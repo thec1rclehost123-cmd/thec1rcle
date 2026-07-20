@@ -1,146 +1,214 @@
-/**
- * Smart Recommendations Store
- * Scores events based on time-of-day + order history + browsed categories + heatScore
- */
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { create } from 'zustand';
+import { apiFetch } from '@/lib/api';
+import type { Event } from './eventsStore';
 
-import { create } from "zustand";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { Event } from "./eventsStore";
-import { apiFetch } from "@/lib/api";
+const CACHE_KEY = 'c1rcle:explore-recommendations:v2';
+const CACHE_TTL_MS = 15 * 60 * 1000;
 
-const BROWSED_KEY = "c1rcle:browsed_categories";
-const BROWSED_MAX = 10; // keep last 10 browsed category entries
+export type RecommendationReasonCode =
+  | 'VIBE_AND_CITY_MATCH'
+  | 'VIBE_MATCH'
+  | 'CITY_MATCH'
+  | 'INTENT_MATCH'
+  | 'HISTORY_MATCH'
+  | 'TRENDING';
 
-// Categories that boost at certain hours
-const TIME_OF_DAY_BOOSTS: Record<string, number[]> = {
-    brunch:   [9, 10, 11, 12, 13, 14],
-    party:    [18, 19, 20, 21, 22, 23],
-    club:     [20, 21, 22, 23, 0, 1],
-    concert:  [17, 18, 19, 20, 21, 22],
-    festival: [10, 11, 12, 13, 14, 15, 16],
-    comedy:   [18, 19, 20, 21, 22],
+export type RecommendationItem = {
+  event: Event;
+  score: number;
+  reasonCode: RecommendationReasonCode;
+  reasonLabel: string;
 };
 
-interface RecommendationsState {
-    recommendations: Event[];
-    scoredEvents: Record<string, { score: number }>;
-    browsedCategories: string[];
-    reasonLabel: string;
-    source: 'server' | 'local';
+type RecommendationResponse = {
+  modelVersion: 'explore-v2';
+  profileVersion: number;
+  items: RecommendationItem[];
+  fallbackUsed: boolean;
+};
 
-    // Call on each event detail open
-    trackBrowse: (category: string) => Promise<void>;
-    // Call to rescore events against user signals
-    score: (events: Event[], pastOrderCategories: string[]) => void;
-    // Load persisted browsed categories from AsyncStorage
-    loadBrowsed: () => Promise<void>;
-    setServerRecommendations: (items: Array<{ event: Event; reasonLabel?: string }>) => void;
-    loadServerRecommendations: () => Promise<boolean>;
+type CachedRecommendations = RecommendationResponse & {
+  userId: string;
+  cachedAt: number;
+};
+
+type RecommendationSource = 'none' | 'server' | 'cache' | 'fallback';
+
+interface RecommendationsState {
+  items: RecommendationItem[];
+  recommendations: Event[];
+  reasonLabel: string;
+  source: RecommendationSource;
+  loading: boolean;
+  error: string | null;
+  fallbackUsed: boolean;
+  modelVersion: string | null;
+  profileVersion: number | null;
+  loadServerRecommendations: (userId: string, force?: boolean) => Promise<boolean>;
+  setFallbackEvents: (events: Event[], reasonLabel?: string) => void;
+  clear: () => void;
 }
 
-function scoreEvent(
-    event: Event,
-    pastOrderCategories: string[],
-    browsedCategories: string[],
-    hour: number,
-): number {
-    const cat = (event.category ?? event.type ?? "").toLowerCase();
-    const daysUntil = (() => {
-        const ms = new Date(event.startDate).getTime() - Date.now();
-        return Math.max(0, ms / (1000 * 60 * 60 * 24));
-    })();
+let requestGeneration = 0;
+let activeUserId: string | null = null;
 
-    const pastBoost    = pastOrderCategories.includes(cat) ? 3 : 0;
-    const browsedBoost = browsedCategories.includes(cat)   ? 2 : 0;
-    const todBoost     = (TIME_OF_DAY_BOOSTS[cat] ?? []).includes(hour) ? 3 : 0;
-    const heatBoost    = Math.min((event.heatScore ?? 0) * 0.03, 3);
-    const recencyPenalty = Math.min(daysUntil * 0.1, 5);
+function normalizeResponse(value: any): RecommendationResponse | null {
+  const response = value?.data ?? value;
+  if (response?.modelVersion !== 'explore-v2' || !Array.isArray(response?.items)) return null;
+  const items = response.items.filter(
+    (item: any) => item?.event?.id && item?.reasonCode && item?.reasonLabel,
+  );
+  return {
+    modelVersion: 'explore-v2',
+    profileVersion: Number(response.profileVersion || 1),
+    items,
+    fallbackUsed: Boolean(response.fallbackUsed),
+  };
+}
 
-    return pastBoost + browsedBoost + todBoost + heatBoost - recencyPenalty;
+function responseState(
+  response: RecommendationResponse,
+  source: Extract<RecommendationSource, 'server' | 'cache'>,
+) {
+  return {
+    items: response.items,
+    recommendations: response.items.map((item) => item.event),
+    reasonLabel: response.items[0]?.reasonLabel || 'Popular right now',
+    source,
+    loading: false,
+    error: null,
+    fallbackUsed: response.fallbackUsed,
+    modelVersion: response.modelVersion,
+    profileVersion: response.profileVersion,
+  };
+}
+
+async function readCache(userId: string): Promise<RecommendationResponse | null> {
+  try {
+    const raw = await AsyncStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const cached = JSON.parse(raw) as CachedRecommendations;
+    if (cached.userId !== userId || Date.now() - cached.cachedAt > CACHE_TTL_MS) return null;
+    return normalizeResponse(cached);
+  } catch {
+    return null;
+  }
+}
+
+async function writeCache(userId: string, response: RecommendationResponse) {
+  try {
+    await AsyncStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({ ...response, userId, cachedAt: Date.now() } satisfies CachedRecommendations),
+    );
+  } catch {
+    // Recommendations remain usable in memory when device storage is unavailable.
+  }
 }
 
 export const useRecommendationsStore = create<RecommendationsState>((set, get) => ({
-    recommendations: [],
-    scoredEvents: {},
-    browsedCategories: [],
-    reasonLabel: "Recommended for you",
-    source: 'local',
+  items: [],
+  recommendations: [],
+  reasonLabel: 'Popular right now',
+  source: 'none',
+  loading: false,
+  error: null,
+  fallbackUsed: false,
+  modelVersion: null,
+  profileVersion: null,
 
-    setServerRecommendations: (items) => set({
-        recommendations: items.map((item) => item.event),
-        reasonLabel: items.find((item) => item.reasonLabel)?.reasonLabel ?? "Recommended for you",
-        source: 'server',
-    }),
+  loadServerRecommendations: async (userId, force = false) => {
+    if (!force && activeUserId === userId && get().source === 'server') {
+      return get().items.length > 0;
+    }
+    if (activeUserId && activeUserId !== userId) {
+      requestGeneration += 1;
+      set({ items: [], recommendations: [], source: 'none', error: null });
+    }
+    activeUserId = userId;
+    const generation = ++requestGeneration;
+    set({ loading: true, error: null });
 
-    loadServerRecommendations: async () => {
-        try {
-            const response = await apiFetch<any>('/api/v1/recommendations?limit=10');
-            const rawItems = Array.isArray(response) ? response : response?.items ?? response?.recommendations ?? [];
-            const items = rawItems.map((item: any) => item?.event ? item : ({ event: item, reasonLabel: item?.reasonLabel }));
-            if (!items.length) return false;
-            get().setServerRecommendations(items);
-            return true;
-        } catch {
-            // Local scoring remains the credible offline/legacy fallback.
-            return false;
-        }
-    },
+    if (!force && get().source === 'none') {
+      const cached = await readCache(userId);
+      if (generation !== requestGeneration) return false;
+      if (cached?.items.length) set(responseState(cached, 'cache'));
+    }
 
-    loadBrowsed: async () => {
-        try {
-            const raw = await AsyncStorage.getItem(BROWSED_KEY);
-            if (raw) {
-                set({ browsedCategories: JSON.parse(raw) as string[] });
-            }
-        } catch {
-            // non-critical
-        }
-    },
-
-    trackBrowse: async (category: string) => {
-        if (!category) return;
-        const cat = category.toLowerCase();
-        const current = get().browsedCategories;
-        // Deduplicate + cap at BROWSED_MAX
-        const updated = [cat, ...current.filter((c) => c !== cat)].slice(0, BROWSED_MAX);
-        set({ browsedCategories: updated });
-        try {
-            await AsyncStorage.setItem(BROWSED_KEY, JSON.stringify(updated));
-        } catch {
-            // non-critical
-        }
-    },
-
-    score: (events: Event[], pastOrderCategories: string[]) => {
-        const { browsedCategories } = get();
-        const hour = new Date().getHours();
-        const now = Date.now();
-
-        const scored = events
-            .filter((e) => {
-                // Only show scheduled/live events (mirrors guest portal PUBLIC_LIFECYCLE_STATES)
-                const lifecycle = e.lifecycle;
-                if (lifecycle && lifecycle !== "scheduled" && lifecycle !== "live") return false;
-
-                // Filter out test/garbage data
-                const title = e.title?.toLowerCase() ?? "";
-                if (title.length < 4) return false;
-                if (/^(test|check|ssjd|dummy|aaa|bbb|xxx|yyy|zzz)/i.test(e.title ?? "")) return false;
-
-                if (!e.startDate) return true;
-                const start = new Date(e.startDate).getTime();
-                return isNaN(start) ? true : start > now;
-            })
-            .map((e) => ({
-                event: e,
-                score: scoreEvent(e, pastOrderCategories, browsedCategories, hour),
-            }))
-            .sort((a, b) => b.score - a.score);
-
+    try {
+      const raw = await apiFetch<any>(
+        '/api/v1/recommendations?contract=v2&surface=explore&limit=12',
+        { requireAuth: true },
+      );
+      const response = normalizeResponse(raw);
+      if (!response) throw new Error('The recommendation service returned an invalid response.');
+      if (generation !== requestGeneration) return false;
+      if (!response.items.length) {
         set({
-            recommendations: scored.slice(0, 10).map(({ event }) => event),
-            scoredEvents: Object.fromEntries(scored.map(({ event, score }) => [event.id, { score }])),
-            source: 'local',
+          items: [],
+          recommendations: [],
+          source: 'none',
+          loading: false,
+          error: null,
+          fallbackUsed: true,
+          modelVersion: response.modelVersion,
+          profileVersion: response.profileVersion,
         });
-    },
+        return false;
+      }
+      set(responseState(response, 'server'));
+      void writeCache(userId, response);
+      return response.items.length > 0;
+    } catch (error: any) {
+      if (generation !== requestGeneration) return false;
+      const cached = await readCache(userId);
+      if (generation !== requestGeneration) return false;
+      if (cached?.items.length) {
+        set({
+          ...responseState(cached, 'cache'),
+          error: 'Showing saved picks while we reconnect.',
+        });
+        return true;
+      }
+      set({ loading: false, error: error?.message || 'Could not personalize Explore.' });
+      return false;
+    }
+  },
+
+  setFallbackEvents: (events, reasonLabel = 'Popular right now') => {
+    if (get().source === 'server' || get().source === 'cache') return;
+    const recommendations = events.slice(0, 12);
+    set({
+      items: recommendations.map((event) => ({
+        event,
+        score: 0,
+        reasonCode: 'TRENDING',
+        reasonLabel,
+      })),
+      recommendations,
+      reasonLabel,
+      source: 'fallback',
+      loading: false,
+      fallbackUsed: true,
+      modelVersion: null,
+      profileVersion: null,
+    });
+  },
+
+  clear: () => {
+    requestGeneration += 1;
+    activeUserId = null;
+    set({
+      items: [],
+      recommendations: [],
+      reasonLabel: 'Popular right now',
+      source: 'none',
+      loading: false,
+      error: null,
+      fallbackUsed: false,
+      modelVersion: null,
+      profileVersion: null,
+    });
+  },
 }));

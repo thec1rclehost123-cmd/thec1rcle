@@ -10,6 +10,7 @@
  */
 import { create } from 'zustand';
 import { apiFetch } from '@/lib/api';
+import { offerNotificationPermissionForAction } from '@/lib/notifications';
 
 const RECENT_INTEREST_TOGGLE_MS = 15_000;
 const recentInterestToggles = new Map<string, { included: boolean; at: number }>();
@@ -201,9 +202,7 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
       set((state) => ({
         interestedUsers: {
           ...state.interestedUsers,
-          [eventId]: (state.interestedUsers[eventId] ?? []).filter(
-            (u) => u.userId !== userId,
-          ),
+          [eventId]: (state.interestedUsers[eventId] ?? []).filter((u) => u.userId !== userId),
         },
       }));
     } else {
@@ -231,6 +230,7 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
         body: JSON.stringify({ shouldInclude: !isLiked }),
         requireAuth: true,
       });
+      if (nextIncluded) void offerNotificationPermissionForAction('save_event', userId);
     } catch (e) {
       console.warn('[EventInterestStore] toggleInterest failed:', e);
       if (shouldRollbackInterestToggle(e)) {

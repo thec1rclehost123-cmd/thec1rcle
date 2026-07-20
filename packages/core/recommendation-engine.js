@@ -3,6 +3,27 @@ import { getAdminDb, isFirebaseConfigured } from './admin.js';
 const EVENT_COLLECTION = 'events';
 const PUBLIC_LIFECYCLE_STATES_LOCAL = ['scheduled', 'live'];
 const RECOMMENDATION_MODEL_VERSION = 'explore-v2';
+const DAY_MS = 24 * 60 * 60 * 1000;
+const TASTE_ALIASES = {
+  clubs: ['club', 'clubbing', 'nightclub', 'party'],
+  live_music: ['live_music', 'concert', 'gig', 'music'],
+  lounges: ['lounge', 'cocktail', 'bar'],
+  festivals: ['festival', 'fest'],
+  college_nights: ['college', 'student', 'campus'],
+  underground: ['underground', 'warehouse', 'techno', 'house'],
+  food_culture: ['food', 'brunch', 'dining', 'culinary'],
+  premium: ['premium', 'vip', 'exclusive', 'luxury'],
+};
+const TASTE_LABELS = {
+  clubs: 'club nights',
+  live_music: 'live music',
+  lounges: 'lounges',
+  festivals: 'festivals',
+  college_nights: 'college nights',
+  underground: 'underground nights',
+  food_culture: 'food and culture',
+  premium: 'premium experiences',
+};
 
 function normalized(value) {
   return String(value || '')
@@ -17,6 +38,58 @@ function eventSignals(event) {
       .filter(Boolean)
       .map(normalized),
   );
+}
+
+function eventCitySignals(event) {
+  const values = [event.city, event.cityName, event.cityKey, event.location]
+    .filter(Boolean)
+    .map(normalized);
+  const aliases = new Set(values);
+  for (const value of values) {
+    aliases.add(value.replace(/_in$/, ''));
+    aliases.add(value.split('_')[0]);
+  }
+  return aliases;
+}
+
+function matchingOnboardingTaste(signals, onboardingTags) {
+  for (const taste of onboardingTags) {
+    const aliases = TASTE_ALIASES[taste] || [taste];
+    if (aliases.some((alias) => signals.has(alias))) return taste;
+  }
+  return null;
+}
+
+function eventStartTime(event) {
+  const value = event.startDate || event.startsAt || event.startTime || event.date;
+  const timestamp = value?.toDate?.()?.getTime?.() ?? new Date(value || 0).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function eventCreatedTime(event) {
+  const value = event.createdAt || event.publishedAt;
+  const timestamp = value?.toDate?.()?.getTime?.() ?? new Date(value || 0).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function timeRelevanceScore(event, now) {
+  const start = eventStartTime(event);
+  if (!start) return 0;
+  const daysUntil = (start - now) / DAY_MS;
+  if (daysUntil < 0) return -100;
+  if (daysUntil <= 3) return 7;
+  if (daysUntil <= 7) return 5;
+  if (daysUntil <= 30) return 2;
+  return 0;
+}
+
+function dataQualityPenalty(event) {
+  let penalty = 0;
+  if (!event.title) penalty += 8;
+  if (!event.city && !event.cityName && !event.cityKey && !event.location) penalty += 5;
+  if (!eventStartTime(event)) penalty += 4;
+  if (!event.poster && !event.image && !event.coverImage && !event.coverPhoto) penalty += 2;
+  return penalty;
 }
 
 function intentScore(event, intents) {
@@ -40,32 +113,42 @@ function intentScore(event, intents) {
 function calculateMatch(
   event,
   { preferredTags, preferredCities, preferredHosts, pastEventIds, onboardingTags, intents },
+  now = Date.now(),
 ) {
   let score = 0;
-  const eventTags = [...eventSignals(event)];
+  const signals = eventSignals(event);
+  const eventTags = [...signals];
   const historyMatches = eventTags.filter((tag) => preferredTags.has(tag)).length;
-  const onboardingMatches = eventTags.filter((tag) => onboardingTags.has(tag)).length;
-  const cityMatch = preferredCities.has(normalized(event.city));
+  const matchedTaste = matchingOnboardingTaste(signals, onboardingTags);
+  const onboardingMatches = matchedTaste ? 1 : 0;
+  const citySignals = eventCitySignals(event);
+  const cityMatch = [...preferredCities].some((city) => citySignals.has(city));
   const matchedIntentScore = intentScore(event, intents);
+  const eventCityLabel = event.city || event.cityName || event.location || 'your city';
   score += historyMatches * 5;
   score += onboardingMatches * 12;
   if (preferredHosts.has(event.host)) score += 15;
   if (cityMatch) score += 18;
   score += matchedIntentScore;
-  score += (event.heatScore || 0) * 0.1;
+  score += Math.min(Number(event.heatScore || event.stats?.heat || 0) * 0.1, 10);
+  score += Math.min(Number(event.stats?.saves || event.saves || 0) * 0.05, 4);
+  score += timeRelevanceScore(event, now);
+  const createdAt = eventCreatedTime(event);
+  if (createdAt && now - createdAt <= 14 * DAY_MS) score += 3;
+  score -= dataQualityPenalty(event);
   if (pastEventIds.has(event.id)) score -= 100;
 
   let reasonCode = 'TRENDING';
   let reasonLabel = 'Trending now';
   if (onboardingMatches > 0 && cityMatch) {
     reasonCode = 'VIBE_AND_CITY_MATCH';
-    reasonLabel = `Because it matches your tastes in ${event.city}`;
+    reasonLabel = `Because you chose ${TASTE_LABELS[matchedTaste] || matchedTaste} — in ${eventCityLabel}`;
   } else if (onboardingMatches > 0) {
     reasonCode = 'VIBE_MATCH';
-    reasonLabel = 'Because it matches your nightlife tastes';
+    reasonLabel = `Because you chose ${TASTE_LABELS[matchedTaste] || matchedTaste}`;
   } else if (cityMatch) {
     reasonCode = 'CITY_MATCH';
-    reasonLabel = `Popular in ${event.city}`;
+    reasonLabel = `Popular in ${eventCityLabel}`;
   } else if (matchedIntentScore > 0) {
     reasonCode = 'INTENT_MATCH';
     reasonLabel = 'Matched to what brings you to THE C1RCLE';
@@ -120,29 +203,39 @@ async function buildUserProfile(userId) {
   const intents = new Set((discoveryProfile.intents || userData.intents || []).map(normalized));
   const city = discoveryProfile.cityName || userData.city;
   if (city) preferredCities.add(normalized(city));
+  const cityId = discoveryProfile.cityId || userData.cityId;
+  if (cityId) preferredCities.add(normalized(cityId));
 
-  if (orders.length > 0) {
-    const eventIds = [...new Set(orders.map((o) => o.eventId).filter(Boolean))];
-    if (eventIds.length > 0 && isFirebaseConfigured()) {
-      const db = getAdminDb();
-      const chunks = [];
-      for (let i = 0; i < eventIds.length; i += 10) chunks.push(eventIds.slice(i, i + 10));
-      const eventDocs = (
-        await Promise.all(
-          chunks.map((chunk) =>
-            db.collection(EVENT_COLLECTION).where('__name__', 'in', chunk).get(),
-          ),
-        )
-      ).flatMap((snap) => snap.docs);
+  const savedEventIds = [
+    ...(Array.isArray(userData.attendedEvents) ? userData.attendedEvents : []),
+    ...(Array.isArray(userData.interestedEventIds) ? userData.interestedEventIds : []),
+  ]
+    .map((item) => (typeof item === 'string' ? item : item?.eventId || item?.id))
+    .filter(Boolean);
+  const eventIds = [
+    ...new Set([...orders.map((order) => order.eventId).filter(Boolean), ...savedEventIds]),
+  ];
+  eventIds.forEach((eventId) => pastEventIds.add(eventId));
+  if (eventIds.length > 0 && isFirebaseConfigured()) {
+    const historyDb = getAdminDb();
+    const chunks = [];
+    for (let index = 0; index < eventIds.length; index += 10)
+      chunks.push(eventIds.slice(index, index + 10));
+    const eventDocs = (
+      await Promise.all(
+        chunks.map((chunk) =>
+          historyDb.collection(EVENT_COLLECTION).where('__name__', 'in', chunk).get(),
+        ),
+      )
+    ).flatMap((snapshot) => snapshot.docs);
 
-      eventDocs.forEach((doc) => {
-        const event = doc.data();
-        pastEventIds.add(doc.id);
-        (event.tags || []).forEach((tag) => preferredTags.add(normalized(tag)));
-        if (event.city) preferredCities.add(normalized(event.city));
-        if (event.host) preferredHosts.add(event.host);
-      });
-    }
+    eventDocs.forEach((doc) => {
+      const event = doc.data();
+      (event.tags || []).forEach((tag) => preferredTags.add(normalized(tag)));
+      if (event.category) preferredTags.add(normalized(event.category));
+      if (event.city) preferredCities.add(normalized(event.city));
+      if (event.host) preferredHosts.add(event.host);
+    });
   }
 
   return {
@@ -167,9 +260,16 @@ export async function getRecommendationCacheContext(userId) {
 }
 
 export function rankEventsForProfile(candidates, userProfile, limit = 5) {
+  const now = Date.now();
   return candidates
-    .filter((event) => event.status !== 'past')
-    .map((event) => ({ event, ...calculateMatch(event, userProfile) }))
+    .filter((event) => {
+      if (event.status === 'past' || event.lifecycle === 'ended' || event.lifecycle === 'cancelled')
+        return false;
+      const start = eventStartTime(event);
+      return !start || start >= now;
+    })
+    .map((event) => ({ event, ...calculateMatch(event, userProfile, now) }))
+    .filter((item) => !userProfile.pastEventIds.has(item.event.id))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }

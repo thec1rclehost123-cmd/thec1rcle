@@ -60,7 +60,7 @@ export async function getCachedData<T>(
 
     const parsed: CachedData<T> = JSON.parse(raw);
     const age = Date.now() - parsed.timestamp;
-    const isStale = age > (parsed.ttl || maxAge);
+    const isStale = age >= (parsed.ttl || maxAge);
 
     return { data: parsed.data, isStale };
   } catch (error) {

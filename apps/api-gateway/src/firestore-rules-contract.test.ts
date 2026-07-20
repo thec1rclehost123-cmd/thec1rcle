@@ -22,4 +22,24 @@ describe('consumer trusted-field Firestore boundary', () => {
       'updateHasOnlyAllowedUserFields(request.resource.data.diff(resource.data))',
     );
   });
+
+  it('keeps canonical onboarding and age-gate fields server-owned', () => {
+    const createAllowlist =
+      rules.match(/function hasOnlyAllowedUserFields[\s\S]*?\n    }/)?.[0] || '';
+    const updateAllowlist =
+      rules.match(/function updateHasOnlyAllowedUserFields[\s\S]*?\n    }/)?.[0] || '';
+
+    for (const field of [
+      'auth',
+      'identity',
+      'consumerOnboarding',
+      'discoveryProfile',
+      'dateOfBirth',
+      'city',
+      'vibeTags',
+    ]) {
+      expect(createAllowlist).not.toContain(`'${field}'`);
+      expect(updateAllowlist).not.toContain(`'${field}'`);
+    }
+  });
 });

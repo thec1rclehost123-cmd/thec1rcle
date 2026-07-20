@@ -2,13 +2,24 @@
   "name": "@c1rcle/types",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "react-native": "./src/index.ts",
+  "exports": {
+    ".": {
+      "react-native": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
   "files": [
     "dist"
   ],
   "scripts": {
     "build": "node ../../node_modules/typescript/bin/tsc",
+    "prepare": "npm run build",
     "dev": "node ../../node_modules/typescript/bin/tsc --watch",
     "lint": "node ../../node_modules/typescript/bin/tsc --noEmit",
     "type-check": "node ../../node_modules/typescript/bin/tsc --noEmit"

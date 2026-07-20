@@ -8,12 +8,14 @@
     "dev:staging": "tsx watch --env-file=.env.staging src/app.ts",
     "dev:prod": "tsx watch --env-file=.env.production src/app.ts",
     "start": "node dist/app.js",
-    "build": "cd ../../packages/core && npm run build && cd ../../apps/api-gateway && npx tsc && npx fix-esm-import-path dist",
+    "build": "npm run build -w @c1rcle/types && cd ../../packages/core && npm run build && cd ../../apps/api-gateway && npx tsc && npx fix-esm-import-path dist",
     "test": "vitest run",
-    "backfill:public-discovery": "tsx --env-file=.env.development src/scripts/backfill-public-discovery.ts"
+    "backfill:public-discovery": "tsx --env-file=.env.development src/scripts/backfill-public-discovery.ts",
+    "migrate:onboarding-v2": "tsx --env-file=.env.development src/scripts/migrate-onboarding-v2.ts"
   },
   "dependencies": {
     "@c1rcle/core": "*",
+    "@c1rcle/types": "file:../../packages/types",
     "@fastify/compress": "^8.3.1",
     "@fastify/cors": "^11.0.1",
     "@fastify/multipart": "^10.0.0",

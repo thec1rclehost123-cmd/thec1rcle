@@ -7,6 +7,7 @@ import { apiFetch } from '../../lib/api';
 
 jest.mock('../../lib/api', () => ({
   apiFetch: jest.fn(),
+  deduplicateRequest: jest.fn((_key: string, fetcher: () => Promise<any>) => fetcher()),
 }));
 
 jest.mock('../../lib/social/groupChat', () => ({

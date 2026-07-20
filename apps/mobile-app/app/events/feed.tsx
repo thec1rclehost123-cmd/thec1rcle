@@ -7,6 +7,7 @@ import {
   Pressable,
   ActivityIndicator,
   Share as RNShare,
+  type ViewStyle,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -68,6 +69,13 @@ const attendeeAvatarImages = {
 const AVATAR_COLORS = [
   '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
   '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
+];
+
+const AVATAR_POSITIONS: ViewStyle[] = [
+  { left: -16, top: '25%' },
+  { right: -12, top: '40%' },
+  { left: -8, top: '65%' },
+  { right: -20, top: '75%' },
 ];
 
 function getFallbackInterestedUsers() {
@@ -257,11 +265,13 @@ function FeedCard({
   index,
   scrollY,
   insetsTop,
+  insetsBottom,
 }: {
   event: Event;
   index: number;
   scrollY: SharedValue<number>;
   insetsTop: number;
+  insetsBottom: number;
 }) {
   const router = useRouter();
   const img = getEventImage(event);
@@ -339,8 +349,9 @@ function FeedCard({
             });
           }}
         >
-          <View style={{ flex: 1 }}>
-            <View style={styles.posterContainer}>
+          <View style={{ flex: 1, paddingTop: insetsTop + 80, paddingHorizontal: 16 }}>
+            <View style={styles.posterWrapper}>
+              <View style={styles.posterContainer}>
               {img ? (
                 <AnimatedExpoImage
                   sharedTransitionTag={posterTransitionTag}
@@ -357,13 +368,59 @@ function FeedCard({
               )}
               {/* Gradient to make text legible */}
               <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.8)', '#000']}
+                colors={['transparent', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.6)']}
                 locations={[0.5, 0.85, 1]}
                 style={StyleSheet.absoluteFillObject}
               />
+              </View>
+
+              {guestlistUsers.slice(0, 4).map((userInfo: any, idx: number) => {
+                const initial = (userInfo?.displayName || userInfo?.name || '?')
+                  .charAt(0)
+                  .toUpperCase();
+                const avatarUri = firstNonEmptyString(
+                  userInfo?.photoURL,
+                  userInfo?.avatar,
+                  userInfo?.photo,
+                  userInfo?.imageUrl,
+                );
+                const avatarSource = userInfo?.photoSource
+                  ? userInfo.photoSource
+                  : avatarUri
+                    ? { uri: avatarUri }
+                    : null;
+                const userId = userInfo?.userId ?? userInfo?.uid ?? userInfo?.id;
+
+                return (
+                  <Pressable
+                    key={userId ?? `${initial}-${idx}`}
+                    style={[
+                      styles.floatingAvatar,
+                      AVATAR_POSITIONS[idx],
+                      { backgroundColor: AVATAR_COLORS[(index + idx) % AVATAR_COLORS.length] },
+                    ]}
+                    onPress={(pressEvent) => {
+                      pressEvent.stopPropagation();
+                      if (userId && !String(userId).startsWith('fallback')) {
+                        router.push(`/social/profile/${userId}`);
+                      }
+                    }}
+                  >
+                    {avatarSource ? (
+                      <Image
+                        source={avatarSource}
+                        style={StyleSheet.absoluteFillObject}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <Text style={styles.floatingAvatarText}>{initial}</Text>
+                    )}
+                  </Pressable>
+                );
+              })}
             </View>
 
-            <View style={styles.infoOverlay}>
+            <View style={[styles.infoOverlay, { paddingBottom: insetsBottom + 58 }]}>
               <View style={styles.infoBlock}>
               <View style={styles.titleRow}>
                 <View style={{ flex: 1, marginRight: 16 }}>
@@ -420,51 +477,6 @@ function FeedCard({
               </View>
             </View>
           </View>
-
-          <View style={styles.interestedBar}>
-            <View style={styles.interestedAvatars}>
-              {guestlistUsers.slice(0, 5).map((userInfo: any, idx: number) => {
-                const initial = (userInfo?.displayName || userInfo?.name || '?')
-                  .charAt(0)
-                  .toUpperCase();
-                const avatarUri = firstNonEmptyString(
-                  userInfo?.photoURL,
-                  userInfo?.avatar,
-                  userInfo?.photo,
-                  userInfo?.imageUrl,
-                );
-                const avatarSource = userInfo?.photoSource
-                  ? userInfo.photoSource
-                  : avatarUri
-                    ? { uri: avatarUri }
-                    : null;
-
-                return (
-                  <View
-                    key={userInfo?.userId ?? userInfo?.uid ?? userInfo?.id ?? `${initial}-${idx}`}
-                    style={[
-                      styles.interestedAvatar,
-                      {
-                        marginLeft: idx > 0 ? -11 : 0,
-                        backgroundColor: AVATAR_COLORS[(index + idx) % AVATAR_COLORS.length],
-                        zIndex: 20 - idx,
-                      },
-                    ]}
-                  >
-                    {avatarSource ? (
-                      <Image
-                        source={avatarSource}
-                        style={StyleSheet.absoluteFill}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <Text style={styles.interestedAvatarText}>{initial}</Text>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          </View>
         </View>
         </Pressable>
       </Animated.View>
@@ -489,7 +501,14 @@ export default function ImmersiveFeedScreen() {
   const events = useEventsStore((s) => s.events);
   const loading = useEventsStore((s) => s.loading);
   const fetchEvents = useEventsStore((s) => s.fetchEvents);
-  const scoredEvents = useRecommendationsStore((s) => s.scoredEvents);
+  const recommendationItems = useRecommendationsStore((s) => s.items);
+  const scoredEvents = useMemo(
+    () =>
+      Object.fromEntries(
+        recommendationItems.map((item) => [item.event.id, { score: item.score }]),
+      ),
+    [recommendationItems],
+  );
 
   useEffect(() => {
     if (events.length === 0 && !loading) {
@@ -555,9 +574,10 @@ export default function ImmersiveFeedScreen() {
         index={index}
         scrollY={scrollY}
         insetsTop={insets.top}
+        insetsBottom={insets.bottom}
       />
     ),
-    [insets.top, scrollY],
+    [insets.bottom, insets.top, scrollY],
   );
 
   if (loading && events.length === 0) {
@@ -745,21 +765,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   posterContainer: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
+    width: '100%',
+    borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#000',
+    marginBottom: 16,
+  },
+  posterWrapper: {
+    flex: 1,
+    marginBottom: 8,
+    zIndex: 10,
   },
 
   infoBlock: {
     gap: 4,
   },
   infoOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: 24, // Space for the interested bar
+    width: '100%',
   },
   titleRow: {
     flexDirection: 'row',
@@ -791,36 +814,30 @@ const styles = StyleSheet.create({
   },
   dateVenueText: {
     color: 'rgba(255,255,255,0.7)',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500',
+    lineHeight: 20,
   },
-  interestedBar: {
+  floatingAvatar: {
     position: 'absolute',
-    bottom: 8,
-    left: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  interestedAvatars: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  interestedAvatar: {
-    width: 53,
-    height: 53,
-    borderRadius: 26,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 2,
-    borderColor: '#050505',
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: '#1C1C1E',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
-  interestedAvatarText: {
+  floatingAvatarText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: 'bold',
   },
 

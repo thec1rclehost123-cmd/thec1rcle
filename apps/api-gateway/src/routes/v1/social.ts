@@ -446,7 +446,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
           }),
         },
       },
-      preHandler: [fastify.validate({ body: ChatMessageBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: ChatMessageBody })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
@@ -590,6 +590,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     '/social/can-dm',
     {
       preHandler: [
+        fastify.requireVerifiedPhone,
         fastify.validate({
           body: z.object({ recipientId: z.string(), eventId: z.string() }).strict(),
         }),
@@ -1695,6 +1696,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     '/social/chat/join',
     {
       preHandler: [
+        fastify.requireVerifiedPhone,
         fastify.validate({
           body: z
             .object({
@@ -1754,6 +1756,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     '/social/chat/:eventId',
     {
       preHandler: [
+        fastify.requireVerifiedPhone,
         fastify.validate({ params: EventChatParams, querystring: GroupChatMessagesQuery }),
       ],
     },

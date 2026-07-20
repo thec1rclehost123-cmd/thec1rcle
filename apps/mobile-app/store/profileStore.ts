@@ -318,14 +318,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       return true;
     } catch (error: any) {
       console.warn('Error updating profile:', error);
-      
-      if (__DEV__) {
-        // In dev mode, keep the optimistic update so the flow can continue locally
-        console.warn('__DEV__: Bypassing profile update failure to allow local testing');
-        return true;
-      }
-      
-      // Revert on failure in production
+
+      // Development builds must preserve the same persistence contract as
+      // release builds. Never report a gateway rejection as a success.
       set({ profile: prevProfile, error: error.message || 'Failed to update profile' });
       return false;
     }

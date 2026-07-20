@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Sparkles } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '@/store/authStore';
 
 interface GuestAuthPromptProps {
@@ -15,12 +16,13 @@ export function GuestAuthPrompt({ onDismiss }: GuestAuthPromptProps) {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={guestStyles.root}>
-        <View style={guestStyles.iconWrap}>
-          <Sparkles size={36} color="#fff" />
-        </View>
-        <Text style={guestStyles.title}>Join THE C1RCLE</Text>
+        <LinearGradient colors={['#F44A22', '#FF805E']} style={guestStyles.iconWrap}>
+          <Sparkles size={30} color="#fff" />
+        </LinearGradient>
+        <Text style={guestStyles.eyebrow}>UNLOCK THE FULL NIGHT</Text>
+        <Text style={guestStyles.title}>Make this night yours</Text>
         <Text style={guestStyles.subtitle}>
-          Create an account to buy tickets, chat with attendees, and RSVP.
+          Join THE C1RCLE for tickets, guest lists, event chats and the people going with you.
         </Text>
         <Pressable
           style={guestStyles.primaryBtn}
@@ -29,19 +31,10 @@ export function GuestAuthPrompt({ onDismiss }: GuestAuthPromptProps) {
             router.push('/(auth)/login');
           }}
         >
-          <Text style={guestStyles.primaryBtnText}>Log In</Text>
-        </Pressable>
-        <Pressable
-          style={guestStyles.secondaryBtn}
-          onPress={() => {
-            useAuthStore.getState().setGuestMode(false);
-            router.push('/(auth)/signup');
-          }}
-        >
-          <Text style={guestStyles.secondaryBtnText}>Sign Up</Text>
+          <Text style={guestStyles.primaryBtnText}>Join THE C1RCLE</Text>
         </Pressable>
         <Pressable style={guestStyles.dismissBtn} onPress={onDismiss}>
-          <Text style={guestStyles.dismissText}>Continue Browsing</Text>
+          <Text style={guestStyles.dismissText}>Keep exploring</Text>
         </Pressable>
       </View>
     </View>
@@ -51,7 +44,7 @@ export function GuestAuthPrompt({ onDismiss }: GuestAuthPromptProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111113',
+    backgroundColor: '#090909',
   },
 });
 
@@ -64,18 +57,19 @@ const guestStyles = StyleSheet.create({
     paddingBottom: 60,
   },
   iconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(139,92,246,0.15)',
+    width: 58,
+    height: 58,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 14,
   },
+  eyebrow: { color: '#F44A22', fontSize: 10, fontWeight: '900', letterSpacing: 1.8, marginBottom: 8 },
   title: {
     color: '#fff',
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -0.5,
     marginBottom: 8,
   },
   subtitle: {
@@ -88,33 +82,18 @@ const guestStyles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   primaryBtn: {
-    backgroundColor: '#fff',
+    backgroundColor: '#F44A22',
     width: '100%',
     height: 50,
-    borderRadius: 14,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
   },
   primaryBtnText: {
-    color: '#000',
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '700',
-  },
-  secondaryBtn: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    width: '100%',
-    height: 50,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  secondaryBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '900',
   },
   dismissBtn: {
     paddingVertical: 10,

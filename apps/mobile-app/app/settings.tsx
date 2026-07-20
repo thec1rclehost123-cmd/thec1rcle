@@ -19,6 +19,7 @@ import {
   Eye,
   Mail,
   Music,
+  SlidersHorizontal,
   ShieldCheck,
   Trash2,
   Wallet,
@@ -315,6 +316,19 @@ export default function SettingsScreen() {
             }
             title="Nightlife Profile"
             onPress={() => router.push('/profile-creation')}
+          />
+          <Divider />
+          <SettingsRow
+            icon={
+              <SettingIcon tone="nightlife">
+                <SlidersHorizontal size={17} color="#fff" strokeWidth={2.2} />
+              </SettingIcon>
+            }
+            title="Tune Explore"
+            subtitle="Update your scenes and event preferences"
+            onPress={() =>
+              router.push({ pathname: '/tastes', params: { edit: 'true' } } as any)
+            }
           />
           <Divider />
           <SettingsRow

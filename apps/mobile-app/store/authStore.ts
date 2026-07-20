@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { AppState } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { getFirebaseAuth, subscribeToAuthState, type User } from '@/lib/firebase';
 import { syncAuthSession } from '@/lib/api';
 import { refreshPushToken } from '@/lib/notifications';
@@ -9,7 +10,14 @@ import { useNotificationsStore } from './notificationsStore';
 import { useTicketsStore } from './ticketsStore';
 import { useSubscriptionStore } from './subscriptionStore';
 import { useFirstRunStore } from './firstRunStore';
+import { useRecommendationsStore } from './recommendationsStore';
 import { resolveFirstRunStage } from '@/lib/firstRun';
+import {
+  cacheCanonicalBootSession,
+  clearCachedBootSession,
+  readCachedBootSession,
+} from '@/lib/boot/sessionCache';
+import { migrateLegacyFirstRunStorage } from '@/lib/boot/legacyFirstRunStorage';
 
 interface AuthState {
   user: User | null;
@@ -19,6 +27,7 @@ interface AuthState {
   authSyncInProgress: boolean;
   authSyncError: string | null;
   authSyncFailed: boolean;
+  usingCachedSession: boolean;
   isGuest: boolean;
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
@@ -38,6 +47,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   authSyncInProgress: false,
   authSyncError: null,
   authSyncFailed: false,
+  usingCachedSession: false,
   isGuest: false,
   setGuestMode: (isGuest) => {
     set({
@@ -49,6 +59,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       authSyncInProgress: false,
       authSyncError: null,
       authSyncFailed: false,
+      usingCachedSession: false,
     });
     if (isGuest) {
       useProfileStore.getState().clearProfile();
@@ -56,6 +67,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       useTicketsStore.getState().clearOrders();
       useSubscriptionStore.getState().clearSubscription();
       useFirstRunStore.getState().clear();
+      useRecommendationsStore.getState().clear();
       try {
         wsManager.stop();
       } catch {
@@ -69,7 +81,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         console.warn('[AuthStore] Ignored direct authenticated user set before server sync.');
       return;
     }
-    set({ user: null, serverSynced: false, authSyncFailed: false });
+    set({ user: null, serverSynced: false, authSyncFailed: false, usingCachedSession: false });
   },
   setLoading: (loading) => set({ loading }),
   setInitialized: (initialized) => set({ initialized, loading: false }),
@@ -91,6 +103,7 @@ function setAwaitingServerSync() {
     authSyncInProgress: true,
     authSyncError: null,
     authSyncFailed: false,
+    usingCachedSession: false,
     isGuest: false,
   });
 }
@@ -116,6 +129,7 @@ function setAuthenticatedUser(user: User) {
     authSyncInProgress: false,
     authSyncError: null,
     authSyncFailed: false,
+    usingCachedSession: false,
     isGuest: false,
   });
 }
@@ -131,10 +145,43 @@ async function syncAfterFirebaseAuth(user: User) {
     useProfileStore.getState().setProfileFromGateway(user.uid, canonicalProfile);
     useSubscriptionStore.getState().hydrateFromProfile(canonicalProfile);
   }
-  const onboarding = result.onboarding ?? result.data?.onboarding ?? null;
+  const response = result.data ?? result;
+  const onboarding = response.onboarding
+    ? { ...response.onboarding, ...(response.onboardingProfile || {}) }
+    : null;
   useFirstRunStore.getState().setSnapshot(onboarding);
-  void useSubscriptionStore.getState().fetchSubscription();
+  void migrateLegacyFirstRunStorage(user.uid).catch(() => {
+    if (__DEV__) console.warn('[AuthStore] Could not retire legacy first-run storage keys.');
+  });
+  void cacheCanonicalBootSession(user.uid, onboarding, canonicalProfile || null).catch(() => {
+    if (__DEV__) console.warn('[AuthStore] Could not cache the canonical boot session.');
+  });
   return { canonicalProfile, onboarding };
+}
+
+async function restoreCachedSession(user: User): Promise<boolean> {
+  let cached;
+  try {
+    cached = await readCachedBootSession(user.uid);
+  } catch {
+    return false;
+  }
+  if (!cached) return false;
+  if (cached.profile) {
+    useProfileStore.getState().setProfileFromGateway(user.uid, cached.profile);
+  }
+  useFirstRunStore.getState().setSnapshot(cached.snapshot);
+  useAuthStore.setState({
+    user,
+    loading: false,
+    initialized: true,
+    serverSynced: false,
+    authSyncInProgress: false,
+    authSyncFailed: true,
+    usingCachedSession: true,
+    isGuest: false,
+  });
+  return true;
 }
 
 function startAuthenticatedSideEffects(user: User) {
@@ -143,6 +190,7 @@ function startAuthenticatedSideEffects(user: User) {
   if (resolveFirstRunStage(user, profile, snapshot) !== 'complete') return;
   if (activeAuthUserId === user.uid) return;
   activeAuthUserId = user.uid;
+  void useSubscriptionStore.getState().fetchSubscription();
   void useSubscriptionStore.getState().fetchRevenueCatSubscription();
   useTicketsStore.getState().clearOrders();
   void useProfileStore.getState().loadProfile(user.uid);
@@ -179,6 +227,44 @@ export async function completeAuthSessionAfterSignIn(user: User) {
   startAuthenticatedSideEffects(currentUser);
 }
 
+export async function retryAuthSession(): Promise<boolean> {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) {
+    useAuthStore.setState({
+      initialized: true,
+      loading: false,
+      authSyncInProgress: false,
+      authSyncFailed: true,
+      usingCachedSession: false,
+      authSyncError: 'Your Firebase session is no longer available. Sign in again.',
+    });
+    return false;
+  }
+
+  if (useAuthStore.getState().usingCachedSession) {
+    useAuthStore.setState({ authSyncInProgress: true, authSyncError: null });
+  } else {
+    setAwaitingServerSync();
+  }
+  try {
+    await syncAfterFirebaseAuth(user);
+    setAuthenticatedUser(user);
+    startAuthenticatedSideEffects(user);
+    return true;
+  } catch (error) {
+    setServerSyncFailed(error);
+    if (await restoreCachedSession(user)) return false;
+    useAuthStore.setState({
+      initialized: true,
+      loading: false,
+      authSyncInProgress: false,
+      authSyncFailed: true,
+      usingCachedSession: false,
+    });
+    return false;
+  }
+}
+
 export function initAuthListener() {
   let retryCount = 0;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -194,7 +280,12 @@ export function initAuthListener() {
     cancelRetry();
     retryCount += 1;
     if (retryCount >= 5) {
-      useAuthStore.setState({ authSyncFailed: true, initialized: true, loading: false, authSyncInProgress: false });
+      useAuthStore.setState({
+        authSyncFailed: true,
+        initialized: true,
+        loading: false,
+        authSyncInProgress: false,
+      });
       if (__DEV__) console.warn('[AuthStore] Server sync retries exhausted. authSyncFailed=true');
       return;
     }
@@ -220,6 +311,10 @@ export function initAuthListener() {
       if (__DEV__)
         console.warn('[AuthStore] Server auth sync failed after Firebase sign-in.', error);
       setServerSyncFailed(error);
+      if (await restoreCachedSession(user)) {
+        cancelRetry();
+        return;
+      }
       scheduleRetry(user, generation);
       return;
     }
@@ -237,14 +332,22 @@ export function initAuthListener() {
 
   const unsubscribe = subscribeToAuthState((user) => {
     if (user?.uid === currentAuthUserUid) {
-      if (__DEV__) console.log('[AuthStore] Ignoring redundant auth state change for same user UID');
+      if (__DEV__)
+        console.log('[AuthStore] Ignoring redundant auth state change for same user UID');
       return;
     }
+    const previousAuthUserUid = currentAuthUserUid;
     currentAuthUserUid = user?.uid || null;
 
     authGeneration += 1;
     const generation = authGeneration;
-    if (__DEV__) console.log('[AuthStore] subscribeToAuthState fired. User exists:', !!user, 'Generation:', generation);
+    if (__DEV__)
+      console.log(
+        '[AuthStore] subscribeToAuthState fired. User exists:',
+        !!user,
+        'Generation:',
+        generation,
+      );
 
     cancelRetry();
     retryCount = 0;
@@ -261,12 +364,15 @@ export function initAuthListener() {
         authSyncInProgress: false,
         authSyncError: null,
         authSyncFailed: false,
+        usingCachedSession: false,
       });
+      if (previousAuthUserUid) void clearCachedBootSession(previousAuthUserUid);
       useProfileStore.getState().clearProfile();
       useNotificationsStore.getState().clearNotifications();
       useTicketsStore.getState().clearOrders();
       useSubscriptionStore.getState().clearSubscription();
       useFirstRunStore.getState().clear();
+      useRecommendationsStore.getState().clear();
       try {
         wsManager.stop();
       } catch {
@@ -282,9 +388,17 @@ export function initAuthListener() {
     }
   });
 
+  const networkSubscription = NetInfo.addEventListener((state) => {
+    const authState = useAuthStore.getState();
+    if (state.isConnected && authState.usingCachedSession && !authState.authSyncInProgress) {
+      void retryAuthSession();
+    }
+  });
+
   return () => {
     cancelRetry();
     unsubscribe();
     appStateSubscription.remove();
+    networkSubscription();
   };
 }

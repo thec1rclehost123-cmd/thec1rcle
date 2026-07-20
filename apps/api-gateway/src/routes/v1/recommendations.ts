@@ -15,6 +15,7 @@ const RecommendationQuery = z
     eventId: z.string().min(1).max(160).optional(),
     limit: z.coerce.number().int().min(1).max(20).optional().default(10),
     contract: z.enum(['legacy', 'v2']).optional().default('legacy'),
+    surface: z.enum(['explore']).optional().default('explore'),
   })
   .strict();
 
@@ -41,6 +42,7 @@ export default async function recommendationRoutes(fastify: FastifyInstance) {
         const eventId = request.query?.eventId;
         const limit = request.query?.limit || 10;
         const contract = request.query?.contract || 'legacy';
+        const surface = request.query?.surface || 'explore';
         const cacheContext =
           type === 'personal' && contract === 'v2'
             ? await getRecommendationCacheContext(userId)
@@ -51,6 +53,7 @@ export default async function recommendationRoutes(fastify: FastifyInstance) {
           eventId: eventId || null,
           limit,
           contract,
+          surface,
           cacheContext,
         });
 

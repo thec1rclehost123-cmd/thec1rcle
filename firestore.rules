@@ -32,9 +32,9 @@ service cloud.firestore {
     // enforces server-side authorization for the actual social profile data.
     function hasOnlyAllowedUserFields(data) {
       return data.keys().hasOnly([
-        'displayName', 'photoURL', 'bio', 'city',
-        'gender', 'dateOfBirth', 'instagram', 'spotify',
-        'vibeTags', 'photos', 'datingPhotos', 'datingActive',
+        'displayName', 'photoURL', 'bio',
+        'gender', 'instagram', 'spotify',
+        'photos', 'datingPhotos', 'datingActive',
         'datingVitals', 'anthem',
         'socialSetupComplete',
         'pushNewMatches', 'pushEventUpdates',
@@ -47,9 +47,9 @@ service cloud.firestore {
     // full merged document which includes server-managed fields like createdAt.
     function updateHasOnlyAllowedUserFields(diff) {
       return diff.affectedKeys().hasOnly([
-        'displayName', 'photoURL', 'bio', 'city',
-        'gender', 'dateOfBirth', 'instagram', 'spotify',
-        'vibeTags', 'photos', 'datingPhotos', 'datingActive',
+        'displayName', 'photoURL', 'bio',
+        'gender', 'instagram', 'spotify',
+        'photos', 'datingPhotos', 'datingActive',
         'datingVitals', 'anthem',
         'socialSetupComplete',
         'pushNewMatches', 'pushEventUpdates',

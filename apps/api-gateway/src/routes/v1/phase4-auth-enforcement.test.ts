@@ -307,11 +307,24 @@ async function buildServer() {
   server.decorate('requireAuth', async (_request: any, reply: any) => {
     if (!_request.user) return reply.status(401).send({ error: 'Unauthorized' });
   });
+  server.decorate('requireVerifiedPhone', async (_request: any, reply: any) => {
+    if (!_request.user) return reply.status(401).send({ error: 'Unauthorized' });
+    if (!_request.user.phone_number) {
+      return reply.status(403).send({
+        error: { code: 'PHONE_VERIFICATION_REQUIRED', message: 'Phone verification required' },
+      });
+    }
+  });
   server.decorateRequest('user', null);
   server.addHook('onRequest', async (request: any, reply) => {
     const cookies = parseCookieHeader(request.headers.cookie);
     if (request.headers.authorization || cookies.__session) {
-      request.user = { uid: 'user_1', email: 'guest@example.com', displayName: 'Guest' };
+      request.user = {
+        uid: 'user_1',
+        email: 'guest@example.com',
+        displayName: 'Guest',
+        phone_number: '+919999999999',
+      };
     }
 
     if (request.user) {

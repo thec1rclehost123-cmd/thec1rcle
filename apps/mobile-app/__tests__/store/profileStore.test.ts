@@ -103,20 +103,18 @@ describe('profileStore', () => {
       });
     });
 
-    it('returns false and refetches on server error', async () => {
+    it('returns false and reverts the optimistic value on server error', async () => {
       useProfileStore.setState({
         profile: { uid: 'user_1', email: 'a@b.com', displayName: 'Name' } as any,
       });
 
       mockApiFetch.mockRejectedValueOnce(new Error('Update failed'));
-      mockApiFetch.mockResolvedValueOnce({
-        profile: { uid: 'user_1', email: 'a@b.com', displayName: 'Name' },
-      });
 
       const ok = await useProfileStore.getState().updateProfile('user_1', { bio: 'New bio' });
 
       expect(ok).toBe(false);
-      expect(mockApiFetch).toHaveBeenCalledTimes(2);
+      expect(mockApiFetch).toHaveBeenCalledTimes(1);
+      expect(useProfileStore.getState().profile?.bio).toBeUndefined();
     });
 
     it('strips undefined values from the PATCH payload', async () => {

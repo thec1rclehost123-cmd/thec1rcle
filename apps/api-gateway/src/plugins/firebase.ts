@@ -43,6 +43,7 @@ import { IdempotencyService } from '@c1rcle/core/idempotency-service';
 import { buildRequestAuthContext, type RequestAuthContext } from '../lib/auth-context';
 import { writeAuditLog as persistAuditLog, type AuditLogInput } from '../lib/audit-log';
 import { parseCookieHeader, verifyGuestCsrfRequest } from '../lib/guest-csrf';
+import { hasVerifiedFirebasePhone } from '../lib/verified-phone';
 import { PromoterServiceV2 } from '../services/promoter-v2';
 
 export default fp(async (fastify) => {
@@ -420,6 +421,22 @@ export default fp(async (fastify) => {
     }
   });
 
+  // Firebase Auth is the only phone-verification authority. Firestore aliases,
+  // request bodies, and generic profile fields must never satisfy this guard.
+  fastify.decorate('requireVerifiedPhone', async (request: any, reply: any) => {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized: Authentication required' });
+    }
+    if (!hasVerifiedFirebasePhone(request.user)) {
+      return reply.status(403).send({
+        error: {
+          code: 'PHONE_VERIFICATION_REQUIRED',
+          message: 'Verify and link a phone number before continuing',
+        },
+      });
+    }
+  });
+
   // Partner Access Guard — auth + ownership/membership check in one preHandler
   // Usage: preHandler: [fastify.requirePartnerAccess((req) => req.params.id)]
   fastify.decorate('requirePartnerAccess', (getPartnerId: (request: any) => string) => {
@@ -599,6 +616,7 @@ declare module 'fastify' {
     enrichAuthContext: (request: any) => Promise<void>;
     verifyPartnerAccess: (request: any, partnerId: string) => Promise<boolean>;
     requireAuth: (request: any, reply: any) => Promise<void>;
+    requireVerifiedPhone: (request: any, reply: any) => Promise<void>;
     requirePartnerAccess: (
       getPartnerId: (request: any) => string,
     ) => (request: any, reply: any) => Promise<void>;

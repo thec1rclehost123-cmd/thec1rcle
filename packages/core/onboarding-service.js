@@ -1,23 +1,19 @@
-const ONBOARDING_VERSION = 2;
-const MIN_TASTES = 3;
-const VALID_TASTES = new Set([
-  'clubs',
-  'live_music',
-  'lounges',
-  'festivals',
-  'college_nights',
-  'underground',
-  'food_culture',
-  'premium',
-]);
-const VALID_INTENTS = new Set(['discover', 'friends', 'meet_people', 'host_promote']);
-const EMAIL_PROMPT_STATUSES = new Set([
-  'not_shown',
-  'shown',
-  'skipped',
-  'pending_verification',
-  'verified',
-]);
+import {
+  DEFAULT_MIN_ACCOUNT_AGE,
+  EMAIL_PROMPT_STATUSES,
+  MAX_NIGHTLIFE_TASTES,
+  MAX_USER_INTENTS,
+  MIN_CONFIGURABLE_ACCOUNT_AGE,
+  MIN_NIGHTLIFE_TASTES,
+  MIN_USER_INTENTS,
+  NIGHTLIFE_TASTES,
+  ONBOARDING_V2_VERSION,
+  USER_INTENTS,
+} from '@c1rcle/types';
+
+const VALID_TASTES = new Set(NIGHTLIFE_TASTES);
+const VALID_INTENTS = new Set(USER_INTENTS);
+const VALID_EMAIL_PROMPT_STATUSES = new Set(EMAIL_PROMPT_STATUSES);
 
 function nowIso() {
   return new Date().toISOString();
@@ -113,8 +109,10 @@ function readDiscoveryProfile(data = {}) {
 }
 
 function getMinimumAge() {
-  const configured = Number(process.env.MIN_ACCOUNT_AGE || 18);
-  return Number.isFinite(configured) && configured >= 13 ? configured : 18;
+  const configured = Number(process.env.MIN_ACCOUNT_AGE || DEFAULT_MIN_ACCOUNT_AGE);
+  return Number.isFinite(configured) && configured >= MIN_CONFIGURABLE_ACCOUNT_AGE
+    ? configured
+    : DEFAULT_MIN_ACCOUNT_AGE;
 }
 
 function ageOnDate(dateOfBirth, today = new Date()) {
@@ -146,7 +144,7 @@ function resolvedEmailPromptStatus(data, authIdentity) {
   if (authIdentity.email && authIdentity.emailVerified) return 'verified';
   if (authIdentity.email) return 'pending_verification';
   const stored = data.consumerOnboarding?.emailPromptStatus;
-  return EMAIL_PROMPT_STATUSES.has(stored) ? stored : 'not_shown';
+  return VALID_EMAIL_PROMPT_STATUSES.has(stored) ? stored : 'not_shown';
 }
 
 export function computeOnboardingStage(
@@ -167,10 +165,20 @@ export function computeOnboardingStage(
 
   const discovery = readDiscoveryProfile(data);
   if (!discovery.cityId || !discovery.cityName) return 'city';
-  if (discovery.vibeTags.filter((value) => VALID_TASTES.has(value)).length < MIN_TASTES) {
+  // Existing complete members may keep browsing while they tune missing v2
+  // preferences later. This exception can only be created by the audited
+  // server-side migration and still requires verified phone, identity and city.
+  if (
+    data.consumerOnboarding?.migration?.version >= ONBOARDING_V2_VERSION &&
+    data.consumerOnboarding?.migration?.nonblockingPreferences === true
+  ) {
+    return 'complete';
+  }
+  if (discovery.vibeTags.filter((value) => VALID_TASTES.has(value)).length < MIN_NIGHTLIFE_TASTES) {
     return 'tastes';
   }
-  if (discovery.intents.filter((value) => VALID_INTENTS.has(value)).length < 1) return 'intent';
+  if (discovery.intents.filter((value) => VALID_INTENTS.has(value)).length < MIN_USER_INTENTS)
+    return 'intent';
   return 'complete';
 }
 
@@ -178,9 +186,10 @@ export function buildOnboardingBootstrap(userId, data = {}, authRecord = {}) {
   const identity = normalizeAuthIdentity(userId, authRecord, data);
   const currentStage = computeOnboardingStage(data, identity);
   const onboarding = {
-    version: ONBOARDING_VERSION,
+    version: ONBOARDING_V2_VERSION,
     currentStage,
     completed: currentStage === 'complete',
+    minimumAccountAge: getMinimumAge(),
     emailPromptStatus: resolvedEmailPromptStatus(data, identity),
     startedAt: data.consumerOnboarding?.startedAt || data.createdAt || null,
     completedAt: currentStage === 'complete' ? data.consumerOnboarding?.completedAt || null : null,
@@ -188,10 +197,20 @@ export function buildOnboardingBootstrap(userId, data = {}, authRecord = {}) {
   };
   const verifiedPhone = identity.phoneVerified;
   const complete = currentStage === 'complete';
+  const consumerIdentity = readIdentity(data);
+  const discoveryProfile = readDiscoveryProfile(data);
 
   return {
     identity,
     onboarding,
+    onboardingProfile: {
+      displayName: consumerIdentity.displayName || null,
+      dateOfBirth: consumerIdentity.dateOfBirth,
+      cityId: discoveryProfile.cityId,
+      cityName: discoveryProfile.cityName,
+      vibeTags: discoveryProfile.vibeTags,
+      intents: discoveryProfile.intents,
+    },
     routeAccess: {
       canBrowsePublicExplore: true,
       canAccessSignedInExplore: complete,
@@ -240,11 +259,11 @@ export async function syncOnboardingAuthState(db, userId, authRecord) {
   const stage = computeOnboardingStage(nextData, identity);
   const onboarding = {
     ...(data.consumerOnboarding || {}),
-    version: ONBOARDING_VERSION,
+    version: ONBOARDING_V2_VERSION,
     currentStage: stage,
     emailPromptStatus,
     startedAt: data.consumerOnboarding?.startedAt || data.createdAt || now,
-    completedAt: stage === 'complete' ? data.consumerOnboarding?.completedAt || now : null,
+    completedAt: stage === 'complete' ? data.consumerOnboarding?.completedAt || null : null,
     updatedAt: now,
   };
 
@@ -310,7 +329,7 @@ export async function updateOnboardingIdentity(db, userId, payload) {
     dateOfBirth,
     consumerOnboarding: {
       ...(data.consumerOnboarding || {}),
-      version: ONBOARDING_VERSION,
+      version: ONBOARDING_V2_VERSION,
       updatedAt: now,
     },
     updatedAt: now,
@@ -344,7 +363,7 @@ export async function updateOnboardingCity(db, userId, payload) {
       },
       consumerOnboarding: {
         ...(data.consumerOnboarding || {}),
-        version: ONBOARDING_VERSION,
+        version: ONBOARDING_V2_VERSION,
         updatedAt: now,
       },
       updatedAt: now,
@@ -362,15 +381,22 @@ export async function updateOnboardingPreferences(db, userId, payload) {
   const intents = hasIntents ? [...new Set(payload.intents)] : null;
   if (
     vibeTags &&
-    (vibeTags.length < MIN_TASTES || vibeTags.some((value) => !VALID_TASTES.has(value)))
+    (vibeTags.length < MIN_NIGHTLIFE_TASTES ||
+      vibeTags.length > MAX_NIGHTLIFE_TASTES ||
+      vibeTags.some((value) => !VALID_TASTES.has(value)))
   ) {
     throw onboardingError(
       'INVALID_TASTES',
-      `Choose at least ${MIN_TASTES} valid nightlife tastes`,
+      `Choose at least ${MIN_NIGHTLIFE_TASTES} valid nightlife tastes`,
       400,
     );
   }
-  if (intents && (intents.length < 1 || intents.some((value) => !VALID_INTENTS.has(value)))) {
+  if (
+    intents &&
+    (intents.length < MIN_USER_INTENTS ||
+      intents.length > MAX_USER_INTENTS ||
+      intents.some((value) => !VALID_INTENTS.has(value)))
+  ) {
     throw onboardingError('INVALID_INTENTS', 'Choose at least one valid intent', 400);
   }
   const now = nowIso();
@@ -393,7 +419,7 @@ export async function updateOnboardingPreferences(db, userId, payload) {
       discoveryProfile: next,
       consumerOnboarding: {
         ...(data.consumerOnboarding || {}),
-        version: ONBOARDING_VERSION,
+        version: ONBOARDING_V2_VERSION,
         updatedAt: now,
       },
       updatedAt: now,
@@ -413,7 +439,7 @@ export async function recordEmailPrompt(db, userId, status) {
   return updateUserSection(db, userId, (data) => ({
     consumerOnboarding: {
       ...(data.consumerOnboarding || {}),
-      version: ONBOARDING_VERSION,
+      version: ONBOARDING_V2_VERSION,
       emailPromptStatus: status,
       updatedAt: now,
     },
@@ -433,9 +459,11 @@ export async function completeOnboarding(db, userId, authRecord) {
     );
   }
   const now = nowIso();
+  const discovery = readDiscoveryProfile(data);
+  const isFirstCompletion = !data.consumerOnboarding?.completedAt;
   const onboarding = {
     ...(data.consumerOnboarding || {}),
-    version: ONBOARDING_VERSION,
+    version: ONBOARDING_V2_VERSION,
     currentStage: 'complete',
     completedAt: data.consumerOnboarding?.completedAt || now,
     updatedAt: now,
@@ -443,20 +471,40 @@ export async function completeOnboarding(db, userId, authRecord) {
   await ref.set(
     {
       consumerOnboarding: onboarding,
+      discoveryProfile: {
+        ...(data.discoveryProfile || {}),
+        profileVersion: isFirstCompletion ? discovery.profileVersion + 1 : discovery.profileVersion,
+        updatedAt: now,
+      },
       updatedAt: now,
     },
     { merge: true },
   );
   return buildOnboardingBootstrap(
     userId,
-    { ...data, consumerOnboarding: onboarding, updatedAt: now },
+    {
+      ...data,
+      consumerOnboarding: onboarding,
+      discoveryProfile: {
+        ...(data.discoveryProfile || {}),
+        profileVersion: isFirstCompletion ? discovery.profileVersion + 1 : discovery.profileVersion,
+        updatedAt: now,
+      },
+      updatedAt: now,
+    },
     authRecord,
   );
 }
 
 export const onboardingConstants = {
-  version: ONBOARDING_VERSION,
-  minimumTastes: MIN_TASTES,
+  version: ONBOARDING_V2_VERSION,
+  minimumTastes: MIN_NIGHTLIFE_TASTES,
+  maximumTastes: MAX_NIGHTLIFE_TASTES,
+  minimumIntents: MIN_USER_INTENTS,
+  maximumIntents: MAX_USER_INTENTS,
+  defaultMinimumAccountAge: DEFAULT_MIN_ACCOUNT_AGE,
+  minimumConfigurableAccountAge: MIN_CONFIGURABLE_ACCOUNT_AGE,
   validTastes: [...VALID_TASTES],
   validIntents: [...VALID_INTENTS],
+  emailPromptStatuses: [...VALID_EMAIL_PROMPT_STATUSES],
 };

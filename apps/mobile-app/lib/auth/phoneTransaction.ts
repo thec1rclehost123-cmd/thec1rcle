@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const KEY = 'c1rcle:first_run:phone_transaction';
+const KEY = 'c1rcle_first_run_phone_transaction';
 const MAX_AGE_MS = 15 * 60 * 1000;
 
 export type PhoneAuthTransaction = {

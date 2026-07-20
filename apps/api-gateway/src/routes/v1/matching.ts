@@ -35,7 +35,7 @@ export default async function matchingRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/feed',
     {
-      preHandler: [fastify.validate({ querystring: MatchFeedQuery })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ querystring: MatchFeedQuery })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
@@ -72,7 +72,7 @@ export default async function matchingRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/swipe',
     {
-      preHandler: [fastify.validate({ body: SwipeBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: SwipeBody })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
@@ -111,7 +111,7 @@ export default async function matchingRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/report',
     {
-      preHandler: [fastify.validate({ body: ReportBody })],
+      preHandler: [fastify.requireVerifiedPhone, fastify.validate({ body: ReportBody })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;

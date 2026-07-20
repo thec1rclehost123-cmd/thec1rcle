@@ -12,20 +12,12 @@ import { resolveFirstRunStage } from '@/lib/firstRun';
 // App scheme for deep links
 const APP_SCHEME = 'c1rcle';
 const WEB_DOMAIN = 'thec1rcle.com';
-const PENDING_DEEP_LINK_KEY = 'c1rcle:pending_deep_link';
-const PENDING_APP_ROUTE_KEY = 'c1rcle:pending_app_route';
+const PENDING_DEEP_LINK_KEY = 'c1rcle_pending_deep_link';
+const PENDING_APP_ROUTE_KEY = 'c1rcle_pending_app_route';
 
 // Deep link types
 export type DeepLinkType =
-  | 'event'
-  | 'transfer'
-  | 'profile'
-  | 'invite'
-  | 'ticket'
-  | 'chat'
-  | 'safety'
-  | 'claim'
-  | 'going';
+  'event' | 'transfer' | 'profile' | 'invite' | 'ticket' | 'chat' | 'safety' | 'claim' | 'going';
 
 // Build deep link URL
 export function buildDeepLink(type: DeepLinkType, params: Record<string, string>): string {
@@ -185,9 +177,15 @@ export function parseDeepLink(url: string): {
 
 // Handle incoming deep link using expo-router
 export function handleDeepLink(url: string): void {
-  const user = useAuthStore.getState().user;
+  const authState = useAuthStore.getState();
+  const { user } = authState;
   const profile = useProfileStore.getState().profile;
   const snapshot = useFirstRunStore.getState().snapshot;
+  if (!authState.initialized || authState.authSyncInProgress) {
+    void SecureStore.setItemAsync(PENDING_DEEP_LINK_KEY, url);
+    router.replace('/');
+    return;
+  }
   if (!user) {
     void SecureStore.setItemAsync(PENDING_DEEP_LINK_KEY, url);
     router.replace('/(auth)/login');
@@ -255,10 +253,16 @@ export function handleDeepLink(url: string): void {
 
 /** Gate trusted in-app destinations behind authentication and first-run setup. */
 export function handleProtectedRoute(route: string): void {
-  const user = useAuthStore.getState().user;
+  const authState = useAuthStore.getState();
+  const { user } = authState;
   const profile = useProfileStore.getState().profile;
   const snapshot = useFirstRunStore.getState().snapshot;
 
+  if (!authState.initialized || authState.authSyncInProgress) {
+    void SecureStore.setItemAsync(PENDING_APP_ROUTE_KEY, route);
+    router.replace('/');
+    return;
+  }
   if (!user) {
     void SecureStore.setItemAsync(PENDING_APP_ROUTE_KEY, route);
     router.replace('/(auth)/login');
@@ -273,6 +277,7 @@ export function handleProtectedRoute(route: string): void {
 }
 
 export async function resumePendingDeepLink(): Promise<boolean> {
+  if (useAuthStore.getState().usingCachedSession) return false;
   const url = await SecureStore.getItemAsync(PENDING_DEEP_LINK_KEY);
   if (url) {
     await SecureStore.deleteItemAsync(PENDING_DEEP_LINK_KEY);

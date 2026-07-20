@@ -117,7 +117,7 @@ mobile-app/
 
 ### Auth Flow (`/(auth)`)
 - `/login` - Email/password login
-- `/signup` - Create account
+- `/signup` - Legacy deep link redirected to the unified login
 - `/forgot-password` - Password reset
 
 ### Main Tabs (`/(tabs)`)

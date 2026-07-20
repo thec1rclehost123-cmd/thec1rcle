@@ -23,6 +23,18 @@ jest.mock('../../store/authStore', () => ({
   useAuthStore: { getState: jest.fn() },
 }));
 
+jest.mock('../../store/profileStore', () => ({
+  useProfileStore: { getState: jest.fn(() => ({ profile: {} })) },
+}));
+
+jest.mock('../../store/firstRunStore', () => ({
+  useFirstRunStore: { getState: jest.fn(() => ({ snapshot: { currentStage: 'complete' } })) },
+}));
+
+jest.mock('../../lib/firstRun', () => ({
+  resolveFirstRunStage: jest.fn(() => 'complete'),
+}));
+
 import * as Linking from 'expo-linking';
 import * as Clipboard from 'expo-clipboard';
 import { Share } from 'react-native';
@@ -174,7 +186,11 @@ describe('deeplinks', () => {
 
   describe('handleDeepLink', () => {
     it('redirects to login when user is not authenticated', () => {
-      (useAuthStore.getState as jest.Mock).mockReturnValueOnce({ user: null });
+      (useAuthStore.getState as jest.Mock).mockReturnValueOnce({
+        user: null,
+        initialized: true,
+        authSyncInProgress: false,
+      });
 
       handleDeepLink('c1rcle://event?id=evt_1');
 
@@ -183,7 +199,11 @@ describe('deeplinks', () => {
     });
 
     it('routes to event page when authenticated', () => {
-      (useAuthStore.getState as jest.Mock).mockReturnValueOnce({ user: { uid: 'u1' } });
+      (useAuthStore.getState as jest.Mock).mockReturnValueOnce({
+        user: { uid: 'u1' },
+        initialized: true,
+        authSyncInProgress: false,
+      });
       (Linking.parse as jest.Mock).mockReturnValueOnce({
         path: 'event/evt_1',
         queryParams: {},
@@ -195,7 +215,11 @@ describe('deeplinks', () => {
     });
 
     it('routes to safety page', () => {
-      (useAuthStore.getState as jest.Mock).mockReturnValueOnce({ user: { uid: 'u1' } });
+      (useAuthStore.getState as jest.Mock).mockReturnValueOnce({
+        user: { uid: 'u1' },
+        initialized: true,
+        authSyncInProgress: false,
+      });
       (Linking.parse as jest.Mock).mockReturnValueOnce({
         path: 'safety',
         queryParams: {},
