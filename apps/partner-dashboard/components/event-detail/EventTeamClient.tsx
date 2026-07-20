@@ -460,14 +460,12 @@ export default function EventTeamClient({ eventId }: { eventId: string }) {
           email: s.email,
         }));
       }
-      console.log('Staff', staffList);
       // 2. Fetch Event Promoters settings and assignments
       const promRes = await authedFetch(`/api/partners/venues/events/${eventId}/promoters`);
       let pData = { promoters: [], promoterSettings: { allowedPromoterIds: [] }, summary: {} };
       if (promRes.ok) {
         pData = await promRes.json();
       }
-      console.log('pdata', pData);
 
       // 3. Fetch Promoter Connections (both active and approved)
       const [connActiveRes, connApprovedRes] = await Promise.all([
@@ -494,14 +492,12 @@ export default function EventTeamClient({ eventId }: { eventId: string }) {
         if (c.promoterId) mergedConnsMap.set(c.promoterId, c);
       });
       const allConns = Array.from(mergedConnsMap.values());
-      console.log('allConns', allConns);
       // 4. Fetch Event Promoter Links
       const linksRes = await authedFetch(`/api/promoter-links?eventId=${eventId}`);
       let linksList = [];
       if (linksRes.ok) {
         linksList = await linksRes.json();
       }
-      console.log('linksList', linksList);
       // 5. Fetch Venue Orders to calculate guest counts
       const ordersRes = await authedFetch(`/api/partners/venues/orders?limit=500`);
       let ordersList = [];
@@ -509,7 +505,6 @@ export default function EventTeamClient({ eventId }: { eventId: string }) {
         const oData = await ordersRes.json();
         ordersList = (oData.orders || []).filter((o: any) => o.eventId === eventId);
       }
-      console.log('ordersList', ordersList);
       setTeam(staffList);
       setPromotersData(pData);
       setConnections(allConns);

@@ -885,13 +885,12 @@ export const adminStore = {
     const docRef = db.collection('admin_idempotency').doc(`${adminId}:${action}:${idempotencyKey}`);
     let duplicate = false;
     try {
-      await db.runTransaction(async (tx) => {
+      duplicate = await db.runTransaction(async (tx) => {
         const doc = await tx.get(docRef);
         if (doc.exists) {
           const ageMs = Date.now() - (doc.data().createdAt?.toMillis?.() || 0);
           if (ageMs < IDEMPOTENCY_TTL_SEC * 1000) {
-            duplicate = true;
-            return;
+            return true;
           }
         }
         tx.set(docRef, {
@@ -900,6 +899,7 @@ export const adminStore = {
           targetId,
           createdAt: FieldValue.serverTimestamp(),
         });
+        return false;
       });
     } catch (error) {
       console.error(

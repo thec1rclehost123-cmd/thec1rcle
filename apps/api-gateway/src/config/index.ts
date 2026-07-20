@@ -25,6 +25,7 @@ const envSchema = z.object({
   QR_SECRET_KEY: z.string().optional(),
   QUEUE_SECRET_KEY: z.string().min(1).optional(),
   INTERNAL_API_KEY: z.string().optional(),
+  INTERNAL_IP_ALLOWLIST: z.string().optional(),
   CRON_SECRET: z.string().optional(),
   ARCHIVE_CHATS_CRON_SECRET: z.string().optional(),
   SCANNER_SESSION_SECRET: z.string().optional(),
