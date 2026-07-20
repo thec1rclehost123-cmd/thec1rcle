@@ -68,12 +68,30 @@ export async function getFinancialSummary(entityId, type = 'venue') {
 
         const { calculateOrderSplits } = await import('./payout-engine.js');
 
+        // Pre-fetch all promoter commissions for this event to resolve exact commission amounts
+        const commSnapshot = await db
+          .collection('promoter_commissions')
+          .where('eventId', '==', entityId)
+          .get();
+
+        const commissionMap = new Map();
+        commSnapshot.docs.forEach((doc) => {
+          const commData = doc.data();
+          if (commData?.orderId) {
+            commissionMap.set(String(commData.orderId), {
+              amount: Number(commData.commissionAmount) || 0,
+              promoterId: commData.promoterId || 'UNKNOWN_PROMOTER',
+            });
+          }
+        });
+
         for (const order of orders) {
           const total = Number(order.totalAmount) || 0;
           gross += total;
           discounts += Number(order.discountAmount) || 0;
 
-          const splits = calculateOrderSplits(order, event);
+          const resolvedPromoterCommission = order.id ? commissionMap.get(String(order.id)) : null;
+          const splits = calculateOrderSplits(order, event, resolvedPromoterCommission);
           for (const split of splits) {
             if (split.actorType === 'promoter') {
               commissions += split.amount;

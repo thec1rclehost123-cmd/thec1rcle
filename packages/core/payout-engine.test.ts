@@ -69,5 +69,20 @@ describe('Payout Engine Logic', () => {
       expect(promoterSplit.amount).toBe(100);
       expect(splits.reduce((sum, s) => sum + s.amount, 0)).toBe(1000);
     });
+
+    it('should handle resolved promoter commissions overrides passed directly', () => {
+      const order = {
+        totalAmount: 1000,
+        id: 'o1',
+        promoterLinkId: 'p1',
+      };
+      const resolvedComm = { amount: 150, promoterId: 'promoter-xyz' };
+      const splits = calculateOrderSplits(order, mockEvent, resolvedComm);
+
+      const promoterSplit = splits.find((s) => s.actorType === 'promoter');
+      expect(promoterSplit.amount).toBe(150);
+      expect(promoterSplit.actorId).toBe('promoter-xyz');
+      expect(splits.reduce((sum, s) => sum + s.amount, 0)).toBe(1000);
+    });
   });
 });

@@ -127,11 +127,6 @@ export function PromoterAssignmentCard({ assignment }: { assignment: any }) {
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-sm px-1 mb-2">
-          <span className="text-text-secondary">Commission:</span>
-          <span className="font-bold text-emerald-500">{stats.commissionRate ?? 0}%</span>
-        </div>
-
         <Link
           href={`/promoter/events/${id}`}
           className="w-full inline-flex items-center justify-center gap-2 bg-surface-tertiary hover:bg-surface-hover text-text-primary font-semibold text-sm px-4 py-2.5 rounded-xl transition-colors border border-border-subtle mt-auto"

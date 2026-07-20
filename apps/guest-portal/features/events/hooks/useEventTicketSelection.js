@@ -82,12 +82,7 @@ function getTierLimit(ticket, pendingTotalFree = 0, currentQty = 0) {
           ? Number(ticket.quantity)
           : maxPerOrder;
 
-  const isFree = Number(ticket?.price || 0) === 0;
-  let computedMax = maxPerOrder;
-
-  if (isFree) {
-    computedMax = Math.max(0, Math.min(1, currentQty + (1 - pendingTotalFree)));
-  }
+  const computedMax = maxPerOrder;
 
   if (remaining > 0) {
     return Math.max(0, Math.min(computedMax, remaining));

@@ -93,11 +93,29 @@ function toNumber(value: any) {
  * predates `promoterCompensation` entirely.
  */
 function resolveEventCommissionRate(event: Record<string, any>, promoterId: string): number {
+  if (event.isRSVP === true) {
+    return 0;
+  }
   if (event.promoterCompensation) {
     const pc = normalizeCompensationForRead(event.promoterCompensation);
     return toNumber(resolveEffectiveCommission(pc, promoterId).rate);
   }
   return toNumber(event.promoterSettings?.commissionRate || event.commissionRate || 0);
+}
+
+function resolveEventCommissionType(
+  event: Record<string, any>,
+  promoterId: string,
+): 'percentage' | 'fixed' {
+  if (event.isRSVP === true) {
+    return 'percentage';
+  }
+  if (event.promoterCompensation) {
+    const pc = normalizeCompensationForRead(event.promoterCompensation);
+    return resolveEffectiveCommission(pc, promoterId).type;
+  }
+  const type = event.promoterSettings?.commissionType || event.commissionType;
+  return type === 'flat' || type === 'fixed' ? 'fixed' : 'percentage';
 }
 
 function isPromoterAllowedForEvent(event: Record<string, any>, promoterId: string) {
@@ -147,6 +165,8 @@ function buildLegacyLink(link: Record<string, any>, event: Record<string, any> =
     commission: toNumber(link.commission),
     clearedCommission: toNumber(link.clearedCommission ?? link.commission),
     commissionRate: toNumber(link.commissionRate),
+    commissionType: link.commissionType || 'percentage',
+    tierCommissions: link.tierCommissions || null,
     fullUrl: pickString(link.fullUrl, link.url) || null,
     vanityPrefix: pickString(link.vanityPrefix) || null,
     vanitySlug: pickString(link.vanitySlug) || null,
@@ -170,13 +190,28 @@ function buildLegacyPromoterEvent(
   activeLink?: Record<string, any>,
   promoterId?: string,
 ) {
+  let overallRate = resolveEventCommissionRate(event, promoterId || '');
+  let overallType = resolveEventCommissionType(event, promoterId || '');
+  let tierCommissionsMap = activeLink?.tierCommissions || null;
+
+  if (!tierCommissionsMap && event.promoterCompensation) {
+    const pc = normalizeCompensationForRead(event.promoterCompensation);
+    tierCommissionsMap = resolveEffectiveCommission(pc, promoterId || '').tierCommissions;
+  }
+
   const tickets = Array.isArray(event.tickets)
-    ? event.tickets.map((ticket: any, index: number) => ({
-        id: String(ticket?.id || ticket?.ticketTierId || index),
-        name: pickString(ticket?.name, ticket?.title, `Tier ${index + 1}`),
-        price: toNumber(ticket?.price || ticket?.amount),
-        promoterEnabled: ticket?.promoterEnabled !== false,
-      }))
+    ? event.tickets.map((ticket: any, index: number) => {
+        const tierId = String(ticket?.id || ticket?.ticketTierId || index);
+        const tierComm = tierCommissionsMap ? tierCommissionsMap[tierId] : null;
+        return {
+          id: tierId,
+          name: pickString(ticket?.name, ticket?.title, `Tier ${index + 1}`),
+          price: toNumber(ticket?.price || ticket?.amount),
+          promoterEnabled: ticket?.promoterEnabled !== false,
+          commissionRate: tierComm ? toNumber(tierComm.rate) : toNumber(overallRate),
+          commissionType: tierComm ? tierComm.type : overallType,
+        };
+      })
     : [];
 
   return {
@@ -199,9 +234,12 @@ function buildLegacyPromoterEvent(
       min: tickets.length ? Math.min(...tickets.map((ticket: any) => toNumber(ticket.price))) : 0,
       max: tickets.length ? Math.max(...tickets.map((ticket: any) => toNumber(ticket.price))) : 0,
     },
+    compensationModel: event.promoterCompensation?.model || event.compensationModel || 'standard',
     commissionRate: toNumber(
       activeLink?.commissionRate || resolveEventCommissionRate(event, promoterId || ''),
     ),
+    commissionType:
+      activeLink?.commissionType || resolveEventCommissionType(event, promoterId || ''),
     tickets,
     stats: {
       interested: toNumber(event.interestedCount || event.rsvpCount || event.views || 0),
@@ -586,6 +624,18 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         await promoterRef.set({ trackingCode }, { merge: true });
       }
 
+      let resolvedRate = resolveEventCommissionRate(event, promoterId);
+      const resolvedType = resolveEventCommissionType(event, promoterId);
+      let resolvedTierCommissions = null;
+      if (event.promoterCompensation) {
+        const pc = normalizeCompensationForRead(event.promoterCompensation);
+        resolvedTierCommissions = resolveEffectiveCommission(pc, promoterId).tierCommissions;
+      }
+
+      if (resolvedType === 'percentage') {
+        resolvedRate = normalizePromoterCommissionRate(resolvedRate);
+      }
+
       const code = trackingCode;
       const now = new Date().toISOString();
       const id = randomUUID();
@@ -597,10 +647,9 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         eventTitle: pickString(body.eventTitle, event.title, event.name),
         campaignLabel: pickString(body.campaignLabel),
         ticketTierIds: Array.isArray(body.ticketTierIds) ? body.ticketTierIds : [],
-        commissionRate: normalizePromoterCommissionRate(
-          body.commissionRate || resolveEventCommissionRate(event, promoterId),
-        ),
-        commissionType: pickString(body.commissionType, 'percentage'),
+        commissionRate: resolvedRate,
+        commissionType: resolvedType,
+        tierCommissions: resolvedTierCommissions,
         code,
         clicks: 0,
         conversions: 0,
@@ -1325,12 +1374,26 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
     // Firestore 'in' supports at most 10 values — chunk and merge
     const chunks: string[][] = [];
     for (let i = 0; i < codes.length; i += 10) chunks.push(codes.slice(i, i + 10));
-    const snapshots = await Promise.all(
-      chunks.map((chunk) =>
-        fastify.db.collection('orders').where('promoterCode', 'in', chunk).get(),
+    const [orderSnaps, rsvpSnaps] = await Promise.all([
+      Promise.all(
+        chunks.map((chunk) =>
+          fastify.db.collection('orders').where('promoterCode', 'in', chunk).get(),
+        ),
       ),
-    );
-    const allDocs = snapshots.flatMap((s: any) => s.docs);
+      Promise.all(
+        chunks.map((chunk) =>
+          fastify.db.collection('rsvp_orders').where('promoterCode', 'in', chunk).get(),
+        ),
+      ),
+    ]);
+    const allDocs = [...orderSnaps, ...rsvpSnaps].flatMap((s: any) => s.docs);
+
+    // Sort in-memory by createdAt desc
+    allDocs.sort((a: any, b: any) => {
+      const dateA = a.data().createdAt ? new Date(a.data().createdAt).getTime() : 0;
+      const dateB = b.data().createdAt ? new Date(b.data().createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
 
     const hasMore = allDocs.length > limit;
     const guests = allDocs.slice(0, limit).map((d: any) => {

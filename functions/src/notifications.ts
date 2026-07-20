@@ -278,7 +278,8 @@ export const notifyEventUpdated = onDocumentUpdated('events/{eventId}', async (e
     before.startDate !== after.startDate ||
     before.venue !== after.venue ||
     before.location !== after.location ||
-    after.lifecycle === CANCELLED || after.status === CANCELLED;
+    after.lifecycle === CANCELLED ||
+    after.status === CANCELLED;
 
   if (!significantChange) return;
 

@@ -96,6 +96,9 @@ export const guestV1OpenApi = {
     },
     '/tickets': { get: { operationId: 'getGuestTickets', tags: ['tickets'] } },
     '/tickets/{ticketId}': { get: { operationId: 'getGuestTicket', tags: ['tickets'] } },
+    '/tickets/public/{entitlementId}': {
+      get: { operationId: 'getPublicTicket', tags: ['tickets'] },
+    },
     '/tickets/share': { post: { operationId: 'createTicketShareBundle', tags: ['tickets'] } },
     '/tickets/claim': { get: { operationId: 'getTicketShareBundle', tags: ['tickets'] } },
     '/tickets/claim/share': { post: { operationId: 'claimSharedTicket', tags: ['tickets'] } },

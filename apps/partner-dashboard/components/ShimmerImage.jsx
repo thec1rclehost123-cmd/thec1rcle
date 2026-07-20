@@ -15,6 +15,14 @@ export default function ShimmerImage({
 
   const [error, setError] = useState(false);
   const isDiceBear = typeof props.src === 'string' && props.src.includes('dicebear.com');
+  const isPlaceholder = !props.src || props.src === 'placeholder';
+  const defaultSizes = '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw';
+
+  const handleLoad = (e) => {
+    setLoaded(true);
+    onLoad?.(e);
+    onLoadingComplete?.(e);
+  };
 
   return (
     <div className={`relative ${props.fill ? 'h-full w-full' : ''} ${wrapperClassName}`}>

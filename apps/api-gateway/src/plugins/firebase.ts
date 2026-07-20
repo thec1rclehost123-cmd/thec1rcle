@@ -262,6 +262,25 @@ export default fp(async (fastify) => {
     // Validate internal system-to-system key before attempting Firebase verification
     const internalKey = process.env.INTERNAL_API_KEY;
     if (internalKey && token === internalKey) {
+      // Enforce IP allowlist check for internal system keys if configured
+      const internalAllowlist = process.env.INTERNAL_IP_ALLOWLIST;
+      if (internalAllowlist) {
+        const allowedIPs = internalAllowlist
+          .split(',')
+          .map((ip: string) => ip.trim())
+          .filter(Boolean);
+        if (allowedIPs.length > 0 && !allowedIPs.includes(request.ip)) {
+          request.log.error(
+            { ip: request.ip, allowedIPs, requestId: request.id },
+            'SECURITY: System bypass blocked — Request IP not in INTERNAL_IP_ALLOWLIST',
+          );
+          return reply.status(403).send({
+            error: 'Forbidden',
+            message: 'Internal API access not permitted from this location',
+          });
+        }
+      }
+
       // @ts-ignore
       request.user = { uid: 'system', role: 'system', isSystem: true };
       // @ts-ignore

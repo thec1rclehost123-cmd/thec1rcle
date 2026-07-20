@@ -1048,4 +1048,74 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  fastify.get('/tickets/public/:entitlementId', async (request: any, reply) => {
+    const { entitlementId } = request.params;
+    try {
+      const entDoc = await fastify.db.collection('entitlements').doc(entitlementId).get();
+      if (!entDoc.exists) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Ticket not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      const entitlement = entDoc.data();
+      if (!entitlement) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Ticket not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      const eventDoc = await fastify.db.collection('events').doc(entitlement.eventId).get();
+      const event = eventDoc.exists ? eventDoc.data() : null;
+
+      const { generateEntitlementQR } = await import('@c1rcle/core/entitlement-engine');
+      const qrPayload = JSON.stringify(generateEntitlementQR(entitlementId));
+
+      return {
+        success: true,
+        ticket: {
+          entitlementId: entitlement.id,
+          checkedIn:
+            entitlement.checkedIn ||
+            entitlement.state === 'CONSUMED' ||
+            (entitlement.scanCountUsed && entitlement.scanCountUsed > 0),
+          state: entitlement.state,
+          ticketType: entitlement.metadata?.tierName || entitlement.ticketType || 'Entry',
+          entryType: entitlement.metadata?.entryType || 'general',
+          quantity: entitlement.scanCountAllowed || 1,
+          qrPayload,
+          eventTitle: event?.title || entitlement.eventSummary?.title || 'Event',
+          eventStartAt:
+            event?.startDate || event?.startAt || entitlement.eventSummary?.startAt || null,
+          venueName:
+            event?.venue ||
+            event?.venueName ||
+            event?.location ||
+            entitlement.eventSummary?.venue ||
+            'TBD',
+          city: event?.city || entitlement.eventSummary?.city || '',
+          posterUrl: event?.image || entitlement.eventSummary?.posterUrl || null,
+        },
+      };
+    } catch (error: any) {
+      fastify.log.error(
+        { requestId: request.id, entitlementId, error: error.message },
+        'GET /tickets/public/:entitlementId failed',
+      );
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
 }

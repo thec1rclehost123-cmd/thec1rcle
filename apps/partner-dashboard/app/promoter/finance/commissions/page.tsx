@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, RefreshCw, XCircle, Receipt } from 'lucide-react';
+import { ArrowLeft, RefreshCw, XCircle, Receipt, Tag } from 'lucide-react';
 import Link from 'next/link';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { formatINR } from '@/lib/finance/definitions';
+import CommissionDetailsModal from '@/components/promoter/events/CommissionDetailsModal';
 
 type CommissionStatus = 'pending' | 'clearing' | 'cleared' | 'paid' | 'reversed';
 
@@ -16,6 +17,7 @@ interface Commission {
   ticketsSold: number;
   revenue: number;
   commissionRate: number;
+  commissionType?: 'percentage' | 'fixed';
   commissionAmount: number;
   status: CommissionStatus;
   createdAt?: string;
@@ -41,6 +43,13 @@ export default function PromoterCommissionsPage() {
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [authToken, setAuthToken] = useState('');
+  const [selectedCommissionEvent, setSelectedCommissionEvent] = useState<{
+    id: string;
+    title: string;
+    rate: number;
+    type?: 'percentage' | 'fixed';
+  } | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!promoterId) return;
@@ -48,6 +57,7 @@ export default function PromoterCommissionsPage() {
     setError(null);
     try {
       const token = typeof getIdToken === 'function' ? await getIdToken() : '';
+      if (token) setAuthToken(token);
       const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
       const params = new URLSearchParams({ promoterId, limit: '100' });
       if (statusFilter !== 'all') params.set('status', statusFilter);
@@ -220,7 +230,23 @@ export default function PromoterCommissionsPage() {
                         {formatINR(c.revenue ?? 0)}
                       </td>
                       <td className="px-6 py-4 tabular-nums text-sm text-text-secondary font-medium">
-                        {c.commissionRate ?? 0}%
+                        <button
+                          onClick={() =>
+                            setSelectedCommissionEvent({
+                              id: c.eventId,
+                              title: c.eventName,
+                              rate: c.commissionRate,
+                              type: c.commissionType,
+                            })
+                          }
+                          className="flex items-center gap-1.5 hover:text-emerald-400 text-text-secondary font-bold transition-colors text-left"
+                          title="View Ticket Tier Payouts"
+                        >
+                          {c.commissionType === 'fixed'
+                            ? `₹${c.commissionRate ?? 0}`
+                            : `${c.commissionRate ?? 0}%`}
+                          <Tag className="w-3.5 h-3.5 text-text-tertiary hover:text-emerald-400 transition-colors" />
+                        </button>
                       </td>
                       <td className="px-6 py-4">
                         <span
@@ -247,6 +273,18 @@ export default function PromoterCommissionsPage() {
             </table>
           </div>
         </div>
+      )}
+
+      {selectedCommissionEvent && (
+        <CommissionDetailsModal
+          isOpen={Boolean(selectedCommissionEvent)}
+          onClose={() => setSelectedCommissionEvent(null)}
+          eventId={selectedCommissionEvent.id}
+          eventTitle={selectedCommissionEvent.title}
+          commissionRate={selectedCommissionEvent.rate}
+          commissionType={selectedCommissionEvent.type}
+          token={authToken}
+        />
       )}
     </div>
   );

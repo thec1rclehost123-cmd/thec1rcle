@@ -6,6 +6,7 @@
  */
 
 import { getApiClient } from './apiClient';
+import { getAdminDb } from '../firebase/admin';
 
 /**
  * Get complete venue page data for partner dashboard.

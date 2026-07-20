@@ -245,7 +245,10 @@ export const verifyPayment = functions.https.onCall(async (data, context) => {
   // 1. Signature Verification
   const secret = process.env.RAZORPAY_KEY_SECRET;
   if (!secret) {
-    throw new functions.https.HttpsError('failed-precondition', 'Payment verification not configured');
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Payment verification not configured',
+    );
   }
   const body = razorpay_order_id + '|' + razorpay_payment_id;
   const expectedSignature = crypto
@@ -286,10 +289,7 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
   // re-stringify with sorted keys for deterministic output. Use req.rawBody
   // if available in future GCF versions.
   const rawBody = JSON.stringify(req.body, Object.keys(req.body).sort());
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(rawBody)
-    .digest('hex');
+  const expectedSignature = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
 
   if (expectedSignature !== signature) {
     res.status(403).send('Invalid signature');

@@ -372,9 +372,19 @@ export default function GenerateLinkModal({
                           <span className="text-[13px] font-medium text-white/90 truncate mr-2">
                             {tier.name || 'Unnamed Tier'}
                           </span>
-                          <span className="text-[12px] text-text-tertiary font-medium whitespace-nowrap">
-                            {tier.price ? `$${tier.price}` : 'Free'}
-                          </span>
+                          <div className="text-right flex flex-col items-end">
+                            <span className="text-[12px] text-white/70 font-medium">
+                              {tier.price ? `₹${tier.price}` : 'Free'}
+                            </span>
+                            {tier.commissionRate !== undefined && tier.commissionRate !== null && (
+                              <span className="text-[11px] text-emerald-400 font-medium">
+                                {tier.commissionType === 'fixed' || tier.commissionType === 'flat'
+                                  ? `₹${tier.commissionRate}`
+                                  : `₹${Math.round(tier.price * (tier.commissionRate / 100))}`}{' '}
+                                commission
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </label>
                     ))}

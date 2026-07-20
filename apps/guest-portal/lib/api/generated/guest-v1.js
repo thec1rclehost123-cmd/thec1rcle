@@ -50,6 +50,7 @@ export const guestV1Operations = Object.freeze({
   reissueOrderFulfillment: { method: 'POST', path: '/orders/:orderId/reissue' },
   getGuestTickets: { method: 'GET', path: '/tickets' },
   getGuestTicket: { method: 'GET', path: '/tickets/:ticketId' },
+  getPublicTicket: { method: 'GET', path: '/tickets/public/:entitlementId' },
   createTicketShareBundle: { method: 'POST', path: '/tickets/share' },
   getTicketShareBundle: { method: 'GET', path: '/tickets/claim' },
   claimSharedTicket: { method: 'POST', path: '/tickets/claim/share' },

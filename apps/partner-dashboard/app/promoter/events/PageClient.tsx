@@ -19,6 +19,8 @@ import {
   Tag,
   Ticket,
   Users,
+  Coins,
+  ArrowRight,
 } from 'lucide-react';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { VenuePageShell } from '@/components/venue-layout/VenuePageShell';
@@ -26,6 +28,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { CITY_MAP } from '@c1rcle/core/events';
 import GenerateLinkModal from '@/components/promoter/links/GenerateLinkModal';
 import AnalyticsDrawer from '@/components/promoter/links/AnalyticsDrawer';
+import CommissionDetailsModal from '@/components/promoter/events/CommissionDetailsModal';
 
 const GUEST_PORTAL_URL =
   process.env.NEXT_PUBLIC_GUEST_PORTAL_URL || process.env.NEXT_PUBLIC_SITE_URL || '';
@@ -50,8 +53,17 @@ interface PromoterEvent {
   creatorRole?: string;
   priceRange: { min: number; max: number };
   commissionRate: number;
-  tickets: { id: string; name: string; price: number; promoterEnabled: boolean }[];
+  commissionType?: 'percentage' | 'fixed' | 'flat';
+  tickets: {
+    id: string;
+    name: string;
+    price: number;
+    promoterEnabled: boolean;
+    commissionRate?: number;
+    commissionType?: 'percentage' | 'fixed';
+  }[];
   stats: { interested: number };
+  compensationModel?: string;
 }
 
 interface PromoterLink {
@@ -177,7 +189,7 @@ export default function PromoterEventsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [activeTab, setActiveTab] = useState<PromoterTab>('available');
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const [selectedEventIdForModal, setSelectedEventIdForModal] = useState<string | null>(null);
@@ -185,6 +197,7 @@ export default function PromoterEventsPage() {
   const [authToken, setAuthToken] = useState('');
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [openCommissionEventId, setOpenCommissionEventId] = useState<string | null>(null);
 
   const fetchPageData = useCallback(
     async (manualRefresh = false) => {
@@ -260,6 +273,14 @@ export default function PromoterEventsPage() {
     fetchPageData();
   }, [fetchPageData]);
 
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setOpenCommissionEventId(null);
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, []);
+
   const getActiveLink = useCallback(
     (eventId: string) => {
       return myLinks.find((link) => link.eventId === eventId && link.isActive);
@@ -316,8 +337,8 @@ export default function PromoterEventsPage() {
 
   const copyLink = async (link: PromoterLink) => {
     await navigator.clipboard.writeText(buildLinkUrl(link));
-    setCopiedCode(link.code);
-    window.setTimeout(() => setCopiedCode(null), 1500);
+    setCopiedLinkId(link.id);
+    window.setTimeout(() => setCopiedLinkId(null), 1500);
   };
 
   return (
@@ -466,11 +487,6 @@ export default function PromoterEventsPage() {
                       />
                       {hasLink ? 'Link Active' : 'Ready to Promote'}
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-black/60 px-3 py-1.5 text-xs font-bold text-emerald-400 backdrop-blur-md">
-                      {event.commissionRate
-                        ? `Earn ${event.commissionRate}%/ticket`
-                        : `0% commission`}
-                    </span>
                   </div>
                 </div>
 
@@ -502,18 +518,41 @@ export default function PromoterEventsPage() {
 
                   {hasLink && link ? (
                     <div className="flex flex-col gap-3">
-                      <button
-                        onClick={() => setEditingLink(link)}
-                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 text-black font-bold text-[15px] flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(16,185,129,0.2)]"
-                      >
-                        View Stats
-                      </button>
-                      <button
-                        onClick={() => copyLink(link)}
-                        className="text-text-tertiary text-sm font-medium hover:text-white transition-colors text-center w-full"
-                      >
-                        {copiedCode === link.code ? 'Copied!' : 'Copy Link'}
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setEditingLink(link)}
+                          className="flex-grow py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 text-black font-bold text-[15px] flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                        >
+                          View Stats
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyLink(link);
+                          }}
+                          className="px-4 py-3.5 rounded-xl bg-surface-secondary border border-white/10 hover:border-emerald-500/30 text-white text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                          title="Copy Link"
+                        >
+                          {copiedLinkId === link.id ? (
+                            <span className="text-xs font-bold text-emerald-400">Copied!</span>
+                          ) : (
+                            <Copy className="w-5 h-5 text-emerald-400" />
+                          )}
+                        </button>
+                      </div>
+
+                      <div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenCommissionEventId(event.id);
+                          }}
+                          className="text-text-tertiary text-sm font-semibold hover:text-white transition-colors text-center w-full flex items-center justify-center gap-1.5 py-1"
+                        >
+                          <Tag className="w-4 h-4 text-emerald-400" />
+                          View Earnings Info
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
@@ -579,6 +618,17 @@ export default function PromoterEventsPage() {
           onReactivated={() => {}}
         />
       </AnimatePresence>
+
+      <CommissionDetailsModal
+        isOpen={Boolean(openCommissionEventId)}
+        onClose={() => setOpenCommissionEventId(null)}
+        eventId={openCommissionEventId || ''}
+        eventTitle={events.find((e) => e.id === openCommissionEventId)?.title || ''}
+        commissionRate={events.find((e) => e.id === openCommissionEventId)?.commissionRate || 0}
+        commissionType={events.find((e) => e.id === openCommissionEventId)?.commissionType}
+        preloadedTickets={events.find((e) => e.id === openCommissionEventId)?.tickets}
+        token={authToken}
+      />
     </VenuePageShell>
   );
 }

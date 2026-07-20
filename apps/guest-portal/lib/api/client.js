@@ -296,6 +296,8 @@ export const guestApi = Object.freeze({
     wallet: (options) => guestApiOperationJson('getGuestTickets', options),
     get: (ticketId, options) =>
       guestApiOperationJson('getGuestTicket', { params: { ticketId }, ...options }),
+    getPublic: (entitlementId, options) =>
+      guestApiOperationJson('getPublicTicket', { params: { entitlementId }, ...options }),
     share: (body, options) =>
       guestApiOperationJson('createTicketShareBundle', { body, ...options }),
     shareBundle: (query = '', options) =>

@@ -88,22 +88,24 @@ describe('partner-profiles PII isolation validation tests', () => {
     expect((profile as any).phone).toBeUndefined();
   });
 
-  it('getPartnerProfileSummary includes _pii if includePii is explicitly true', async () => {
-    const profile = await getPartnerProfileSummary(mockDb as any, 'venue_123', true);
-    expect(profile).not.toBeNull();
-    expect((profile as any)._pii).toEqual({
-      email: 'user@example.com',
-      phone: '1234567890',
+  it('getPartnerProfileWithPii injects email/phone for self-viewer without a connection', async () => {
+    const result = await getPartnerProfileWithPii(mockDb as any, {
+      partnerId: 'venue_123',
+      viewerRole: 'venue',
+      viewerId: 'venue_123',
     });
+    expect(result).not.toBeNull();
+    expect(result && (result.profile as any).email).toBe('user@example.com');
+    expect(result && (result.profile as any).phone).toBe('1234567890');
+    expect(result && (result.profile as any)._pii).toBeUndefined();
   });
 
   it('getPartnerProfileWithPii injects email/phone and removes _pii for active connections', async () => {
-    const result = await getPartnerProfileWithPii(
-      mockDb as any,
-      'venue_123',
-      'promoter',
-      'promoter_123',
-    );
+    const result = await getPartnerProfileWithPii(mockDb as any, {
+      partnerId: 'venue_123',
+      viewerRole: 'promoter',
+      viewerId: 'promoter_123',
+    });
     expect(result).not.toBeNull();
     expect(result && (result.profile as any).email).toBe('user@example.com');
     expect(result && (result.profile as any).phone).toBe('1234567890');
@@ -132,12 +134,11 @@ describe('partner-profiles PII isolation validation tests', () => {
       },
     };
 
-    const result = await getPartnerProfileWithPii(
-      mockDbNotConnected as any,
-      'venue_123',
-      'promoter',
-      'promoter_123',
-    );
+    const result = await getPartnerProfileWithPii(mockDbNotConnected as any, {
+      partnerId: 'venue_123',
+      viewerRole: 'promoter',
+      viewerId: 'promoter_123',
+    });
     expect(result).not.toBeNull();
     expect(result && (result.profile as any).email).toBeUndefined();
     expect(result && (result.profile as any).phone).toBeUndefined();

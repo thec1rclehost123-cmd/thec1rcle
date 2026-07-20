@@ -14,6 +14,11 @@ export async function getUserTickets() {
   return apiFetch(() => guestApi.tickets.wallet());
 }
 
+export async function getPublicTicket(id) {
+  const result = await apiFetch(() => guestApi.tickets.getPublic(id));
+  return result.ticket;
+}
+
 export async function createShareBundle(orderId, eventId, quantity, tierId = null) {
   const result = await apiFetch(() =>
     guestApi.tickets.share({ orderId, eventId, quantity, tierId }),
