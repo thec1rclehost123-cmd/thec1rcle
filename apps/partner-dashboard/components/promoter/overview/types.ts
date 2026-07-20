@@ -16,6 +16,12 @@ export type OverviewResponse = {
     ticketsSold?: number;
     commission?: number;
   }>;
+  warnings?: Array<{
+    message: string;
+    adminId?: string;
+    timestamp?: string;
+    auditReason?: string;
+  }>;
 };
 
 export type GuestsResponse = {

@@ -32,6 +32,7 @@ export default function AdminVenues() {
 
   const fetchVenues = async () => {
     try {
+      setLoading(true);
       const token = await user.getIdToken();
       const res = await fetch('/api/list?collection=venues', {
         headers: { Authorization: `Bearer ${token}` },
@@ -261,6 +262,7 @@ export default function AdminVenues() {
       <DataTable
         columns={columns}
         data={filtered}
+        loading={loading}
         searchPlaceholder="Find venue by name, city or registry ID..."
         onRowClick={(venue) => {
           setSelectedVenue(venue);

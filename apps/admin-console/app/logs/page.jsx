@@ -71,6 +71,34 @@ export default function AdminLogs() {
     );
   };
 
+  const getChangedFields = (before, after) => {
+    if (!before && !after) return [];
+    const b = before || {};
+    const a = after || {};
+    const allKeys = Array.from(new Set([...Object.keys(b), ...Object.keys(a)]));
+    const changes = [];
+
+    for (const key of allKeys) {
+      if (key === 'updatedAt' || key === 'createdAt') continue;
+      const valBefore = b[key];
+      const valAfter = a[key];
+
+      const strBefore =
+        typeof valBefore === 'object' ? JSON.stringify(valBefore) : String(valBefore ?? '');
+      const strAfter =
+        typeof valAfter === 'object' ? JSON.stringify(valAfter) : String(valAfter ?? '');
+
+      if (strBefore !== strAfter) {
+        changes.push({
+          field: key,
+          before: valBefore,
+          after: valAfter,
+        });
+      }
+    }
+    return changes;
+  };
+
   const columns = useMemo(
     () => [
       {
@@ -249,64 +277,154 @@ export default function AdminLogs() {
               </div>
             </div>
 
-            <div className="space-y-6 font-mono">
-              <div className="p-5 rounded-xl bg-white/[0.02] border border-[#ffffff05] space-y-6 shadow-inner">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">
-                    Authority Narrative
-                  </p>
-                  <p className="text-sm font-medium text-zinc-400 italic leading-relaxed uppercase tracking-tight">
-                    &quot;
-                    {cleanJargon(
-                      selectedLog.reason ||
-                        selectedLog.details?.reason ||
-                        'Authenticated administrative action recorded by system protocol.',
-                    )}
-                    &quot;
-                  </p>
-                </div>
-
-                <div className="pt-4 border-t border-[#ffffff05] grid grid-cols-2 gap-6">
+            <div className="space-y-6 font-mono text-[11px]">
+              {/* 1. OPERATIONAL LOGIC */}
+              <div className="p-4 rounded-xl bg-white/[0.01] border border-white/5 space-y-3 shadow-inner">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-1">
+                  Operational Logic
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-1">
-                      Target Identity
-                    </p>
-                    <p className="text-[10px] font-bold text-white truncate tracking-tight uppercase">
-                      #{selectedLog.targetId?.slice(0, 12)}
-                    </p>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">
+                      Action Code
+                    </span>
+                    <span className="text-[10px] font-bold text-white uppercase">
+                      {selectedLog.actionType || 'Unknown'}
+                    </span>
                   </div>
                   <div>
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-1">
-                      Network Origin
-                    </p>
-                    <p className="text-[10px] font-bold text-white uppercase tracking-tight">
-                      {selectedLog.ipAddress || selectedLog.ip || 'Protocol-Secured'}
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">
+                      Authorization Flow
+                    </span>
+                    <span className="text-[10px] font-bold text-white uppercase">
+                      {selectedLog.proposalId ? 'Consensus Approved' : 'Authority Direct'}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">
+                      Authority Narrative / Reason
+                    </span>
+                    <p className="text-[10px] font-medium text-zinc-400 italic bg-white/[0.01] p-2 rounded border border-white/5">
+                      &quot;{selectedLog.reason || 'Routine administrative task.'}&quot;
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-zinc-900 border border-white/5">
-                  <User className="h-4 w-4 text-zinc-600" strokeWidth={1.5} />
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">
-                      Executor Identity
-                    </p>
-                    <p className="text-[11px] font-bold text-white truncate uppercase">
+              {/* 2. ADMIN IDENTITY */}
+              <div className="p-4 rounded-xl bg-white/[0.01] border border-white/5 space-y-3 shadow-inner">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-1">
+                  Admin Identity
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">
+                      Admin Name
+                    </span>
+                    <span className="text-[10px] font-bold text-white uppercase">
+                      {selectedLog.actorName || 'System'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">
+                      Admin ID (UID)
+                    </span>
+                    <span
+                      className="text-[10px] font-bold text-zinc-400 font-mono truncate block"
+                      title={selectedLog.adminId}
+                    >
+                      {selectedLog.adminId || 'system'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">
+                      Admin Email
+                    </span>
+                    <span className="text-[10px] font-bold text-white truncate block">
                       {selectedLog.actorEmail}
-                    </p>
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">
+                      Admin Role
+                    </span>
+                    <span className="text-[10px] font-bold text-white uppercase">
+                      {selectedLog.adminRole || 'Admin'}
+                    </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
-                  <ShieldCheck className="h-4 w-4 text-emerald-500" strokeWidth={1.5} />
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-500/50 mb-0.5">
-                      Authorization Flow
-                    </p>
-                    <p className="text-[11px] font-bold text-emerald-500 uppercase tracking-widest">
-                      {selectedLog.proposalId ? 'Consensus Approved' : 'Authority Direct'}
-                    </p>
+              </div>
+
+              {/* 4. TARGET IDENTITY */}
+              <div className="p-4 rounded-xl bg-white/[0.01] border border-white/5 space-y-3 shadow-inner">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-1">
+                  Target Identity
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">
+                      Target ID
+                    </span>
+                    <span className="text-[10px] font-bold text-white truncate block uppercase">
+                      #{selectedLog.targetId?.slice(0, 12)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">
+                      Target Type
+                    </span>
+                    <span className="text-[10px] font-bold text-white uppercase">
+                      {selectedLog.targetType || 'System'}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">
+                      Target Name / Label
+                    </span>
+                    <span className="text-[10px] font-bold text-white block uppercase">
+                      {selectedLog.targetName || 'Default System Entity / Dynamic Match Not Found'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. DATE AND TIME */}
+              <div className="p-4 rounded-xl bg-white/[0.01] border border-white/5 space-y-3 shadow-inner">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-1">
+                  Date and Time
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">
+                      Date
+                    </span>
+                    <span className="text-[10px] font-bold text-white uppercase">
+                      {new Date(selectedLog.createdAt).toLocaleDateString([], {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">
+                      Time
+                    </span>
+                    <span className="text-[10px] font-bold text-white uppercase">
+                      {new Date(selectedLog.createdAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">
+                      Network Origin IP
+                    </span>
+                    <span className="text-[10px] font-bold text-white">
+                      {selectedLog.ipAddress || 'Protocol-Secured'}
+                    </span>
                   </div>
                 </div>
               </div>

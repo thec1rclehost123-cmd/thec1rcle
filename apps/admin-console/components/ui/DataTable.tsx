@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Search, MoreVertical } from 'lucide-react';
+import Skeleton from './Skeleton';
 
 interface DataTableProps {
   columns: any[];
@@ -90,7 +91,17 @@ export function DataTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.02]">
-              {filteredData.length > 0 ? (
+              {loading ? (
+                Array.from({ length: 5 }).map((_, rowIdx) => (
+                  <tr key={`skeleton-row-${rowIdx}`} className="border-b border-white/5">
+                    {columns.map((col, colIdx) => (
+                      <td key={`skeleton-col-${colIdx}`} className="px-6 py-5">
+                        <Skeleton className="h-5 w-3/4" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : filteredData.length > 0 ? (
                 filteredData.map((row, idx) => (
                   <tr
                     key={row.id || idx}

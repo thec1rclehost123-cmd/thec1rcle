@@ -224,7 +224,8 @@ export default function AdminConsoleShell({ children }) {
     );
   }
 
-  const isLoginPage = pathname === '/login';
+  const isAuthPage =
+    pathname === '/login' || pathname === '/accept-invite' || pathname === '/change-password';
   // If admin_role is explicitly set, use that.
   // Otherwise, if base role is 'admin', grant full 'super' privileges by default for the console.
   const userRoleValue = hierarchy[profile?.admin_role] || (profile?.role === 'admin' ? 1000 : 0);
@@ -239,7 +240,7 @@ export default function AdminConsoleShell({ children }) {
     }))
     .filter((group) => group.items.length > 0);
 
-  if (isLoginPage) {
+  if (isAuthPage) {
     return <AdminGuard>{children}</AdminGuard>;
   }
 

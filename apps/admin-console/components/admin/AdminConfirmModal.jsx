@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, X, Info, RefreshCcw, Link2, ShieldAlert, Timer } from 'lucide-react';
+import { AlertTriangle, X, Info, RefreshCcw, Lock, ShieldAlert, Timer } from 'lucide-react';
+import { getFirebaseAuth } from '@/lib/firebase/client';
+import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 export default function AdminConfirmModal({
   isOpen,
@@ -19,37 +22,67 @@ export default function AdminConfirmModal({
   isTier2 = false,
   isTier3 = false,
 }) {
+  const { user } = useAuth();
   const [reason, setReason] = useState('');
   const [targetId, setTargetId] = useState('');
   const [inputValue, setInputValue] = useState('');
-  const [evidence, setEvidence] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
   const minReason = isTier2 || isTier3 ? 20 : 5;
   const isReasonValid = reason.trim().length >= minReason;
-  const isEvidenceValid =
-    !(isTier2 || isTier3) || (evidence.trim().length > 5 && evidence.startsWith('http'));
+  const isPasswordValid = !(isTier2 || isTier3) || password.trim().length >= 6;
 
   const handleConfirm = async () => {
     if (!isReasonValid) return;
     if (requiresId && !targetId.trim()) return;
-    if (!isEvidenceValid) return;
+    if (!isPasswordValid) return;
 
     setIsSubmitting(true);
+    setPasswordError('');
     try {
-      await onConfirm(reason, targetId, inputValue, evidence);
+      if (isTier2 || isTier3) {
+        const auth = getFirebaseAuth();
+        const firebaseUser = auth.currentUser;
+        if (!firebaseUser) {
+          throw new Error('No active authentication session found. Please reload the page.');
+        }
+        const email = firebaseUser.email || user?.email;
+        if (!email) {
+          throw new Error('Admin email not found in active session.');
+        }
+        const credential = EmailAuthProvider.credential(email, password);
+        await reauthenticateWithCredential(firebaseUser, credential);
+      }
+
+      await onConfirm(reason, targetId, inputValue, 'Verified via Password');
       setReason('');
       setTargetId('');
       setInputValue('');
-      setEvidence('');
+      setPassword('');
+      setPasswordError('');
       onClose();
     } catch (err) {
-      console.error(err);
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setPasswordError('Incorrect password. Please try again.');
+      } else {
+        setPasswordError(err.message || 'Verification failed');
+      }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleClose = () => {
+    setReason('');
+    setTargetId('');
+    setInputValue('');
+    setPassword('');
+    setPasswordError('');
+    onClose();
   };
 
   return (
@@ -90,7 +123,7 @@ export default function AdminConfirmModal({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 rounded-md hover:bg-white/5 text-zinc-600 hover:text-zinc-300 transition-all"
           >
             <X className="h-5 w-5" strokeWidth={1.5} />
@@ -153,19 +186,25 @@ export default function AdminConfirmModal({
             <div className="space-y-2">
               <div className="flex justify-between items-center pl-1 pr-1">
                 <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
-                  <Link2 className="h-3.5 w-3.5" strokeWidth={1.5} /> Verification Hash / URL
+                  <Lock className="h-3.5 w-3.5" strokeWidth={1.5} /> Confirm Password
                 </label>
                 <span className="text-[8px] text-iris uppercase tracking-widest font-bold">
                   Mandatory
                 </span>
               </div>
               <input
-                type="url"
-                value={evidence}
-                onChange={(e) => setEvidence(e.target.value)}
-                placeholder="https://audit.c1rcle.net/..."
-                className={`w-full bg-black/20 border rounded-lg p-3.5 text-sm focus:outline-none transition-all font-mono text-white ${!isEvidenceValid && evidence ? 'border-iris/40' : 'border-[#ffffff08] focus:ring-1 focus:ring-white/10 focus:bg-zinc-900'}`}
+                type="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (passwordError) setPasswordError('');
+                }}
+                placeholder="Enter your admin password..."
+                className={`w-full bg-black/20 border rounded-lg p-3.5 text-sm focus:outline-none transition-all text-white ${passwordError ? 'border-iris/40 focus:ring-iris/20' : 'border-[#ffffff08] focus:ring-1 focus:ring-white/10 focus:bg-zinc-900'}`}
               />
+              {passwordError && (
+                <p className="text-[10px] text-iris font-semibold mt-1 pl-1">{passwordError}</p>
+              )}
             </div>
           )}
 
@@ -195,7 +234,7 @@ export default function AdminConfirmModal({
 
           <div className="flex gap-3 pt-4">
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="flex-1 py-3 rounded-lg bg-white/5 border border-white/5 text-[10px] font-bold uppercase tracking-widest hover:bg-white/10 transition-all text-zinc-400 hover:text-white"
             >
               Abort
@@ -203,7 +242,7 @@ export default function AdminConfirmModal({
             <button
               disabled={
                 !isReasonValid ||
-                !isEvidenceValid ||
+                !isPasswordValid ||
                 (requiresId && !targetId.trim()) ||
                 isSubmitting
               }

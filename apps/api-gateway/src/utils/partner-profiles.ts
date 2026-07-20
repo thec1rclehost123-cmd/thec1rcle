@@ -313,7 +313,7 @@ export async function resolvePartnerDocument(db: any, id: string) {
   return null;
 }
 
-export async function getPartnerProfileSummary(db: any, id: string) {
+export async function getPartnerProfileSummary(db: any, id: string, includePii: boolean = false) {
   let resolved = await resolvePartnerDocument(db, id);
   let isUserFallback = false;
   let userData: Record<string, any> = {};
@@ -357,33 +357,35 @@ export async function getPartnerProfileSummary(db: any, id: string) {
   const resolvedUserData = userSnap?.exists ? userSnap.data() || {} : {};
   const onboardingData = (onboarding?.data || onboarding || {}) as Record<string, any>;
 
-  const resolvedEmail =
-    pickString(
-      doc.email,
-      doc.supportEmail,
-      doc.contactEmail,
-      doc.promoterEmail,
-      resolvedUserData.email,
-      onboardingData.email,
-    ) || null;
+  const resolvedEmail = includePii
+    ? pickString(
+        doc.email,
+        doc.supportEmail,
+        doc.contactEmail,
+        doc.promoterEmail,
+        resolvedUserData.email,
+        onboardingData.email,
+      ) || null
+    : null;
 
-  const resolvedPhone =
-    pickString(
-      doc.phone,
-      doc.contactPhone,
-      doc.legalPhone,
-      doc.phoneNumber,
-      onboardingData.phone,
-      resolvedUserData.phoneNumber,
-    ) || null;
+  const resolvedPhone = includePii
+    ? pickString(
+        doc.phone,
+        doc.contactPhone,
+        doc.legalPhone,
+        doc.phoneNumber,
+        onboardingData.phone,
+        resolvedUserData.phoneNumber,
+      ) || null
+    : null;
 
   const socialLinks = normalizeSocialLinks(onboardingData.socialLinks, doc.socialLinks, {
     instagram: pickString(doc.instagram, doc.instagramHandle, onboardingData.instagram),
     x: pickString(doc.x, doc.twitter, doc.twitterHandle, onboardingData.twitter),
     website: pickString(doc.website, onboardingData.website),
     spotify: pickString(doc.spotify, onboardingData.spotify),
-    phone: resolvedPhone || '',
-    email: resolvedEmail || '',
+    phone: includePii ? resolvedPhone || '' : '',
+    email: includePii ? resolvedEmail || '' : '',
   });
 
   const normalizedEvents = eventDocs
@@ -460,10 +462,14 @@ export async function getPartnerProfileSummary(db: any, id: string) {
     ),
     // SEC-8 fix: phone and email are PII — omitted from the public profile response.
     // Expose them only after verifying an active mutual connection at the call site.
-    _pii: {
-      email: resolvedEmail,
-      phone: resolvedPhone,
-    },
+    ...(includePii
+      ? {
+          _pii: {
+            email: resolvedEmail,
+            phone: resolvedPhone,
+          },
+        }
+      : {}),
     avatarUrl: await signStorageUrl(
       pickString(
         doc.profileImage,
@@ -570,4 +576,39 @@ export async function getConnectionForViewer(
   }
 
   return null;
+}
+
+export async function getPartnerProfileWithPii(
+  db: any,
+  id: string,
+  viewerRole: string,
+  viewerId: string,
+) {
+  // Retrieve profile summary without PII by default
+  const profile = await getPartnerProfileSummary(db, id, false);
+  if (!profile) return null;
+
+  // Resolve connection for the viewer
+  const connection = await getConnectionForViewer(db, {
+    viewerRole,
+    viewerId,
+    partnerId: id,
+    partnerType: profile.type,
+  });
+
+  const isConnected =
+    connection && (connection.status === 'active' || connection.status === 'approved');
+
+  if (isConnected) {
+    // If active mutual connection exists, fetch profile WITH PII
+    const profileWithPii = await getPartnerProfileSummary(db, id, true);
+    if (profileWithPii && (profileWithPii as any)._pii) {
+      (profileWithPii as any).email = (profileWithPii as any)._pii.email;
+      (profileWithPii as any).phone = (profileWithPii as any)._pii.phone;
+      delete (profileWithPii as any)._pii;
+    }
+    return { profile: profileWithPii, connection };
+  }
+
+  return { profile, connection };
 }

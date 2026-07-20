@@ -171,6 +171,18 @@ export async function requirePartnerAccess(
     const promoterDoc = await db.collection('promoters').doc(uid).get();
     if (promoterDoc.exists) {
       const pd = promoterDoc.data()!;
+      const isActive =
+        pd.isActive !== false &&
+        pd.status !== 'inactive' &&
+        pd.status !== 'suspended' &&
+        pd.status !== 'banned';
+      if (!isActive) {
+        return buildPartnerAuthError(
+          req,
+          403,
+          'Forbidden: promoter account is inactive or suspended',
+        );
+      }
       return {
         uid,
         partnerId: uid,

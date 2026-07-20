@@ -7,6 +7,7 @@ import { resolvePartnerContext, requireType } from '../../../lib/partner-context
 import {
   getPartnerProfileSummary,
   getConnectionForViewer,
+  getPartnerProfileWithPii,
 } from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { PromoterService } from '../../../services/unified/promoter-service.js';
@@ -1597,12 +1598,21 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
       try {
         requireType(ctx, 'promoter');
+        const promoterDoc = await fastify.db
+          .collection('promoters')
+          .doc(ctx.partnerId)
+          .get()
+          .catch(() => null);
+        const warnings =
+          promoterDoc && promoterDoc.exists ? promoterDoc.data()?.warnings || [] : [];
+
         const cacheKey = `partners:promoter:overview:${ctx.partnerId}:contract-v1`;
         const cached = await fastify.cache.get('partners', cacheKey);
-        if (cached)
+        if (cached) {
           return reply
             .header('Cache-Control', 'private, max-age=120')
-            .send({ ...cached, fromCache: true });
+            .send({ ...cached, warnings, fromCache: true });
+        }
 
         const [result, assignmentsPayload] = await Promise.all([
           promoterService.getOverview(ctx),
@@ -1656,6 +1666,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           recentActivity: asArray(result.recentActivity),
           activeLinks: toNumber(result.stats.totalLinks),
           upcomingEvents: assignments.length,
+          warnings,
         };
 
         await fastify.cache.set('partners', cacheKey, normalized, 120);
@@ -3414,8 +3425,13 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
         const partnerId = String(request.params.id || '');
-        const profile = await getPartnerProfileSummary(fastify.db, partnerId);
-        if (!profile) {
+        const result = await getPartnerProfileWithPii(
+          fastify.db,
+          partnerId,
+          ctx.type,
+          ctx.partnerId,
+        );
+        if (!result) {
           return reply.status(404).send(
             buildErrorResponse({
               code: 'NOT_FOUND',
@@ -3424,20 +3440,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             }),
           );
         }
-        const connection = await getConnectionForViewer(fastify.db, {
-          viewerRole: ctx.type,
-          viewerId: ctx.partnerId,
-          partnerId,
-          partnerType: profile.type,
-        });
-        if (connection && (connection.status === 'active' || connection.status === 'approved')) {
-          if ((profile as any)._pii) {
-            (profile as any).email = (profile as any)._pii.email;
-            (profile as any).phone = (profile as any)._pii.phone;
-          }
-        }
-        delete (profile as any)._pii;
-        return reply.send({ profile, connection });
+        return reply.send(result);
       } catch (err: any) {
         if (err.statusCode)
           return reply.status(err.statusCode).send(
