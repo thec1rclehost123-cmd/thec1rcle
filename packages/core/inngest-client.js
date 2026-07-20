@@ -195,7 +195,7 @@ export async function sendEvent(eventName, data, options = {}) {
         let ticketSalesCount = 0;
         eventsSnap.forEach((doc) => {
           const eventData = doc.data() || {};
-          ticketSalesCount += eventData.ticketsStats?.totalSold || 0;
+          ticketSalesCount += eventData.ticketsStats?.totalSold ?? 0;
         });
 
         const venueSummaryRef = db.collection('venue_summary').doc(venueId);
@@ -244,7 +244,7 @@ export async function sendEvent(eventName, data, options = {}) {
         let ticketSalesCount = 0;
         eventsSnap.forEach((doc) => {
           const eventData = doc.data() || {};
-          ticketSalesCount += eventData.ticketsStats?.totalSold || 0;
+          ticketSalesCount += eventData.ticketsStats?.totalSold ?? 0;
         });
 
         const hostSummaryRef = db.collection('host_summary').doc(hostId);
