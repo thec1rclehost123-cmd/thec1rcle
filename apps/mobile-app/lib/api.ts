@@ -38,9 +38,8 @@ function isLoopbackHost(host: string): boolean {
 }
 
 // Fastify API Gateway base URL.
-// An explicit URL is authoritative. This lets physical Android development use
-// 127.0.0.1 safely with `adb reverse`, while EAS production builds use the URL
-// supplied by their build profile. Only derive a host when no URL was configured.
+// In development, derive the gateway host from Expo's dev server. Prefer a LAN host
+// when Expo exposes one; Android cannot reach a Mac through 127.0.0.1 unless adb reverse is set.
 function getApiBase(): string {
   const explicitBase = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_GATEWAY_URL;
   if (explicitBase) return explicitBase;
@@ -81,14 +80,12 @@ type AuthSyncResponse = {
   claims?: Record<string, any>;
   requiresTokenRefresh?: boolean;
   onboarding?: import('./firstRun').FirstRunSnapshot;
-  snapshot?: import('./firstRun').FirstRunSnapshot;
-  requirements?: { minimumAccountAge?: number; minimumTastes?: number };
+  onboardingProfile?: Partial<import('./firstRun').FirstRunSnapshot>;
   data?: {
     user?: any;
     profile?: any;
     onboarding?: import('./firstRun').FirstRunSnapshot;
-    snapshot?: import('./firstRun').FirstRunSnapshot;
-    requirements?: { minimumAccountAge?: number; minimumTastes?: number };
+    onboardingProfile?: Partial<import('./firstRun').FirstRunSnapshot>;
   };
 };
 
@@ -117,10 +114,10 @@ async function apiFetch<T = any>(
   const { requireAuth = true, _retry = false, ...fetchOptions } = options;
 
   const appVersion = Constants.expoConfig?.version ?? 'unknown';
-  const isFormData = fetchOptions.body instanceof FormData;
   const hasBody = fetchOptions.body !== undefined && fetchOptions.body !== null;
+  const isFormData = fetchOptions.body instanceof FormData;
   const headers: Record<string, string> = {
-    ...(isFormData || !hasBody ? {} : { 'Content-Type': 'application/json' }),
+    ...(hasBody && !isFormData ? { 'Content-Type': 'application/json' } : {}),
     'X-App-Version': appVersion,
     ...(fetchOptions.headers as Record<string, string>),
   };
@@ -161,13 +158,13 @@ async function apiFetch<T = any>(
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
-    if (__DEV__) console.log(`[API] Fetching ${url}...`);
+    console.log(`[API] Fetching ${url}...`);
     const response = await fetch(url, {
       ...fetchOptions,
       headers,
       signal: controller.signal,
     });
-    if (__DEV__) console.log(`[API] Fetch complete for ${url}. Status:`, response.status);
+    console.log(`[API] Fetch complete for ${url}. Status:`, response.status);
     clearTimeout(timeoutId);
 
     // Handle 429 Too Many Requests — rate limited
@@ -199,6 +196,7 @@ async function apiFetch<T = any>(
       const requestError = new Error(errorMsg);
       (requestError as any).code = data.error?.code || data.code || null;
       (requestError as any).details = data.error?.details || data.details || null;
+      (requestError as any).requestId = data.error?.requestId || data.requestId || null;
       (requestError as any).status = response.status;
       throw requestError;
     }
@@ -337,10 +335,7 @@ export interface InitiateCheckoutResponse {
   };
   razorpay?: {
     orderId: string;
-    /** Human-readable amount in rupees, retained for API compatibility. */
     amount: number;
-    /** Authoritative Razorpay SDK amount in paise. */
-    amountPaise?: number;
     currency: string;
     key?: string;
   };
@@ -399,17 +394,6 @@ export async function cancelOrder(orderId: string): Promise<{ success: boolean }
   return apiFetch(`${API_PREFIX}/checkout/cancel`, {
     method: 'POST',
     body: JSON.stringify({ orderId }),
-  });
-}
-
-/**
- * Release an inventory reservation that has not become an order yet.
- * Uses: POST /api/checkout/cancel
- */
-export async function cancelReservation(reservationId: string): Promise<{ success: boolean }> {
-  return apiFetch(`${API_PREFIX}/checkout/cancel`, {
-    method: 'POST',
-    body: JSON.stringify({ reservationId }),
   });
 }
 
@@ -497,14 +481,12 @@ export async function fetchEvents(params?: {
 }
 
 export async function fetchPublicVenues(params?: {
-  city?: string;
   area?: string;
   search?: string;
   tablesOnly?: boolean;
   limit?: number;
 }): Promise<{ venues: any[]; items: any[]; nextCursor?: string | null; hasMore?: boolean }> {
   const searchParams = new URLSearchParams();
-  if (params?.city) searchParams.set('city', params.city);
   if (params?.area) searchParams.set('area', params.area);
   if (params?.search) searchParams.set('search', params.search);
   if (params?.tablesOnly) searchParams.set('tablesOnly', 'true');

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { buildErrorResponse } from '../../lib/api-contracts';
 // @ts-ignore
 import {
+  getRecommendationCacheContext,
   getRecommendedEvents,
   getRecommendedEventsV2,
   getSimilarEvents,
@@ -14,6 +15,7 @@ const RecommendationQuery = z
     eventId: z.string().min(1).max(160).optional(),
     limit: z.coerce.number().int().min(1).max(20).optional().default(10),
     contract: z.enum(['legacy', 'v2']).optional().default('legacy'),
+    surface: z.enum(['explore']).optional().default('explore'),
   })
   .strict();
 
@@ -24,7 +26,6 @@ export default async function recommendationRoutes(fastify: FastifyInstance) {
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: RecommendationQuery })],
     },
     async (request: any, reply) => {
-      const startedAt = performance.now();
       try {
         const userId = request.user?.uid;
         if (!userId) {
@@ -41,24 +42,26 @@ export default async function recommendationRoutes(fastify: FastifyInstance) {
         const eventId = request.query?.eventId;
         const limit = request.query?.limit || 10;
         const contract = request.query?.contract || 'legacy';
+        const surface = request.query?.surface || 'explore';
+        const cacheContext =
+          type === 'personal' && contract === 'v2'
+            ? await getRecommendationCacheContext(userId)
+            : null;
         const cacheKey = JSON.stringify({
           userId,
           type,
           eventId: eventId || null,
           limit,
           contract,
+          surface,
+          cacheContext,
         });
-        const cacheNamespace = `recommendations:${userId}`;
 
         reply.header('Cache-Control', 'private, max-age=0, s-maxage=120');
         reply.header('Vary', 'Authorization');
 
-        const cached = await fastify.cache.get(cacheNamespace, cacheKey);
-        if (cached) {
-          reply.header('Server-Timing', `recommendation-cache;dur=${(performance.now() - startedAt).toFixed(1)}`);
-          reply.header('X-Recommendation-Cache', 'hit');
-          return cached;
-        }
+        const cached = await fastify.cache.get('recommendations', cacheKey);
+        if (cached) return cached;
 
         if (type === 'similar') {
           if (!eventId) {
@@ -71,9 +74,7 @@ export default async function recommendationRoutes(fastify: FastifyInstance) {
             );
           }
           const similar = await getSimilarEvents(eventId, limit);
-          await fastify.cache.set(cacheNamespace, cacheKey, similar, 120);
-          reply.header('Server-Timing', `recommendation;dur=${(performance.now() - startedAt).toFixed(1)}`);
-          reply.header('X-Recommendation-Cache', 'miss');
+          await fastify.cache.set('recommendations', cacheKey, similar, 120);
           return similar;
         }
 
@@ -81,9 +82,7 @@ export default async function recommendationRoutes(fastify: FastifyInstance) {
           contract === 'v2'
             ? await getRecommendedEventsV2(userId, limit)
             : await getRecommendedEvents(userId, limit);
-        await fastify.cache.set(cacheNamespace, cacheKey, recommendations, 120);
-        reply.header('Server-Timing', `recommendation;dur=${(performance.now() - startedAt).toFixed(1)}`);
-        reply.header('X-Recommendation-Cache', 'miss');
+        await fastify.cache.set('recommendations', cacheKey, recommendations, 120);
         return recommendations;
       } catch (error: any) {
         request.log.error(

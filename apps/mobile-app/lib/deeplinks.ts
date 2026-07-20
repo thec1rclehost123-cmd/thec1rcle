@@ -17,31 +17,7 @@ const PENDING_APP_ROUTE_KEY = 'c1rcle_pending_app_route';
 
 // Deep link types
 export type DeepLinkType =
-  | 'event'
-  | 'transfer'
-  | 'profile'
-  | 'invite'
-  | 'ticket'
-  | 'chat'
-  | 'host'
-  | 'venue'
-  | 'safety'
-  | 'claim'
-  | 'going';
-
-const DEEP_LINK_TYPES = new Set<DeepLinkType>([
-  'event',
-  'transfer',
-  'profile',
-  'invite',
-  'ticket',
-  'chat',
-  'host',
-  'venue',
-  'safety',
-  'claim',
-  'going',
-]);
+  'event' | 'transfer' | 'profile' | 'invite' | 'ticket' | 'chat' | 'safety' | 'claim' | 'going';
 
 // Build deep link URL
 export function buildDeepLink(type: DeepLinkType, params: Record<string, string>): string {
@@ -153,31 +129,6 @@ function sanitizeParam(value: string): string {
   return value.replace(SANITIZE_RE, '').slice(0, MAX_PARAM_LENGTH);
 }
 
-function isDeepLinkType(value: string | null | undefined): value is DeepLinkType {
-  return Boolean(value && DEEP_LINK_TYPES.has(value.toLowerCase() as DeepLinkType));
-}
-
-function applyPathIdentifier(
-  type: DeepLinkType,
-  identifier: string | undefined,
-  params: Record<string, string>,
-) {
-  if (!identifier) return;
-  const sanitized = sanitizeParam(identifier);
-  if (!sanitized) return;
-
-  params.id = sanitized;
-  if (type === 'event') params.eventId = sanitized;
-  if (type === 'ticket') params.orderId = sanitized;
-  if (type === 'chat') params.eventId = sanitized;
-  if (type === 'claim') params.token = sanitized;
-  if (type === 'going') params.orderId = sanitized;
-  if (type === 'transfer') params.code = sanitized;
-  if (type === 'profile') params.userId = sanitized;
-  if (type === 'host') params.hostId = sanitized;
-  if (type === 'venue') params.venueId = sanitized;
-}
-
 // Parse deep link URL
 export function parseDeepLink(url: string): {
   type: DeepLinkType | null;
@@ -186,21 +137,25 @@ export function parseDeepLink(url: string): {
   try {
     const parsed = Linking.parse(url);
 
-    // With a double-slashed custom scheme, Expo parses the route type as the
-    // hostname: c1rcle://host/123 -> { hostname: 'host', path: '123' }.
-    // Web app links keep it in the path, optionally behind the /app prefix.
+    // Extract type and potential ID from path
+    // Pattern: scheme://type/id or scheme://type?id=xxx
     const pathParts = (parsed.path || '').split('/').filter(Boolean);
-    if (pathParts[0]?.toLowerCase() === 'app') pathParts.shift();
-
-    const hostname = parsed.hostname?.toLowerCase();
-    const pathType = pathParts[0]?.toLowerCase();
-    const type = isDeepLinkType(hostname) ? hostname : isDeepLinkType(pathType) ? pathType : null;
-    const pathIdentifier = isDeepLinkType(hostname) ? pathParts[0] : pathParts[1];
+    const type = pathParts[0] as DeepLinkType | undefined;
 
     // Extract query params and path params
     const params: Record<string, string> = {};
 
-    if (type) applyPathIdentifier(type, pathIdentifier, params);
+    // If we have an ID in the path (e.g. event/123), add it to params
+    if (pathParts.length > 1) {
+      const sanitized = sanitizeParam(pathParts[1]);
+      params.id = sanitized;
+      if (type === 'event') params.eventId = sanitized;
+      if (type === 'ticket') params.orderId = sanitized;
+      if (type === 'chat') params.eventId = sanitized;
+      if (type === 'claim') params.token = sanitized;
+      if (type === 'going') params.orderId = sanitized;
+      if (type === 'transfer') params.code = sanitized;
+    }
 
     if (parsed.queryParams) {
       Object.entries(parsed.queryParams).forEach(([key, value]) => {
@@ -211,7 +166,7 @@ export function parseDeepLink(url: string): {
     }
 
     return {
-      type,
+      type: type || null,
       params,
     };
   } catch (error) {
@@ -220,20 +175,17 @@ export function parseDeepLink(url: string): {
   }
 }
 
-type HandleDeepLinkOptions = {
-  /**
-   * Expo Router already owns native URLs that directly match file routes. The
-   * manual subscriber still runs for auth gating and non-file route rewrites,
-   * but must not push a second host/venue screen.
-   */
-  nativeFileRouteAlreadyHandled?: boolean;
-};
-
 // Handle incoming deep link using expo-router
-export function handleDeepLink(url: string, options: HandleDeepLinkOptions = {}): void {
-  const user = useAuthStore.getState().user;
+export function handleDeepLink(url: string): void {
+  const authState = useAuthStore.getState();
+  const { user } = authState;
   const profile = useProfileStore.getState().profile;
   const snapshot = useFirstRunStore.getState().snapshot;
+  if (!authState.initialized || authState.authSyncInProgress) {
+    void SecureStore.setItemAsync(PENDING_DEEP_LINK_KEY, url);
+    router.replace('/');
+    return;
+  }
   if (!user) {
     void SecureStore.setItemAsync(PENDING_DEEP_LINK_KEY, url);
     router.replace('/(auth)/login');
@@ -246,10 +198,6 @@ export function handleDeepLink(url: string, options: HandleDeepLinkOptions = {})
   }
 
   const { type, params } = parseDeepLink(url);
-
-  if (options.nativeFileRouteAlreadyHandled && (type === 'host' || type === 'venue')) {
-    return;
-  }
 
   switch (type) {
     case 'event':
@@ -285,20 +233,6 @@ export function handleDeepLink(url: string, options: HandleDeepLinkOptions = {})
         router.push(`/social/group/${params.eventId || params.id}`);
       }
       break;
-    case 'host': {
-      const hostId = params.hostId || params.id;
-      if (hostId) {
-        router.push({ pathname: '/host/[id]', params: { id: hostId } });
-      }
-      break;
-    }
-    case 'venue': {
-      const venueId = params.venueId || params.id;
-      if (venueId) {
-        router.push({ pathname: '/venue/[id]', params: { id: venueId } });
-      }
-      break;
-    }
     case 'going':
       if (params.orderId || params.id) {
         router.push(`/going/${params.orderId || params.id}`);
@@ -319,10 +253,16 @@ export function handleDeepLink(url: string, options: HandleDeepLinkOptions = {})
 
 /** Gate trusted in-app destinations behind authentication and first-run setup. */
 export function handleProtectedRoute(route: string): void {
-  const user = useAuthStore.getState().user;
+  const authState = useAuthStore.getState();
+  const { user } = authState;
   const profile = useProfileStore.getState().profile;
   const snapshot = useFirstRunStore.getState().snapshot;
 
+  if (!authState.initialized || authState.authSyncInProgress) {
+    void SecureStore.setItemAsync(PENDING_APP_ROUTE_KEY, route);
+    router.replace('/');
+    return;
+  }
   if (!user) {
     void SecureStore.setItemAsync(PENDING_APP_ROUTE_KEY, route);
     router.replace('/(auth)/login');
@@ -337,6 +277,7 @@ export function handleProtectedRoute(route: string): void {
 }
 
 export async function resumePendingDeepLink(): Promise<boolean> {
+  if (useAuthStore.getState().usingCachedSession) return false;
   const url = await SecureStore.getItemAsync(PENDING_DEEP_LINK_KEY);
   if (url) {
     await SecureStore.deleteItemAsync(PENDING_DEEP_LINK_KEY);

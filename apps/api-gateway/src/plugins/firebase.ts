@@ -43,8 +43,8 @@ import { IdempotencyService } from '@c1rcle/core/idempotency-service';
 import { buildRequestAuthContext, type RequestAuthContext } from '../lib/auth-context';
 import { writeAuditLog as persistAuditLog, type AuditLogInput } from '../lib/audit-log';
 import { parseCookieHeader, verifyGuestCsrfRequest } from '../lib/guest-csrf';
+import { hasVerifiedFirebasePhone } from '../lib/verified-phone';
 import { PromoterServiceV2 } from '../services/promoter-v2';
-import { createRequireVerifiedPhone } from '../lib/verified-phone-guard';
 
 export default fp(async (fastify) => {
   if (!getApps().length) {
@@ -148,7 +148,6 @@ export default fp(async (fastify) => {
   fastify.decorateRequest('user', null);
   fastify.decorateRequest('authContext', null);
   fastify.decorateRequest('authVerification', null);
-  fastify.decorateRequest('verifiedPhone', null);
   fastify.decorateRequest('workspaceId', null);
   fastify.decorateRequest('workspace', null); // 🏢 SaaS: Full workspace metadata
 
@@ -422,9 +421,21 @@ export default fp(async (fastify) => {
     }
   });
 
-  // Consumer safety guard. Profile fields and stale ID-token claims are never
-  // verification proof; current Firebase Admin auth data is authoritative.
-  fastify.decorate('requireVerifiedPhone', createRequireVerifiedPhone(auth));
+  // Firebase Auth is the only phone-verification authority. Firestore aliases,
+  // request bodies, and generic profile fields must never satisfy this guard.
+  fastify.decorate('requireVerifiedPhone', async (request: any, reply: any) => {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized: Authentication required' });
+    }
+    if (!hasVerifiedFirebasePhone(request.user)) {
+      return reply.status(403).send({
+        error: {
+          code: 'PHONE_VERIFICATION_REQUIRED',
+          message: 'Verify and link a phone number before continuing',
+        },
+      });
+    }
+  });
 
   // Partner Access Guard — auth + ownership/membership check in one preHandler
   // Usage: preHandler: [fastify.requirePartnerAccess((req) => req.params.id)]
@@ -617,7 +628,6 @@ declare module 'fastify' {
     user: DecodedIdToken | null;
     authContext: RequestAuthContext | null;
     authVerification: Record<string, any> | null;
-    verifiedPhone: string | null;
     workspaceId: string | null;
     workspace: any | null;
   }

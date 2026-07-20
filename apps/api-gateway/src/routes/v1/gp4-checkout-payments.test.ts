@@ -222,6 +222,12 @@ async function buildServer() {
     if (request.user?.uid) return;
     return reply.status(401).send({ success: false, error: 'Unauthorized' });
   });
+  server.decorate('requireVerifiedPhone', async (request: any, reply: any) => {
+    if (request.user?.phone_number) return;
+    return reply.status(403).send({
+      error: { code: 'PHONE_VERIFICATION_REQUIRED', message: 'Phone verification required' },
+    });
+  });
   server.decorate('requireRoles', vi.fn(() => async () => undefined) as any);
   server.decorate('checkoutService', checkoutService as any);
   server.decorate('orderRepo', orderRepo as any);
@@ -233,7 +239,7 @@ async function buildServer() {
         uid: 'user_1',
         email: 'guest@example.com',
         displayName: 'Guest User',
-        phoneNumber: '+919999999999',
+        ...(request.headers['x-test-unverified'] === '1' ? {} : { phone_number: '+919999999999' }),
       };
     }
     request.workspaceId = null;
@@ -256,6 +262,23 @@ describe('GP-4 gateway checkout/payment routes', () => {
     process.env.RAZORPAY_KEY_ID = 'rzp_test_key';
     process.env.RAZORPAY_KEY_SECRET = 'rzp_test_secret';
     process.env.RAZORPAY_WEBHOOK_SECRET = 'rzp_webhook_secret';
+  });
+
+  it('rejects checkout initiation when the Firebase token has no phone_number claim', async () => {
+    const { server, checkoutService } = await buildServer();
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/intent',
+      headers: { authorization: 'Bearer token', 'x-test-unverified': '1' },
+      payload: { eventId: 'event_1', tierId: 'tier_1', quantity: 1 },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      error: { code: 'PHONE_VERIFICATION_REQUIRED' },
+    });
+    expect(checkoutService.createCheckoutIntent).not.toHaveBeenCalled();
+    await server.close();
   });
 
   it('POST /api/v1/checkout/verify delegates Razorpay verification and ticketing to core', async () => {

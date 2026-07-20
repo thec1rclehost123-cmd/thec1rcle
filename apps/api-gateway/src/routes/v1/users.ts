@@ -1,5 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import {
+  MAX_NIGHTLIFE_TASTES,
+  MAX_USER_INTENTS,
+  MIN_NIGHTLIFE_TASTES,
+  MIN_USER_INTENTS,
+  NIGHTLIFE_TASTES,
+  USER_INTENTS,
+} from '@c1rcle/types';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 
 const DatingVitalsBody = z
@@ -7,23 +15,6 @@ const DatingVitalsBody = z
     height: z.string().max(40).nullable().optional(),
     gender: z.string().max(80).nullable().optional(),
     location: z.string().max(120).nullable().optional(),
-    pronouns: z.string().max(80).nullable().optional(),
-    lifestyle: z.string().max(120).nullable().optional(),
-  })
-  .strict();
-
-const ProfilePhotoUrlBody = z
-  .string()
-  .url()
-  .max(2048)
-  .refine((value) => value.startsWith('https://'), 'Profile photos must use HTTPS');
-
-const ProfilePromptBody = z
-  .object({
-    promptId: z.string().trim().min(1).max(120),
-    question: z.string().trim().min(1).max(180),
-    answer: z.string().trim().min(1).max(500),
-    type: z.literal('text'),
   })
   .strict();
 
@@ -47,14 +38,13 @@ const ProfileUpdateBody = z
     firstName: z.string().optional(),
     city: z.string().optional(),
     vibeTags: z.array(z.string()).max(20).optional(),
-    nightlifeVibeTags: z.array(z.string().trim().min(1).max(60)).max(8).optional(),
     photoURL: z.string().nullable().optional(),
     datingActive: z.boolean().optional(),
-    datingPhotos: z.array(ProfilePhotoUrlBody).max(6).optional(),
+    datingPhotos: z.array(z.string()).max(6).optional(),
     datingVitals: DatingVitalsBody.optional(),
     anthem: ProfileAnthemBody.optional(),
-    photos: z.array(ProfilePhotoUrlBody).max(6).optional(),
-    prompts: z.array(ProfilePromptBody).max(3).optional(),
+    photos: z.array(z.string()).optional(),
+    prompts: z.array(z.any()).optional(),
     bio: z.string().optional(),
     socialSetupComplete: z.boolean().optional(),
     verificationStatus: z.enum(['unverified', 'pending', 'verified', 'rejected']).optional(),
@@ -88,23 +78,6 @@ const VerificationBody = z
     metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
-
-const RecommendationSignalBody = z
-  .object({
-    type: z.enum(['event_view', 'event_save', 'venue_follow', 'category_browse']),
-    category: z.string().min(1).max(80).optional(),
-    eventId: z.string().min(1).max(160).optional(),
-    venueId: z.string().min(1).max(160).optional(),
-  })
-  .strict()
-  .superRefine((value, ctx) => {
-    if (value.type === 'category_browse' && !value.category)
-      ctx.addIssue({ code: 'custom', path: ['category'], message: 'category is required' });
-    if ((value.type === 'event_view' || value.type === 'event_save') && !value.eventId)
-      ctx.addIssue({ code: 'custom', path: ['eventId'], message: 'eventId is required' });
-    if (value.type === 'venue_follow' && !value.venueId)
-      ctx.addIssue({ code: 'custom', path: ['venueId'], message: 'venueId is required' });
-  });
 
 const SettingsNotificationBody = z
   .object({
@@ -152,13 +125,11 @@ const SettingsAppearanceBody = z
 const UserSettingsBody = z
   .object({
     bio: z.string().max(150).nullable().optional(),
-    datingPhotos: z.array(ProfilePhotoUrlBody).max(6).optional(),
+    datingPhotos: z.array(z.string()).max(6).optional(),
     datingVitals: DatingVitalsBody.optional(),
     anthem: ProfileAnthemBody.optional(),
-    photos: z.array(ProfilePhotoUrlBody).max(6).optional(),
+    photos: z.array(z.string()).max(6).optional(),
     vibeTags: z.array(z.string()).max(20).optional(),
-    nightlifeVibeTags: z.array(z.string().trim().min(1).max(60)).max(8).optional(),
-    prompts: z.array(ProfilePromptBody).max(3).optional(),
     notificationPreferences: z.record(z.string(), z.boolean()).optional(),
     pushNewMatches: z.boolean().optional(),
     pushEventUpdates: z.boolean().optional(),
@@ -207,13 +178,6 @@ const DeviceTokenBody = z
   })
   .strict();
 
-const DeviceTokenRevokeBody = z
-  .object({
-    token: z.string().min(8).max(512),
-    deviceId: z.string().min(1).max(180).optional(),
-  })
-  .strict();
-
 const AuthSyncBody = z.object({}).strict().optional().default({});
 
 const OnboardingIdentityBody = z
@@ -231,23 +195,18 @@ const OnboardingCityBody = z
   })
   .strict();
 
-const NightlifeTaste = z.enum([
-  'clubs',
-  'live_music',
-  'lounges',
-  'festivals',
-  'college_nights',
-  'underground',
-  'food_culture',
-  'premium',
-]);
+const NightlifeTaste = z.enum(NIGHTLIFE_TASTES);
 
-const UserIntent = z.enum(['discover', 'friends', 'meet_people', 'host_promote']);
+const UserIntent = z.enum(USER_INTENTS);
 
 const OnboardingPreferencesBody = z
   .object({
-    vibeTags: z.array(NightlifeTaste).min(3).max(8).optional(),
-    intents: z.array(UserIntent).min(1).max(4).optional(),
+    vibeTags: z
+      .array(NightlifeTaste)
+      .min(MIN_NIGHTLIFE_TASTES)
+      .max(MAX_NIGHTLIFE_TASTES)
+      .optional(),
+    intents: z.array(UserIntent).min(MIN_USER_INTENTS).max(MAX_USER_INTENTS).optional(),
   })
   .strict()
   .refine((value) => value.vibeTags !== undefined || value.intents !== undefined, {
@@ -318,8 +277,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
           requiresTokenRefresh: true,
           identity: firstRun.identity,
           onboarding: firstRun.onboarding,
-          snapshot: firstRun.snapshot,
-          requirements: firstRun.requirements,
+          onboardingProfile: firstRun.onboardingProfile,
           routeAccess: firstRun.routeAccess,
         });
       } catch (error: any) {
@@ -338,45 +296,6 @@ export default async function userRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.delete(
-    '/users/me/device-token',
-    {
-      preHandler: [fastify.requireAuth, fastify.validate({ body: DeviceTokenRevokeBody })],
-      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
-    },
-    async (request: any, reply: any) => {
-      const userId = request.user?.uid;
-      if (!userId) {
-        return reply.status(401).send(
-          buildErrorResponse({
-            code: 'UNAUTHORIZED',
-            message: 'Authentication required',
-            requestId: request.id,
-          }),
-        );
-      }
-
-      try {
-        const { revokeDeviceToken } = await import('@c1rcle/core/user-service');
-        const result = await revokeDeviceToken(fastify.db, userId, request.body);
-        return buildSuccessResponse(result);
-      } catch (error: any) {
-        request.log.warn(
-          { requestId: request.id, userId, error: error?.message },
-          'DELETE /users/me/device-token failed',
-        );
-        const isBadRequest = error.message?.includes('Missing');
-        return reply.status(isBadRequest ? 400 : 500).send(
-          buildErrorResponse({
-            code: isBadRequest ? 'BAD_REQUEST' : 'INTERNAL_ERROR',
-            message: isBadRequest ? error.message : 'Unable to revoke device token',
-            requestId: request.id,
-          }),
-        );
-      }
-    },
-  );
-
   fastify.get(
     '/users/me/onboarding',
     {
@@ -386,15 +305,13 @@ export default async function userRoutes(fastify: FastifyInstance) {
     async (request: any, reply: any) => {
       const userId = request.user?.uid;
       if (!userId)
-        return reply
-          .status(401)
-          .send(
-            buildErrorResponse({
-              code: 'UNAUTHORIZED',
-              message: 'Authentication required',
-              requestId: request.id,
-            }),
-          );
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            requestId: request.id,
+          }),
+        );
       try {
         const authRecord = await loadFirebaseUser(fastify, userId, request.user);
         const { syncOnboardingAuthState } = await import('@c1rcle/core/onboarding-service');
@@ -425,15 +342,13 @@ export default async function userRoutes(fastify: FastifyInstance) {
       async (request: any, reply: any) => {
         const userId = request.user?.uid;
         if (!userId)
-          return reply
-            .status(401)
-            .send(
-              buildErrorResponse({
-                code: 'UNAUTHORIZED',
-                message: 'Authentication required',
-                requestId: request.id,
-              }),
-            );
+          return reply.status(401).send(
+            buildErrorResponse({
+              code: 'UNAUTHORIZED',
+              message: 'Authentication required',
+              requestId: request.id,
+            }),
+          );
         try {
           const service = await import('@c1rcle/core/onboarding-service');
           if (operation === 'identity')
@@ -445,7 +360,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
           if (operation === 'emailPrompt')
             await service.recordEmailPrompt(fastify.db, userId, request.body.status);
           if (operation === 'city' || operation === 'preferences') {
-            await fastify.cache.invalidateNamespace(`recommendations:${userId}`);
+            await fastify.cache.invalidateNamespace('recommendations');
           }
           const authRecord = await loadFirebaseUser(fastify, userId, request.user);
           return buildSuccessResponse(
@@ -476,20 +391,18 @@ export default async function userRoutes(fastify: FastifyInstance) {
     async (request: any, reply: any) => {
       const userId = request.user?.uid;
       if (!userId)
-        return reply
-          .status(401)
-          .send(
-            buildErrorResponse({
-              code: 'UNAUTHORIZED',
-              message: 'Authentication required',
-              requestId: request.id,
-            }),
-          );
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            requestId: request.id,
+          }),
+        );
       try {
         const authRecord = await loadFirebaseUser(fastify, userId, request.user);
         const { completeOnboarding } = await import('@c1rcle/core/onboarding-service');
         const result = await completeOnboarding(fastify.db, userId, authRecord);
-        await fastify.cache.invalidateNamespace(`recommendations:${userId}`);
+        await fastify.cache.invalidateNamespace('recommendations');
         return buildSuccessResponse(result);
       } catch (error: any) {
         request.log.error(
@@ -497,42 +410,6 @@ export default async function userRoutes(fastify: FastifyInstance) {
           'POST /users/me/onboarding/complete failed',
         );
         return sendOnboardingError(request, reply, error);
-      }
-    },
-  );
-
-  fastify.post(
-    '/users/me/recommendation-signals',
-    {
-      preHandler: [fastify.requireAuth, fastify.validate({ body: RecommendationSignalBody })],
-      config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
-    },
-    async (request: any, reply: any) => {
-      const userId = request.user?.uid;
-      if (!userId)
-        return reply.status(401).send(
-          buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Authentication required', requestId: request.id }),
-        );
-      try {
-        const { recordRecommendationSignal } = await import(
-          '@c1rcle/core/recommendation-signal-service'
-        );
-        const result = await recordRecommendationSignal(fastify.db, userId, request.body);
-        if (result.changed)
-          await fastify.cache.invalidateNamespace(`recommendations:${userId}`);
-        return buildSuccessResponse(result);
-      } catch (error: any) {
-        request.log.warn(
-          { requestId: request.id, userId, error: error?.message },
-          'POST /users/me/recommendation-signals failed',
-        );
-        return reply.status(error?.statusCode || 500).send(
-          buildErrorResponse({
-            code: error?.statusCode === 404 ? 'USER_NOT_FOUND' : 'INTERNAL_ERROR',
-            message: error?.statusCode === 404 ? 'User not found' : 'Unable to save recommendation signal',
-            requestId: request.id,
-          }),
-        );
       }
     },
   );

@@ -1,5 +1,5 @@
 import '../global.css';
-import { useCallback, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Alert, NativeModules, Platform } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
@@ -21,10 +21,10 @@ import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import { subscribeToDeepLinks, handleDeepLink, handleProtectedRoute } from '@/lib/deeplinks';
 import { addNotificationResponseListener } from '@/lib/notifications';
 import { apiFetch } from '@/lib/api';
-import { discardPendingCheckout } from '@/lib/payments';
 import { useProfileStore } from '@/store/profileStore';
 import { useFirstRunStore } from '@/store/firstRunStore';
 import { resolveFirstRunStage } from '@/lib/firstRun';
+import { FIRST_RUN_EVENTS, trackFirstRun } from '@/lib/firstRunAnalytics';
 
 initSentry();
 
@@ -34,6 +34,22 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 
 export default function RootLayout() {
   const RootGestureHandlerView = GestureHandlerRootView;
+  const bootResolved = useAuthStore((state) => state.initialized || state.authSyncFailed);
+  const bootTracked = useRef(false);
+
+  useEffect(() => {
+    trackFirstRun(FIRST_RUN_EVENTS.APP_LAUNCH);
+  }, []);
+
+  useEffect(() => {
+    if (!bootResolved || bootTracked.current) return;
+    bootTracked.current = true;
+    const auth = useAuthStore.getState();
+    trackFirstRun(FIRST_RUN_EVENTS.BOOTSTRAP_RESULT, {
+      outcome: auth.authSyncFailed ? 'failure' : 'success',
+      bootstrapSource: auth.usingCachedSession ? 'cache' : auth.isGuest ? 'guest' : 'server',
+    });
+  }, [bootResolved]);
 
   useEffect(() => initAuthListener(), []);
 
@@ -59,10 +75,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     const unsubscribe = subscribeToDeepLinks((url) => {
-      // Expo Router automatically navigates native URLs that match file routes.
-      // Keep this subscriber for auth gating and legacy route rewrites without
-      // pushing a duplicate host/venue screen on top of Expo Router's route.
-      handleDeepLink(url, { nativeFileRouteAlreadyHandled: true });
+      handleDeepLink(url);
     });
     return unsubscribe;
   }, []);
@@ -149,14 +162,7 @@ export default function RootLayout() {
           {
             text: 'Cancel Payment',
             style: 'destructive',
-            onPress: () => {
-              void discardPendingCheckout().catch(() => {
-                Alert.alert(
-                  'Cancellation failed',
-                  'The pending ticket hold is still active. Please try again.',
-                );
-              });
-            },
+            onPress: () => useCartStore.getState().setPendingPaymentOrderId(null),
           },
           {
             text: 'Resume Payment',
@@ -191,19 +197,20 @@ export default function RootLayout() {
     };
   }, []);
 
-  const onLayoutRootView = useCallback(async () => {
-    await SplashScreen.hideAsync();
-  }, []);
+  useEffect(() => {
+    if (bootResolved) {
+      SplashScreen.hideAsync().catch(() => {
+        // The splash may already be hidden during Fast Refresh.
+      });
+    }
+  }, [bootResolved]);
 
   return (
     <QueryProvider>
       <DemoDataProvider>
         <ErrorBoundary>
           <SafeAreaProvider>
-            <RootGestureHandlerView
-              style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}
-              onLayout={onLayoutRootView}
-            >
+            <RootGestureHandlerView style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}>
               <View style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}>
                 <StatusBar style="light" backgroundColor={colors.base.DEFAULT} />
                 <OfflineBanner />
@@ -219,7 +226,6 @@ export default function RootLayout() {
                     <Stack.Screen name="index" />
                     <Stack.Screen name="(auth)" />
                     <Stack.Screen name="(first-run)" />
-                    <Stack.Screen name="profile-setup" />
                     <Stack.Screen name="profile-creation" />
                     <Stack.Screen name="social-setup" />
                     <Stack.Screen name="(tabs)" />

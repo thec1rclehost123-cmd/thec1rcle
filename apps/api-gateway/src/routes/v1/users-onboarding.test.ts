@@ -1,12 +1,11 @@
 import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MAX_NIGHTLIFE_TASTES, NIGHTLIFE_TASTES, USER_INTENTS } from '@c1rcle/types';
 import validatePlugin from '../../plugins/validate';
 
 const userService = vi.hoisted(() => ({
   syncAuthUser: vi.fn(),
   updateProfile: vi.fn(),
-  registerDeviceToken: vi.fn(),
-  revokeDeviceToken: vi.fn(),
 }));
 const onboardingService = vi.hoisted(() => ({
   syncOnboardingAuthState: vi.fn(),
@@ -17,13 +16,9 @@ const onboardingService = vi.hoisted(() => ({
   recordEmailPrompt: vi.fn(),
   completeOnboarding: vi.fn(),
 }));
-const recommendationSignalService = vi.hoisted(() => ({
-  recordRecommendationSignal: vi.fn(),
-}));
 
 vi.mock('@c1rcle/core/user-service', () => userService);
 vi.mock('@c1rcle/core/onboarding-service', () => onboardingService);
-vi.mock('@c1rcle/core/recommendation-signal-service', () => recommendationSignalService);
 
 import userRoutes from './users';
 
@@ -66,30 +61,8 @@ describe('consumer onboarding routes', () => {
         phoneVerified: true,
       },
       onboarding: { version: 2, currentStage: 'identity', completed: false },
-      snapshot: {
-        version: 2,
-        currentStage: 'identity',
-        completed: false,
-        displayName: 'Aayush',
-        dateOfBirth: '2000-01-01',
-        cityId: null,
-        cityName: null,
-        vibeTags: [],
-        intents: [],
-      },
-      requirements: { minimumAccountAge: 18, minimumTastes: 3 },
+      onboardingProfile: { displayName: 'Aayush', cityId: 'pune' },
       routeAccess: { canBrowsePublicExplore: true, canAccessSignedInExplore: false },
-    });
-    recommendationSignalService.recordRecommendationSignal.mockResolvedValue({
-      accepted: true,
-      changed: true,
-      profileVersion: 4,
-    });
-    userService.registerDeviceToken.mockResolvedValue({ success: true });
-    userService.revokeDeviceToken.mockResolvedValue({
-      success: true,
-      revoked: true,
-      alreadyRevoked: false,
     });
   });
 
@@ -108,14 +81,7 @@ describe('consumer onboarding routes', () => {
       profile: { uid: 'user_1', phoneNumber: '+919999999999' },
       identity: { phoneVerified: true },
       onboarding: { currentStage: 'identity' },
-      snapshot: {
-        currentStage: 'identity',
-        displayName: 'Aayush',
-        dateOfBirth: '2000-01-01',
-        cityId: null,
-        vibeTags: [],
-      },
-      requirements: { minimumAccountAge: 18, minimumTastes: 3 },
+      onboardingProfile: { displayName: 'Aayush', cityId: 'pune' },
       routeAccess: { canBrowsePublicExplore: true },
     });
     expect(onboardingService.syncOnboardingAuthState).toHaveBeenCalledWith(
@@ -156,64 +122,70 @@ describe('consumer onboarding routes', () => {
     await server.close();
   });
 
-  it('validates and delegates privacy-safe recommendation signals', async () => {
+  it('accepts every shared taste and intent value', async () => {
     const server = await buildServer();
     const response = await server.inject({
-      method: 'POST',
-      url: '/api/v1/users/me/recommendation-signals',
-      payload: { type: 'category_browse', category: 'live_music' },
+      method: 'PATCH',
+      url: '/api/v1/users/me/onboarding/preferences',
+      payload: { vibeTags: [...NIGHTLIFE_TASTES], intents: [...USER_INTENTS] },
     });
 
     expect(response.statusCode).toBe(200);
-    expect(recommendationSignalService.recordRecommendationSignal).toHaveBeenCalledWith(
+    expect(onboardingService.updateOnboardingPreferences).toHaveBeenCalledWith(
       expect.anything(),
       'user_1',
-      { type: 'category_browse', category: 'live_music' },
+      { vibeTags: [...NIGHTLIFE_TASTES], intents: [...USER_INTENTS] },
     );
     await server.close();
   });
 
-  it('rejects recommendation signal payloads containing personal data', async () => {
+  it('enforces the shared maximum taste count', async () => {
     const server = await buildServer();
     const response = await server.inject({
-      method: 'POST',
-      url: '/api/v1/users/me/recommendation-signals',
-      payload: { type: 'category_browse', category: 'clubs', email: 'private@example.com' },
-    });
-    expect(response.statusCode).toBe(400);
-    expect(recommendationSignalService.recordRecommendationSignal).not.toHaveBeenCalled();
-    await server.close();
-  });
-
-  it('validates and delegates caller-owned device token revocation', async () => {
-    const server = await buildServer();
-    const response = await server.inject({
-      method: 'DELETE',
-      url: '/api/v1/users/me/device-token',
+      method: 'PATCH',
+      url: '/api/v1/users/me/onboarding/preferences',
       payload: {
-        token: 'ExponentPushToken[device-one]',
-        deviceId: 'android-build-1',
+        vibeTags: [...NIGHTLIFE_TASTES, NIGHTLIFE_TASTES[0]],
+        intents: [USER_INTENTS[0]],
       },
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(userService.revokeDeviceToken).toHaveBeenCalledWith(expect.anything(), 'user_1', {
-      token: 'ExponentPushToken[device-one]',
-      deviceId: 'android-build-1',
-    });
+    expect(MAX_NIGHTLIFE_TASTES).toBe(NIGHTLIFE_TASTES.length);
+    expect(response.statusCode).toBe(400);
+    expect(onboardingService.updateOnboardingPreferences).not.toHaveBeenCalled();
     await server.close();
   });
 
-  it('rejects an unvalidated device token revoke payload before core execution', async () => {
+  it.each(['shown', 'skipped'] as const)(
+    'records the %s recovery-email prompt decision',
+    async (status) => {
+      const server = await buildServer();
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/me/onboarding/email-prompt',
+        payload: { status },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(onboardingService.recordEmailPrompt).toHaveBeenCalledWith(
+        expect.anything(),
+        'user_1',
+        status,
+      );
+      await server.close();
+    },
+  );
+
+  it('rejects client-written email verification state', async () => {
     const server = await buildServer();
     const response = await server.inject({
-      method: 'DELETE',
-      url: '/api/v1/users/me/device-token',
-      payload: { token: 'short', userId: 'user_2' },
+      method: 'POST',
+      url: '/api/v1/users/me/onboarding/email-prompt',
+      payload: { status: 'verified' },
     });
 
     expect(response.statusCode).toBe(400);
-    expect(userService.revokeDeviceToken).not.toHaveBeenCalled();
+    expect(onboardingService.recordEmailPrompt).not.toHaveBeenCalled();
     await server.close();
   });
 });

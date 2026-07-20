@@ -1,16 +1,17 @@
-import { Redirect, Stack } from 'expo-router';
-import { shouldEnforceFirstRunV2 } from '@/lib/featureFlags';
-import { Platform } from 'react-native';
-import { useAuthStore } from '@/store/authStore';
-import { useProfileStore } from '@/store/profileStore';
+import { Redirect, Stack, useGlobalSearchParams } from 'expo-router';
+import { useFirstRunStore } from '@/store/firstRunStore';
 
 export default function FirstRunLayout() {
-  const user = useAuthStore((state) => state.user);
-  const profile = useProfileStore((state) => state.profile);
-  if (!shouldEnforceFirstRunV2(undefined, {
-    subjectId: user?.uid,
-    platform: Platform.OS,
-    internalAccount: Boolean((profile as any)?.isInternalAccount || (profile as any)?.claims?.internal),
-  })) return <Redirect href="/" />;
-  return <Stack screenOptions={{ headerShown: false, animation: 'fade', contentStyle: { backgroundColor: '#000000' } }} />;
+  const completed = useFirstRunStore((state) => state.snapshot?.currentStage === 'complete');
+  const { edit } = useGlobalSearchParams<{ edit?: string }>();
+  if (completed && edit !== 'true') return <Redirect href="/(tabs)/explore" />;
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: 'fade',
+        contentStyle: { backgroundColor: '#000000' },
+      }}
+    />
+  );
 }

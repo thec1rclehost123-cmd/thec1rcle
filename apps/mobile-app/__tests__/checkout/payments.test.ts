@@ -25,6 +25,15 @@ jest.mock('../../lib/api', () => ({
   getOrder: jest.fn(),
 }));
 
+const mockFirebaseUser = {
+  uid: 'user_1',
+  getIdToken: jest.fn().mockResolvedValue('firebase-token'),
+};
+
+jest.mock('../../lib/firebase', () => ({
+  getFirebaseAuth: jest.fn(() => ({ currentUser: mockFirebaseUser })),
+}));
+
 jest.mock('../../store/ticketsStore', () => ({
   useTicketsStore: {
     getState: jest.fn(() => ({

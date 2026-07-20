@@ -120,10 +120,24 @@ async function buildServer() {
       })),
     })),
   } as any);
+  server.decorate('requireVerifiedPhone', async (request: any, reply: any) => {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+    if (!request.user.phone_number) {
+      return reply.status(403).send({
+        error: { code: 'PHONE_VERIFICATION_REQUIRED', message: 'Phone verification required' },
+      });
+    }
+  });
 
   server.addHook('onRequest', async (request: any) => {
     if (request.headers.authorization) {
-      request.user = { uid: 'user_1', email: 'user@example.com' };
+      request.user = {
+        uid: 'user_1',
+        email: 'user@example.com',
+        ...(request.headers['x-test-unverified'] === '1' ? {} : { phone_number: '+919999999999' }),
+      };
     }
   });
 
@@ -138,6 +152,68 @@ async function buildServer() {
 describe('GP-5 gateway wallet/profile/notification routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('rejects ticket delivery, transfer, share and claim operations without a Firebase phone claim', async () => {
+    const server = await buildServer();
+    const headers = { authorization: 'Bearer test-token', 'x-test-unverified': '1' };
+    const cases = [
+      ['GET', '/api/v1/tickets', undefined],
+      ['GET', '/api/v1/tickets/me', undefined],
+      ['GET', '/api/v1/tickets/my-wallet', undefined],
+      ['POST', '/api/v1/ticket_1/transfer', {}],
+      ['POST', '/api/v1/claim', {}],
+      [
+        'POST',
+        '/api/v1/tickets/transfer',
+        { ticketId: 'ticket_1', recipientEmail: 'recipient@example.com' },
+      ],
+      ['PATCH', '/api/v1/tickets/transfer', {}],
+      ['DELETE', '/api/v1/tickets/transfer?transferId=transfer_1', undefined],
+      ['GET', '/api/v1/tickets/transfer/pending', undefined],
+      ['POST', '/api/v1/tickets/share', { orderId: 'ord_1', eventId: 'event_1', quantity: 1 }],
+      ['GET', '/api/v1/tickets/share?orderId=ord_1', undefined],
+      ['DELETE', '/api/v1/tickets/share', {}],
+      ['POST', '/api/v1/tickets/share/revoke', {}],
+      ['POST', '/api/v1/tickets/claim/share', { token: 'share_tok' }],
+      ['GET', '/api/v1/tickets/pair?bundleId=bundle_1', undefined],
+      ['POST', '/api/v1/tickets/pair', { token: 'pair_tok' }],
+      ['DELETE', '/api/v1/tickets/pair', {}],
+      ['POST', '/api/v1/tickets/pair/link', {}],
+      ['POST', '/api/v1/tickets/pair/assign', {}],
+      ['POST', '/api/v1/tickets/pair/transfer', {}],
+      ['GET', '/api/v1/tickets/cover-wallet?orderId=ord_1', undefined],
+      ['POST', '/api/v1/tickets/cover-wallets', {}],
+      ['GET', '/api/v1/tickets/download?orderId=ord_1', undefined],
+      ['GET', '/api/v1/tickets/ticket_1', undefined],
+      ['POST', '/api/v1/tickets/ticket_1/refresh-qr', {}],
+    ] as const;
+
+    for (const [method, url, payload] of cases) {
+      const response = await server.inject({ method, url, headers, payload });
+      expect(response.statusCode, `${method} ${url}`).toBe(403);
+      expect(response.json(), `${method} ${url}`).toMatchObject({
+        error: { code: 'PHONE_VERIFICATION_REQUIRED' },
+      });
+    }
+
+    await server.close();
+  });
+
+  it('keeps share and pair token previews public without allowing a claim', async () => {
+    const server = await buildServer();
+    const sharePreview = await server.inject({
+      method: 'GET',
+      url: '/api/v1/tickets/claim?token=share_tok',
+    });
+    const pairPreview = await server.inject({
+      method: 'GET',
+      url: '/api/v1/tickets/pair?token=pair_tok',
+    });
+
+    expect(sharePreview.statusCode).toBe(200);
+    expect(pairPreview.statusCode).toBe(200);
+    await server.close();
   });
 
   it('GET /api/v1/tickets returns the legacy wallet buckets for the authenticated guest', async () => {

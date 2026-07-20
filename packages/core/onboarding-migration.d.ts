@@ -1,36 +1,57 @@
-export type OnboardingMigrationCohort =
-  | 'already_migrated_v2'
-  | 'orphaned_firestore_user'
-  | 'legacy_complete_grandfathered'
-  | 'legacy_complete_phone_required'
-  | 'canonical_complete'
-  | 'incomplete_phone_required'
-  | 'incomplete_email_optional'
-  | 'incomplete_identity'
-  | 'incomplete_city'
-  | 'incomplete_tastes'
-  | 'incomplete_intent';
+export type OnboardingMigrationClassification = {
+  providers: string[];
+  firebasePhone: string | null;
+  firestorePhone: string | null;
+  firestoreOnlyPhone: boolean;
+  missingEmail: boolean;
+  missingDob: boolean;
+  missingCity: boolean;
+  missingTastes: boolean;
+  v1Complete: boolean;
+  v2Complete: boolean;
+  allowNonblockingPreferences: boolean;
+  skipLegacyEmailPrompt: boolean;
+  canonicalStage: string;
+};
 
-export interface OnboardingMigrationClassification {
-  userId: string;
-  cohort: OnboardingMigrationCohort;
-  currentStage: string;
-  firebasePhoneVerified: boolean;
-  legacyComplete: boolean;
-  proposedChanges: Record<string, unknown>;
-  shouldApply: boolean;
-}
+export type OnboardingMigrationPlan = {
+  changed: boolean;
+  classification: OnboardingMigrationClassification;
+  patch: Record<string, unknown> | null;
+};
 
-export const ONBOARDING_V2_MIGRATION_VERSION: 2;
-export const ONBOARDING_V2_MIGRATION_KEY: 'consumerOnboardingV2';
-export const onboardingMigrationCohorts: OnboardingMigrationCohort[];
-export function classifyOnboardingV2Migration(input: {
-  userId: string;
-  data?: Record<string, any>;
-  authRecord?: Record<string, any> | null;
-}): OnboardingMigrationClassification;
-export function buildOnboardingV2ApplyPatch(
-  classification: OnboardingMigrationClassification,
-  existingData: Record<string, any>,
-  migratedAt: string,
-): Record<string, any>;
+export type OnboardingMigrationReport = {
+  totalUsers: number;
+  providerDistribution: Record<string, number>;
+  missingFirebaseUser: number;
+  missingFirestoreDocument: number;
+  missingPhone: number;
+  firestoreOnlyPhone: number;
+  missingEmail: number;
+  missingDob: number;
+  missingCity: number;
+  missingTastes: number;
+  v1Complete: number;
+  v2Complete: number;
+  documentsThatWouldChange: number;
+};
+
+export const ONBOARDING_MIGRATION_VERSION: number;
+export function classifyOnboardingMigration(
+  userId: string,
+  data?: Record<string, any>,
+  authRecord?: Record<string, any> | null,
+): OnboardingMigrationClassification;
+export function planOnboardingV2Migration(
+  userId: string,
+  data?: Record<string, any>,
+  authRecord?: Record<string, any> | null,
+  migratedAt?: string,
+): OnboardingMigrationPlan;
+export function createOnboardingMigrationReport(): OnboardingMigrationReport;
+export function addToOnboardingMigrationReport(
+  report: OnboardingMigrationReport,
+  plan: OnboardingMigrationPlan,
+  hasFirebaseUser?: boolean,
+  hasFirestoreDocument?: boolean,
+): OnboardingMigrationReport;

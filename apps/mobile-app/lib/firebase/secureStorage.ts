@@ -12,6 +12,7 @@
  *   - Single-chunk values use the bare key (no suffix) for efficiency.
  */
 import * as SecureStore from 'expo-secure-store';
+import { secureStoreKey } from '@/lib/secureStoreKey';
 
 const CHUNK_SUFFIX = '_chunk_';
 const COUNT_KEY_SUFFIX = '_chunks';
@@ -50,17 +51,18 @@ interface FirebaseStorage {
 
 export const secureStorage: FirebaseStorage = {
   getItem: async (key: string): Promise<string | null> => {
+    const storageKey = secureStoreKey(key);
     try {
-      const countStr = await SecureStore.getItemAsync(key + COUNT_KEY_SUFFIX);
+      const countStr = await SecureStore.getItemAsync(storageKey + COUNT_KEY_SUFFIX);
       if (countStr === null) {
-        return await SecureStore.getItemAsync(key);
+        return await SecureStore.getItemAsync(storageKey);
       }
       const count = parseInt(countStr, 10);
       if (isNaN(count) || count < 1) return null;
 
       const parts: string[] = [];
       for (let i = 0; i < count; i++) {
-        const chunk = await SecureStore.getItemAsync(key + CHUNK_SUFFIX + i);
+        const chunk = await SecureStore.getItemAsync(storageKey + CHUNK_SUFFIX + i);
         if (chunk === null) return null;
         parts.push(chunk);
       }
@@ -71,6 +73,7 @@ export const secureStorage: FirebaseStorage = {
   },
 
   setItem: async (key: string, value: string): Promise<void> => {
+    const storageKey = secureStoreKey(key);
     try {
       await secureStorage.removeItem(key);
 
@@ -79,13 +82,13 @@ export const secureStorage: FirebaseStorage = {
 
       if (count === 0) return;
       if (count === 1) {
-        await SecureStore.setItemAsync(key, value);
+        await SecureStore.setItemAsync(storageKey, value);
         return;
       }
 
-      await SecureStore.setItemAsync(key + COUNT_KEY_SUFFIX, String(count));
+      await SecureStore.setItemAsync(storageKey + COUNT_KEY_SUFFIX, String(count));
       for (let i = 0; i < count; i++) {
-        await SecureStore.setItemAsync(key + CHUNK_SUFFIX + i, chunks[i]);
+        await SecureStore.setItemAsync(storageKey + CHUNK_SUFFIX + i, chunks[i]);
       }
     } catch (error) {
       console.error('[secureStorage] setItem failed:', error);
@@ -94,20 +97,21 @@ export const secureStorage: FirebaseStorage = {
   },
 
   removeItem: async (key: string): Promise<void> => {
+    const storageKey = secureStoreKey(key);
     try {
-      const countStr = await SecureStore.getItemAsync(key + COUNT_KEY_SUFFIX);
+      const countStr = await SecureStore.getItemAsync(storageKey + COUNT_KEY_SUFFIX);
       if (countStr !== null) {
         const count = parseInt(countStr, 10);
         if (!isNaN(count) && count > 0) {
           const deletions = [];
           for (let i = 0; i < count; i++) {
-            deletions.push(SecureStore.deleteItemAsync(key + CHUNK_SUFFIX + i));
+            deletions.push(SecureStore.deleteItemAsync(storageKey + CHUNK_SUFFIX + i));
           }
-          deletions.push(SecureStore.deleteItemAsync(key + COUNT_KEY_SUFFIX));
+          deletions.push(SecureStore.deleteItemAsync(storageKey + COUNT_KEY_SUFFIX));
           await Promise.allSettled(deletions);
         }
       }
-      await SecureStore.deleteItemAsync(key);
+      await SecureStore.deleteItemAsync(storageKey);
     } catch {
       // Swallow errors on removal
     }

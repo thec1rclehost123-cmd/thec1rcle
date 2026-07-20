@@ -1,5 +1,5 @@
-import { LegacyFirstRunRedirect } from '@/components/first-run/LegacyFirstRunRedirect';
+import { Redirect } from 'expo-router';
 
 export default function LegacyContactRedirect() {
-  return <LegacyFirstRunRedirect />;
+  return <Redirect href="/" />;
 }

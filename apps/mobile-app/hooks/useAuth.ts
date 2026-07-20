@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { completeAuthSessionAfterSignIn, useAuthStore } from '@/store/authStore';
+import { getPhoneAuthFailure } from '@/lib/auth/phoneAuthError';
 import {
   loginWithEmail,
   signupWithEmail,
@@ -17,18 +18,6 @@ import {
   linkEmailToUser,
   sendVerificationLinkToCurrentUser,
 } from '@/lib/firebase';
-import { revokePushToken } from '@/lib/notifications';
-
-export async function performSignOut(userId?: string | null): Promise<void> {
-  if (userId) {
-    try {
-      await revokePushToken(userId);
-    } catch {
-      // Token revocation is best-effort and must never block Firebase sign-out.
-    }
-  }
-  await logout();
-}
 
 async function completeServerHandshake(user: Awaited<ReturnType<typeof loginWithEmail>>['user']) {
   try {
@@ -105,7 +94,7 @@ export function useAuth() {
     } catch (err: any) {
       const message = getActionErrorMessage(err);
       setError(message);
-      return { success: false, error: message, code: err?.code };
+      return { success: false, error: message };
     } finally {
       setAuthLoading(false);
     }
@@ -114,7 +103,7 @@ export function useAuth() {
   const signOut = useCallback(async () => {
     setAuthLoading(true);
     try {
-      await performSignOut(user?.uid);
+      await logout();
       return { success: true };
     } catch (err: any) {
       setError(err.message);
@@ -122,7 +111,7 @@ export function useAuth() {
     } finally {
       setAuthLoading(false);
     }
-  }, [user?.uid]);
+  }, []);
 
   const sendResetEmail = useCallback(async (email: string) => {
     setAuthLoading(true);
@@ -131,7 +120,8 @@ export function useAuth() {
       await resetPassword(email);
       return { success: true };
     } catch (err: any) {
-      const message = getErrorMessage(err.code) || err.message || 'Something went wrong. Please try again';
+      const message =
+        getErrorMessage(err.code) || err.message || 'Something went wrong. Please try again';
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -199,24 +189,35 @@ export function useAuth() {
     }
   }, []);
 
-  const sendPhoneCode = useCallback(async (phoneNumber: string, mode: 'sign_in' | 'link' = 'sign_in') => {
-    setAuthLoading(true);
-    setError(null);
-    try {
-      if (mode === 'link') {
-        const confirmation = await sendPhoneLinkVerificationCode(phoneNumber);
-        return { success: true, verificationId: confirmation.verificationId, expectedUid: confirmation.expectedUid };
+  const sendPhoneCode = useCallback(
+    async (phoneNumber: string, mode: 'sign_in' | 'link' = 'sign_in', transactionUid?: string) => {
+      setAuthLoading(true);
+      setError(null);
+      try {
+        if (mode === 'link') {
+          const confirmation = await sendPhoneLinkVerificationCode(phoneNumber, transactionUid);
+          return {
+            success: true,
+            verificationId: confirmation.verificationId,
+            expectedUid: confirmation.expectedUid,
+          };
+        }
+        const confirmation = await sendPhoneVerificationCode(phoneNumber);
+        return {
+          success: true,
+          verificationId: confirmation.verificationId,
+          expectedUid: undefined,
+        };
+      } catch (err: any) {
+        const failure = getPhoneAuthFailure(err);
+        setError(failure.message);
+        return { success: false, error: failure.message, ...failure };
+      } finally {
+        setAuthLoading(false);
       }
-      const confirmation = await sendPhoneVerificationCode(phoneNumber);
-      return { success: true, verificationId: confirmation.verificationId, expectedUid: undefined };
-    } catch (err: any) {
-      const message = getActionErrorMessage(err);
-      setError(message);
-      return { success: false, error: message };
-    } finally {
-      setAuthLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const confirmPhoneCode = useCallback(async (verificationId: string, code: string) => {
     setAuthLoading(true);
@@ -226,40 +227,48 @@ export function useAuth() {
       await completeServerHandshake(result.user);
       return { success: true };
     } catch (err: any) {
-      const message = getActionErrorMessage(err);
-      setError(message);
-      return { success: false, error: message };
+      const failure = getPhoneAuthFailure(err);
+      setError(failure.message);
+      return { success: false, error: failure.message, ...failure };
     } finally {
       setAuthLoading(false);
     }
   }, []);
 
-  const linkPhoneCode = useCallback(async (verificationId: string, code: string, expectedUid: string) => {
-    setAuthLoading(true);
-    setError(null);
-    try {
-      const result = await linkWithPhoneVerificationCode(verificationId, code, expectedUid);
-      await completeServerHandshake(result.user);
-      return { success: true };
-    } catch (err: any) {
-      const message = getActionErrorMessage(err);
-      setError(message);
-      return { success: false, error: message, code: err?.code };
-    } finally {
-      setAuthLoading(false);
-    }
-  }, []);
+  const linkPhoneCode = useCallback(
+    async (verificationId: string, code: string, expectedUid: string) => {
+      setAuthLoading(true);
+      setError(null);
+      try {
+        const result = await linkWithPhoneVerificationCode(verificationId, code, expectedUid);
+        await completeServerHandshake(result.user);
+        return { success: true };
+      } catch (err: any) {
+        const failure = getPhoneAuthFailure(err);
+        setError(failure.message);
+        return { success: false, error: failure.message, ...failure };
+      } finally {
+        setAuthLoading(false);
+      }
+    },
+    [],
+  );
 
   const linkEmail = useCallback(async (email: string) => {
     setAuthLoading(true);
     setError(null);
     try {
-      await linkEmailToUser(email);
+      const user = await linkEmailToUser(email);
       // Send magic link to verify the newly added email
-      const redirectUrl =
-        process.env.EXPO_PUBLIC_AUTH_ACTION_URL || 'https://thec1rcle.com/app/email-verified';
-      await sendVerificationLinkToCurrentUser(redirectUrl);
-      return { success: true };
+      const redirectUrl = `https://c1rcle-staging.firebaseapp.com/verify?email=${encodeURIComponent(email)}`;
+      let verificationSent = true;
+      try {
+        await sendVerificationLinkToCurrentUser(redirectUrl);
+      } catch {
+        verificationSent = false;
+      }
+      await completeServerHandshake(user);
+      return { success: true, verificationSent };
     } catch (err: any) {
       const message = getActionErrorMessage(err);
       setError(message);
@@ -272,7 +281,9 @@ export function useAuth() {
   // Surface server-sync failure as a persistent error when no action-level error is set
   const displayError =
     error ||
-    (authSyncFailed && authSyncError ? 'Connection issue. Please check your network and try again.' : null);
+    (authSyncFailed && authSyncError
+      ? 'Connection issue. Please check your network and try again.'
+      : null);
 
   return {
     user,
@@ -316,8 +327,6 @@ function getErrorMessage(code?: string): string | null {
       return 'Network error. Please check your connection';
     case 'auth/account-exists-with-different-credential':
       return 'An account with this email already exists. Try a different login method.';
-    case 'auth/credential-already-in-use':
-      return 'This phone number already belongs to another THE C1RCLE account.';
     case 'auth/link-with-password-required':
       return 'Enter your password to link this sign-in method and continue.';
     case 'auth/invalid-phone-number':

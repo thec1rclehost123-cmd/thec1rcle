@@ -606,9 +606,9 @@ export default function InboxScreen() {
 
   const newMatchCount = newMatches.filter((m) => m.isNew).length;
 
-  // if (isGuest) {
-  //   return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
-  // }
+  if (isGuest) {
+    return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
+  }
 
   
   const handleInboxSwipe = useCallback(
@@ -634,10 +634,6 @@ export default function InboxScreen() {
         }),
     [handleInboxSwipe],
   );
-
-  if (isGuest) {
-    return <EmptyChatReplica />;
-  }
 
   const hasNoChats =
     !loading && eventChats.length === 0 && privateChats.length === 0 && newMatches.length === 0;

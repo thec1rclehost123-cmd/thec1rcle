@@ -1,6 +1,6 @@
-import { LegacyFirstRunRedirect } from '@/components/first-run/LegacyFirstRunRedirect';
+import { Redirect } from 'expo-router';
 
 /** Legacy route retained for old deep links. The root coordinator owns the next stage. */
 export default function LegacyOnboardingRedirect() {
-  return <LegacyFirstRunRedirect />;
+  return <Redirect href="/" />;
 }

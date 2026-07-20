@@ -103,18 +103,18 @@ describe('profileStore', () => {
       });
     });
 
-    it('returns false and rolls back without doubling the failed request', async () => {
+    it('returns false and reverts the optimistic value on server error', async () => {
       useProfileStore.setState({
         profile: { uid: 'user_1', email: 'a@b.com', displayName: 'Name' } as any,
       });
 
       mockApiFetch.mockRejectedValueOnce(new Error('Update failed'));
+
       const ok = await useProfileStore.getState().updateProfile('user_1', { bio: 'New bio' });
 
       expect(ok).toBe(false);
       expect(mockApiFetch).toHaveBeenCalledTimes(1);
-      expect(useProfileStore.getState().profile?.displayName).toBe('Name');
-      expect(useProfileStore.getState().error).toBe('Update failed');
+      expect(useProfileStore.getState().profile?.bio).toBeUndefined();
     });
 
     it('strips undefined values from the PATCH payload', async () => {
@@ -137,14 +137,7 @@ describe('profileStore', () => {
   });
 
   describe('setProfileFromGateway', () => {
-    it('merges the partial auth payload and leaves private hydration open', () => {
-      useProfileStore.setState({
-        profile: {
-          uid: 'user_1',
-          datingPhotos: ['https://storage.googleapis.com/c1rcle/nightlife.jpg'],
-        } as any,
-        _loadedUserId: 'user_1',
-      });
+    it('sets the profile directly from gateway payload', () => {
       useProfileStore.getState().setProfileFromGateway('user_1', {
         displayName: 'Gateway User',
         email: 'gateway@test.com',
@@ -153,12 +146,8 @@ describe('profileStore', () => {
       const profile = useProfileStore.getState().profile;
       expect(profile?.displayName).toBe('Gateway User');
       expect(profile?.uid).toBe('user_1');
-      expect(profile?.datingPhotos).toEqual([
-        'https://storage.googleapis.com/c1rcle/nightlife.jpg',
-      ]);
       expect(useProfileStore.getState().loading).toBe(false);
       expect(useProfileStore.getState().error).toBeNull();
-      expect(useProfileStore.getState()._loadedUserId).toBeNull();
     });
   });
 
@@ -183,18 +172,18 @@ describe('profileStore', () => {
       const AsyncStorage = require('@react-native-async-storage/async-storage');
       AsyncStorage.getItem.mockResolvedValueOnce('true');
 
-      await useProfileStore.getState().hydrateNightlifePromptDismissed('user_1');
+      await useProfileStore.getState().hydrateNightlifePromptDismissed();
       expect(useProfileStore.getState().nightlifePromptDismissed).toBe(true);
     });
 
     it('dismissNightlifePrompt persists to AsyncStorage', async () => {
       const AsyncStorage = require('@react-native-async-storage/async-storage');
 
-      await useProfileStore.getState().dismissNightlifePrompt('user_1');
+      await useProfileStore.getState().dismissNightlifePrompt();
 
       expect(useProfileStore.getState().nightlifePromptDismissed).toBe(true);
       expect(AsyncStorage.setItem).toHaveBeenCalledWith(
-        'c1rcle_nightlife_profile_prompt_dismissed:user_1',
+        'c1rcle_nightlife_profile_prompt_dismissed',
         'true',
       );
     });

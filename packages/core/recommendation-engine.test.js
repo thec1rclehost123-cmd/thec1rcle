@@ -25,28 +25,51 @@ describe('explore-v2 recommendation ranking', () => {
       event: { id: 'match' },
       reasonCode: 'VIBE_AND_CITY_MATCH',
     });
+    expect(ranked[0].reasonLabel).toContain('live music');
     expect(ranked[0].reasonLabel).toContain('Pune');
   });
 
-  it('uses followed venues and penalizes incomplete event data', () => {
+  it('maps onboarding taxonomy to event vocabulary and changes ordering by city', () => {
+    const candidates = [
+      { id: 'pune-club', city: 'Pune', category: 'club', status: 'upcoming' },
+      { id: 'mumbai-club', city: 'Mumbai', category: 'club', status: 'upcoming' },
+    ];
+    const base = {
+      preferredTags: new Set(),
+      preferredHosts: new Set(),
+      pastEventIds: new Set(),
+      onboardingTags: new Set(['clubs']),
+      intents: new Set(),
+    };
+
+    expect(
+      rankEventsForProfile(candidates, { ...base, preferredCities: new Set(['pune']) }, 2)[0].event
+        .id,
+    ).toBe('pune-club');
+    expect(
+      rankEventsForProfile(candidates, { ...base, preferredCities: new Set(['mumbai']) }, 2)[0]
+        .event.id,
+    ).toBe('mumbai-club');
+  });
+
+  it('excludes past and previously attended events', () => {
     const profile = {
       preferredTags: new Set(),
       preferredCities: new Set(),
       preferredHosts: new Set(),
-      preferredVenueIds: new Set(['venue-1']),
-      pastEventIds: new Set(),
-      savedEventIds: new Set(),
+      pastEventIds: new Set(['attended']),
       onboardingTags: new Set(),
       intents: new Set(),
     };
     const ranked = rankEventsForProfile(
       [
-        { id: 'incomplete', heatScore: 5 },
-        { id: 'followed', title: 'Live Room', city: 'Mumbai', category: 'live_music', venueId: 'venue-1' },
+        { id: 'attended', status: 'upcoming' },
+        { id: 'ended', lifecycle: 'ended' },
+        { id: 'future', status: 'upcoming' },
       ],
       profile,
-      2,
+      5,
     );
-    expect(ranked[0]).toMatchObject({ event: { id: 'followed' }, reasonCode: 'VENUE_MATCH' });
+    expect(ranked.map((item) => item.event.id)).toEqual(['future']);
   });
 });

@@ -1,6 +1,6 @@
-import { LegacyFirstRunRedirect } from '@/components/first-run/LegacyFirstRunRedirect';
+import { Redirect } from 'expo-router';
 
-/** Legacy route retained for old deep links. The coordinator applies rollout flags. */
+/** Legacy route retained for old deep links. Identity is now a focused v2 step. */
 export default function LegacyProfileSetupRedirect() {
-  return <LegacyFirstRunRedirect />;
+  return <Redirect href={'/identity' as any} />;
 }

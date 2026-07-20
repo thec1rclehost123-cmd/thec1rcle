@@ -16,7 +16,7 @@ import {
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect, useIsFocused, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 
 import { ExploreFeaturedCarousel } from '@/components/ui/ExploreFeaturedCarousel';
@@ -26,7 +26,6 @@ import { useEventsStore, type Event, getHeatScore } from '@/store/eventsStore';
 import { useRecommendationsStore } from '@/store/recommendationsStore';
 import { useProfileStore } from '@/store/profileStore';
 import { getEventImage } from '@/lib/utils/event';
-import { useTicketsStore } from '@/store/ticketsStore';
 import { cacheEvents, getCachedEvents, updateLastSyncTime } from '@/lib/cache';
 import { useEventInterestStore } from '@/store/eventInterestStore';
 import { useAuth } from '@/hooks/useAuth';
@@ -35,14 +34,12 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   useAnimatedScrollHandler,
-
   withTiming,
   withSpring,
   withRepeat,
   withSequence,
   Easing,
   interpolateColor,
-  FadeInDown,
   FadeInRight,
   FadeIn,
   useFrameCallback,
@@ -57,13 +54,7 @@ import { colors, spacing, typography } from '@/lib/design/theme';
 import { NotificationBell } from '@/components/ui/NotificationBell';
 import { EventCardSkeletonList } from '@/components/ui/Skeleton';
 import { trackScreen } from '@/lib/analytics';
-import { trackFirstRun } from '@/lib/firstRunAnalytics';
-import { firstRunFeatureFlags } from '@/lib/featureFlags';
-import { resolveFirstRunStage } from '@/lib/firstRun';
-import { useFirstRunStore } from '@/store/firstRunStore';
-import { finishFirstRunMetric, startFirstRunMetric } from '@/lib/firstRunPerformance';
 import { resumePendingDeepLink } from '@/lib/deeplinks';
-import { resolveExploreBootstrapCity, shouldRunExploreBootstrap } from '@/lib/exploreCity';
 import { formatEventDate, safeDate } from '@/lib/utils/date';
 import { Search, MapPin, Compass, User, X } from 'lucide-react-native';
 import {
@@ -77,9 +68,11 @@ import {
 import {
   shouldPromptForLocation,
   recordLocationPrompt,
-  requestLocationSystemPermission,
   showSettingsAlert,
 } from '@/lib/permissions';
+import { cityIdFromName, DISCOVERY_CITIES } from '@/lib/firstRun';
+import { useFirstRunStore } from '@/store/firstRunStore';
+import { FIRST_RUN_EVENTS, trackFirstRun } from '@/lib/firstRunAnalytics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // ── Date filter pills ─────────────────────────────────────────────────────────
@@ -186,6 +179,15 @@ function applyCategoryFilter(events: Event[], category: CategoryFilter): Event[]
   return events.filter((e) => matchCategory(e, cat.keywords));
 }
 
+function eventMatchesCity(event: Event, city: string): boolean {
+  if (!city || city === 'all') return true;
+  const eventCity = String(event.city ?? event.location ?? '')
+    .trim()
+    .toLowerCase();
+  const selectedCity = city.trim().toLowerCase();
+  return eventCity === selectedCity || eventCity.startsWith(`${selectedCity},`);
+}
+
 function HeaderProfileAvatar() {
   const profile = useProfileStore((s) => s.profile);
   const initials = profile?.displayName
@@ -219,8 +221,6 @@ function HeaderProfileAvatar() {
     </Pressable>
   );
 }
-
-
 
 // ── Animated filter pill ───────────────────────────────────────────────────────
 function FilterPill({
@@ -325,26 +325,35 @@ function CategoryFilterRow({
   );
 }
 
-
 // ── Main screen ────────────────────────────────────────────────────────────────
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
-  const isFocused = useIsFocused();
   const params = useLocalSearchParams<{ firstRun?: string }>();
 
   const { events, loading, fetchEvents } = useEventsStore();
-  const { recommendations, reasonLabel, source: recommendationSource, score, loadBrowsed, loadServerRecommendations, setRecommendationsOwner } = useRecommendationsStore();
-  const ticketsStore = useTicketsStore();
+  const {
+    items: recommendationItems,
+    recommendations,
+    source: recommendationSource,
+    loading: recommendationLoading,
+    fallbackUsed,
+    loadServerRecommendations,
+    setFallbackEvents,
+    clear: clearRecommendations,
+  } = useRecommendationsStore();
   const { user } = useAuth();
   const { loadUserInterests } = useEventInterestStore();
   const profile = useProfileStore((s) => s.profile);
-  const loadedProfileUserId = useProfileStore((s) => s._loadedUserId);
-  const saveCanonicalCity = useFirstRunStore((s) => s.saveCity);
+  const firstRunSnapshot = useFirstRunStore((state) => state.snapshot);
+  const saveCity = useFirstRunStore((state) => state.saveCity);
+  const citySaving = useFirstRunStore((state) => state.loading);
+  const cityError = useFirstRunStore((state) => state.error);
 
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
-  const profileCity = profile?.discoveryProfile?.cityName || profile?.city || '';
+  const profileCity =
+    firstRunSnapshot?.cityName || profile?.discoveryProfile?.cityName || profile?.city || '';
   const [cityFilter, setCityFilter] = useState(profileCity.toLowerCase() || 'all');
   const [showCityModal, setShowCityModal] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
@@ -355,39 +364,20 @@ export default function ExploreScreen() {
   const [allScenesY, setAllScenesY] = useState(0);
   const lastTabBarScrollY = useRef(0);
   const lastTabBarEmitAt = useRef(0);
-  const firstRenderTracked = useRef(false);
-  const citySelectionTouched = useRef(false);
-  const exploreBootstrapKey = useRef<string | null>(null);
+  const exploreStartedAt = useRef(Date.now());
+  const exploreRenderedTracked = useRef(false);
 
-  // Cached discovery data is an offline fallback only. A successful empty API
-  // response is authoritative and must not resurrect stale or demo events.
-  const baseEvents = events.length > 0 ? events : isOffline ? cachedEvents : [];
+  useEffect(() => {
+    if (user?.uid && profileCity) setCityFilter(profileCity.toLowerCase());
+  }, [profileCity, user?.uid]);
 
-  const allEvents = useMemo(
-    () =>
-      baseEvents.filter((event) => {
-        const lifecycle = String((event as any).lifecycle || (event as any).status || '')
-          .trim()
-          .toLowerCase();
-        if (lifecycle === 'live') return true;
-        if (['past', 'ended', 'completed', 'cancelled', 'canceled', 'archived'].includes(lifecycle))
-          return false;
-        const cutoff = safeDate(
-          (event as any).endDate ||
-            (event as any).endAt ||
-            (event as any).endsAt ||
-            event.startDate,
-        );
-        return !cutoff || cutoff.getTime() > Date.now();
-      }),
-    [baseEvents],
-  );
-  const activeEventIds = useMemo(() => new Set(allEvents.map((event) => event.id)), [allEvents]);
-  const visibleRecommendations = useMemo(
-    () => recommendations.filter((event) => activeEventIds.has(event.id)),
-    [activeEventIds, recommendations],
-  );
+  const baseEvents = events.length > 0 ? events : cachedEvents;
+
+  const allEvents = baseEvents;
   const cityOptions = useMemo(() => {
+    if (user?.uid) {
+      return DISCOVERY_CITIES.map((city) => ({ value: city.name.toLowerCase(), label: city.name }));
+    }
     const seen = new Map<string, string>();
     allEvents.forEach((e) => {
       const city = e.city ?? e.location ?? '';
@@ -397,37 +387,50 @@ export default function ExploreScreen() {
       { value: 'all', label: 'All cities' },
       ...Array.from(seen.entries()).map(([, label]) => ({ value: label.toLowerCase(), label })),
     ];
-  }, [allEvents]);
+  }, [allEvents, user?.uid]);
 
-  const activeCityLabel = cityOptions.find((o) => o.value === cityFilter)?.label ??
-    (cityFilter === 'all' ? 'Choose a city' : cityFilter.replace(/\b\w/g, (letter) => letter.toUpperCase()));
+  const activeCityLabel =
+    cityOptions.find((o) => o.value === cityFilter)?.label ??
+    (cityFilter === 'all'
+      ? 'Choose a city'
+      : cityFilter.replace(/\b\w/g, (letter) => letter.toUpperCase()));
+  const cityScopedEvents = useMemo(
+    () => allEvents.filter((event) => eventMatchesCity(event, cityFilter)),
+    [allEvents, cityFilter],
+  );
 
   // Derived featured events — eliminates separate API call
   const featuredSlides = useMemo(() => {
-    return [...allEvents]
+    return [...cityScopedEvents]
       .filter((e) => e.isFeatured)
       .sort((a, b) => getHeatScore(b) - getHeatScore(a))
       .slice(0, 6);
-  }, [allEvents]);
+  }, [cityScopedEvents]);
+
+  const visibleRecommendations = useMemo(
+    () => recommendations.filter((event) => eventMatchesCity(event, cityFilter)),
+    [cityFilter, recommendations],
+  );
+  const visibleReasonLabel = useMemo(() => {
+    const firstId = visibleRecommendations[0]?.id;
+    return (
+      recommendationItems.find((item) => item.event.id === firstId)?.reasonLabel ||
+      (activeCityLabel === 'Choose a city' ? 'Popular right now' : `Popular in ${activeCityLabel}`)
+    );
+  }, [activeCityLabel, recommendationItems, visibleRecommendations]);
 
   const heroSlides = useMemo(() => {
-    const src = featuredSlides.length > 0 ? featuredSlides : allEvents;
+    if (visibleRecommendations.length > 0) return visibleRecommendations.slice(0, 6);
+    const src = featuredSlides.length > 0 ? featuredSlides : cityScopedEvents;
     return [...src].sort((a, b) => getHeatScore(b) - getHeatScore(a)).slice(0, 6);
-  }, [featuredSlides, allEvents]);
+  }, [featuredSlides, cityScopedEvents, visibleRecommendations]);
 
   const filteredEvents = useMemo(() => {
-    let result = allEvents;
+    let result = cityScopedEvents;
 
     // Apply strict filtering BEFORE sorting/slicing
     result = applyDateFilter(result, dateFilter);
     result = applyCategoryFilter(result, categoryFilter);
-    if (cityFilter !== 'all') {
-      result = result.filter((event) => {
-        const city = String(event.city ?? event.location ?? '').toLowerCase();
-        return city === cityFilter || city.includes(cityFilter);
-      });
-    }
-
     // Apply quick filters (including trending sort) on the accurately filtered data
     if (quickFilter !== 'all') {
       if (quickFilter === 'free') {
@@ -449,160 +452,138 @@ export default function ExploreScreen() {
     }
 
     return result;
-  }, [allEvents, cityFilter, dateFilter, categoryFilter, quickFilter]);
+  }, [cityScopedEvents, dateFilter, categoryFilter, quickFilter]);
 
   // "Similar to you" — events NOT in recommendations, by heat score
   const similarEvents = useMemo(() => {
-    const recIds = new Set(visibleRecommendations.map((e) => e.id));
-    return [...allEvents]
+    const recIds = new Set(recommendations.map((e) => e.id));
+    return [...cityScopedEvents]
       .filter((e) => !recIds.has(e.id))
       .sort((a, b) => getHeatScore(b) - getHeatScore(a))
       .slice(0, 8);
-  }, [allEvents, visibleRecommendations]);
+  }, [cityScopedEvents, recommendations]);
 
   // "Trending This Week" — events happening within the next 7 days, sorted by heat
   const trendingThisWeek = useMemo(() => {
     const nowMs = Date.now();
     const weekAheadMs = nowMs + 7 * 24 * 60 * 60 * 1000;
-    return [...allEvents]
+    return [...cityScopedEvents]
       .filter((e) => {
         const t = safeDate(e.startDate)?.getTime() ?? 0;
         return t >= nowMs && t <= weekAheadMs;
       })
       .sort((a, b) => getHeatScore(b) - getHeatScore(a))
       .slice(0, 10);
-  }, [allEvents]);
+  }, [cityScopedEvents]);
 
   // "Free Entry" — events with zero price
   const freeEvents = useMemo(() => {
-    return [...allEvents]
+    return [...cityScopedEvents]
       .filter((e) => getLowestPrice(e) === 0)
       .sort((a, b) => getHeatScore(b) - getHeatScore(a))
       .slice(0, 10);
-  }, [allEvents]);
+  }, [cityScopedEvents]);
 
-  const pastOrderCategories = useMemo(() => {
-    const orders = ticketsStore.orders;
-    return Array.from(
-      new Set(
-        orders.flatMap((o) => {
-          const cat = o.eventCategory ?? o.category ?? '';
-          return cat ? [cat.toLowerCase()] : [];
-        }),
-      ),
-    );
-  }, [ticketsStore.orders]);
+  const loadData = useCallback(
+    async (city?: string) => {
+      const cached = await getCachedEvents();
+      if (cached.data?.length) setCachedEvents(cached.data);
 
-  const loadData = useCallback(async (city?: string, force = false) => {
-    const cached = await getCachedEvents();
-    if (cached.data?.length) setCachedEvents(cached.data);
-
-    try {
-      const cityParam = city && city !== 'all' ? city : undefined;
-      await fetchEvents(cityParam, undefined, force);
-      const store = useEventsStore.getState();
-      setCachedEvents(store.events);
-      await cacheEvents(store.events);
-      if (store.events.length > 0) {
-        await updateLastSyncTime();
+      try {
+        const cityParam = city && city !== 'all' ? city : undefined;
+        await fetchEvents(cityParam);
+        const store = useEventsStore.getState();
+        if (store.events.length > 0) {
+          await cacheEvents(store.events);
+          await updateLastSyncTime();
+        }
+        setIsOffline(false);
+      } catch {
+        setIsOffline(true);
       }
-      setIsOffline(false);
-    } catch {
-      setIsOffline(true);
-    }
-  }, [fetchEvents]);
+    },
+    [fetchEvents],
+  );
 
   useEffect(() => {
-    setRecommendationsOwner(user?.uid ?? null);
-  }, [setRecommendationsOwner, user?.uid]);
-
-  useEffect(() => {
-    if (!shouldRunExploreBootstrap(isFocused, user?.uid, loadedProfileUserId)) return;
-    if (citySelectionTouched.current) return;
-
-    const initialCity = resolveExploreBootstrapCity(
-      profileCity,
-      cityFilter,
-      citySelectionTouched.current,
-    );
-    const canonicalCity = profileCity.trim().toLowerCase();
-    const bootstrapKey = `${user?.uid ?? 'guest'}:${loadedProfileUserId ?? 'none'}:${initialCity}`;
-    if (exploreBootstrapKey.current === bootstrapKey) return;
-    exploreBootstrapKey.current = bootstrapKey;
-
-    if (canonicalCity && cityFilter !== canonicalCity) {
-      setCityFilter(canonicalCity);
-    }
-
-    startFirstRunMetric('explore_first_content');
     trackScreen('Explore');
     if (user?.uid) void resumePendingDeepLink();
     if (user?.uid) void loadServerRecommendations(user.uid);
-    void loadBrowsed();
-    void loadData(initialCity);
+    else clearRecommendations();
+    void loadData(cityFilter);
     if (user?.uid) void loadUserInterests(user.uid);
-  }, [isFocused, user?.uid, loadedProfileUserId, profileCity, cityFilter, loadData, loadServerRecommendations]);
+  }, [
+    user?.uid,
+    cityFilter,
+    loadData,
+    loadServerRecommendations,
+    clearRecommendations,
+    loadUserInterests,
+  ]);
 
   useEffect(() => {
-    if (allEvents.length > 0 && recommendationSource !== 'server') score(allEvents, pastOrderCategories);
-  }, [allEvents, pastOrderCategories, recommendationSource, score]);
-
-  useEffect(() => {
-    if (loading || firstRenderTracked.current) return;
-    firstRenderTracked.current = true;
-    finishFirstRunMetric('explore_first_content');
-    finishFirstRunMetric('onboarding_to_explore');
-    trackFirstRun('first_run_explore_rendered', {
-      stage: 'explore',
-      source: params.firstRun === 'complete' ? 'onboarding' : 'launch',
-      recommendation_source: visibleRecommendations.length ? recommendationSource : 'none',
+    if (recommendationLoading || exploreRenderedTracked.current) return;
+    if (!recommendations.length && !fallbackUsed) return;
+    exploreRenderedTracked.current = true;
+    trackFirstRun(FIRST_RUN_EVENTS.EXPLORE_RENDERED, {
+      feedSource: recommendationSource,
+      outcome: fallbackUsed ? 'fallback' : 'personalized',
+      latencyMs: Date.now() - exploreStartedAt.current,
+      cityId: cityFilter === 'all' ? undefined : cityIdFromName(cityFilter),
     });
-  }, [loading, params.firstRun, recommendationSource, visibleRecommendations.length]);
+  }, [
+    cityFilter,
+    fallbackUsed,
+    recommendationLoading,
+    recommendationSource,
+    recommendations.length,
+  ]);
 
   useEffect(() => {
-    if (!firstRunFeatureFlags.contextualPermissionsEnabled) {
-      setShowLocationNudge(false);
-      return;
-    }
+    if (!allEvents.length || recommendationLoading) return;
+    if (recommendationSource === 'server' || recommendationSource === 'cache') return;
+    setFallbackEvents(
+      cityScopedEvents,
+      cityFilter === 'all' ? 'Popular right now' : `Popular in ${activeCityLabel}`,
+    );
+  }, [
+    activeCityLabel,
+    cityScopedEvents,
+    cityFilter,
+    recommendationLoading,
+    recommendationSource,
+    setFallbackEvents,
+  ]);
+
+  useEffect(() => {
     shouldPromptForLocation(user?.uid).then((show) => {
       setShowLocationNudge(show);
     });
   }, [user?.uid]);
 
-  const chooseCity = useCallback(async (value: string, label: string) => {
-    void Haptics.selectionAsync();
-    setShowCityModal(false);
-    citySelectionTouched.current = true;
-
-    const snapshot = useFirstRunStore.getState().snapshot;
-    const isCompletedUser = Boolean(
-      user && resolveFirstRunStage(user, useProfileStore.getState().profile, snapshot) === 'complete',
-    );
-
-    // Guest browsing and the "all cities" filter are session-local by design.
-    if (!user?.uid || value === 'all' || !isCompletedUser) {
-      setCityFilter(value);
-      await loadData(value);
-      return;
-    }
-
-    const saved = await saveCanonicalCity(value.replace(/\s+/g, '-'), label, 'manual');
-    if (!saved) return;
-    setCityFilter(value);
-    useProfileStore.getState().invalidateProfileCache();
-    await Promise.all([
-      useProfileStore.getState().loadProfile(user.uid),
-      loadServerRecommendations(user.uid),
-      loadData(value),
-    ]);
-  }, [loadData, loadServerRecommendations, saveCanonicalCity, user]);
-
   const onRefresh = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRefreshing(true);
-    await loadData(cityFilter, true);
+    await Promise.all([
+      loadData(cityFilter),
+      user?.uid ? loadServerRecommendations(user.uid, true) : Promise.resolve(false),
+    ]);
     setRefreshing(false);
-  }, [loadData, cityFilter]);
+  }, [loadData, cityFilter, loadServerRecommendations, user?.uid]);
+
+  const chooseCity = useCallback(
+    async (value: string, label: string) => {
+      void Haptics.selectionAsync();
+      if (user?.uid) {
+        const saved = await saveCity(cityIdFromName(label), label, 'manual');
+        if (!saved) return;
+        clearRecommendations();
+      }
+      setCityFilter(value);
+      setShowCityModal(false);
+    },
+    [clearRecommendations, saveCity, user?.uid],
+  );
 
   const isInitialLoading = loading && allEvents.length === 0;
 
@@ -611,7 +592,7 @@ export default function ExploreScreen() {
   useFocusEffect(
     useCallback(() => {
       setGreeting(getGreeting());
-    }, [])
+    }, []),
   );
 
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -633,7 +614,10 @@ export default function ExploreScreen() {
           <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
             <View style={styles.headerRow}>
               <Pressable onPress={() => setShowCityModal(true)} style={styles.locationBlock}>
-                <Text style={styles.greetingText}>{greeting}{profile?.displayName ? `, ${profile.displayName.split(' ')[0]}` : ''}</Text>
+                <Text style={styles.greetingText}>
+                  {greeting}
+                  {profile?.displayName ? `, ${profile.displayName.split(' ')[0]}` : ''}
+                </Text>
                 <View style={styles.cityRow}>
                   <MapPin size={22} color="#F44A22" strokeWidth={2.5} style={{ marginRight: 6 }} />
                   <Text style={styles.cityName}>{activeCityLabel}</Text>
@@ -660,15 +644,6 @@ export default function ExploreScreen() {
         ),
       },
       {
-        key: 'first-run-reveal',
-        render: () => params.firstRun === 'complete' ? (
-          <Animated.View entering={FadeInDown.duration(450)} style={styles.revealBanner}>
-            <Text style={styles.revealTitle}>Your C1RCLE is taking shape.</Text>
-            <Text style={styles.revealSubtitle}>These picks are tuned to your city and your nights.</Text>
-          </Animated.View>
-        ) : null,
-      },
-      {
         key: 'filters',
         render: () => (
           <View style={{ marginBottom: 0 }}>
@@ -691,24 +666,16 @@ export default function ExploreScreen() {
           showLocationNudge ? (
             <Animated.View entering={FadeIn} style={styles.locationBanner}>
               <MapPin size={18} color="#F44A22" strokeWidth={2.5} />
-              <Text style={styles.locationBannerText}>
-                Enable location to see events near you
-              </Text>
+              <Text style={styles.locationBannerText}>Enable location to see events near you</Text>
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setShowLocationNudge(false);
-                  void Promise.all([
-                    requestLocationSystemPermission(),
-                    recordLocationPrompt(user?.uid),
-                  ]).then(([granted]) => {
-                    if (!granted) {
-                      showSettingsAlert(
-                        'Location Access',
-                        'Turn on location access in Settings to discover events near you.',
-                      );
-                    }
-                  });
+                  recordLocationPrompt(user?.uid);
+                  showSettingsAlert(
+                    'Location Access',
+                    'Turn on location access in Settings to discover events near you.',
+                  );
                 }}
                 style={styles.locationBannerAction}
               >
@@ -729,7 +696,7 @@ export default function ExploreScreen() {
       {
         key: 'loading',
         render: () =>
-          isInitialLoading ? (
+          isInitialLoading || (recommendationLoading && params.firstRun === 'complete') ? (
             <EventCardSkeletonList count={3} style={styles.loadingSkeletons} />
           ) : null,
       },
@@ -753,17 +720,16 @@ export default function ExploreScreen() {
       },
       {
         key: 'top-venues',
-        render: () => (
+        render: () =>
           quickFilter === 'all' ? (
             <TopVenues city={cityFilter === 'all' ? undefined : activeCityLabel} />
-          ) : null
-        ),
+          ) : null,
       },
       {
         key: 'editors-picks',
         render: () =>
           quickFilter === 'all' && visibleRecommendations.length > 0 ? (
-            <EditorsPicks events={visibleRecommendations} title={reasonLabel} />
+            <EditorsPicks events={visibleRecommendations} title={visibleReasonLabel} />
           ) : null,
       },
       {
@@ -785,7 +751,7 @@ export default function ExploreScreen() {
         render: () =>
           filteredEvents.length > 0 ? (
             <View onLayout={(e) => setAllScenesY(e.nativeEvent.layout.y)}>
-              <AllScenes 
+              <AllScenes
                 events={filteredEvents}
                 onPageChange={() => {
                   mainScrollRef.current?.scrollToOffset({
@@ -806,7 +772,7 @@ export default function ExploreScreen() {
       {
         key: 'no-content',
         render: () =>
-          !loading && allEvents.length === 0 && !isOffline ? (
+          !loading && cityScopedEvents.length === 0 && !isOffline ? (
             <View style={styles.emptyState}>
               <Compass size={48} color="rgba(255,255,255,0.15)" strokeWidth={2} />
               <Text style={styles.emptyText}>No events yet</Text>
@@ -817,8 +783,8 @@ export default function ExploreScreen() {
       {
         key: 'map',
         render: () =>
-          !isInitialLoading && allEvents.length > 0 ? (
-            <ExploreMapPreview events={allEvents} />
+          !isInitialLoading && cityScopedEvents.length > 0 ? (
+            <ExploreMapPreview events={cityScopedEvents} />
           ) : null,
       },
     ],
@@ -827,6 +793,7 @@ export default function ExploreScreen() {
       allEvents,
       allScenesY,
       categoryFilter,
+      cityScopedEvents,
       dateFilter,
       filteredEvents,
       freeEvents,
@@ -837,10 +804,15 @@ export default function ExploreScreen() {
       isOffline,
       loading,
       quickFilter,
-      reasonLabel,
+      recommendations,
       params.firstRun,
+      recommendationLoading,
+      recommendationSource,
       similarEvents,
       trendingThisWeek,
+      fallbackUsed,
+      user?.uid,
+      visibleReasonLabel,
       visibleRecommendations,
     ],
   );
@@ -853,7 +825,6 @@ export default function ExploreScreen() {
         pointerEvents="none"
       />
       <FlashList
-
         style={styles.scrollLayer}
         ref={mainScrollRef}
         bounces={false}
@@ -911,6 +882,9 @@ export default function ExploreScreen() {
             {cityOptions.map((opt) => (
               <Pressable
                 key={opt.value}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: cityFilter === opt.value, disabled: citySaving }}
+                disabled={citySaving}
                 onPress={() => void chooseCity(opt.value, opt.label)}
                 style={styles.cityOption}
               >
@@ -925,6 +899,7 @@ export default function ExploreScreen() {
                 {cityFilter === opt.value && <Text style={styles.cityOptionCheck}>✓</Text>}
               </Pressable>
             ))}
+            {cityError ? <Text style={styles.cityError}>{cityError}</Text> : null}
           </ScrollView>
         </View>
       </Modal>
@@ -1039,9 +1014,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,170,0,0.25)',
   },
-  revealBanner: { marginHorizontal: 16, marginBottom: 12, padding: 16, borderRadius: 16, backgroundColor: 'rgba(244,74,34,0.12)', borderWidth: 1, borderColor: 'rgba(244,74,34,0.28)' },
-  revealTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
-  revealSubtitle: { color: 'rgba(255,255,255,0.62)', fontSize: 13, lineHeight: 19, marginTop: 4 },
   offlineText: { color: '#FFAA00', fontSize: typography.fontSize.sm, fontWeight: '500' },
   locationBanner: {
     marginHorizontal: 16,
@@ -1161,4 +1133,5 @@ const styles = StyleSheet.create({
   },
   cityOptionTextActive: { color: '#FFFFFF', fontWeight: '700' },
   cityOptionCheck: { color: '#F44A22', fontSize: typography.fontSize.md, fontWeight: '700' },
+  cityError: { color: '#FF796B', fontSize: 13, lineHeight: 18, paddingVertical: 12 },
 });

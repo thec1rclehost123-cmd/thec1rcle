@@ -1,188 +1,193 @@
-import {
-  buildOnboardingBootstrap,
-  normalizeAuthIdentity,
-  onboardingConstants,
-} from './onboarding-service.js';
+import { ONBOARDING_V2_VERSION } from '@c1rcle/types';
+import { buildOnboardingBootstrap, normalizeAuthIdentity } from './onboarding-service.js';
 
-export const ONBOARDING_V2_MIGRATION_VERSION = 2;
-export const ONBOARDING_V2_MIGRATION_KEY = 'consumerOnboardingV2';
+export const ONBOARDING_MIGRATION_VERSION = ONBOARDING_V2_VERSION;
 
-function compactObject(value) {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
+const LEGACY_COMPLETION_FIELDS = [
+  'onboardingComplete',
+  'basicSetupComplete',
+  'profileSetupComplete',
+  'profileComplete',
+];
+
+function hasLegacyCompletion(data = {}) {
+  return LEGACY_COMPLETION_FIELDS.some((field) => data[field] === true);
 }
 
-function stableValue(value) {
-  if (Array.isArray(value)) return value.map(stableValue);
-  if (!value || typeof value !== 'object') return value;
-  return Object.fromEntries(
-    Object.keys(value)
-      .sort()
-      .map((key) => [key, stableValue(value[key])]),
-  );
+function providerIds(authRecord = {}) {
+  return [
+    ...new Set((authRecord.providerData || []).map((entry) => entry?.providerId).filter(Boolean)),
+  ];
 }
 
-function valuesEqual(left, right) {
-  return JSON.stringify(stableValue(left)) === JSON.stringify(stableValue(right));
+function cityIdFromName(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-');
 }
 
-function legacyCompletionIsTrue(data) {
-  return (
-    data?.onboardingComplete === true &&
-    (data?.basicSetupComplete === true ||
-      data?.profileSetupComplete === true ||
-      data?.profileComplete === true)
-  );
-}
-
-function canonicalCompatibilityPatch(data) {
-  const displayName = data?.identity?.displayName || data?.displayName || data?.name;
-  const dateOfBirth = data?.identity?.dateOfBirth || data?.dateOfBirth;
-  const cityId = data?.discoveryProfile?.cityId || data?.cityId;
-  const cityName = data?.discoveryProfile?.cityName || data?.city;
-  const citySource = data?.discoveryProfile?.citySource;
-  const vibeTags = Array.isArray(data?.discoveryProfile?.vibeTags)
-    ? data.discoveryProfile.vibeTags
-    : Array.isArray(data?.vibeTags)
-      ? data.vibeTags
-      : undefined;
-  const intents = Array.isArray(data?.discoveryProfile?.intents)
-    ? data.discoveryProfile.intents
-    : Array.isArray(data?.intents)
-      ? data.intents
-      : undefined;
-
-  const identity = compactObject({
-    ...(data?.identity || {}),
-    displayName: displayName ? String(displayName).trim() : undefined,
-    dateOfBirth: dateOfBirth || undefined,
-  });
-  const discoveryProfile = compactObject({
-    ...(data?.discoveryProfile || {}),
-    cityId: cityId || undefined,
-    cityName: cityName || undefined,
-    citySource: citySource || undefined,
-    vibeTags,
-    intents,
-    profileVersion: Number(data?.discoveryProfile?.profileVersion || 1),
-  });
-
-  return compactObject({
-    identity: Object.keys(identity).length ? identity : undefined,
-    discoveryProfile: Object.keys(discoveryProfile).length ? discoveryProfile : undefined,
-  });
-}
-
-function cohortFor({ authRecordMissing, legacyComplete, grandfathered, stage }) {
-  if (authRecordMissing) return 'orphaned_firestore_user';
-  if (legacyComplete && grandfathered) return 'legacy_complete_grandfathered';
-  if (legacyComplete && stage === 'phone_required') return 'legacy_complete_phone_required';
-  if (stage === 'complete') return 'canonical_complete';
-  return `incomplete_${stage}`;
-}
-
-/**
- * Pure migration classifier. It never performs database writes. `authRecord:
- * null` means Firebase Auth has no matching user; Firestore phone fields are
- * deliberately ignored and can never prove phone verification.
- */
-export function classifyOnboardingV2Migration({ userId, data = {}, authRecord = null }) {
-  if (!userId) throw new Error('userId is required');
-
-  const marker = data?.migrations?.[ONBOARDING_V2_MIGRATION_KEY];
-  const alreadyMigrated = Number(marker?.version || 0) >= ONBOARDING_V2_MIGRATION_VERSION;
-  if (alreadyMigrated) {
-    return {
-      userId,
-      cohort: 'already_migrated_v2',
-      currentStage: data?.consumerOnboarding?.currentStage || 'unknown',
-      firebasePhoneVerified: Boolean(authRecord?.phoneNumber || authRecord?.phone_number),
-      legacyComplete: legacyCompletionIsTrue(data),
-      proposedChanges: {},
-      shouldApply: false,
-    };
-  }
-
-  const compatibility = canonicalCompatibilityPatch(data);
-  const candidateData = { ...data, ...compatibility };
-  const authIdentity = normalizeAuthIdentity(userId, authRecord || {}, candidateData);
-  const legacyComplete = legacyCompletionIsTrue(data);
-  const firebasePhoneVerified = authIdentity.phoneVerified === true;
-  const grandfathered = legacyComplete && firebasePhoneVerified;
-  const bootstrap = buildOnboardingBootstrap(userId, candidateData, authRecord || {});
-  const currentStage = grandfathered ? 'complete' : bootstrap.onboarding.currentStage;
-  const consumerOnboarding = compactObject({
-    ...(data.consumerOnboarding || {}),
-    version: onboardingConstants.version,
-    currentStage,
-    completed: currentStage === 'complete',
-    emailPromptStatus: bootstrap.onboarding.emailPromptStatus,
-    startedAt: data.consumerOnboarding?.startedAt || data.createdAt || null,
-    completedAt:
-      currentStage === 'complete'
-        ? data.consumerOnboarding?.completedAt || data.onboardingCompletedAt || null
-        : null,
-    legacyCompletionGrandfathered: grandfathered || undefined,
-  });
-  const proposedChanges = compactObject({ ...compatibility, consumerOnboarding });
-  const effectiveChanges = Object.fromEntries(
-    Object.entries(proposedChanges).filter(([key, value]) => !valuesEqual(data[key], value)),
-  );
-  const cohort = cohortFor({
-    authRecordMissing: authRecord === null,
-    legacyComplete,
-    grandfathered,
-    stage: currentStage,
-  });
-
+function canonicalizeLegacyProfile(data = {}) {
+  const cityName = data.discoveryProfile?.cityName || data.city || null;
   return {
-    userId,
-    cohort,
-    currentStage,
-    firebasePhoneVerified,
-    legacyComplete,
-    proposedChanges: effectiveChanges,
-    // Every unmarked document needs the apply-only audit marker, even when its
-    // functional onboarding fields already match the v2 projection.
-    shouldApply: true,
+    ...data,
+    identity: {
+      ...(data.identity || {}),
+      displayName: data.identity?.displayName || data.displayName || data.name || '',
+      dateOfBirth: data.identity?.dateOfBirth || data.dateOfBirth || null,
+    },
+    discoveryProfile: {
+      ...(data.discoveryProfile || {}),
+      cityId: data.discoveryProfile?.cityId || data.cityId || cityIdFromName(cityName) || null,
+      cityName,
+      vibeTags: data.discoveryProfile?.vibeTags || data.vibeTags || [],
+      intents: data.discoveryProfile?.intents || data.intents || [],
+      profileVersion: Number(data.discoveryProfile?.profileVersion || 1),
+    },
   };
 }
 
-export function buildOnboardingV2ApplyPatch(classification, existingData = {}, migratedAt) {
-  if (!classification?.userId) throw new Error('classification.userId is required');
-  if (!classification.shouldApply) return {};
-  if (!migratedAt || Number.isNaN(Date.parse(migratedAt))) {
-    throw new Error('A valid migratedAt ISO timestamp is required in apply mode');
-  }
+export function classifyOnboardingMigration(userId, data = {}, authRecord = null) {
+  const providers = providerIds(authRecord || {});
+  const firebasePhone = authRecord?.phoneNumber || null;
+  const firestorePhone = data.phone || data.phoneNumber || data.auth?.phoneNumberE164 || null;
+  const canonicalData = canonicalizeLegacyProfile(data);
+  const legacyComplete = hasLegacyCompletion(data);
+  const phoneFirst =
+    providers.includes('phone') &&
+    !providers.includes('google.com') &&
+    !providers.includes('apple.com');
+  const skipLegacyEmailPrompt = legacyComplete && phoneFirst && !authRecord?.email;
+  const bootstrap = buildOnboardingBootstrap(
+    userId,
+    skipLegacyEmailPrompt
+      ? {
+          ...canonicalData,
+          consumerOnboarding: {
+            ...(canonicalData.consumerOnboarding || {}),
+            emailPromptStatus: 'skipped',
+          },
+        }
+      : canonicalData,
+    authRecord || {},
+  );
+  const missingPreferences = ['tastes', 'intent'].includes(bootstrap.onboarding.currentStage);
+  const allowNonblockingPreferences = legacyComplete && missingPreferences;
 
   return {
-    ...classification.proposedChanges,
-    consumerOnboarding: {
-      ...(existingData.consumerOnboarding || {}),
-      ...(classification.proposedChanges.consumerOnboarding || {}),
-      updatedAt: migratedAt,
+    providers,
+    firebasePhone,
+    firestorePhone,
+    firestoreOnlyPhone: Boolean(firestorePhone && !firebasePhone),
+    missingEmail: !authRecord?.email,
+    missingDob: !bootstrap.onboardingProfile.dateOfBirth,
+    missingCity: !bootstrap.onboardingProfile.cityId && !bootstrap.onboardingProfile.cityName,
+    missingTastes: !bootstrap.onboardingProfile.vibeTags?.length,
+    v1Complete: legacyComplete,
+    v2Complete: bootstrap.onboarding.currentStage === 'complete' || allowNonblockingPreferences,
+    allowNonblockingPreferences,
+    skipLegacyEmailPrompt,
+    canonicalStage: allowNonblockingPreferences ? 'complete' : bootstrap.onboarding.currentStage,
+  };
+}
+
+export function planOnboardingV2Migration(
+  userId,
+  data = {},
+  authRecord = null,
+  migratedAt = new Date().toISOString(),
+) {
+  const currentMigration = Number(data.consumerOnboarding?.migration?.version || 0);
+  const classification = classifyOnboardingMigration(userId, data, authRecord);
+  if (currentMigration >= ONBOARDING_MIGRATION_VERSION) {
+    return { changed: false, classification, patch: null };
+  }
+
+  const identity = normalizeAuthIdentity(userId, authRecord || {}, data);
+  const canonicalData = canonicalizeLegacyProfile(data);
+  const completedAt =
+    classification.canonicalStage === 'complete'
+      ? data.consumerOnboarding?.completedAt || data.onboardingCompletedAt || migratedAt
+      : null;
+  const patch = {
+    email: identity.email,
+    emailVerified: identity.emailVerified,
+    phone: identity.phoneNumberE164,
+    phoneNumber: identity.phoneNumberE164,
+    phoneVerifiedAt: identity.phoneVerifiedAt,
+    auth: {
+      ...(data.auth || {}),
+      providers: identity.providers,
+      primaryProvider: identity.primaryProvider,
+      email: identity.email,
+      emailVerified: identity.emailVerified,
+      emailSource: identity.emailSource,
+      phoneNumberE164: identity.phoneNumberE164,
+      phoneVerifiedAt: identity.phoneVerifiedAt,
     },
-    migrations: {
-      ...(existingData.migrations || {}),
-      [ONBOARDING_V2_MIGRATION_KEY]: {
-        version: ONBOARDING_V2_MIGRATION_VERSION,
+    identity: canonicalData.identity,
+    discoveryProfile: canonicalData.discoveryProfile,
+    consumerOnboarding: {
+      ...(data.consumerOnboarding || {}),
+      version: ONBOARDING_V2_VERSION,
+      currentStage: classification.canonicalStage,
+      ...(classification.skipLegacyEmailPrompt ? { emailPromptStatus: 'skipped' } : {}),
+      completedAt,
+      updatedAt: migratedAt,
+      migration: {
+        version: ONBOARDING_MIGRATION_VERSION,
         migratedAt,
-        cohort: classification.cohort,
+        source: 'legacy_backfill',
+        nonblockingPreferences: classification.allowNonblockingPreferences,
       },
     },
     updatedAt: migratedAt,
   };
+
+  return { changed: true, classification, patch };
 }
 
-export const onboardingMigrationCohorts = [
-  'already_migrated_v2',
-  'orphaned_firestore_user',
-  'legacy_complete_grandfathered',
-  'legacy_complete_phone_required',
-  'canonical_complete',
-  'incomplete_phone_required',
-  'incomplete_email_optional',
-  'incomplete_identity',
-  'incomplete_city',
-  'incomplete_tastes',
-  'incomplete_intent',
-];
+export function createOnboardingMigrationReport() {
+  return {
+    totalUsers: 0,
+    providerDistribution: {},
+    missingFirebaseUser: 0,
+    missingFirestoreDocument: 0,
+    missingPhone: 0,
+    firestoreOnlyPhone: 0,
+    missingEmail: 0,
+    missingDob: 0,
+    missingCity: 0,
+    missingTastes: 0,
+    v1Complete: 0,
+    v2Complete: 0,
+    documentsThatWouldChange: 0,
+  };
+}
+
+export function addToOnboardingMigrationReport(
+  report,
+  plan,
+  hasFirebaseUser = true,
+  hasFirestoreDocument = true,
+) {
+  const next = report;
+  const item = plan.classification;
+  next.totalUsers += 1;
+  if (!hasFirebaseUser) next.missingFirebaseUser += 1;
+  if (!hasFirestoreDocument) next.missingFirestoreDocument += 1;
+  if (!item.firebasePhone) next.missingPhone += 1;
+  if (item.firestoreOnlyPhone) next.firestoreOnlyPhone += 1;
+  if (item.missingEmail) next.missingEmail += 1;
+  if (item.missingDob) next.missingDob += 1;
+  if (item.missingCity) next.missingCity += 1;
+  if (item.missingTastes) next.missingTastes += 1;
+  if (item.v1Complete) next.v1Complete += 1;
+  if (item.v2Complete) next.v2Complete += 1;
+  if (plan.changed) next.documentsThatWouldChange += 1;
+  const providers = item.providers.length ? item.providers : ['none'];
+  for (const provider of providers) {
+    next.providerDistribution[provider] = (next.providerDistribution[provider] || 0) + 1;
+  }
+  return next;
+}

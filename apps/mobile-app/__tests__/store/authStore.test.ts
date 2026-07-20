@@ -346,7 +346,7 @@ describe('authStore', () => {
       expect(useAuthStore.getState().initialized).toBe(false);
       expect(useAuthStore.getState().loading).toBe(true);
 
-      jest.advanceTimersByTime(3000);
+      await jest.advanceTimersByTimeAsync(3000);
       await flushPromises();
 
       expect(syncAuthSession).toHaveBeenCalledTimes(2);
@@ -371,7 +371,7 @@ describe('authStore', () => {
       await flushPromises();
 
       for (let i = 0; i < 5; i++) {
-        jest.advanceTimersByTime(60000);
+        await jest.advanceTimersByTimeAsync(60000);
         await flushPromises();
       }
 

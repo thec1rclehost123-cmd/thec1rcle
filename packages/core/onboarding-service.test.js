@@ -1,8 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
+import {
+  DEFAULT_MIN_ACCOUNT_AGE,
+  EMAIL_PROMPT_STATUSES,
+  MAX_NIGHTLIFE_TASTES,
+  MAX_USER_INTENTS,
+  MIN_CONFIGURABLE_ACCOUNT_AGE,
+  MIN_NIGHTLIFE_TASTES,
+  MIN_USER_INTENTS,
+  NIGHTLIFE_TASTES,
+  ONBOARDING_V2_VERSION,
+  USER_INTENTS,
+} from '@c1rcle/types';
 
 import {
   buildOnboardingBootstrap,
   completeOnboarding,
+  onboardingConstants,
+  recordEmailPrompt,
   syncOnboardingAuthState,
   updateOnboardingCity,
   updateOnboardingPreferences,
@@ -45,6 +59,21 @@ const phoneUser = {
 };
 
 describe('consumer onboarding v2', () => {
+  it('uses the shared onboarding product contract without local drift', () => {
+    expect(onboardingConstants).toEqual({
+      version: ONBOARDING_V2_VERSION,
+      minimumTastes: MIN_NIGHTLIFE_TASTES,
+      maximumTastes: MAX_NIGHTLIFE_TASTES,
+      minimumIntents: MIN_USER_INTENTS,
+      maximumIntents: MAX_USER_INTENTS,
+      defaultMinimumAccountAge: DEFAULT_MIN_ACCOUNT_AGE,
+      minimumConfigurableAccountAge: MIN_CONFIGURABLE_ACCOUNT_AGE,
+      validTastes: [...NIGHTLIFE_TASTES],
+      validIntents: [...USER_INTENTS],
+      emailPromptStatuses: [...EMAIL_PROMPT_STATUSES],
+    });
+  });
+
   it('does not accept a stale Firestore phone as verified Firebase identity', () => {
     const result = buildOnboardingBootstrap(
       'user_1',
@@ -69,6 +98,50 @@ describe('consumer onboarding v2', () => {
     expect(skipped.onboarding.currentStage).toBe('identity');
   });
 
+  it('derives pending and verified email states from Firebase identity', () => {
+    const pending = buildOnboardingBootstrap(
+      'user_1',
+      { uid: 'user_1' },
+      {
+        ...phoneUser,
+        email: 'member@example.com',
+        emailVerified: false,
+      },
+    );
+    const verified = buildOnboardingBootstrap(
+      'user_1',
+      { uid: 'user_1' },
+      {
+        ...phoneUser,
+        email: 'member@example.com',
+        emailVerified: true,
+      },
+    );
+
+    expect(pending.onboarding).toMatchObject({
+      currentStage: 'identity',
+      emailPromptStatus: 'pending_verification',
+    });
+    expect(verified.onboarding).toMatchObject({
+      currentStage: 'identity',
+      emailPromptStatus: 'verified',
+    });
+  });
+
+  it('persists shown and skipped decisions but derives verification states from Firebase', async () => {
+    const shown = makeDb({ uid: 'user_1' });
+    await recordEmailPrompt(shown.db, 'user_1', 'shown');
+    expect(shown.read().consumerOnboarding.emailPromptStatus).toBe('shown');
+
+    const skipped = makeDb({ uid: 'user_1' });
+    await recordEmailPrompt(skipped.db, 'user_1', 'skipped');
+    expect(skipped.read().consumerOnboarding.emailPromptStatus).toBe('skipped');
+
+    await expect(recordEmailPrompt(skipped.db, 'user_1', 'verified')).rejects.toMatchObject({
+      code: 'INVALID_EMAIL_PROMPT_STATUS',
+    });
+  });
+
   it('derives complete only from verified phone plus canonical consumer data', () => {
     const result = buildOnboardingBootstrap(
       'user_1',
@@ -86,49 +159,16 @@ describe('consumer onboarding v2', () => {
     );
 
     expect(result.onboarding.currentStage).toBe('complete');
-    expect(result.snapshot).toMatchObject({
-      version: 2,
-      currentStage: 'complete',
-      completed: true,
+    expect(result.onboarding.minimumAccountAge).toBe(18);
+    expect(result.onboardingProfile).toMatchObject({
       displayName: 'Aayush',
       dateOfBirth: '2000-01-01',
       cityId: 'pune',
-      cityName: 'Pune',
       vibeTags: ['clubs', 'live_music', 'lounges'],
       intents: ['discover'],
     });
     expect(result.routeAccess.canAccessSignedInExplore).toBe(true);
     expect(result.routeAccess.canCheckout).toBe(true);
-  });
-
-  it('builds a canonical revisit snapshot without modifying saved profile data', () => {
-    const saved = {
-      uid: 'user_1',
-      createdAt: new Date('2026-07-01T10:00:00.000Z'),
-      displayName: ' Legacy Name ',
-      dateOfBirth: '1999-12-31',
-      cityId: 'mumbai',
-      city: 'Mumbai',
-      vibeTags: ['clubs', 'unknown_legacy_tag', 'premium', 'festivals'],
-      intents: ['friends', 'unknown_legacy_intent'],
-    };
-    const before = structuredClone(saved);
-
-    const result = buildOnboardingBootstrap('user_1', saved, {
-      ...googleUser,
-      phoneNumber: '+919999999999',
-    });
-
-    expect(result.snapshot).toMatchObject({
-      startedAt: '2026-07-01T10:00:00.000Z',
-      displayName: 'Legacy Name',
-      dateOfBirth: '1999-12-31',
-      cityId: 'mumbai',
-      cityName: 'Mumbai',
-      vibeTags: ['clubs', 'premium', 'festivals'],
-      intents: ['friends'],
-    });
-    expect(saved).toEqual(before);
   });
 
   it('keeps profileVersion stable for identical city and preference retries', async () => {
@@ -158,6 +198,25 @@ describe('consumer onboarding v2', () => {
     expect(read().discoveryProfile.profileVersion).toBe(4);
   });
 
+  it('honors only the server migration marker for nonblocking legacy preferences', () => {
+    const result = buildOnboardingBootstrap(
+      'user_1',
+      {
+        uid: 'user_1',
+        onboardingComplete: true,
+        identity: { displayName: 'Legacy Member', dateOfBirth: '1995-01-01' },
+        discoveryProfile: { cityId: 'pune', cityName: 'Pune', vibeTags: [], intents: [] },
+        consumerOnboarding: {
+          emailPromptStatus: 'skipped',
+          migration: { version: 2, nonblockingPreferences: true },
+        },
+      },
+      phoneUser,
+    );
+
+    expect(result.onboarding.currentStage).toBe('complete');
+  });
+
   it('sync clears forged legacy contact aliases when Firebase has no phone', async () => {
     const { db, read } = makeDb({
       uid: 'user_1',
@@ -185,13 +244,10 @@ describe('consumer onboarding v2', () => {
       },
     });
 
-    const result = await completeOnboarding(db, 'user_1', { ...googleUser, phoneNumber: '+919999999999' });
+    await completeOnboarding(db, 'user_1', { ...googleUser, phoneNumber: '+919999999999' });
 
     expect(read().consumerOnboarding.currentStage).toBe('complete');
+    expect(read().discoveryProfile.profileVersion).toBe(2);
     expect(read().onboardingComplete).toBe(false);
-    expect(result).toMatchObject({
-      destination: '/(tabs)/explore',
-      personalizationSummary: { cityId: 'pune', vibeTags: ['clubs', 'live_music', 'lounges'] },
-    });
   });
 });

@@ -98,6 +98,8 @@ export interface Profile {
 }
 
 export const ONBOARDING_V2_VERSION = 2 as const;
+export const DEFAULT_MIN_ACCOUNT_AGE = 18 as const;
+export const MIN_CONFIGURABLE_ACCOUNT_AGE = 13 as const;
 
 export const AUTH_PROVIDERS = ['apple', 'google', 'phone'] as const;
 export type AuthProvider = (typeof AUTH_PROVIDERS)[number];
@@ -124,16 +126,72 @@ export const NIGHTLIFE_TASTES = [
   'premium',
 ] as const;
 export type NightlifeTaste = (typeof NIGHTLIFE_TASTES)[number];
+export const MIN_NIGHTLIFE_TASTES = 3 as const;
+export const MAX_NIGHTLIFE_TASTES = NIGHTLIFE_TASTES.length;
+
+export const NIGHTLIFE_TASTE_OPTIONS = [
+  { id: 'clubs', label: 'Clubs', description: 'Big rooms and late nights' },
+  { id: 'live_music', label: 'Live music', description: 'Gigs, bands and concerts' },
+  { id: 'lounges', label: 'Lounges', description: 'Cocktails and conversation' },
+  { id: 'festivals', label: 'Festivals', description: 'All-day, all-in experiences' },
+  {
+    id: 'college_nights',
+    label: 'College nights',
+    description: 'High-energy campus scenes',
+  },
+  { id: 'underground', label: 'Underground', description: 'Hidden rooms and new sounds' },
+  {
+    id: 'food_culture',
+    label: 'Food & culture',
+    description: 'Supper clubs and city culture',
+  },
+  { id: 'premium', label: 'Premium', description: 'Elevated tables and experiences' },
+] as const satisfies ReadonlyArray<{
+  id: NightlifeTaste;
+  label: string;
+  description: string;
+}>;
 
 export const USER_INTENTS = ['discover', 'friends', 'meet_people', 'host_promote'] as const;
 export type UserIntent = (typeof USER_INTENTS)[number];
+export const MIN_USER_INTENTS = 1 as const;
+export const MAX_USER_INTENTS = USER_INTENTS.length;
 
-export type EmailPromptStatus =
-  | 'not_shown'
-  | 'shown'
-  | 'skipped'
-  | 'pending_verification'
-  | 'verified';
+export const USER_INTENT_OPTIONS = [
+  {
+    id: 'discover',
+    label: 'Discover events',
+    description: 'Find the best plans around you',
+  },
+  {
+    id: 'friends',
+    label: 'Go out with friends',
+    description: 'Make plans with your crew',
+  },
+  {
+    id: 'meet_people',
+    label: 'Meet people',
+    description: 'Find social nights and new circles',
+  },
+  {
+    id: 'host_promote',
+    label: 'Host or promote',
+    description: 'Build an audience for your events',
+  },
+] as const satisfies ReadonlyArray<{
+  id: UserIntent;
+  label: string;
+  description: string;
+}>;
+
+export const EMAIL_PROMPT_STATUSES = [
+  'not_shown',
+  'shown',
+  'skipped',
+  'pending_verification',
+  'verified',
+] as const;
+export type EmailPromptStatus = (typeof EMAIL_PROMPT_STATUSES)[number];
 
 export interface FirstRunIdentity {
   uid: string;
@@ -151,6 +209,7 @@ export interface FirstRunOnboardingState {
   version: typeof ONBOARDING_V2_VERSION;
   currentStage: OnboardingStage;
   completed: boolean;
+  minimumAccountAge: number;
   emailPromptStatus: EmailPromptStatus;
   startedAt: string | null;
   completedAt: string | null;
@@ -164,15 +223,17 @@ export interface FirstRunRouteAccess {
   canUseChat: boolean;
 }
 
-export interface FirstRunRequirements {
-  minimumAccountAge: number;
-  minimumTastes: number;
-}
-
 export interface FirstRunBootstrap {
   identity: FirstRunIdentity;
   onboarding: FirstRunOnboardingState;
-  requirements: FirstRunRequirements;
+  onboardingProfile: {
+    displayName: string | null;
+    dateOfBirth: string | null;
+    cityId: string | null;
+    cityName: string | null;
+    vibeTags: NightlifeTaste[];
+    intents: UserIntent[];
+  };
   routeAccess: FirstRunRouteAccess;
 }
 
@@ -198,7 +259,6 @@ export type RecommendationReasonCode =
   | 'CITY_MATCH'
   | 'INTENT_MATCH'
   | 'HISTORY_MATCH'
-  | 'VENUE_MATCH'
   | 'POPULAR_NEARBY'
   | 'TRENDING';
 
@@ -214,19 +274,6 @@ export interface RecommendationV2Response<TEvent = Event & Record<string, unknow
   profileVersion: number;
   items: RecommendationItem<TEvent>[];
   fallbackUsed: boolean;
-}
-
-export type RecommendationSignalType =
-  | 'event_view'
-  | 'event_save'
-  | 'venue_follow'
-  | 'category_browse';
-
-export interface RecommendationSignal {
-  type: RecommendationSignalType;
-  category?: string;
-  eventId?: string;
-  venueId?: string;
 }
 
 export interface GuestProfileDto {

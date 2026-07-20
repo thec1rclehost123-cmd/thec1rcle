@@ -59,6 +59,11 @@ async function buildServer() {
   server.decorate('requireAuth', async (_request: any, reply: any) => {
     if (!_request.user) return reply.status(401).send({ error: 'Unauthorized' });
   });
+  server.decorate('requireVerifiedPhone', async (_request: any, reply: any) => {
+    if (!_request.user?.phone_number) {
+      return reply.status(403).send({ error: 'Phone verification required' });
+    }
+  });
   server.addHook('onRequest', async (request: any) => {
     if (request.headers.authorization) {
       request.user = { uid: 'user_1' };
