@@ -63,7 +63,7 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.9",
+    "@babel/core": "^8.0.1",
     "@types/react": "~19.1.10",
     "eslint": "^8.57.1",
     "eslint-config-universe": "^14.0.0",
