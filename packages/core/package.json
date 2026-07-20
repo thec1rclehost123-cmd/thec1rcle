@@ -26,6 +26,8 @@
         "./theme": "./theme.js",
         "./redis": "./redis.js",
         "./rate-limiter": "./rate-limiter.js",
+        "./security-state": "./security-state.js",
+        "./security-logger": "./security-logger.js",
         "./lock-service": "./lock-service.js",
         "./analytics-service": "./analytics-service.js",
     "./image-utils": "./image-utils.js",
