@@ -200,7 +200,6 @@ export async function createRSVPOrder(payload) {
   let persistedOrder = rsvpOrder;
 
   await db.runTransaction(async (transaction) => {
-    transaction.db = db; // Inject db for unified engine
     persistedOrder = await coreExecuteOrderCreation(transaction, {
       db,
       event,
@@ -477,8 +476,6 @@ export async function createOrder(payload) {
 
   try {
     await db.runTransaction(async (transaction) => {
-      transaction.db = db; // Inject db for unified engine
-
       // 1. Transaction-level Idempotency Check
       const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
       const existingOrderDoc = await transaction.get(orderRef);

@@ -680,8 +680,11 @@ export async function releaseReservation(reservationId) {
  * Commits a reservation into a sale or deducts inventory directly.
  * Handles both sharded and standard Firestore structures.
  */
-export async function commitInventory(transaction, { event, items, reservationId = null }) {
-  const db = getAdminDb();
+export async function commitInventory(
+  transaction,
+  { event, items, reservationId = null, db: passedDb = null },
+) {
+  const db = passedDb || getAdminDb();
   const eventRef = db.collection('events').doc(event.id);
   const updatedTickets = [...(event.tickets || event.ticketCatalog?.tiers || [])];
   const shardReads = [];

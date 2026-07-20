@@ -21,7 +21,7 @@ export async function createOrder(payload: any) {
   // Atomic transaction
   return await db.runTransaction(async (transaction: any) => {
     const orderId = reservationId ? `ORD-${reservationId}` : `ORD-${Date.now()}`;
-
+    // Inject dependencies for core engine
     const orderData: any = {
       ...payload,
       id: orderId,

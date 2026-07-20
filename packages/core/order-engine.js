@@ -208,6 +208,7 @@ export async function executeOrderCreation(
       event,
       items: orderData.tickets,
       reservationId,
+      db,
     });
   }
 

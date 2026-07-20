@@ -30,6 +30,13 @@ vi.mock('./admin.js', () => ({
   isFirebaseConfigured: () => false,
 }));
 
+vi.mock('./inngest-client.js', () => ({
+  sendEvent: vi.fn(async () => ({ ids: ['mock-event-id'] })),
+  Events: {
+    TICKET_PURCHASED: 'ticket/purchased',
+  },
+}));
+
 export let currentOrderRepo: any = null;
 
 vi.mock('./order-engine.js', async (importOriginal) => {
