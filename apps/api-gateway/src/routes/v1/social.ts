@@ -1071,7 +1071,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         const sosRef = await fastify.db.collection('sosAlerts').add({
           userId,
           eventId: eventId || null,
-          location: latitude && longitude ? { latitude, longitude } : null,
+          location: latitude != null && longitude != null ? { latitude, longitude } : null,
           status: 'triggered',
           triggeredAt: new Date().toISOString(),
         });

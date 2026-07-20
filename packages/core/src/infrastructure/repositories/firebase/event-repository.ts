@@ -150,7 +150,7 @@ export class FirebaseEventRepository implements IEventRepository {
 
     // Embed geohash snapshot
     const coords = event.coordinates as any;
-    if (coords?.latitude && coords?.longitude) {
+    if (coords?.latitude != null && coords?.longitude != null) {
       enriched.geohash = encodeGeohash(coords.latitude, coords.longitude, 9);
     }
 
