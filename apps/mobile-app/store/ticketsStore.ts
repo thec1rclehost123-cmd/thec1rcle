@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { apiFetch } from '@/lib/api';
-import { DEMO_EVENTS } from '@/lib/demo';
+import { DEMO_EVENTS, PUBLIC_DEMO_MODE } from '@/lib/demo';
 import { getEventImage } from '@/lib/utils/event';
 
 // Order/Ticket type matching Firestore schema
@@ -109,6 +109,7 @@ interface TicketsState {
 }
 
 function getCanonicalDemoEvent(eventId?: string) {
+  if (!PUBLIC_DEMO_MODE) return null;
   if (!eventId) return null;
   return (DEMO_EVENTS as any[]).find((event) => event.id === eventId) || null;
 }
@@ -172,6 +173,7 @@ function normalizeOrder(raw: Order): Order {
 
 export const useTicketsStore = create<TicketsState>((set, get) => {
   let pendingFetchPromise: Promise<void> | null = null;
+  let requestGeneration = 0;
 
   return {
     orders: [],
@@ -181,8 +183,9 @@ export const useTicketsStore = create<TicketsState>((set, get) => {
     fetchUserOrders: async () => {
       if (get().loading && pendingFetchPromise) return pendingFetchPromise;
 
+      const generation = requestGeneration;
       set({ loading: true, error: null });
-      pendingFetchPromise = (async () => {
+      const fetchPromise = (async () => {
         try {
           const response = await apiFetch<{
             success: boolean;
@@ -193,21 +196,23 @@ export const useTicketsStore = create<TicketsState>((set, get) => {
             normalizeOrder,
           );
 
+          if (generation !== requestGeneration) return;
           set({ orders: walletOrders, loading: false, error: null });
         } catch (error: any) {
+          if (generation !== requestGeneration) return;
           console.warn('Unable to fetch wallet orders; keeping existing ticket wallet.', error);
           set({
             error: error?.message || 'Unable to sync ticket wallet. Pull to retry.',
             loading: false,
           });
-          throw error;
         }
       })();
+      pendingFetchPromise = fetchPromise;
 
       try {
-        await pendingFetchPromise;
+        await fetchPromise;
       } finally {
-        pendingFetchPromise = null;
+        if (pendingFetchPromise === fetchPromise) pendingFetchPromise = null;
       }
     },
 
@@ -230,6 +235,7 @@ export const useTicketsStore = create<TicketsState>((set, get) => {
     },
 
     clearOrders: () => {
+      requestGeneration += 1;
       pendingFetchPromise = null;
       set({ orders: [], loading: false, error: null });
     },

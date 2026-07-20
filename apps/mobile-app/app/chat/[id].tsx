@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { ChatKeyboardAvoidingView } from '@/components/ui/ChatKeyboardAvoidingView';
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -491,39 +492,39 @@ export default function ChatRoomScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ChatKeyboardAvoidingView>
         {!loading && (
           <SafeAreaView style={styles.composerDock} edges={['bottom']}>
-            {error && <Text style={styles.errorText}>{error}</Text>}
-            <View style={styles.composerRow}>
-              <TextInput
-                value={inputText}
-                onChangeText={(text) => {
-                  setInputText(text);
-                  typingHandler.onChangeText();
-                }}
-                onBlur={typingHandler.onBlur}
-                placeholder="Message the event chat..."
-                placeholderTextColor={colors.base[500]}
-                multiline
-                maxLength={500}
-                style={styles.input}
-              />
-              <Pressable
-                style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
-                onPress={handleSend}
-                disabled={!inputText.trim() || sending}
-              >
-                {sending ? (
-                  <ActivityIndicator size="small" color={colors.goldLight} />
-                ) : (
-                  <Send size={18} color={colors.goldLight} fill={colors.goldLight} />
-                )}
-              </Pressable>
-            </View>
+          {error && <Text style={styles.errorText}>{error}</Text>}
+          <View style={styles.composerRow}>
+            <TextInput
+              value={inputText}
+              onChangeText={(text) => {
+                setInputText(text);
+                typingHandler.onChangeText();
+              }}
+              onBlur={typingHandler.onBlur}
+              placeholder="Message the event chat..."
+              placeholderTextColor={colors.base[500]}
+              multiline
+              maxLength={500}
+              style={styles.input}
+            />
+            <Pressable
+              style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+              onPress={handleSend}
+              disabled={!inputText.trim() || sending}
+            >
+              {sending ? (
+                <ActivityIndicator size="small" color={colors.goldLight} />
+              ) : (
+                <Send size={18} color={colors.goldLight} fill={colors.goldLight} />
+              )}
+            </Pressable>
+          </View>
           </SafeAreaView>
         )}
-      </KeyboardAvoidingView>
+      </ChatKeyboardAvoidingView>
 
       <AttendeesSheet
         visible={attendeesOpen}

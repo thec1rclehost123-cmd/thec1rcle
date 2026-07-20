@@ -100,6 +100,38 @@ describe('Inventory Engine', () => {
 
       expect(result).toBeNull();
     });
+
+    it.each(['active', 'published'])('does not expose non-canonical public lifecycle %s', async (lifecycle) => {
+      const result = await listAvailableTicketTiers(
+        buildDb({
+          id: 'not-reservable',
+          lifecycle,
+          visibility: 'public',
+          endDate: '2026-07-20T00:00:00.000Z',
+          tickets: [{ id: 'ga', price: 1500, quantity: 10 }],
+        }),
+        'not-reservable',
+        { timestamp: new Date('2026-07-18T00:00:00.000Z') },
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('does not expose an elapsed event even when its lifecycle is still scheduled', async () => {
+      const result = await listAvailableTicketTiers(
+        buildDb({
+          id: 'elapsed-event',
+          lifecycle: 'scheduled',
+          visibility: 'public',
+          endDate: '2026-07-17T23:59:59.000Z',
+          tickets: [{ id: 'ga', price: 1500, quantity: 10 }],
+        }),
+        'elapsed-event',
+        { timestamp: new Date('2026-07-18T00:00:00.000Z') },
+      );
+
+      expect(result).toBeNull();
+    });
   });
 
   describe('validatePurchase', () => {

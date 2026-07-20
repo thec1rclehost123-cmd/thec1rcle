@@ -27,8 +27,8 @@ export default function PrivacyScreen() {
         <Text style={styles.eyebrow}>Privacy Policy</Text>
         <Text style={styles.title}>Opening THE C1RCLE Privacy Policy</Text>
         <Text style={styles.body}>
-          The current privacy policy lives on the web so THE C1RCLE has one source of truth for app,
-          guest portal, ticketing, checkout, and event operations.
+          The current privacy policy lives on the web so THE C1RCLE has one source of truth for
+          app, guest portal, ticketing, checkout, and event operations.
         </Text>
         <Pressable onPress={openPrivacyPolicy} style={styles.button}>
           <Text style={styles.buttonText}>Open Privacy Policy</Text>

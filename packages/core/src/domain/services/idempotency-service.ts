@@ -8,6 +8,24 @@ export interface IdempotencyRecord {
   expiresAt: Date;
 }
 
+function toFirestoreSafeValue(value: any): any {
+  if (value === undefined) return null;
+
+  if (Array.isArray(value)) {
+    return value.map((item) => toFirestoreSafeValue(item));
+  }
+
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, item]) => item !== undefined)
+        .map(([key, item]) => [key, toFirestoreSafeValue(item)]),
+    );
+  }
+
+  return value;
+}
+
 /**
  * Idempotency Service
  *
@@ -53,14 +71,17 @@ export class IdempotencyService {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + ttlHours);
 
-    await this.db.collection(this.COLLECTION).doc(this.buildDocId(key, userId)).set({
-      key,
-      userId,
-      responseBody,
-      statusCode,
-      expiresAt,
-      createdAt: new Date(),
-    });
+    await this.db
+      .collection(this.COLLECTION)
+      .doc(this.buildDocId(key, userId))
+      .set({
+        key,
+        userId,
+        responseBody: toFirestoreSafeValue(responseBody),
+        statusCode,
+        expiresAt,
+        createdAt: new Date(),
+      });
   }
 
   /**
@@ -92,7 +113,7 @@ export class IdempotencyService {
       transaction.set(this.db.collection(this.COLLECTION).doc(docId), {
         key,
         userId,
-        responseBody: result,
+        responseBody: toFirestoreSafeValue(result),
         statusCode: 200, // Default success
         expiresAt,
         createdAt: new Date(),

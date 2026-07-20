@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { apiFetch } from '@/lib/api';
 import { useSubscriptionStore } from '@/store/subscriptionStore';
+import { type DatingVitals } from '@/store/profileStore';
 
 export type Prompt = {
   id: string;
@@ -19,12 +20,13 @@ export interface DatingProfile {
   id: string;
   displayName: string;
   name: string;
-  age: number;
+  age: number | null;
   headline: string;
   photoURL?: string;
   bio?: string;
   city?: string;
   vibeTags?: string[];
+  vitals?: DatingVitals;
   isVerified?: boolean;
   isPremium?: boolean;
   // Shared event context — why this person is shown
@@ -53,6 +55,9 @@ export interface Match {
 }
 
 interface DatingState {
+  ownerUserId: string | null;
+  profilesOwnerUserId: string | null;
+  matchesOwnerUserId: string | null;
   profiles: DatingProfile[];
   matches: Match[];
   loading: boolean;
@@ -61,7 +66,11 @@ interface DatingState {
   error: string | null;
   nextCursor: string | null;
   hasMore: boolean;
+  profileRequestId: number;
+  matchesRequestId: number;
 
+  setOwnerUserId: (userId: string | null) => void;
+  clearDatingState: () => void;
   fetchProfiles: (userId: string, options?: { append?: boolean; filters?: DatingFilters }) => Promise<void>;
   fetchMatches: (userId: string) => Promise<void>;
   likeUser: (
@@ -74,7 +83,7 @@ interface DatingState {
     message?: string,
   ) => Promise<{ sent: boolean; isMatch: boolean; match?: Match; paywalled?: boolean }>;
   passUser: (fromUserId: string, targetUserId: string) => Promise<void>;
-  removeTopProfile: () => void;
+  removeTopProfile: (ownerUserId: string, targetUserId: string) => void;
 }
 
 function getAgeFromDate(value?: string | null): number | null {
@@ -181,7 +190,7 @@ function normalizeApiDatingProfile(profile: any, _index: number): DatingProfile 
 
   const displayName =
     firstNonEmptyString(profile.displayName, profile.name, profile.firstName) || 'C1rcle User';
-  const age = Number(profile.age) || getAgeFromDate(profile.dateOfBirth) || 25;
+  const age = Number(profile.age) || getAgeFromDate(profile.dateOfBirth) || null;
   const sharedEventTitle =
     firstNonEmptyString(
       profile.sharedEventTitle,
@@ -189,11 +198,13 @@ function normalizeApiDatingProfile(profile: any, _index: number): DatingProfile 
       profile.upcomingEvents?.[0]?.title,
     ) || 'Shared Event';
   const city = firstNonEmptyString(profile.city, profile.location) || '';
-  const vibeTags = Array.isArray(profile.vibeTags)
-    ? profile.vibeTags
-    : Array.isArray(profile.tags)
-      ? profile.tags
-      : [];
+  const vibeTags = Array.isArray(profile.nightlifeVibeTags)
+    ? profile.nightlifeVibeTags
+    : Array.isArray(profile.vibeTags)
+      ? profile.vibeTags
+      : Array.isArray(profile.tags)
+        ? profile.tags
+        : [];
 
   return {
     ...profile,
@@ -208,6 +219,7 @@ function normalizeApiDatingProfile(profile: any, _index: number): DatingProfile 
     bio: profile.bio || profile.headline || '',
     city,
     vibeTags,
+    vitals: profile.datingVitals || profile.vitals,
     isVerified: profile.isVerified === true,
     isPremium: profile.isPremium === true || profile.subscription?.tier === 'premium',
     sharedEventId:
@@ -237,6 +249,23 @@ function dedupeProfiles(profiles: DatingProfile[]): DatingProfile[] {
   });
 }
 
+function normalizeUserId(userId: string | null | undefined): string {
+  return typeof userId === 'string' ? userId.trim() : '';
+}
+
+function ownsProfileDeck(state: DatingState, userId: string): boolean {
+  return state.ownerUserId === userId && state.profilesOwnerUserId === userId;
+}
+
+function ownsTargetProfile(state: DatingState, userId: string, targetUserId: string): boolean {
+  return (
+    ownsProfileDeck(state, userId) &&
+    state.profiles.some(
+      (profile) => profile.userId === targetUserId || profile.id === targetUserId,
+    )
+  );
+}
+
 export interface DatingFilters {
   vibeTags?: string[];
   intent?: string;
@@ -246,6 +275,9 @@ export interface DatingFilters {
 }
 
 export const useDatingStore = create<DatingState>((set, get) => ({
+  ownerUserId: null,
+  profilesOwnerUserId: null,
+  matchesOwnerUserId: null,
   profiles: [],
   matches: [],
   loading: false,
@@ -254,12 +286,55 @@ export const useDatingStore = create<DatingState>((set, get) => ({
   error: null,
   nextCursor: null,
   hasMore: true,
+  profileRequestId: 0,
+  matchesRequestId: 0,
+
+  setOwnerUserId: (userId) => {
+    const nextOwnerUserId = normalizeUserId(userId) || null;
+    if (get().ownerUserId === nextOwnerUserId) return;
+    set((state) => ({
+      ownerUserId: nextOwnerUserId,
+      profilesOwnerUserId: null,
+      matchesOwnerUserId: null,
+      profiles: [],
+      matches: [],
+      loading: false,
+      prefetching: false,
+      matchesLoading: false,
+      error: null,
+      nextCursor: null,
+      hasMore: true,
+      profileRequestId: state.profileRequestId + 1,
+      matchesRequestId: state.matchesRequestId + 1,
+    }));
+  },
+
+  clearDatingState: () => {
+    set((state) => ({
+      ownerUserId: null,
+      profilesOwnerUserId: null,
+      matchesOwnerUserId: null,
+      profiles: [],
+      matches: [],
+      loading: false,
+      prefetching: false,
+      matchesLoading: false,
+      error: null,
+      nextCursor: null,
+      hasMore: true,
+      profileRequestId: state.profileRequestId + 1,
+      matchesRequestId: state.matchesRequestId + 1,
+    }));
+  },
 
   fetchProfiles: async (
     userId: string,
     options: { append?: boolean; filters?: DatingFilters } = {},
   ) => {
-    const append = options.append === true;
+    const requestedUserId = normalizeUserId(userId);
+    if (!requestedUserId || get().ownerUserId !== requestedUserId) return;
+
+    const append = options.append === true && get().profilesOwnerUserId === requestedUserId;
     const filters = options.filters;
     const { loading, prefetching, hasMore, nextCursor } = get();
     if (append) {
@@ -269,6 +344,8 @@ export const useDatingStore = create<DatingState>((set, get) => ({
       if (loading) return;
       set({ loading: true, error: null, nextCursor: null, hasMore: true });
     }
+    const requestId = get().profileRequestId + 1;
+    set({ profileRequestId: requestId });
 
     try {
       const params = new URLSearchParams();
@@ -289,17 +366,34 @@ export const useDatingStore = create<DatingState>((set, get) => ({
       }>(`/api/v1/social/discover${query}`);
       const apiProfiles = (response.profiles || response.data?.profiles || [])
         .map(normalizeApiDatingProfile)
-        .filter(Boolean) as DatingProfile[];
+        .filter(
+          (profile): profile is DatingProfile =>
+            profile !== null &&
+            profile.userId !== requestedUserId &&
+            profile.id !== requestedUserId,
+        );
       const responseNextCursor = response.nextCursor ?? response.data?.nextCursor ?? null;
       const responseHasMore = Boolean(
         response.hasMore ?? response.data?.hasMore ?? responseNextCursor,
       );
 
+      const currentState = get();
+      if (
+        currentState.ownerUserId !== requestedUserId ||
+        currentState.profileRequestId !== requestId
+      ) {
+        return;
+      }
+
       set((state) => {
         const realProfiles = append
-          ? dedupeProfiles([...state.profiles, ...apiProfiles])
+          ? dedupeProfiles([
+              ...(state.profilesOwnerUserId === requestedUserId ? state.profiles : []),
+              ...apiProfiles,
+            ])
           : apiProfiles;
         return {
+          profilesOwnerUserId: requestedUserId,
           profiles: realProfiles.length > 0 || append ? realProfiles : [],
           nextCursor: responseNextCursor,
           hasMore: responseHasMore,
@@ -308,6 +402,13 @@ export const useDatingStore = create<DatingState>((set, get) => ({
         };
       });
     } catch (error: any) {
+      const currentState = get();
+      if (
+        currentState.ownerUserId !== requestedUserId ||
+        currentState.profileRequestId !== requestId
+      ) {
+        return;
+      }
       const message = getDatingErrorMessage(error, 'Unable to load people right now.');
       warnDatingStore('fetchProfiles', error);
       set((state) => ({
@@ -321,15 +422,24 @@ export const useDatingStore = create<DatingState>((set, get) => ({
   },
 
   fetchMatches: async (userId: string) => {
-    set({ matchesLoading: true });
+    const requestedUserId = normalizeUserId(userId);
+    if (!requestedUserId || get().ownerUserId !== requestedUserId) return;
+    const requestId = get().matchesRequestId + 1;
+    set({ matchesLoading: true, matchesRequestId: requestId });
     try {
       const response = await apiFetch<{ matches?: any[]; data?: { matches?: any[] } }>(
         '/api/v1/social/matches',
       );
-      const matches: Match[] = (response.matches || response.data?.matches || []).map(
-        (match: any) => ({
+      const matches: Match[] = (response.matches || response.data?.matches || [])
+        .map((match: any) => ({
           id: match.matchId || match.id,
-          otherUserId: match.profile?.id || match.otherUserId,
+          otherUserId:
+            firstNonEmptyString(
+              match.profile?.userId,
+              match.profile?.uid,
+              match.profile?.id,
+              match.otherUserId,
+            ) || '',
           displayName: match.displayName || match.profile?.firstName || 'C1rcle User',
           photoURL: match.photoURL || match.profile?.photo || undefined,
           sharedEventTitle: match.sharedEventTitle || match.eventTitle || 'Shared Event',
@@ -339,12 +449,29 @@ export const useDatingStore = create<DatingState>((set, get) => ({
             match.isPremium === true ||
             match.profile?.isPremium === true ||
             match.profile?.subscription?.tier === 'premium',
-        }),
-      );
+        }))
+        .filter(
+          (match: Match) =>
+            Boolean(match.id && match.otherUserId) && match.otherUserId !== requestedUserId,
+        );
 
       matches.sort((a, b) => new Date(b.matchedAt).getTime() - new Date(a.matchedAt).getTime());
-      set({ matches, matchesLoading: false });
+      const currentState = get();
+      if (
+        currentState.ownerUserId !== requestedUserId ||
+        currentState.matchesRequestId !== requestId
+      ) {
+        return;
+      }
+      set({ matchesOwnerUserId: requestedUserId, matches, matchesLoading: false });
     } catch (error: any) {
+      const currentState = get();
+      if (
+        currentState.ownerUserId !== requestedUserId ||
+        currentState.matchesRequestId !== requestId
+      ) {
+        return;
+      }
       if (error.status === 401) {
         const { router } = await import('expo-router');
         router.push('/(auth)/login');
@@ -355,9 +482,19 @@ export const useDatingStore = create<DatingState>((set, get) => ({
   },
 
   likeUser: async (fromUserId: string, profile: DatingProfile) => {
-    get().removeTopProfile();
+    const actorUserId = normalizeUserId(fromUserId);
+    const targetUserId = normalizeUserId(profile.userId);
+    if (
+      !actorUserId ||
+      !targetUserId ||
+      actorUserId === targetUserId ||
+      !ownsTargetProfile(get(), actorUserId, targetUserId)
+    ) {
+      return { isMatch: false };
+    }
+    get().removeTopProfile(actorUserId, targetUserId);
 
-    const idempotencyKey = `like_${fromUserId}_${profile.userId}_${Date.now()}`;
+    const idempotencyKey = `like_${actorUserId}_${targetUserId}_${Date.now()}`;
     let lastError: any;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -373,17 +510,18 @@ export const useDatingStore = create<DatingState>((set, get) => ({
           };
         }>('/api/v1/social/swipe', {
           method: 'POST',
-          body: JSON.stringify({ targetUserId: profile.userId, action: 'like' }),
+          body: JSON.stringify({ targetUserId, action: 'like' }),
           headers: { 'X-Idempotency-Key': idempotencyKey },
         });
+        if (!ownsProfileDeck(get(), actorUserId)) return { isMatch: false };
         useSubscriptionStore.getState().applyServerContext(response.data || response);
 
         const isMatch = response.match === true || response.data?.match === true;
         const conversationId = response.conversationId || response.data?.conversationId;
         if (isMatch) {
           const match: Match = {
-            id: `match_${profile.userId}`,
-            otherUserId: profile.userId,
+            id: `match_${targetUserId}`,
+            otherUserId: targetUserId,
             displayName: profile.displayName,
             photoURL: profile.photoURL,
             sharedEventTitle: profile.sharedEventTitle,
@@ -392,14 +530,22 @@ export const useDatingStore = create<DatingState>((set, get) => ({
             isPremium: profile.isPremium,
           };
 
-          set((s) => ({ matches: [match, ...s.matches] }));
+          set((s) => ({
+            matchesOwnerUserId: actorUserId,
+            matches: [match, ...(s.matchesOwnerUserId === actorUserId ? s.matches : [])],
+          }));
           return { isMatch: true, match };
         }
 
         return { isMatch: false };
       } catch (error: any) {
+        if (!ownsProfileDeck(get(), actorUserId)) return { isMatch: false };
         if (error.code === 'PREMIUM_REQUIRED') {
-          set((s) => ({ profiles: [profile, ...s.profiles] }));
+          set((s) =>
+            ownsProfileDeck(s, actorUserId)
+              ? { profiles: [profile, ...s.profiles] }
+              : {},
+          );
           useSubscriptionStore.getState().openPaywall('dailyLikes', error.message);
           return { isMatch: false, paywalled: true };
         }
@@ -408,13 +554,25 @@ export const useDatingStore = create<DatingState>((set, get) => ({
       }
     }
 
-    set((s) => ({ profiles: [profile, ...s.profiles] }));
+    set((s) =>
+      ownsProfileDeck(s, actorUserId) ? { profiles: [profile, ...s.profiles] } : {},
+    );
     warnDatingStore('likeUser failed after 3 retries', lastError);
     return { isMatch: false };
   },
 
   sendAskOut: async (fromUserId: string, profile: DatingProfile, message?: string) => {
-    get().removeTopProfile();
+    const actorUserId = normalizeUserId(fromUserId);
+    const targetUserId = normalizeUserId(profile.userId);
+    if (
+      !actorUserId ||
+      !targetUserId ||
+      actorUserId === targetUserId ||
+      !ownsTargetProfile(get(), actorUserId, targetUserId)
+    ) {
+      return { sent: false, isMatch: false };
+    }
+    get().removeTopProfile(actorUserId, targetUserId);
     try {
       const response = await apiFetch<{
         match?: boolean;
@@ -429,20 +587,21 @@ export const useDatingStore = create<DatingState>((set, get) => ({
       }>('/api/v1/social/swipe', {
         method: 'POST',
         body: JSON.stringify({
-          targetUserId: profile.userId,
+          targetUserId,
           action: 'askOut',
           message,
           eventId: profile.sharedEventId,
         }),
       });
+      if (!ownsProfileDeck(get(), actorUserId)) return { sent: false, isMatch: false };
       useSubscriptionStore.getState().applyServerContext(response.data || response);
 
       const isMatch = response.match === true || response.data?.match === true;
       const conversationId = response.conversationId || response.data?.conversationId;
       if (isMatch) {
         const match: Match = {
-          id: `match_${profile.userId}`,
-          otherUserId: profile.userId,
+          id: `match_${targetUserId}`,
+          otherUserId: targetUserId,
           displayName: profile.displayName,
           photoURL: profile.photoURL,
           sharedEventTitle: profile.sharedEventTitle,
@@ -451,12 +610,16 @@ export const useDatingStore = create<DatingState>((set, get) => ({
           isPremium: profile.isPremium,
         };
 
-        set((s) => ({ matches: [match, ...s.matches] }));
+        set((s) => ({
+          matchesOwnerUserId: actorUserId,
+          matches: [match, ...(s.matchesOwnerUserId === actorUserId ? s.matches : [])],
+        }));
         return { sent: true, isMatch: true, match };
       }
 
       return { sent: true, isMatch: false };
     } catch (error: any) {
+      if (!ownsProfileDeck(get(), actorUserId)) return { sent: false, isMatch: false };
       if (error.code === 'PREMIUM_REQUIRED') {
         useSubscriptionStore.getState().openPaywall('askOuts', error.message);
         return { sent: false, isMatch: false, paywalled: true };
@@ -467,31 +630,64 @@ export const useDatingStore = create<DatingState>((set, get) => ({
   },
 
   passUser: async (fromUserId: string, targetUserId: string) => {
-    const removedProfile = get().profiles[0];
-    get().removeTopProfile();
+    const actorUserId = normalizeUserId(fromUserId);
+    const normalizedTargetUserId = normalizeUserId(targetUserId);
+    if (
+      !actorUserId ||
+      !normalizedTargetUserId ||
+      actorUserId === normalizedTargetUserId ||
+      !ownsTargetProfile(get(), actorUserId, normalizedTargetUserId)
+    ) {
+      return;
+    }
+    const removedProfile = get().profiles.find(
+      (profile) =>
+        profile.userId === normalizedTargetUserId || profile.id === normalizedTargetUserId,
+    );
+    get().removeTopProfile(actorUserId, normalizedTargetUserId);
 
     let lastError: any;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const response = await apiFetch('/api/v1/social/swipe', {
           method: 'POST',
-          body: JSON.stringify({ targetUserId, action: 'pass' }),
+          body: JSON.stringify({ targetUserId: normalizedTargetUserId, action: 'pass' }),
         });
+        if (!ownsProfileDeck(get(), actorUserId)) return;
         useSubscriptionStore.getState().applyServerContext((response as any).data || response);
         return;
       } catch (error: any) {
+        if (!ownsProfileDeck(get(), actorUserId)) return;
         lastError = error;
         if (attempt < 2) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
       }
     }
 
     if (removedProfile) {
-      set((s) => ({ profiles: [removedProfile, ...s.profiles] }));
+      set((s) =>
+        ownsProfileDeck(s, actorUserId)
+          ? { profiles: [removedProfile, ...s.profiles] }
+          : {},
+      );
     }
     warnDatingStore('passUser failed after 3 retries', lastError);
   },
 
-  removeTopProfile: () => {
-    set((s) => ({ profiles: s.profiles.slice(1) }));
+  removeTopProfile: (ownerUserId: string, targetUserId: string) => {
+    const requestedOwnerUserId = normalizeUserId(ownerUserId);
+    const requestedTargetUserId = normalizeUserId(targetUserId);
+    set((state) =>
+      requestedOwnerUserId &&
+      requestedTargetUserId &&
+      ownsTargetProfile(state, requestedOwnerUserId, requestedTargetUserId)
+        ? {
+            profiles: state.profiles.filter(
+              (profile) =>
+                profile.userId !== requestedTargetUserId &&
+                profile.id !== requestedTargetUserId,
+            ),
+          }
+        : {},
+    );
   },
 }));

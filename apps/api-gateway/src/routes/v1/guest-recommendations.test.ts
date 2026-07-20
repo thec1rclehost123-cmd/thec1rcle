@@ -4,6 +4,8 @@ import validatePlugin from '../../plugins/validate';
 
 const recommendationMocks = vi.hoisted(() => ({
   getRecommendedEvents: vi.fn(),
+  getRecommendedEventsV2: vi.fn(),
+  getRecommendationCacheContext: vi.fn(),
   getSimilarEvents: vi.fn(),
 }));
 
@@ -59,6 +61,44 @@ describe('guest recommendations routes', () => {
 
     expect(response.statusCode).toBe(401);
     expect(response.json().error.code).toBe('UNAUTHORIZED');
+    expect(recommendationMocks.getRecommendedEvents).not.toHaveBeenCalled();
+
+    await server.close();
+  });
+
+  it('GET /api/v1/recommendations exposes the versioned contract without changing legacy arrays', async () => {
+    recommendationMocks.getRecommendationCacheContext.mockResolvedValueOnce({
+      modelVersion: 'explore-v2',
+      profileVersion: 4,
+      city: 'pune',
+    });
+    recommendationMocks.getRecommendedEventsV2.mockResolvedValueOnce({
+      modelVersion: 'explore-v2',
+      profileVersion: 4,
+      items: [
+        {
+          event: { id: 'event_1' },
+          score: 30,
+          reasonCode: 'VIBE_AND_CITY_MATCH',
+          reasonLabel: 'Because it matches your tastes in Pune',
+        },
+      ],
+      fallbackUsed: false,
+    });
+    const server = await buildServer({ uid: 'user_1' });
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/recommendations?contract=v2&limit=5',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      modelVersion: 'explore-v2',
+      profileVersion: 4,
+      fallbackUsed: false,
+    });
+    expect(recommendationMocks.getRecommendedEventsV2).toHaveBeenCalledWith('user_1', 5);
     expect(recommendationMocks.getRecommendedEvents).not.toHaveBeenCalled();
 
     await server.close();

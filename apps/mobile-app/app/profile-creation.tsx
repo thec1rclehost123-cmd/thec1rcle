@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +17,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -27,6 +27,16 @@ import { DatingVitals, ProfileAnthem, useProfileStore } from '@/store/profileSto
 import AnthemPlayer from '@/components/ui/AnthemPlayer';
 import { uploadUserPhoto } from '@/lib/firebase/userProfile';
 import { colors, gradients, shadows } from '@/lib/design/theme';
+import {
+  NIGHTLIFE_HEIGHT_OPTIONS,
+  NIGHTLIFE_LIFESTYLE_OPTIONS,
+  NIGHTLIFE_PRONOUN_OPTIONS,
+  NIGHTLIFE_VIBE_OPTIONS,
+  isActiveNightlifeProfileEditor,
+  pauseActiveNightlifeProfile,
+} from '@/lib/nightlifeProfile';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const MAX_PHOTOS = 6;
 const MAX_PROMPTS = 3;
@@ -38,7 +48,7 @@ type PhotoDraft = {
   local?: boolean;
 };
 
-type VitalKey = 'height' | 'gender' | 'location';
+type VitalKey = 'height' | 'pronouns' | 'lifestyle';
 
 type PromptDraft = {
   id: string;
@@ -68,31 +78,18 @@ const NIGHTLIFE_PROMPTS = [
   'My signature drink is',
 ];
 
-const VIBE_TAGS = [
-  'House',
-  'Techno',
-  'Hip-Hop',
-  'Afrobeats',
-  'Open Format',
-  'Rooftops',
-  'Cocktail Bars',
-  'Dancing',
-  'Friends First',
-  'Meet Someone',
-  'Afterparty',
-  'Low-Key',
-];
+const VIBE_TAGS = NIGHTLIFE_VIBE_OPTIONS;
 
 const VITAL_OPTIONS: Record<VitalKey, string[]> = {
-  height: ['5\'0"', '5\'2"', '5\'4"', '5\'6"', '5\'8"', '5\'10"', '6\'0"', '6\'2"', '6\'4"'],
-  gender: ['Woman', 'Man', 'Non-binary', 'Prefer not to say'],
-  location: ['Pune', 'Mumbai', 'Bengaluru', 'Goa', 'Delhi', 'Tonight nearby'],
+  height: NIGHTLIFE_HEIGHT_OPTIONS,
+  pronouns: [...NIGHTLIFE_PRONOUN_OPTIONS],
+  lifestyle: [...NIGHTLIFE_LIFESTYLE_OPTIONS],
 };
 
 const VITAL_LABELS: Record<VitalKey, { title: string; icon: keyof typeof Ionicons.glyphMap }> = {
   height: { title: 'Height', icon: 'resize-outline' },
-  gender: { title: 'Gender', icon: 'person-outline' },
-  location: { title: 'Location', icon: 'location-outline' },
+  pronouns: { title: 'Pronouns', icon: 'person-outline' },
+  lifestyle: { title: 'Lifestyle', icon: 'wine-outline' },
 };
 
 function buildInitialPhotos(photos?: string[]): PhotoDraft[] {
@@ -105,8 +102,8 @@ function buildInitialPhotos(photos?: string[]): PhotoDraft[] {
 function cleanVitals(vitals: DatingVitals): DatingVitals {
   return {
     height: vitals.height?.trim() || undefined,
-    gender: vitals.gender?.trim() || undefined,
-    location: vitals.location?.trim() || undefined,
+    pronouns: vitals.pronouns?.trim() || undefined,
+    lifestyle: vitals.lifestyle?.trim() || undefined,
   };
 }
 
@@ -115,15 +112,9 @@ function artworkLarge(url?: string | null) {
 }
 
 function SheetFrame({
-  visible,
-  title,
-  children,
-  onClose,
+  visible, title, children, onClose,
 }: {
-  visible: boolean;
-  title: string;
-  children: ReactNode;
-  onClose: () => void;
+  visible: boolean; title: string; children: ReactNode; onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
   return (
@@ -131,8 +122,8 @@ function SheetFrame({
       <View style={styles.modalRoot}>
         <Pressable style={styles.modalScrim} onPress={onClose} />
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.sheetKeyboard}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 18) }]}>
             <View style={styles.sheetHandle} />
@@ -151,8 +142,10 @@ function SheetFrame({
 }
 
 export default function ProfileCreationScreen() {
+  const { mode } = useLocalSearchParams<{ mode?: string | string[] }>();
   const { user } = useAuthStore();
   const profile = useProfileStore((state) => state.profile);
+  const loadedProfileUserId = useProfileStore((state) => state._loadedUserId);
   const loadProfile = useProfileStore((state) => state.loadProfile);
   const updateProfile = useProfileStore((state) => state.updateProfile);
   const [hydrated, setHydrated] = useState(false);
@@ -161,7 +154,7 @@ export default function ProfileCreationScreen() {
     buildInitialPhotos(profile?.datingPhotos?.length ? profile.datingPhotos : profile?.photos),
   );
   const [vitals, setVitals] = useState<DatingVitals>(() => profile?.datingVitals ?? {});
-  const [vibeTags, setVibeTags] = useState<string[]>(() => profile?.vibeTags ?? []);
+  const [vibeTags, setVibeTags] = useState<string[]>(() => profile?.nightlifeVibeTags ?? []);
   const [anthem, setAnthem] = useState<ProfileAnthem | null>(() => profile?.anthem ?? null);
   const [prompts, setPrompts] = useState<PromptDraft[]>(() => []);
   const [activeVital, setActiveVital] = useState<VitalKey | null>(null);
@@ -172,38 +165,56 @@ export default function ProfileCreationScreen() {
   const [anthemLoading, setAnthemLoading] = useState(false);
   const [anthemError, setAnthemError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [pausing, setPausing] = useState(false);
+  const pauseInFlightRef = useRef(false);
   const [promptModalIndex, setPromptModalIndex] = useState<number | null>(null);
   const [editingAnswer, setEditingAnswer] = useState('');
+  const editorOwnerUserId = useRef<string | null>(user?.uid ?? null);
 
   const activeVitalConfig = activeVital ? VITAL_LABELS[activeVital] : null;
   const activeVitalValue = activeVital ? vitals[activeVital] : undefined;
   const selectedVitals = useMemo(() => cleanVitals(vitals), [vitals]);
   const displayName = profile?.displayName || user?.displayName || 'You';
+  const isActiveEditor = isActiveNightlifeProfileEditor({
+    routeMode: mode,
+    datingActive: profile?.datingActive,
+  });
 
   useEffect(() => {
-    if (!user?.uid || profile) return;
+    const nextUserId = user?.uid ?? null;
+    if (editorOwnerUserId.current === nextUserId) return;
+    editorOwnerUserId.current = nextUserId;
+    setHydrated(false);
+    setPhotoDrafts([]);
+    setVitals({});
+    setVibeTags([]);
+    setAnthem(null);
+    setPrompts([]);
+    setActiveVital(null);
+    setAnthemModalVisible(false);
+    setPromptModalIndex(null);
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid || loadedProfileUserId === user.uid) return;
     void loadProfile(user.uid);
-  }, [loadProfile, profile, user?.uid]);
+  }, [loadProfile, loadedProfileUserId, user?.uid]);
 
   useEffect(() => {
-    if (!profile || hydrated) return;
-    setPhotoDrafts(
-      buildInitialPhotos(profile.datingPhotos?.length ? profile.datingPhotos : profile.photos),
-    );
+    if (!profile || loadedProfileUserId !== user?.uid || hydrated) return;
+    setPhotoDrafts(buildInitialPhotos(profile.datingPhotos?.length ? profile.datingPhotos : profile.photos));
     setVitals(profile.datingVitals ?? {});
-    setVibeTags(profile.vibeTags ?? []);
+    setVibeTags(profile.nightlifeVibeTags ?? []);
     setAnthem(profile.anthem ?? null);
     if (Array.isArray(profile.prompts)) {
-      setPrompts(
-        profile.prompts.map((p: any, i: number) => ({
-          id: String(p.id || `prompt-${i}`),
-          question: p.title || p.question || NIGHTLIFE_PROMPTS[i % NIGHTLIFE_PROMPTS.length],
-          answer: p.answer || p.response || '',
-        })),
-      );
+      setPrompts(profile.prompts.map((p: any, i: number) => ({
+        id: String(p.promptId || p.id || `prompt-${i}`),
+        question: p.title || p.question || NIGHTLIFE_PROMPTS[i % NIGHTLIFE_PROMPTS.length],
+        answer: p.answer || p.response || '',
+      })));
     }
     setHydrated(true);
-  }, [hydrated, profile]);
+  }, [hydrated, loadedProfileUserId, profile, user?.uid]);
 
   useEffect(() => {
     if (!anthemModalVisible) return;
@@ -272,11 +283,7 @@ export default function ProfileCreationScreen() {
         if (!cancelled) setAnthemLoading(false);
       }
     }, 350);
-    return () => {
-      cancelled = true;
-      controller.abort();
-      clearTimeout(timeout);
-    };
+    return () => { cancelled = true; controller.abort(); clearTimeout(timeout); };
   }, [anthemModalVisible, anthemQuery]);
 
   const setPhotoAtIndex = (index: number, draft: PhotoDraft | null) => {
@@ -306,12 +313,7 @@ export default function ProfileCreationScreen() {
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      setPhotoAtIndex(index, {
-        uri: asset.uri,
-        width: asset.width,
-        height: asset.height,
-        local: true,
-      });
+      setPhotoAtIndex(index, { uri: asset.uri, width: asset.width, height: asset.height, local: true });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
@@ -346,10 +348,7 @@ export default function ProfileCreationScreen() {
       return;
     }
     const newIndex = prompts.length;
-    setPrompts((prev) => [
-      ...prev,
-      { id: `new-${Date.now()}`, question: NIGHTLIFE_PROMPTS[0], answer: '' },
-    ]);
+    setPrompts((prev) => [...prev, { id: `new-${Date.now()}`, question: NIGHTLIFE_PROMPTS[0], answer: '' }]);
     setPromptModalIndex(newIndex);
     setEditingAnswer('');
   };
@@ -385,38 +384,68 @@ export default function ProfileCreationScreen() {
       Alert.alert('Sign in required', 'Please sign in again to publish your profile.');
       return;
     }
+    const publishingUserId = user.uid;
+    const filledPhotos = photoDrafts.filter((photo) => photo?.uri);
+    const nextVitals = cleanVitals(vitals);
+    const filledPrompts = prompts.filter((prompt) => prompt.answer.trim());
+    const missing: string[] = [];
+    if (filledPhotos.length < 1) missing.push('one photo');
+    if (!nextVitals.height) missing.push('height');
+    if (!nextVitals.pronouns) missing.push('pronouns');
+    if (!nextVitals.lifestyle) missing.push('lifestyle');
+    if (vibeTags.length < 1) missing.push('one vibe');
+    if (filledPrompts.length < 1) missing.push('one prompt answer');
+    if (missing.length > 0) {
+      Alert.alert('Finish your profile', `Please add ${missing.join(', ')} before publishing.`);
+      return;
+    }
+
     setPublishing(true);
     try {
-      const filledPhotos = photoDrafts.filter((photo) => photo?.uri);
-      const uploadedPhotos = await Promise.all(filledPhotos.map(uploadDraftPhoto));
-      const nextVitals = cleanVitals(vitals);
-      const ok = await updateProfile(user.uid, {
+      const uploadedPhotos = await Promise.all(
+        filledPhotos.map(async (draft, index) => {
+          const uploadedUri = await uploadDraftPhoto(draft, index);
+          if (draft.local && useAuthStore.getState().user?.uid === publishingUserId) {
+            setPhotoAtIndex(index, { uri: uploadedUri, local: false });
+          }
+          return uploadedUri;
+        }),
+      );
+      if (useAuthStore.getState().user?.uid !== publishingUserId) {
+        throw new Error('Your signed-in account changed. Reopen the profile editor and try again.');
+      }
+      const ok = await updateProfile(publishingUserId, {
         datingPhotos: uploadedPhotos,
-        photos: uploadedPhotos,
         datingVitals: nextVitals,
-        vibeTags,
+        nightlifeVibeTags: vibeTags,
         anthem: anthem ?? null,
-        prompts: prompts
-          .filter((p) => p.answer.trim())
-          .map((p, i) => ({
-            id: p.id,
-            title: p.question,
-            answer: p.answer,
-          })),
+        prompts: filledPrompts.map((p) => ({
+          promptId: p.id,
+          question: p.question,
+          answer: p.answer.trim(),
+          type: 'text' as const,
+        })),
         datingActive: true,
-        profileComplete: true,
         socialSetupComplete: true,
-        city: nextVitals.location || profile?.city,
       });
       if (!ok) {
-        Alert.alert('Could not publish profile', 'Please try again.');
+        const message = useProfileStore.getState().error;
+        Alert.alert(
+          'Could not publish profile',
+          message || 'Your profile could not be saved. Please review it and try again.',
+        );
         return;
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/profile');
     } catch (error) {
       console.error('[ProfileCreation] Publish error:', error);
-      Alert.alert('Could not publish profile', 'Please check your connection and try again.');
+      Alert.alert(
+        'Could not publish profile',
+        error instanceof Error && error.message
+          ? error.message
+          : 'Please check your connection and try again.',
+      );
     } finally {
       setPublishing(false);
     }
@@ -433,22 +462,14 @@ export default function ProfileCreationScreen() {
   };
 
   const handleCancel = () => {
-    const originalPhotos = buildInitialPhotos(
-      profile?.datingPhotos?.length ? profile.datingPhotos : profile?.photos,
-    );
+    const originalPhotos = buildInitialPhotos(profile?.datingPhotos?.length ? profile.datingPhotos : profile?.photos);
     const photosChanged = JSON.stringify(photoDrafts) !== JSON.stringify(originalPhotos);
     const vitalsChanged = JSON.stringify(vitals) !== JSON.stringify(profile?.datingVitals ?? {});
-    const tagsChanged = JSON.stringify(vibeTags) !== JSON.stringify(profile?.vibeTags ?? []);
+    const tagsChanged = JSON.stringify(vibeTags) !== JSON.stringify(profile?.nightlifeVibeTags ?? []);
     const anthemChanged = JSON.stringify(anthem) !== JSON.stringify(profile?.anthem ?? null);
-    const promptsChanged =
-      JSON.stringify(prompts) !==
-      JSON.stringify(
-        profile?.prompts?.map((p: any) => ({
-          id: p.id,
-          question: p.title || p.question,
-          answer: p.answer || p.response,
-        })) ?? [],
-      );
+    const promptsChanged = JSON.stringify(prompts) !== JSON.stringify(
+      profile?.prompts?.map((p: any) => ({ id: p.promptId || p.id, question: p.title || p.question, answer: p.answer || p.response })) ?? [],
+    );
 
     if (photosChanged || vitalsChanged || tagsChanged || anthemChanged || promptsChanged) {
       Alert.alert('Discard Changes?', 'You have unsaved profile changes. Are you sure?', [
@@ -460,11 +481,51 @@ export default function ProfileCreationScreen() {
     }
   };
 
+  const confirmPauseProfile = async () => {
+    if (!user?.uid || pauseInFlightRef.current) return;
+
+    pauseInFlightRef.current = true;
+    setPausing(true);
+    try {
+      const result = await pauseActiveNightlifeProfile({
+        userId: user.uid,
+        updateProfile,
+        getStoreError: () => useProfileStore.getState().error,
+      });
+      if (!result.ok) {
+        Alert.alert('Could not pause profile', result.error);
+        return;
+      }
+
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/profile');
+    } finally {
+      pauseInFlightRef.current = false;
+      setPausing(false);
+    }
+  };
+
+  const handlePauseProfile = () => {
+    if (!isActiveEditor || publishing || pausing) return;
+
+    Alert.alert(
+      'Pause Nightlife Profile?',
+      'You will be hidden from Nightlife discovery. Your saved photos, answers, and preferences stay intact so you can turn the profile back on later.',
+      [
+        { text: 'Keep Active', style: 'cancel' },
+        {
+          text: 'Pause Profile',
+          style: 'destructive',
+          onPress: () => void confirmPauseProfile(),
+        },
+      ],
+    );
+  };
+
   const photoCount = photoDrafts.filter((p) => p?.uri).length;
   const filledPromptCount = prompts.filter((p) => p.answer.trim()).length;
 
-  const profileItems: Array<{ type: 'prompt'; index: number } | { type: 'photo'; index: number }> =
-    [];
+  const profileItems: Array<{ type: 'prompt'; index: number } | { type: 'photo'; index: number }> = [];
   let promptIdx = 0;
   let photoIdx = 1;
   while (promptIdx < prompts.length || photoIdx < photoDrafts.length) {
@@ -485,12 +546,16 @@ export default function ProfileCreationScreen() {
           <Text style={styles.headerButtonText}>Cancel</Text>
         </Pressable>
         <Text style={styles.headerTitle}>Nightlife Profile</Text>
-        <Pressable onPress={handlePublish} style={styles.headerButton} disabled={publishing}>
+        <Pressable
+          onPress={handlePublish}
+          style={styles.headerButton}
+          disabled={publishing || pausing}
+        >
           {publishing ? (
             <ActivityIndicator color="#000" size="small" />
           ) : (
             <Text style={[styles.headerButtonText, styles.headerButtonTextDone]}>
-              {profile?.datingActive ? 'Save' : 'Done'}
+              {isActiveEditor ? 'Save' : 'Done'}
             </Text>
           )}
         </Pressable>
@@ -502,23 +567,16 @@ export default function ProfileCreationScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {/* Hero Photo — tappable */}
-        <Pressable onPress={() => handlePickPhoto(0)} style={styles.heroSection}>
+        <AnimatedPressable entering={FadeInDown.delay(100).duration(400)} onPress={() => handlePickPhoto(0)} style={styles.heroSection}>
           {photoDrafts[0]?.uri ? (
-            <Image
-              source={{ uri: photoDrafts[0].uri }}
-              style={styles.heroImage}
-              contentFit="cover"
-            />
+            <Image source={{ uri: photoDrafts[0].uri }} style={styles.heroImage} contentFit="cover" />
           ) : (
             <View style={styles.heroEmpty}>
               <Ionicons name="camera-outline" size={40} color="#999" />
               <Text style={styles.heroEmptyText}>Add photo</Text>
             </View>
           )}
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.6)']}
-            style={StyleSheet.absoluteFill}
-          />
+          <LinearGradient colors={['transparent', 'rgba(0,0,0,0.6)']} style={StyleSheet.absoluteFill} />
           <View style={styles.heroOverlay}>
             <Text style={styles.heroName}>{displayName}</Text>
             <View style={styles.heroEditBadge}>
@@ -526,20 +584,13 @@ export default function ProfileCreationScreen() {
               <Text style={styles.heroEditBadgeText}>Tap to change</Text>
             </View>
           </View>
-        </Pressable>
+        </AnimatedPressable>
 
-        <View style={styles.detailsContainer}>
+        <Animated.View entering={FadeInDown.delay(200).duration(400)} style={styles.detailsContainer}>
           {/* Vitals — tappable */}
           <View style={styles.vitalsRow}>
             {(Object.keys(VITAL_LABELS) as VitalKey[]).map((key) => (
-              <Pressable
-                key={key}
-                onPress={() => {
-                  setActiveVital(key);
-                  setCustomVital('');
-                }}
-                style={styles.vitalPill}
-              >
+              <Pressable key={key} onPress={() => { setActiveVital(key); setCustomVital(''); }} style={styles.vitalPill}>
                 <Ionicons name={VITAL_LABELS[key].icon as any} size={14} color="#666" />
                 <Text style={[styles.vitalText, !selectedVitals[key] && styles.vitalTextEmpty]}>
                   {selectedVitals[key] || `Add ${VITAL_LABELS[key].title.toLowerCase()}`}
@@ -563,7 +614,9 @@ export default function ProfileCreationScreen() {
                     onPress={() => toggleVibeTag(tag)}
                     style={[styles.tagPill, selected && styles.tagPillSelected]}
                   >
-                    <Text style={[styles.tagText, selected && styles.tagTextSelected]}>{tag}</Text>
+                    <Text style={[styles.tagText, selected && styles.tagTextSelected]}>
+                      {tag}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -585,12 +638,7 @@ export default function ProfileCreationScreen() {
                 <Ionicons name="pencil" size={14} color="#999" />
               </View>
               <View style={[styles.anthemRow, { opacity: 0.5 }]}>
-                <View
-                  style={[
-                    styles.anthemArtwork,
-                    { backgroundColor: '#EEE', alignItems: 'center', justifyContent: 'center' },
-                  ]}
-                >
+                <View style={[styles.anthemArtwork, { backgroundColor: '#EEE', alignItems: 'center', justifyContent: 'center' }]}>
                   <Ionicons name="musical-notes-outline" size={20} color="#999" />
                 </View>
                 <Text style={styles.emptyHint}>Tap to add a song</Text>
@@ -606,17 +654,12 @@ export default function ProfileCreationScreen() {
               return (
                 <Pressable
                   key={`prompt-${item.index}`}
-                  onPress={() => {
-                    setPromptModalIndex(item.index);
-                    setEditingAnswer(p.answer);
-                  }}
+                  onPress={() => { setPromptModalIndex(item.index); setEditingAnswer(p.answer); }}
                   style={styles.promptBlock}
                 >
                   <Text style={styles.promptQuestion}>{p.question}</Text>
                   {p.answer.trim() ? (
-                    <Text style={styles.promptAnswer} numberOfLines={3}>
-                      {p.answer}
-                    </Text>
+                    <Text style={styles.promptAnswer} numberOfLines={3}>{p.answer}</Text>
                   ) : (
                     <Text style={styles.promptEmpty}>Tap to answer</Text>
                   )}
@@ -637,11 +680,7 @@ export default function ProfileCreationScreen() {
               >
                 {photo?.uri ? (
                   <>
-                    <Image
-                      source={{ uri: photo.uri }}
-                      style={styles.photoBlockImage}
-                      contentFit="cover"
-                    />
+                    <Image source={{ uri: photo.uri }} style={styles.photoBlockImage} contentFit="cover" />
                     <View style={styles.photoBlockOverlay}>
                       <Ionicons name="camera-outline" size={18} color="#fff" />
                       <Text style={styles.photoBlockOverlayText}>Change</Text>
@@ -667,31 +706,62 @@ export default function ProfileCreationScreen() {
           {photoCount < MAX_PHOTOS && (
             <Pressable onPress={() => handlePickPhoto(photoCount)} style={styles.addButton}>
               <Ionicons name="add-circle-outline" size={20} color={colors.iris} />
-              <Text style={styles.addButtonText}>
-                Add photo ({photoCount}/{MAX_PHOTOS})
-              </Text>
+              <Text style={styles.addButtonText}>Add photo ({photoCount}/{MAX_PHOTOS})</Text>
             </Pressable>
           )}
 
           {/* Save */}
-          <Pressable onPress={handlePublish} style={styles.publishButton} disabled={publishing}>
+          <Pressable
+            onPress={handlePublish}
+            style={[styles.publishButton, (publishing || pausing) && styles.disabledButton]}
+            disabled={publishing || pausing}
+          >
             {publishing ? (
               <ActivityIndicator color="#FFF" size="small" />
             ) : (
               <Text style={styles.publishButtonText}>
-                {profile?.datingActive ? 'Save Profile' : 'Publish Profile'}
+                {isActiveEditor ? 'Save Profile' : 'Publish Profile'}
               </Text>
             )}
           </Pressable>
-        </View>
+
+          {isActiveEditor || pausing ? (
+            <View style={styles.visibilitySection}>
+              <View style={styles.visibilityCopy}>
+                <Text style={styles.visibilityTitle}>Profile visibility</Text>
+                <Text style={styles.visibilityDescription}>
+                  Pause to leave Nightlife discovery without deleting your profile.
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Pause Nightlife Profile"
+                accessibilityHint="Hides your profile from Nightlife discovery without deleting its details"
+                disabled={publishing || pausing}
+                onPress={handlePauseProfile}
+                style={[
+                  styles.pauseButton,
+                  (publishing || pausing) && styles.disabledButton,
+                ]}
+              >
+                <View style={styles.pauseButtonContent}>
+                  {pausing ? (
+                    <ActivityIndicator color="#C52C2C" size="small" />
+                  ) : (
+                    <Ionicons name="pause-circle-outline" size={20} color="#C52C2C" />
+                  )}
+                  <Text style={styles.pauseButtonText}>
+                    {pausing ? 'Pausing…' : 'Pause Nightlife Profile'}
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+          ) : null}
+        </Animated.View>
       </ScrollView>
 
       {/* Vitals Sheet */}
-      <SheetFrame
-        visible={activeVital !== null}
-        title={activeVitalConfig?.title ?? 'Vitals'}
-        onClose={() => setActiveVital(null)}
-      >
+      <SheetFrame visible={activeVital !== null} title={activeVitalConfig?.title ?? 'Vitals'} onClose={() => setActiveVital(null)}>
         {activeVital ? (
           <>
             <View style={styles.sheetOptionGrid}>
@@ -699,17 +769,9 @@ export default function ProfileCreationScreen() {
                 <Pressable
                   key={opt}
                   onPress={() => handleVitalSelect(activeVital, opt)}
-                  style={[
-                    styles.sheetOption,
-                    opt === activeVitalValue && styles.sheetOptionSelected,
-                  ]}
+                  style={[styles.sheetOption, opt === activeVitalValue && styles.sheetOptionSelected]}
                 >
-                  <Text
-                    style={[
-                      styles.sheetOptionText,
-                      opt === activeVitalValue && styles.sheetOptionTextSelected,
-                    ]}
-                  >
+                  <Text style={[styles.sheetOptionText, opt === activeVitalValue && styles.sheetOptionTextSelected]}>
                     {opt}
                   </Text>
                 </Pressable>
@@ -734,11 +796,7 @@ export default function ProfileCreationScreen() {
       </SheetFrame>
 
       {/* Anthem Sheet */}
-      <SheetFrame
-        visible={anthemModalVisible}
-        title="Profile Anthem"
-        onClose={() => setAnthemModalVisible(false)}
-      >
+      <SheetFrame visible={anthemModalVisible} title="Profile Anthem" onClose={() => setAnthemModalVisible(false)}>
         <View style={styles.searchShell}>
           <Ionicons name="search" size={18} color="rgba(255,255,255,0.46)" />
           <TextInput
@@ -751,64 +809,31 @@ export default function ProfileCreationScreen() {
             autoCorrect={false}
           />
         </View>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          style={styles.anthemResults}
-        >
+        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.anthemResults}>
           {anthemLoading ? (
-            <View style={styles.searchState}>
-              <ActivityIndicator color={colors.irisGlow} />
-            </View>
+            <View style={styles.searchState}><ActivityIndicator color={colors.irisGlow} /></View>
           ) : anthemError ? (
             <Text style={styles.searchStateText}>{anthemError}</Text>
           ) : (
             anthemResults.map((song) => (
               <Pressable
                 key={`${song.trackId}-${song.trackName}`}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setAnthem(song);
-                  setAnthemModalVisible(false);
-                }}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAnthem(song); setAnthemModalVisible(false); }}
                 style={styles.songRow}
               >
                 {song.artworkUrl ? (
-                  <Image
-                    source={{ uri: artworkLarge(song.artworkUrl) }}
-                    style={styles.songArtwork}
-                    contentFit="cover"
-                  />
+                  <Image source={{ uri: artworkLarge(song.artworkUrl) }} style={styles.songArtwork} contentFit="cover" />
                 ) : (
-                  <View style={styles.songArtworkFallback}>
-                    <Ionicons name="musical-note" size={18} color="#fff" />
-                  </View>
+                  <View style={styles.songArtworkFallback}><Ionicons name="musical-note" size={18} color="#fff" /></View>
                 )}
                 <View style={styles.songInfo}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text
-                      style={{ color: '#fff', fontSize: 16, fontWeight: '600', flexShrink: 1 }}
-                      numberOfLines={1}
-                    >
-                      {song.trackName}
-                    </Text>
-                    <View
-                      style={{
-                        backgroundColor:
-                          song.source === 'spotify' ? '#1DB954' : 'rgba(255,255,255,0.12)',
-                        borderRadius: 4,
-                        paddingHorizontal: 5,
-                        paddingVertical: 2,
-                      }}
-                    >
-                      <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>
-                        {song.source === 'spotify' ? 'SPOTIFY' : 'iTunes'}
-                      </Text>
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>{song.trackName}</Text>
+                    <View style={{ backgroundColor: song.source === 'spotify' ? '#1DB954' : 'rgba(255,255,255,0.12)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+                      <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>{song.source === 'spotify' ? 'SPOTIFY' : 'iTunes'}</Text>
                     </View>
                   </View>
-                  <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }} numberOfLines={1}>
-                    {song.artistName}
-                  </Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }} numberOfLines={1}>{song.artistName}</Text>
                 </View>
                 <Ionicons name="add" size={20} color="rgba(255,255,255,0.62)" />
               </Pressable>
@@ -836,11 +861,7 @@ export default function ProfileCreationScreen() {
                       onPress={() => handleSelectPromptQuestion(promptModalIndex, q)}
                       style={[styles.sheetOption, selected && styles.sheetOptionSelected]}
                     >
-                      <Text
-                        style={[styles.sheetOptionText, selected && styles.sheetOptionTextSelected]}
-                      >
-                        {q}
-                      </Text>
+                      <Text style={[styles.sheetOptionText, selected && styles.sheetOptionTextSelected]}>{q}</Text>
                     </Pressable>
                   );
                 })}
@@ -866,29 +887,13 @@ export default function ProfileCreationScreen() {
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
               <Pressable
                 onPress={() => handleRemovePrompt(promptModalIndex)}
-                style={{
-                  flex: 1,
-                  minHeight: 48,
-                  borderRadius: 10,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: 'rgba(255,255,255,0.06)',
-                  borderWidth: 1,
-                  borderColor: 'rgba(255,255,255,0.1)',
-                }}
+                style={{ flex: 1, minHeight: 48, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}
               >
                 <Text style={{ color: '#FF5252', fontSize: 14, fontWeight: '800' }}>Remove</Text>
               </Pressable>
               <Pressable
                 onPress={() => setPromptModalIndex(null)}
-                style={{
-                  flex: 1,
-                  minHeight: 48,
-                  borderRadius: 10,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: colors.iris,
-                }}
+                style={{ flex: 1, minHeight: 48, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.iris }}
               >
                 <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>Done</Text>
               </Pressable>
@@ -903,12 +908,8 @@ export default function ProfileCreationScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FAFAFA' },
   header: {
-    minHeight: 58,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FAFAFA',
+    minHeight: 58, paddingHorizontal: 16, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FAFAFA',
   },
   headerButton: { minWidth: 60, height: 42, justifyContent: 'center' },
   headerButtonText: { color: '#000', fontSize: 16, fontWeight: '400' },
@@ -918,37 +919,22 @@ const styles = StyleSheet.create({
 
   // Hero section
   heroSection: {
-    width: '100%',
-    aspectRatio: 3 / 4,
-    backgroundColor: '#EEE',
-    overflow: 'hidden',
-    position: 'relative',
+    width: '100%', aspectRatio: 3 / 4, backgroundColor: '#EEE',
+    overflow: 'hidden', position: 'relative',
   },
   heroImage: { width: '100%', height: '100%' },
   heroEmpty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F5F5F5',
+    flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F5',
   },
   heroEmptyText: { color: '#999', fontSize: 14, fontWeight: '600', marginTop: 8 },
   heroOverlay: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
+    position: 'absolute', bottom: 24, left: 20, right: 20,
   },
   heroName: { color: '#FFF', fontSize: 32, fontWeight: '800' },
   heroEditBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8,
+    alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6,
   },
   heroEditBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
@@ -958,32 +944,20 @@ const styles = StyleSheet.create({
   // Vitals
   vitalsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   vitalPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: '#F5F5F5',
-    borderWidth: 1,
-    borderColor: '#EBEBEB',
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+    backgroundColor: '#F5F5F5', borderWidth: 1, borderColor: '#EBEBEB',
   },
   vitalText: { color: '#333', fontSize: 13, fontWeight: '600' },
   vitalTextEmpty: { color: '#999', fontWeight: '400' },
 
   // Section block (vibe tags, anthem)
   sectionBlock: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#EBEBEB',
+    backgroundColor: '#FFF', borderRadius: 12, padding: 16,
+    borderWidth: 1, borderColor: '#EBEBEB',
   },
   sectionBlockHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10,
   },
   sectionBlockLabel: { color: '#999', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
   emptyHint: { color: '#BBB', fontSize: 14, fontWeight: '400' },
@@ -991,11 +965,8 @@ const styles = StyleSheet.create({
   // Tags
   tagsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tagPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6,
     backgroundColor: '#F0F0F0',
   },
   tagPillSelected: {
@@ -1012,19 +983,10 @@ const styles = StyleSheet.create({
 
   // Prompt block
   promptBlock: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#EBEBEB',
+    backgroundColor: '#FFF', borderRadius: 12, padding: 16,
+    borderWidth: 1, borderColor: '#EBEBEB',
   },
-  promptQuestion: {
-    color: '#999',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
+  promptQuestion: { color: '#999', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   promptAnswer: { color: '#000', fontSize: 22, fontWeight: '800', lineHeight: 28, marginTop: 10 },
   promptEmpty: { color: '#CCC', fontSize: 16, fontWeight: '400', marginTop: 10 },
   promptEditRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 12 },
@@ -1032,25 +994,14 @@ const styles = StyleSheet.create({
 
   // Photo block
   photoBlock: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#F5F5F5',
-    position: 'relative',
+    width: '100%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden',
+    backgroundColor: '#F5F5F5', position: 'relative',
   },
   photoBlockImage: { width: '100%', height: '100%' },
   photoBlockOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 12, paddingVertical: 8,
   },
   photoBlockOverlayText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   photoBlockEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -1058,176 +1009,110 @@ const styles = StyleSheet.create({
 
   // Add buttons
   addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 48,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.iris,
-    borderStyle: 'dashed',
-    backgroundColor: 'rgba(244,74,34,0.04)',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    minHeight: 48, borderRadius: 12, borderWidth: 1.5, borderColor: colors.iris,
+    borderStyle: 'dashed', backgroundColor: 'rgba(244,74,34,0.04)',
   },
   addButtonText: { color: colors.iris, fontSize: 15, fontWeight: '700' },
 
   // Publish
   publishButton: {
-    minHeight: 52,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#000',
-    marginTop: 8,
+    minHeight: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#000', marginTop: 8,
   },
   publishButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   disabledButton: { opacity: 0.5 },
+  visibilitySection: {
+    marginTop: 8, paddingTop: 20, borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#D9D9D9', gap: 14,
+  },
+  visibilityCopy: { gap: 5 },
+  visibilityTitle: { color: '#111', fontSize: 15, fontWeight: '700' },
+  visibilityDescription: { color: '#666', fontSize: 13, lineHeight: 19 },
+  pauseButton: {
+    minHeight: 50, borderRadius: 12, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', borderWidth: 1, borderColor: '#E3A1A1',
+    backgroundColor: '#FFF5F5', paddingHorizontal: 16,
+  },
+  pauseButtonContent: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  pauseButtonText: { color: '#C52C2C', fontSize: 15, fontWeight: '700' },
 
   // Modal / Sheet shared
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
   modalScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.64)' },
-  sheetKeyboard: { justifyContent: 'flex-end' },
+  sheetKeyboard: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
-    maxHeight: '82%',
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    paddingHorizontal: 18,
-    paddingTop: 10,
-    backgroundColor: '#111111',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.11)',
+    maxHeight: '82%', borderTopLeftRadius: 26, borderTopRightRadius: 26,
+    paddingHorizontal: 18, paddingTop: 10, backgroundColor: '#111111',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.11)',
   },
   sheetHandle: {
-    alignSelf: 'center',
-    width: 44,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.24)',
-    marginBottom: 14,
+    alignSelf: 'center', width: 44, height: 4, borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.24)', marginBottom: 14,
   },
   sheetHeader: {
-    minHeight: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
+    minHeight: 40, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', marginBottom: 14,
   },
   sheetTitle: { color: '#fff', fontSize: 24, fontWeight: '900' },
   sheetCloseButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    width: 34, height: 34, borderRadius: 17, alignItems: 'center',
+    justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)',
   },
   sheetSectionLabel: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginBottom: 10,
+    color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10,
   },
   sheetOptionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   sheetOption: {
-    minHeight: 44,
-    borderRadius: 9,
-    paddingHorizontal: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    minHeight: 44, borderRadius: 9, paddingHorizontal: 14, alignItems: 'center',
+    justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
   sheetOptionSelected: {
-    backgroundColor: 'rgba(244,74,34,0.2)',
-    borderColor: 'rgba(244,74,34,0.66)',
+    backgroundColor: 'rgba(244,74,34,0.2)', borderColor: 'rgba(244,74,34,0.66)',
   },
   sheetOptionText: { color: 'rgba(255,255,255,0.74)', fontSize: 14, fontWeight: '800' },
   sheetOptionTextSelected: { color: '#fff' },
 
   customVitalRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 },
   customVitalInput: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    flex: 1, minHeight: 48, borderRadius: 10, paddingHorizontal: 14, color: '#fff',
+    fontSize: 15, fontWeight: '700', backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
   customVitalButton: {
-    minHeight: 48,
-    borderRadius: 10,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.iris,
+    minHeight: 48, borderRadius: 10, paddingHorizontal: 18, alignItems: 'center',
+    justifyContent: 'center', backgroundColor: colors.iris,
   },
   customVitalButtonText: { color: '#fff', fontSize: 14, fontWeight: '900' },
   answerInput: {
-    minHeight: 100,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlignVertical: 'top',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    minHeight: 100, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+    color: '#fff', fontSize: 16, fontWeight: '600', textAlignVertical: 'top',
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
 
   // Anthem search
   searchShell: {
-    minHeight: 48,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    minHeight: 48, borderRadius: 12, paddingHorizontal: 14, flexDirection: 'row',
+    alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
   searchInput: { flex: 1, color: '#fff', fontSize: 16, fontWeight: '700' },
   anthemResults: { marginTop: 14 },
   searchState: { minHeight: 120, alignItems: 'center', justifyContent: 'center' },
-  searchStateText: {
-    color: 'rgba(255,255,255,0.54)',
-    fontSize: 14,
-    fontWeight: '700',
-    textAlign: 'center',
-    paddingVertical: 32,
-  },
+  searchStateText: { color: 'rgba(255,255,255,0.54)', fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 32 },
   songRow: {
-    minHeight: 70,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    minHeight: 70, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 9,
+    marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 11,
+    backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
   songArtwork: { width: 52, height: 52, borderRadius: 9 },
   songArtworkFallback: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    width: 48, height: 48, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
   songInfo: { flex: 1 },
 });

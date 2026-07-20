@@ -17,7 +17,16 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
-import Animated, { FadeIn, FadeInDown, runOnJS } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  runOnJS,
+  useSharedValue,
+  useAnimatedStyle,
+  interpolate,
+  Extrapolation,
+  withTiming,
+} from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Search, MessageCircle, Heart, X, Lock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,6 +38,7 @@ import { apiFetch } from '@/lib/api';
 import type { EventChat, DirectChat } from '@/lib/chat';
 import { DiscoLoader } from '@/components/ui/DiscoLoader';
 import { GuestAuthPrompt } from '@/components/ui/GuestAuthPrompt';
+import { InboxEventCardSkeletonList, SkeletonChatCardList } from '@/components/ui/Skeleton';
 
 interface NewMatch {
   id: string;
@@ -54,13 +64,17 @@ function formatChatTime(iso: string): string {
   return `${Math.floor(diffH / 24)}d ago`;
 }
 
-function getEventTimeBadge(eventDate: string): string {
-  const diffH = Math.floor((new Date(eventDate).getTime() - Date.now()) / 3600000);
+function getEventTimeBadge(eventDate?: string | null): string {
+  const eventTime = eventDate ? new Date(eventDate).getTime() : Number.NaN;
+  if (!Number.isFinite(eventTime)) return 'EVENT CHAT';
+
+  const diffH = Math.floor((eventTime - Date.now()) / 3600000);
+  if (diffH < -12) return 'ENDED';
   if (diffH < 0) return 'LIVE NOW';
   if (diffH < 1) return 'STARTS SOON';
   if (diffH < 24) return `STARTS IN ${diffH}H`;
   if (diffH < 48) return 'TOMORROW';
-  return new Date(eventDate).toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+  return new Date(eventTime).toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
 }
 
 // ── Event chat card ───────────────────────────────────────────────────────────
@@ -118,7 +132,9 @@ const EventChatCard = React.memo(function EventChatCard({
           <Text style={cardStyles.eventTitle} numberOfLines={1}>
             {chat.eventTitle}
           </Text>
-          <Text style={cardStyles.memberCount}>{chat.participantCount} people active</Text>
+          <Text style={cardStyles.memberCount}>
+            {chat.participantCount} {chat.participantCount === 1 ? 'member' : 'members'}
+          </Text>
         </View>
         <View style={cardStyles.avatarStack}>
           {(chat.activeAvatars ?? []).slice(0, 3).map((img, i) => (
@@ -137,51 +153,99 @@ const EventChatCard = React.memo(function EventChatCard({
 // ── Private chat row ──────────────────────────────────────────────────────────
 
 const PrivateChatRow = React.memo(function PrivateChatRow({ chat }: { chat: DirectChat }) {
+  const translateX = useSharedValue(0);
+  const rowHeight = useSharedValue(80);
+  const rowOpacity = useSharedValue(1);
+
+  const panGesture = Gesture.Pan()
+    .activeOffsetX([-10, 10])
+    .onUpdate((event) => {
+      translateX.value = Math.max(-100, Math.min(0, event.translationX));
+    })
+    .onEnd((event) => {
+      if (event.translationX < -50) {
+        translateX.value = withTiming(-100, { duration: 200 });
+        runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
+        // Animate row away to archive
+        rowHeight.value = withTiming(0, { duration: 300 });
+        rowOpacity.value = withTiming(0, { duration: 200 });
+      } else {
+        translateX.value = withTiming(0, { duration: 200 });
+      }
+    });
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const archiveIconStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateX.value, [0, -50], [0, 1]),
+    transform: [{ scale: interpolate(translateX.value, [0, -50], [0.5, 1], Extrapolation.CLAMP) }],
+  }));
+
+  const containerStyle = useAnimatedStyle(() => ({
+    height: rowHeight.value,
+    opacity: rowOpacity.value,
+    overflow: 'hidden',
+    marginBottom: rowHeight.value > 0 ? 12 : 0,
+  }));
+
   return (
-    <Pressable
-      style={rowStyles.row}
-      onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        router.push({
-          pathname: '/social/dm/[id]',
-          params: { id: chat.id, recipientName: chat.otherUserName },
-        });
-      }}
-    >
-      <View style={rowStyles.avatarWrap}>
-        <Image
-          source={
-            typeof chat.otherUserAvatar === 'string'
-              ? { uri: chat.otherUserAvatar }
-              : chat.otherUserAvatar
-          }
-          style={rowStyles.avatar}
-          resizeMode="cover"
-        />
-        {chat.isOnline && <View style={rowStyles.onlineDot} />}
+    <Animated.View style={containerStyle}>
+      <View style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 100, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.error, borderRadius: 16 }}>
+        <Animated.View style={archiveIconStyle}>
+          <X size={24} color="#fff" />
+        </Animated.View>
       </View>
-      <View style={rowStyles.content}>
-        <View style={rowStyles.nameRow}>
-          <Text style={rowStyles.name} numberOfLines={1}>
-            {chat.otherUserName}
-          </Text>
-          <Text style={rowStyles.time}>{formatChatTime(chat.lastMessageTime ?? '')}</Text>
-        </View>
-        <View style={rowStyles.msgRow}>
-          <Text
-            style={[rowStyles.lastMsg, (chat.unreadCount ?? 0) > 0 && rowStyles.lastMsgUnread]}
-            numberOfLines={1}
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={animatedStyle}>
+          <Pressable
+            style={[rowStyles.row, { marginBottom: 0 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push({
+                pathname: '/social/dm/[id]',
+                params: { id: chat.id, recipientName: chat.otherUserName },
+              });
+            }}
           >
-            {chat.lastMessage}
-          </Text>
-          {(chat.unreadCount ?? 0) > 0 && (
-            <View style={rowStyles.badge}>
-              <Text style={rowStyles.badgeText}>{chat.unreadCount ?? ''}</Text>
+            <View style={rowStyles.avatarWrap}>
+              <Image
+                source={
+                  typeof chat.otherUserAvatar === 'string'
+                    ? { uri: chat.otherUserAvatar }
+                    : chat.otherUserAvatar
+                }
+                style={rowStyles.avatar}
+                resizeMode="cover"
+              />
+              {chat.isOnline && <View style={rowStyles.onlineDot} />}
             </View>
-          )}
-        </View>
-      </View>
-    </Pressable>
+            <View style={rowStyles.content}>
+              <View style={rowStyles.nameRow}>
+                <Text style={rowStyles.name} numberOfLines={1}>
+                  {chat.otherUserName}
+                </Text>
+                <Text style={rowStyles.time}>{formatChatTime(chat.lastMessageTime ?? '')}</Text>
+              </View>
+              <View style={rowStyles.msgRow}>
+                <Text
+                  style={[rowStyles.lastMsg, (chat.unreadCount ?? 0) > 0 && rowStyles.lastMsgUnread]}
+                  numberOfLines={1}
+                >
+                  {chat.lastMessage}
+                </Text>
+                {(chat.unreadCount ?? 0) > 0 && (
+                  <View style={rowStyles.badge}>
+                    <Text style={rowStyles.badgeText}>{chat.unreadCount ?? ''}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </Pressable>
+        </Animated.View>
+      </GestureDetector>
+    </Animated.View>
   );
 });
 
@@ -468,10 +532,29 @@ export default function InboxScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<Tab>('events');
   const [isLikesModalVisible, setIsLikesModalVisible] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
   const windowWidth = Dimensions.get('window').width;
   const cardWidth = (windowWidth - 32 - 12) / 2;
   const cardHeight = cardWidth * 1.33;
+
+  const scrollX = useSharedValue(0);
+
+  useEffect(() => {
+    scrollX.value = withTiming(activeTab === 'events' ? 0 : windowWidth, { duration: 180 });
+  }, [activeTab, scrollX, windowWidth]);
+
+  const animatedPillStyle = useAnimatedStyle(() => {
+    const trackInnerWidth = windowWidth - 32 - 8;
+    const pillWidth = (trackInnerWidth - 4) / 2;
+    const translateX = interpolate(
+      scrollX.value,
+      [0, windowWidth],
+      [0, pillWidth + 4],
+      Extrapolation.CLAMP
+    );
+    return {
+      transform: [{ translateX }],
+    };
+  });
 
   const { user, isGuest } = useAuthStore();
   const {
@@ -505,18 +588,20 @@ export default function InboxScreen() {
     }, [user?.uid, isGuest]),
   );
 
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     if (!user?.uid) return;
     setRefreshing(true);
-    fetchAll(user.uid);
-    setRefreshing(false);
+    try {
+      await fetchAll(user.uid);
+    } finally {
+      setRefreshing(false);
+    }
   }, [user?.uid, fetchAll]);
 
   const switchTab = (tab: Tab) => {
     if (tab === activeTab) return;
-    Haptics.selectionAsync();
     setActiveTab(tab);
-    scrollRef.current?.scrollTo({ x: tab === 'events' ? 0 : windowWidth, animated: true });
+    void Haptics.selectionAsync();
   };
 
   const newMatchCount = newMatches.filter((m) => m.isNew).length;
@@ -525,6 +610,7 @@ export default function InboxScreen() {
   //   return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
   // }
 
+  
   const handleInboxSwipe = useCallback(
     (direction: 'next' | 'previous') => {
       switchTab(direction === 'next' ? 'private' : 'events');
@@ -539,7 +625,8 @@ export default function InboxScreen() {
         .failOffsetY([-18, 18])
         .onEnd((event) => {
           const shouldSwitch =
-            Math.abs(event.translationX) >= 52 || Math.abs(event.velocityX) >= 650;
+            Math.abs(event.translationX) >= 52 ||
+            Math.abs(event.velocityX) >= 650;
 
           if (!shouldSwitch) return;
 
@@ -561,6 +648,12 @@ export default function InboxScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      <LinearGradient
+        pointerEvents="none"
+        colors={['#8B0618', '#42050D', '#000000']}
+        locations={[0, 0.38, 0.76]}
+        style={StyleSheet.absoluteFill}
+      />
       {/* ── Header ── */}
       <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
         <Text style={styles.headerTitle}>Chats</Text>
@@ -582,39 +675,57 @@ export default function InboxScreen() {
       </Animated.View>
 
       {/* ── Segment control ── */}
-      <GestureDetector gesture={inboxSwipeGesture}>
-        <Animated.View entering={FadeIn.duration(160)} style={styles.segmentWrap}>
+        <Animated.View
+          entering={FadeIn.duration(160)}
+          style={styles.segmentWrap}
+        >
           <View style={styles.segmentTrack}>
+            <Animated.View
+              style={[
+                {
+                  position: 'absolute',
+                  top: 4,
+                  bottom: 4,
+                  left: 4,
+                  width: (windowWidth - 44) / 2,
+                  backgroundColor: '#F44A22',
+                  borderRadius: 11,
+                },
+                animatedPillStyle,
+              ]}
+            />
             {/* Event Chats tab */}
             <Pressable
-              style={[styles.segmentPill, activeTab === 'events' && styles.segmentPillActive]}
+              style={styles.segmentPill}
               onPress={() => switchTab('events')}
+              accessibilityRole="tab"
+              accessibilityLabel="Event Chats"
+              accessibilityState={{ selected: activeTab === 'events' }}
             >
               <MessageCircle
                 size={14}
                 color={activeTab === 'events' ? '#fff' : 'rgba(255,255,255,0.4)'}
                 strokeWidth={activeTab === 'events' ? 2.2 : 1.8}
               />
-              <Text
-                style={[styles.segmentText, activeTab === 'events' && styles.segmentTextActive]}
-              >
+              <Text style={[styles.segmentText, activeTab === 'events' && styles.segmentTextActive]}>
                 Event Chats
               </Text>
             </Pressable>
 
             {/* Private Chats tab */}
             <Pressable
-              style={[styles.segmentPill, activeTab === 'private' && styles.segmentPillActive]}
+              style={styles.segmentPill}
               onPress={() => switchTab('private')}
+              accessibilityRole="tab"
+              accessibilityLabel="Private Chats"
+              accessibilityState={{ selected: activeTab === 'private' }}
             >
               <Heart
                 size={14}
                 color={activeTab === 'private' ? '#fff' : 'rgba(255,255,255,0.4)'}
                 strokeWidth={activeTab === 'private' ? 2.2 : 1.8}
               />
-              <Text
-                style={[styles.segmentText, activeTab === 'private' && styles.segmentTextActive]}
-              >
+              <Text style={[styles.segmentText, activeTab === 'private' && styles.segmentTextActive]}>
                 Private Chats
               </Text>
               {/* Badge showing unread + new matches */}
@@ -626,26 +737,11 @@ export default function InboxScreen() {
             </Pressable>
           </View>
         </Animated.View>
-      </GestureDetector>
 
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onMomentumScrollEnd={(e) => {
-          const offsetX = e.nativeEvent.contentOffset.x;
-          const idx = Math.round(offsetX / windowWidth);
-          const newTab = idx === 0 ? 'events' : 'private';
-          if (newTab !== activeTab) {
-            setActiveTab(newTab);
-            Haptics.selectionAsync();
-          }
-        }}
-        style={{ flex: 1 }}
-      >
-        <View style={{ width: windowWidth, flex: 1 }}>
+      <GestureDetector gesture={inboxSwipeGesture}>
+        <View style={{ flex: 1 }}>
+          {activeTab === 'events' ? (
+            <>
           {ambientColor !== 'transparent' && (
             <View
               style={[
@@ -674,8 +770,12 @@ export default function InboxScreen() {
             <Animated.View entering={FadeIn.duration(200)}>
               {eventChats.length > 0 ? (
                 eventChats.map((chat: EventChat, i: number) => (
-                  <EventChatCard key={chat.id} chat={chat} index={i} />
+                  <Animated.View key={chat.id} entering={FadeInDown.delay(i * 50).duration(400)}>
+                    <EventChatCard chat={chat} index={i} />
+                  </Animated.View>
                 ))
+              ) : loading ? (
+                <InboxEventCardSkeletonList count={3} />
               ) : (
                 <View style={styles.emptyCard}>
                   <Text style={styles.emptyTitle}>No event chats yet</Text>
@@ -686,9 +786,8 @@ export default function InboxScreen() {
               )}
             </Animated.View>
           </ScrollView>
-        </View>
-
-        <View style={{ width: windowWidth, flex: 1 }}>
+            </>
+          ) : (
           <ScrollView
             key="private-chats"
             style={{ flex: 1 }}
@@ -704,7 +803,13 @@ export default function InboxScreen() {
           >
             <Animated.View entering={FadeIn.duration(200)}>
               {privateChats.length > 0 ? (
-                privateChats.map((chat: DirectChat) => <PrivateChatRow key={chat.id} chat={chat} />)
+                privateChats.map((chat: DirectChat, i: number) => (
+                  <Animated.View key={chat.id} entering={FadeInDown.delay(i * 50).duration(400)}>
+                    <PrivateChatRow chat={chat} />
+                  </Animated.View>
+                ))
+              ) : loading ? (
+                <SkeletonChatCardList count={4} />
               ) : (
                 <View style={styles.emptyCard}>
                   <Text style={styles.emptyTitle}>No messages yet</Text>
@@ -715,8 +820,9 @@ export default function InboxScreen() {
               )}
             </Animated.View>
           </ScrollView>
+          )}
         </View>
-      </ScrollView>
+      </GestureDetector>
 
       {/* ── Likes Overlay ── */}
       <Modal

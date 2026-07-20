@@ -1,10 +1,11 @@
 import { create } from 'zustand';
-import { apiFetch } from '@/lib/api';
 import {
   type Coordinates,
   findKnownVenueCoordinates,
   resolveVenueCoordinates,
 } from '@/lib/venueDiscovery';
+import { fetchPublicVenuePage } from '@/lib/publicDetailRequests';
+import { createLatestRequestGuard } from '@/lib/requestGuard';
 
 export interface VenueHighlight {
   id: string;
@@ -83,6 +84,8 @@ interface VenuePageState {
   clearVenuePage: () => void;
 }
 
+const venuePageRequestGuard = createLatestRequestGuard();
+
 export const useVenuePageStore = create<VenuePageState>((set) => ({
   venue: null,
   highlights: [],
@@ -93,7 +96,8 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
   loading: false,
   error: null,
 
-  clearVenuePage: () =>
+  clearVenuePage: () => {
+    venuePageRequestGuard.invalidate();
     set({
       venue: null,
       highlights: [],
@@ -101,17 +105,18 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
       menu: [],
       facilities: [],
       upcomingEvents: [],
+      loading: false,
       error: null,
-    }),
+    });
+  },
 
   fetchVenuePage: async (venueIdOrSlug: string) => {
+    const requestToken = venuePageRequestGuard.begin(venueIdOrSlug);
     set({ loading: true, error: null });
 
     try {
-      const response = await apiFetch<any>(
-        `/api/v1/public/venues/${encodeURIComponent(venueIdOrSlug)}`,
-        { requireAuth: false },
-      );
+      const response = await fetchPublicVenuePage<any>(venueIdOrSlug);
+      if (!venuePageRequestGuard.isCurrent(requestToken)) return;
       const venueDoc = response.venue || response.profile || response;
 
       if (!venueDoc) {
@@ -175,6 +180,7 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
         loading: false,
       });
     } catch (error: any) {
+      if (!venuePageRequestGuard.isCurrent(requestToken)) return;
       console.error('[VenuePageStore] Failed to fetch venue page:', error);
       set({ loading: false, error: error?.message || 'Failed to load venue page' });
     }

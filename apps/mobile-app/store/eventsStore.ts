@@ -9,6 +9,7 @@ export interface Event {
   description?: string;
   startDate: string;
   endDate?: string;
+  timezone?: string;
   venue?: string;
   location?: string;
   city?: string;
@@ -102,7 +103,7 @@ interface EventsState {
   hasMore: boolean;
 
   // Actions
-  fetchEvents: (city?: string, cursor?: string) => Promise<void>;
+  fetchEvents: (city?: string, cursor?: string, force?: boolean) => Promise<void>;
   fetchFeaturedEvents: () => Promise<void>;
   fetchPublicEvents: (options?: { limit?: number }) => Promise<void>;
   searchEvents: (filters: SearchFilters) => Promise<void>;
@@ -236,6 +237,7 @@ function normalizeCoordinates(source: any): Event['coordinates'] | undefined {
 }
 
 function getCanonicalDemoPoster(id: string): string | undefined {
+  if (!PUBLIC_DEMO_MODE) return undefined;
   const demoEvent = (DEMO_EVENTS as any[]).find((event) => event.id === id);
   return (
     demoEvent?.poster ||
@@ -396,6 +398,10 @@ async function fetchEventTickets(eventId: string): Promise<TicketTier[]> {
   return extractTicketTiers(response);
 }
 
+let lastSuccessfulEventCityKey: string | null = null;
+let lastSuccessfulEventFetchAt = 0;
+const EVENT_DISCOVERY_CACHE_MS = 2 * 60 * 1000;
+
 export const useEventsStore = create<EventsState>((set, get) => ({
   events: [],
   featuredEvents: [],
@@ -411,7 +417,17 @@ export const useEventsStore = create<EventsState>((set, get) => ({
   lastId: null,
   hasMore: true,
 
-  fetchEvents: async (city?: string, cursor?: string) => {
+  fetchEvents: async (city?: string, cursor?: string, force = false) => {
+    const cityKey = city?.trim().toLowerCase() || '__all__';
+    if (
+      !cursor &&
+      !force &&
+      lastSuccessfulEventCityKey === cityKey &&
+      Date.now() - lastSuccessfulEventFetchAt < EVENT_DISCOVERY_CACHE_MS &&
+      get().events.length > 0
+    ) {
+      return;
+    }
     if (get().loading) return;
     set({ loading: true, error: null });
 
@@ -428,6 +444,10 @@ export const useEventsStore = create<EventsState>((set, get) => ({
 
       events.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
+      if (!cursor) {
+        lastSuccessfulEventCityKey = cityKey;
+        lastSuccessfulEventFetchAt = Date.now();
+      }
       set({ events, loading: false, lastId: nextCursor, hasMore });
     } catch (error: any) {
       console.warn('Error fetching events:', error);
@@ -435,6 +455,10 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         const events = filterByCity(getDemoEvents(), city).sort(
           (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
         );
+        if (!cursor) {
+          lastSuccessfulEventCityKey = cityKey;
+          lastSuccessfulEventFetchAt = Date.now();
+        }
         set({ events, loading: false, lastId: null, hasMore: false, error: null });
         return;
       }

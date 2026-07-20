@@ -7,6 +7,7 @@
 
 import { NextResponse } from 'next/server';
 import { withAdminAuth } from '@/lib/server/adminMiddleware';
+import { rateLimit } from '@/lib/server/rateLimit';
 import { getIncident, updateIncident } from '@c1rcle/core/security-logger';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,10 @@ async function handleGet(_req, { params }) {
 }
 
 async function handlePatch(req, { params }) {
+  if (!(await rateLimit(req, 10))) {
+    return NextResponse.json({ error: 'Too many requests. Please slow down.' }, { status: 429 });
+  }
+
   const incident = await getIncident(params.id);
   if (!incident) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });

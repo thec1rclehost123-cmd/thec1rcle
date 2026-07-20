@@ -2,12 +2,17 @@ import { create } from 'zustand';
 import { AppState } from 'react-native';
 import { getFirebaseAuth, subscribeToAuthState, type User } from '@/lib/firebase';
 import { syncAuthSession } from '@/lib/api';
+import { finishFirstRunMetric, startFirstRunMetric } from '@/lib/firstRunPerformance';
 import { refreshPushToken } from '@/lib/notifications';
 import { wsManager } from '@/lib/websocket';
 import { useProfileStore } from './profileStore';
 import { useNotificationsStore } from './notificationsStore';
 import { useTicketsStore } from './ticketsStore';
 import { useSubscriptionStore } from './subscriptionStore';
+import { useFirstRunStore } from './firstRunStore';
+import { useDatingStore } from './datingStore';
+import { useChatStore } from './chatStore';
+import { resolveFirstRunStage, unwrapFirstRunSnapshot } from '@/lib/firstRun';
 
 interface AuthState {
   user: User | null;
@@ -53,6 +58,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       useNotificationsStore.getState().clearNotifications();
       useTicketsStore.getState().clearOrders();
       useSubscriptionStore.getState().clearSubscription();
+      useFirstRunStore.getState().clear();
+      useDatingStore.getState().clearDatingState();
+      useChatStore.getState().clearChats();
       try {
         wsManager.stop();
       } catch {
@@ -67,6 +75,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       return;
     }
     set({ user: null, serverSynced: false, authSyncFailed: false });
+    useDatingStore.getState().clearDatingState();
+    useChatStore.getState().clearChats();
   },
   setLoading: (loading) => set({ loading }),
   setInitialized: (initialized) => set({ initialized, loading: false }),
@@ -78,6 +88,13 @@ export const useAuthStore = create<AuthState>((set) => ({
 
 let activeAuthUserId: string | null = null;
 let authGeneration = 0;
+let serverSyncedUserId: string | null = null;
+let authSyncFlight: { uid: string; promise: Promise<void> } | null = null;
+
+function resetAuthSyncCoordinator() {
+  serverSyncedUserId = null;
+  authSyncFlight = null;
+}
 
 function setAwaitingServerSync() {
   useAuthStore.setState({
@@ -117,21 +134,60 @@ function setAuthenticatedUser(user: User) {
   });
 }
 
-async function syncAfterFirebaseAuth(user: User) {
-  const result = await syncAuthSession();
+async function performAuthSync(user: User): Promise<void> {
+  startFirstRunMetric('auth_sync');
+  let result;
+  try {
+    result = await syncAuthSession();
+    finishFirstRunMetric('auth_sync', 'success');
+  } catch (error) {
+    finishFirstRunMetric('auth_sync', 'failure');
+    throw error;
+  }
+
+  const currentUser = getFirebaseAuth().currentUser;
+  if (!currentUser || currentUser.uid !== user.uid) {
+    throw new Error('Authenticated user changed before session sync completed.');
+  }
+
   if (result.requiresTokenRefresh !== false) {
     await user.getIdToken(true);
   }
+
+  const refreshedUser = getFirebaseAuth().currentUser;
+  if (!refreshedUser || refreshedUser.uid !== user.uid) {
+    throw new Error('Authenticated user changed before session hydration completed.');
+  }
+
   const canonicalProfile =
     result.profile || result.user || result.data?.profile || result.data?.user;
   if (canonicalProfile) {
     useProfileStore.getState().setProfileFromGateway(user.uid, canonicalProfile);
     useSubscriptionStore.getState().hydrateFromProfile(canonicalProfile);
   }
+  useFirstRunStore.getState().setSnapshot(unwrapFirstRunSnapshot(result));
   void useSubscriptionStore.getState().fetchSubscription();
+  serverSyncedUserId = user.uid;
+}
+
+function syncAfterFirebaseAuth(user: User): Promise<void> {
+  if (serverSyncedUserId === user.uid) return Promise.resolve();
+  if (authSyncFlight?.uid === user.uid) return authSyncFlight.promise;
+
+  const promise = performAuthSync(user);
+  authSyncFlight = { uid: user.uid, promise };
+  const clearFlight = () => {
+    if (authSyncFlight?.promise === promise) authSyncFlight = null;
+  };
+  void promise.then(clearFlight, clearFlight);
+  return promise;
 }
 
 function startAuthenticatedSideEffects(user: User) {
+  const profile = useProfileStore.getState().profile;
+  const snapshot = useFirstRunStore.getState().snapshot;
+  if (resolveFirstRunStage(user, profile, snapshot) !== 'complete') return;
+  if (activeAuthUserId === user.uid) return;
   activeAuthUserId = user.uid;
   void useSubscriptionStore.getState().fetchRevenueCatSubscription();
   useTicketsStore.getState().clearOrders();
@@ -145,7 +201,13 @@ function startAuthenticatedSideEffects(user: User) {
   }
 }
 
+export function startCompletedSessionSideEffects() {
+  const user = getFirebaseAuth().currentUser;
+  if (user) startAuthenticatedSideEffects(user);
+}
+
 export async function completeAuthSessionAfterSignIn(user: User) {
+  useDatingStore.getState().setOwnerUserId(user.uid);
   setAwaitingServerSync();
 
   try {
@@ -179,7 +241,7 @@ export function initAuthListener() {
     cancelRetry();
     retryCount += 1;
     if (retryCount >= 5) {
-      useAuthStore.setState({ authSyncFailed: true });
+      useAuthStore.setState({ authSyncFailed: true, initialized: true, loading: false, authSyncInProgress: false });
       if (__DEV__) console.warn('[AuthStore] Server sync retries exhausted. authSyncFailed=true');
       return;
     }
@@ -235,9 +297,14 @@ export function initAuthListener() {
     retryCount = 0;
 
     if (user) {
+      useDatingStore.getState().setOwnerUserId(user.uid);
+      if (serverSyncedUserId && serverSyncedUserId !== user.uid) {
+        resetAuthSyncCoordinator();
+      }
       void hydrateAuthenticatedUser(user, generation);
     } else {
       activeAuthUserId = null;
+      resetAuthSyncCoordinator();
       useAuthStore.setState({
         user: null,
         loading: false,
@@ -251,6 +318,9 @@ export function initAuthListener() {
       useNotificationsStore.getState().clearNotifications();
       useTicketsStore.getState().clearOrders();
       useSubscriptionStore.getState().clearSubscription();
+      useFirstRunStore.getState().clear();
+      useDatingStore.getState().clearDatingState();
+      useChatStore.getState().clearChats();
       try {
         wsManager.stop();
       } catch {

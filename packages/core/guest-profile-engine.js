@@ -1,6 +1,6 @@
 import { getAdminDb, getAdminApp } from '@c1rcle/core/admin';
 import { getAuth } from 'firebase-admin/auth';
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { cacheGet, cacheSet, cacheDel } from '@c1rcle/core/redis';
 import { getTicketSecret } from './secret-registry.js';
 
@@ -907,7 +907,8 @@ export async function getUserTickets(userId) {
  */
 export async function invalidateTicketsCache(userId) {
   if (!userId) return;
-  await cacheDel(`user:tickets:${userId}`);
+  const walletV2Key = `ticket-wallet:v2:${createHash('md5').update(userId).digest('hex')}`;
+  await Promise.all([cacheDel(`user:tickets:${userId}`), cacheDel(walletV2Key)]);
 }
 
 const CLUBS_COLLECTION = 'venues';

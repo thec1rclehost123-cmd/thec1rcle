@@ -11,7 +11,7 @@ export interface Event {
 }
 
 export interface IEventRepository {
-  getById(id: string, workspaceId: string): Promise<Event | null>;
+  getById(id: string, workspaceId: string, transaction?: any): Promise<Event | null>;
   getBySlug(slug: string, workspaceId: string): Promise<Event | null>;
   list(filters: any, workspaceId: string): Promise<Event[]>;
   create(event: Event): Promise<void>;

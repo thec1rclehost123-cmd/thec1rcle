@@ -5,6 +5,7 @@ import { getMutualBlockedUserIds } from '../../lib/blocked-users';
 import { resolvePartnerContext } from '../../lib/partner-context.js';
 import { applyPublicCacheHeaders, buildVersionedPublicCacheKey } from '../../utils/public-cache';
 import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
+import { getEventViewerState } from './event-viewer-state';
 import {
   getEventQueueStatus,
   getEventSurgeStatus,
@@ -277,47 +278,6 @@ function getRequestViewerId(request: any) {
   const ip = request.headers['x-forwarded-for'] || request.ip || '127.0.0.1';
   const userAgent = request.headers['user-agent'] || 'unknown';
   return Buffer.from(`${ip}-${userAgent}`).toString('base64');
-}
-
-async function getEventViewerState(db: any, eventId: string, userId: string | null) {
-  const surgeStatus = await getEventSurgeStatus(db, eventId);
-  if (!userId) {
-    return {
-      hasRsvped: false,
-      queue: null,
-      surgeActive: surgeStatus?.status === 'surge',
-    };
-  }
-
-  const [userDoc, queueSnapshot] = await Promise.all([
-    db.collection('users').doc(userId).get(),
-    db
-      .collection('event_queues')
-      .where('eventId', '==', eventId)
-      .where('userId', '==', userId)
-      .where('status', 'in', ['waiting', 'admitted', 'payment_failed'])
-      .limit(1)
-      .get(),
-  ]);
-
-  const userData = userDoc.exists ? userDoc.data() || {} : {};
-  const attendedEvents = Array.isArray(userData.attendedEvents) ? userData.attendedEvents : [];
-  let queue = null;
-
-  if (!queueSnapshot.empty) {
-    const queueDoc = queueSnapshot.docs[0];
-    try {
-      queue = await getEventQueueStatus(db, queueDoc.id);
-    } catch {
-      queue = { id: queueDoc.id, ...queueDoc.data() };
-    }
-  }
-
-  return {
-    hasRsvped: attendedEvents.includes(eventId),
-    queue,
-    surgeActive: surgeStatus?.status === 'surge',
-  };
 }
 
 const SCHEDULING_BLOCKING_STATUSES = new Set([
@@ -675,8 +635,10 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           userId,
           shouldInclude: request.body.shouldInclude,
         });
-        if (typeof fastify.invalidatePublicDiscovery === 'function') {
-          await fastify.invalidatePublicDiscovery('events').catch(() => undefined);
+        if (typeof fastify.cache.delete === 'function') {
+          const cacheKey = `detail:v${EXPLORE_EVENTS_CACHE_SCHEMA_VERSION}:${request.params.id}`;
+          const versionedKey = await buildVersionedPublicCacheKey(fastify, 'events', cacheKey).catch(() => cacheKey);
+          await fastify.cache.delete('public-discovery', versionedKey).catch(() => undefined);
         }
         return result;
       } catch (error: any) {
@@ -1169,6 +1131,16 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
         await fastify.invalidatePublicDiscovery('all');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
+
+        // Fire-and-forget: extract dominant color from poster
+        if (event.poster || event.image || event.coverImage) {
+          const posterUrl = event.poster || event.image || event.coverImage;
+          fastify.sendInngestEvent(fastify.InngestEvents.POSTER_COLOR_EXTRACT, {
+            eventId: event.id,
+            posterUrl,
+          }).catch(() => {});
+        }
+
         return { success: true, id: event.id };
       } catch (error: any) {
         fastify.log.error(`Error in POST /events: ${error.message}`);
@@ -1290,6 +1262,16 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
         await fastify.invalidatePublicDiscovery('all');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
+
+        // Fire-and-forget: extract dominant color from poster if updated
+        const patchPoster = patchFields.poster || patchFields.image || patchFields.coverImage;
+        if (patchPoster) {
+          fastify.sendInngestEvent(fastify.InngestEvents.POSTER_COLOR_EXTRACT, {
+            eventId: event.id,
+            posterUrl: patchPoster,
+          }).catch(() => {});
+        }
+
         return { success: true, id: event.id };
       } catch (error: any) {
         fastify.log.error(`Error in PATCH /events/:id: ${error.message}`);
@@ -1613,6 +1595,15 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         await fastify.publicDiscoveryService.syncEventReadModels(event.id);
         await fastify.invalidatePublicDiscovery('all');
 
+        // Fire-and-forget: extract dominant color from poster
+        if (eventRecord.poster || eventRecord.image || eventRecord.coverImage) {
+          const posterUrl = eventRecord.poster || eventRecord.image || eventRecord.coverImage;
+          fastify.sendInngestEvent(fastify.InngestEvents.POSTER_COLOR_EXTRACT, {
+            eventId: event.id,
+            posterUrl,
+          }).catch(() => {});
+        }
+
         return reply.status(201).send({ success: true, event: { id: event.id } });
       } catch (error: any) {
         fastify.log.error(`[partner/events/create] ${error.message}`);
@@ -1828,9 +1819,10 @@ export default async function eventRoutes(fastify: FastifyInstance) {
    * Temporary debug endpoint — shows partner context + raw query results.
    * Remove after event visibility is confirmed working.
    */
-  fastify.get('/debug/venue-events', async (request: any, reply) => {
-    // Accept uid from query param for easy browser testing when no auth header
-    const uid: string = request.user?.uid || (request.query as any)?.uid || '';
+  fastify.get('/debug/venue-events', {
+    preHandler: [fastify.requireAuth],
+  }, async (request: any, reply) => {
+    const uid: string = request.user?.uid || '';
     if (!uid)
       return reply
         .status(400)

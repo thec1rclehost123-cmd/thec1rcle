@@ -45,7 +45,7 @@ const publicListQuerySchema = z
 
 const publicSearchQuerySchema = publicListQuerySchema.extend({
   q: z.string().optional(),
-  type: z.string().optional(),
+  type: z.enum(['events', 'venues', 'hosts']).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });
 
@@ -369,10 +369,13 @@ export default async function publicRoutes(fastify: FastifyInstance) {
       try {
         await enforcePublicRateLimit(fastify, request, 'public:search', 60, 60);
         applyPublicCacheHeaders(reply, 30);
-        const sortedQuery = sortObjectKeys(request.query || {});
-        const q = String(request.query?.q || '');
-        return await cachedPublic(fastify, 'search', JSON.stringify(sortedQuery), 30, () =>
-          fastify.publicDiscoveryService.search(q, Number(request.query?.limit) || 6),
+        const normalizedQuery = normalizePublicDiscoveryQuery(request.query || {});
+        const q = String(normalizedQuery.q || '');
+        const limit = Number(normalizedQuery.limit) || 6;
+        const type = normalizedQuery.type as 'events' | 'venues' | 'hosts' | undefined;
+        const cityKey = normalizedQuery.cityKey ? String(normalizedQuery.cityKey) : null;
+        return await cachedPublic(fastify, 'search', JSON.stringify(normalizedQuery), 30, () =>
+          fastify.publicDiscoveryService.search(q, limit, undefined, { type, cityKey }),
         );
       } catch (error: any) {
         if (error.message === 'RATE_LIMITED')

@@ -21,10 +21,10 @@ export default function VerifyScreen() {
       try {
         // Apply the Firebase action code to verify the email
         await applyVerificationCode(oobCode);
-
+        
         // Wait a tiny bit to ensure auth state updates
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         // Reload user to ensure emailVerified is true
         const user = getFirebaseAuth().currentUser;
         if (user) {
@@ -32,7 +32,7 @@ export default function VerifyScreen() {
         }
 
         // Successfully verified, route to onboarding!
-        router.replace('/onboarding');
+        router.replace('/');
       } catch (err: any) {
         console.error('Verification error:', err);
         setError(err.message || 'Failed to verify email. The link may have expired.');
@@ -54,7 +54,10 @@ export default function VerifyScreen() {
       ) : error ? (
         <View style={s.center}>
           <Text style={s.errorText}>{error}</Text>
-          <Text style={s.linkText} onPress={() => router.replace('/(auth)/login')}>
+          <Text 
+            style={s.linkText} 
+            onPress={() => router.replace('/(auth)/login')}
+          >
             Back to Login
           </Text>
         </View>

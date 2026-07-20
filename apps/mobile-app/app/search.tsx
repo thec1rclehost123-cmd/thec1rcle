@@ -4,16 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  TextInput,
-  StyleSheet,
-  Keyboard,
-  InteractionManager,
-} from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, StyleSheet, Keyboard, InteractionManager } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
@@ -22,32 +13,26 @@ import Animated, {
   FadeInDown,
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { useEventsStore, Event } from '@/store/eventsStore';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SearchResultSkeleton } from '@/components/ui/Skeleton';
 import { colors, radii, gradients } from '@/lib/design/theme';
 import { trackScreen, trackSearch } from '@/lib/analytics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { apiFetch } from '@/lib/api';
+import {
+  buildPublicSearchPath,
+  mapPublicSearchResponse,
+  type PublicSearchFilter,
+  type PublicSearchResult,
+} from '@/lib/publicSearch';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const RECENT_SEARCHES_KEY = '@recent_searches';
 const MAX_RECENT_SEARCHES = 8;
 const SEARCH_DEBOUNCE_MS = 300;
-
-type SearchResultType = 'event' | 'venue' | 'host' | 'history';
-
-interface SearchResult {
-  id: string;
-  type: SearchResultType;
-  title: string;
-  subtitle?: string;
-  imageUrl?: string;
-  data?: any;
-}
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -62,7 +47,7 @@ function SearchResultCard({
   index,
   onPress,
 }: {
-  result: SearchResult;
+  result: PublicSearchResult;
   index: number;
   onPress: (posterTransitionTag: string) => void;
 }) {
@@ -74,16 +59,16 @@ function SearchResultCard({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.98, { duration: 250 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(1, { duration: 250 });
   };
 
   return (
     <AnimatedPressable
-      entering={FadeInDown.delay(index * 40).springify()}
+      entering={FadeInDown.delay(index * 40)}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={() => {
@@ -151,7 +136,7 @@ function RecentSearchItem({
   delay: number;
 }) {
   return (
-    <Animated.View entering={FadeInDown.delay(delay).springify()} style={styles.recentSearchItem}>
+    <Animated.View entering={FadeInDown.delay(delay)} style={styles.recentSearchItem}>
       <Pressable onPress={onPress} style={styles.recentSearchContent}>
         <Text style={styles.recentSearchIcon}>🕐</Text>
         <Text style={styles.recentSearchText}>{query}</Text>
@@ -196,9 +181,13 @@ export default function SearchScreen() {
   const searchIdRef = useRef(0);
 
   const [query, setQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState(initialFilter || 'all');
+  const [activeFilter, setActiveFilter] = useState<PublicSearchFilter>(
+    initialFilter === 'events' || initialFilter === 'venues' || initialFilter === 'hosts'
+      ? initialFilter
+      : 'all',
+  );
   const [selectedCity, setSelectedCity] = useState('All Cities');
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<PublicSearchResult[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -249,10 +238,15 @@ export default function SearchScreen() {
   };
 
   const performSearch = useCallback(
-    async (searchQuery: string) => {
+    async (
+      searchQuery: string,
+      overrides: { filter?: PublicSearchFilter; city?: string } = {},
+    ) => {
       if (!searchQuery.trim()) {
+        searchIdRef.current += 1;
         setResults([]);
         setHasSearched(false);
+        setLoading(false);
         setError(null);
         return;
       }
@@ -263,86 +257,20 @@ export default function SearchScreen() {
       setError(null);
 
       try {
-        const cityParam = selectedCity !== 'All Cities' ? selectedCity : undefined;
-
-        let response: any;
-        if (activeFilter === 'all' || activeFilter === 'events') {
-          response = await apiFetch(
-            `/api/v1/events?search=${encodeURIComponent(searchQuery)}&limit=50&sort=soonest${cityParam ? `&city=${encodeURIComponent(cityParam)}` : ''}`,
-            { requireAuth: false },
-          );
-        } else if (activeFilter === 'venues') {
-          response = await apiFetch(
-            `/api/v1/search?q=${encodeURIComponent(searchQuery)}${cityParam ? `&city=${encodeURIComponent(cityParam)}` : ''}&type=venues`,
-            { requireAuth: false },
-          );
-        } else if (activeFilter === 'hosts') {
-          response = await apiFetch(
-            `/api/v1/search?q=${encodeURIComponent(searchQuery)}${cityParam ? `&city=${encodeURIComponent(cityParam)}` : ''}&type=hosts`,
-            { requireAuth: false },
-          );
-        }
+        const resolvedFilter = overrides.filter ?? activeFilter;
+        const resolvedCity = overrides.city ?? selectedCity;
+        const response = await apiFetch(
+          buildPublicSearchPath(searchQuery, resolvedFilter, resolvedCity),
+          { requireAuth: false },
+        );
 
         if (searchId !== searchIdRef.current) return;
-
-        const rawItems =
-          response?.items ||
-          response?.events ||
-          response?.data?.items ||
-          response?.data?.events ||
-          [];
-        const items: any[] = Array.isArray(rawItems) ? rawItems : [];
-
-        let mapped: SearchResult[];
-        if (activeFilter === 'venues') {
-          const venueMap = new Map<string, SearchResult>();
-          for (const item of items) {
-            const name = item.venue || item.venueName || item.name || item.title || '';
-            if (!name.toLowerCase().includes(searchQuery.toLowerCase())) continue;
-            if (!venueMap.has(name)) {
-              venueMap.set(name, {
-                id: item.venueId || `venue-${name}`,
-                type: 'venue',
-                title: name,
-                subtitle: item.location || item.city,
-                imageUrl: item.coverImage || item.image,
-                data: { venueId: item.venueId, query: name },
-              });
-            }
-          }
-          mapped = Array.from(venueMap.values());
-        } else if (activeFilter === 'hosts') {
-          const hostMap = new Map<string, SearchResult>();
-          for (const item of items) {
-            const name = item.hostName || item.name || '';
-            if (!name.toLowerCase().includes(searchQuery.toLowerCase())) continue;
-            if (!hostMap.has(name)) {
-              hostMap.set(name, {
-                id: item.hostId || `host-${name}`,
-                type: 'host',
-                title: name,
-                subtitle: `${item.hostEventsCount || ''} events`,
-                imageUrl: item.coverImage || item.image,
-                data: { hostId: item.hostId, query: name },
-              });
-            }
-          }
-          mapped = Array.from(hostMap.values());
-        } else {
-          mapped = items.map((item: any) => ({
-            id: item.id || item.eventId,
-            type: 'event' as SearchResultType,
-            title: item.title || item.name || 'Untitled',
-            subtitle: item.venue || item.location || item.venueName,
-            imageUrl: item.coverImage || item.poster || item.image,
-            data: item,
-          }));
-        }
+        const mapped = mapPublicSearchResponse(response as Record<string, any>, resolvedFilter);
 
         setResults(mapped);
         trackSearch(searchQuery, mapped.length, {
-          filter: activeFilter,
-          city: selectedCity,
+          filter: resolvedFilter,
+          city: resolvedCity,
         });
       } catch (err: any) {
         if (searchId !== searchIdRef.current) return;
@@ -363,6 +291,7 @@ export default function SearchScreen() {
         clearTimeout(debounceTimerRef.current);
       }
       debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null;
         performSearch(text);
       }, SEARCH_DEBOUNCE_MS);
     },
@@ -381,6 +310,7 @@ export default function SearchScreen() {
     Keyboard.dismiss();
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
     }
     if (query.trim()) {
       saveRecentSearch(query.trim());
@@ -392,12 +322,13 @@ export default function SearchScreen() {
     setQuery(searchQuery);
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
     }
     saveRecentSearch(searchQuery);
     performSearch(searchQuery);
   };
 
-  const handleResultPress = (result: SearchResult, posterTransitionTag?: string) => {
+  const handleResultPress = (result: PublicSearchResult, posterTransitionTag?: string) => {
     if (result.type === 'event') {
       router.push({
         pathname: '/event/[id]',
@@ -439,9 +370,15 @@ export default function SearchScreen() {
   };
 
   const clearQuery = () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    searchIdRef.current += 1;
     setQuery('');
     setResults([]);
     setHasSearched(false);
+    setLoading(false);
     setError(null);
     inputRef.current?.focus();
   };
@@ -501,12 +438,13 @@ export default function SearchScreen() {
               selected={activeFilter === filter.id}
               onPress={() => {
                 Haptics.selectionAsync();
-                setActiveFilter(filter.id);
+                const nextFilter = filter.id as PublicSearchFilter;
+                setActiveFilter(nextFilter);
                 if (query) {
                   if (debounceTimerRef.current) {
                     clearTimeout(debounceTimerRef.current);
                   }
-                  performSearch(query);
+                  performSearch(query, { filter: nextFilter });
                 }
               }}
             />
@@ -552,7 +490,7 @@ export default function SearchScreen() {
             </Text>
             {results.map((result, index) => (
               <SearchResultCard
-                key={result.id}
+                key={`${result.type}:${result.id}`}
                 result={result}
                 index={index}
                 onPress={(posterTransitionTag) => handleResultPress(result, posterTransitionTag)}
@@ -621,7 +559,7 @@ export default function SearchScreen() {
             onPress={() => setIsCityPickerOpen(false)}
           />
           <Animated.View
-            entering={FadeInDown.duration(200).springify()}
+            entering={FadeInDown.duration(200)}
             style={{
               position: 'absolute',
               bottom: 0,
@@ -655,11 +593,13 @@ export default function SearchScreen() {
                   }}
                   onPress={() => {
                     Haptics.selectionAsync();
+                    if (debounceTimerRef.current) {
+                      clearTimeout(debounceTimerRef.current);
+                      debounceTimerRef.current = null;
+                    }
                     setSelectedCity(city);
                     setIsCityPickerOpen(false);
-                    if (query) {
-                      setTimeout(() => performSearch(query), 300);
-                    }
+                    if (query) performSearch(query, { city });
                   }}
                 >
                   <Text
@@ -905,4 +845,5 @@ const styles = StyleSheet.create({
     color: colors.goldMetallic,
     fontSize: 14,
   },
+
 });

@@ -8,6 +8,22 @@ const USER_LIKES_COLLECTION = 'userLikes';
 const USER_MATCHES_COLLECTION = 'userMatches';
 const PRIVATE_CONVERSATIONS_COLLECTION = 'privateConversations';
 const DISCOVER_PROFILE_LIMIT = 15;
+const LEGACY_NIGHTLIFE_VIBES = new Map(
+  [
+    'House',
+    'Techno',
+    'Hip-Hop',
+    'Afrobeats',
+    'Open Format',
+    'Rooftops',
+    'Cocktail Bars',
+    'Dancing',
+    'Friends First',
+    'Meet Someone',
+    'Afterparty',
+    'Low-Key',
+  ].map((value) => [value.toLowerCase(), value]),
+);
 
 function nowIso() {
   return new Date().toISOString();
@@ -39,6 +55,110 @@ function displayNameFromProfile(profile = {}, fallback = 'C1RCLE member') {
 
 function avatarFromProfile(profile = {}) {
   return profile.photoURL || profile.avatar || profile.image || profile.profileImage || null;
+}
+
+function ageFromProfile(profile = {}, today = new Date()) {
+  const storedAge = Number(profile.age);
+  if (Number.isInteger(storedAge) && storedAge > 0 && storedAge < 120) return storedAge;
+
+  const rawDate = profile.dateOfBirth || profile.birthDate || profile.dob;
+  const match = typeof rawDate === 'string' ? rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/) : null;
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (
+    !Number.isInteger(year) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > new Date(Date.UTC(year, month, 0)).getUTCDate()
+  ) {
+    return null;
+  }
+
+  let age = today.getUTCFullYear() - year;
+  const currentMonth = today.getUTCMonth() + 1;
+  const currentDay = today.getUTCDate();
+  if (currentMonth < month || (currentMonth === month && currentDay < day)) age -= 1;
+  return age > 0 && age < 120 ? age : null;
+}
+
+function portableNightlifePhotos(profile = {}) {
+  const groups = [profile.datingPhotos, profile.photos];
+  for (const group of groups) {
+    if (!Array.isArray(group)) continue;
+    const photos = group.filter((value) => {
+      if (typeof value !== 'string' || value.length > 2048) return false;
+      try {
+        return new URL(value).protocol === 'https:';
+      } catch {
+        return false;
+      }
+    });
+    if (photos.length > 0) return [...new Set(photos)].slice(0, 6);
+  }
+
+  const avatar = avatarFromProfile(profile);
+  if (typeof avatar !== 'string') return [];
+  try {
+    return new URL(avatar).protocol === 'https:' ? [avatar] : [];
+  } catch {
+    return [];
+  }
+}
+
+function nightlifeVibesFromProfile(profile = {}) {
+  if (Array.isArray(profile.nightlifeVibeTags)) {
+    return [
+      ...new Set(
+        profile.nightlifeVibeTags
+          .filter((value) => typeof value === 'string' && value.trim())
+          .map((value) => value.trim()),
+      ),
+    ].slice(0, 8);
+  }
+
+  // Compatibility bridge for profiles created by the retired wizard. Consumer onboarding
+  // values such as `live_music` are deliberately excluded from Nightlife profile output.
+  if (!Array.isArray(profile.vibeTags)) return [];
+  return [
+    ...new Set(
+      profile.vibeTags
+        .filter((value) => typeof value === 'string')
+        .map((value) => LEGACY_NIGHTLIFE_VIBES.get(value.trim().toLowerCase()))
+        .filter(Boolean),
+    ),
+  ].slice(0, 8);
+}
+
+function publicNightlifeProfile(profileId, profile = {}) {
+  const vibes = nightlifeVibesFromProfile(profile);
+  const vitals =
+    profile.datingVitals && typeof profile.datingVitals === 'object'
+      ? profile.datingVitals
+      : {};
+  return {
+    id: profileId,
+    userId: profileId,
+    firstName: firstNameOnly(profile.name || profile.displayName || profile.fullName),
+    displayName: displayNameFromProfile(profile),
+    age: ageFromProfile(profile),
+    photos: portableNightlifePhotos(profile),
+    prompts: Array.isArray(profile.prompts) ? profile.prompts : [],
+    upcomingEvents: Array.isArray(profile.upcomingEvents) ? profile.upcomingEvents : [],
+    city: profile.city || vitals.location || null,
+    datingVitals: vitals,
+    vitals,
+    nightlifeVibeTags: vibes,
+    vibeTags: vibes,
+    anthem: profile.anthem || null,
+    bio: profile.bio || null,
+    headline: profile.headline || null,
+    isVerified: Boolean(profile.isVerified || profile.verified),
+    isPremium: isPremiumProfile(profile),
+  };
 }
 
 async function getUserProfile(db, userId) {
@@ -114,7 +234,7 @@ async function enrichLike(db, like, isPremiumViewer = false) {
   const baseProfile = {
     userId: like.fromUserId,
     displayName: displayNameFromProfile(profile, like.fromUserName || 'C1RCLE member'),
-    photoURL: avatarFromProfile(profile) || like.fromUserAvatar || null,
+    photoURL: portableNightlifePhotos(profile)[0] || like.fromUserAvatar || null,
   };
 
   return {
@@ -132,7 +252,7 @@ async function enrichLike(db, like, isPremiumViewer = false) {
           ...baseProfile,
           bio: profile.bio || null,
           city: profile.city || null,
-          vibeTags: Array.isArray(profile.vibeTags) ? profile.vibeTags : [],
+          vibeTags: nightlifeVibesFromProfile(profile),
           isVerified: Boolean(profile.isVerified || profile.verified),
         }
       : baseProfile,
@@ -323,14 +443,11 @@ export async function getDiscoverProfiles(db, userId, { cursor = null } = {}) {
     const theirEvents = Array.isArray(data.upcomingEvents) ? data.upcomingEvents : [];
     const overlapCount = theirEvents.filter((e) => myEvents.includes(e)).length;
 
+    const candidateProfile = publicNightlifeProfile(profileId, data);
+    if (candidateProfile.photos.length < 1) return;
+
     candidates.push({
-      id: profileId,
-      firstName: firstNameOnly(data.name || data.displayName || data.fullName),
-      age: data.age || null,
-      photos: Array.isArray(data.photos) ? data.photos : data.photoURL ? [data.photoURL] : [],
-      prompts: Array.isArray(data.prompts) ? data.prompts : [],
-      upcomingEvents: theirEvents,
-      isPremium: premiumPriority === 1,
+      ...candidateProfile,
       _overlapScore: overlapCount,
       _premiumPriority: premiumPriority,
     });
@@ -516,12 +633,7 @@ export async function getPublicUserProfile(db, targetUserId) {
   const data = doc.data();
 
   return {
-    id: doc.id,
-    firstName: firstNameOnly(data.name || data.displayName || data.fullName),
-    age: data.age || null,
-    photos: Array.isArray(data.photos) ? data.photos : data.photoURL ? [data.photoURL] : [],
-    prompts: Array.isArray(data.prompts) ? data.prompts : [],
-    upcomingEvents: Array.isArray(data.upcomingEvents) ? data.upcomingEvents : [],
+    ...publicNightlifeProfile(doc.id, data),
     datingActive: Boolean(data.datingActive),
   };
 }
@@ -569,11 +681,9 @@ export async function getUserMatches(db, userId) {
         profileMap.set(doc.id, {
           id: doc.id,
           firstName: firstNameOnly(data.name || data.displayName || data.fullName),
-          age: data.age || null,
+          age: ageFromProfile(data),
           photo:
-            Array.isArray(data.photos) && data.photos.length > 0
-              ? data.photos[0]
-              : data.photoURL || null,
+            portableNightlifePhotos(data)[0] || null,
           displayName: displayNameFromProfile(data),
           photoURL: avatarFromProfile(data),
           isPremium: isPremiumProfile(data),

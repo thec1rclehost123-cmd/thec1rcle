@@ -1,10 +1,11 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 
 const CreateBody = z
   .object({
-    planId: z.enum(['c1rcle_plus_monthly', 'c1rple_plus_yearly', 'c1rcle_plus_lifetime']),
+    planId: z.enum(['c1rcle_plus_monthly', 'c1rcle_plus_yearly', 'c1rcle_plus_lifetime']),
     countryCode: z.string().default('IN'),
   })
   .strict();
@@ -25,7 +26,7 @@ export default async function subscriptionRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/subscriptions/create',
     {
-      preHandler: [fastify.validate({ body: CreateBody })],
+      preHandler: [fastify.requireAuth, fastify.validate({ body: CreateBody })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
@@ -44,7 +45,7 @@ export default async function subscriptionRoutes(fastify: FastifyInstance) {
         // Define plan pricing (INR)
         const plans: Record<string, { amount: number; period: string; interval: number }> = {
           c1rcle_plus_monthly: { amount: 49900, period: 'monthly', interval: 1 },
-          c1rple_plus_yearly: { amount: 399900, period: 'monthly', interval: 12 },
+          c1rcle_plus_yearly: { amount: 399900, period: 'monthly', interval: 12 },
           c1rcle_plus_lifetime: { amount: 999900, period: 'one_time', interval: 1 },
         };
 
@@ -150,7 +151,7 @@ export default async function subscriptionRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/subscriptions/verify',
     {
-      preHandler: [fastify.validate({ body: VerifyBody })],
+      preHandler: [fastify.requireAuth, fastify.validate({ body: VerifyBody })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
@@ -163,7 +164,34 @@ export default async function subscriptionRoutes(fastify: FastifyInstance) {
           }),
         );
 
-      const { razorpay_subscription_id } = request.body;
+      const { razorpay_subscription_id, razorpay_payment_id, razorpay_signature } = request.body;
+
+      // Verify Razorpay signature to prevent unauthorized activation
+      if (razorpay_payment_id && razorpay_signature) {
+        const secret = process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET;
+        if (!secret) {
+          return reply.status(500).send(
+            buildErrorResponse({
+              code: 'CONFIG_ERROR',
+              message: 'Payment verification not configured',
+              requestId: request.id,
+            }),
+          );
+        }
+        const generated = crypto
+          .createHmac('sha256', secret)
+          .update(`${razorpay_payment_id}|${razorpay_subscription_id}`)
+          .digest('hex');
+        if (generated !== razorpay_signature) {
+          return reply.status(403).send(
+            buildErrorResponse({
+              code: 'FORBIDDEN',
+              message: 'Invalid payment signature',
+              requestId: request.id,
+            }),
+          );
+        }
+      }
 
       try {
         // Find the pending subscription
@@ -247,7 +275,10 @@ export default async function subscriptionRoutes(fastify: FastifyInstance) {
    * GET /api/v1/subscriptions/status
    * Check current user's subscription status.
    */
-  fastify.get('/subscriptions/status', async (request: any, reply) => {
+  fastify.get(
+    '/subscriptions/status',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply) => {
     const userId = request.user?.uid;
     if (!userId)
       return reply.status(401).send(
@@ -306,7 +337,9 @@ export default async function subscriptionRoutes(fastify: FastifyInstance) {
    * POST /api/v1/subscriptions/cancel
    * Cancel the user's active subscription.
    */
-  fastify.post('/subscriptions/cancel', async (request: any, reply) => {
+  fastify.post('/subscriptions/cancel', {
+    preHandler: [fastify.requireAuth],
+  }, async (request: any, reply) => {
     const userId = request.user?.uid;
     if (!userId)
       return reply.status(401).send(

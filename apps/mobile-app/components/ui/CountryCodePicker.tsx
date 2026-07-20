@@ -43,12 +43,7 @@ export function CountryCodePicker({ selectedCountry, onSelect }: CountryCodePick
         <ChevronDown size={16} color="rgba(255,255,255,0.68)" strokeWidth={2.4} />
       </Pressable>
 
-      <Modal
-        visible={visible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setVisible(false)}
-      >
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
         <Pressable style={styles.backdrop} onPress={() => setVisible(false)}>
           <Pressable style={styles.sheet}>
             <View style={styles.sheetHeader}>

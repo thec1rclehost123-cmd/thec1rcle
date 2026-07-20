@@ -273,11 +273,11 @@ export default function SocialSetupPreferences() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Animated.Text entering={FadeInDown.delay(60).springify().damping(18)} style={styles.title}>
+        <Animated.Text entering={FadeInDown.delay(60)} style={styles.title}>
           Your preferences
         </Animated.Text>
         <Animated.Text
-          entering={FadeInDown.delay(100).springify().damping(18)}
+          entering={FadeInDown.delay(100)}
           style={styles.subtitle}
         >
           Help us find the right people at your events.
@@ -285,7 +285,7 @@ export default function SocialSetupPreferences() {
 
         {/* City */}
         <Animated.View
-          entering={FadeInDown.delay(140).springify().damping(18)}
+          entering={FadeInDown.delay(140)}
           style={styles.fieldGroup}
         >
           <Text style={styles.fieldLabel}>Your City</Text>
@@ -301,7 +301,7 @@ export default function SocialSetupPreferences() {
         </Animated.View>
 
         {/* Interested in */}
-        <Animated.View entering={FadeInDown.delay(180).springify().damping(18)}>
+        <Animated.View entering={FadeInDown.delay(180)}>
           <ChipGroup<InterestedIn>
             label="Interested In"
             options={[
@@ -317,7 +317,7 @@ export default function SocialSetupPreferences() {
         </Animated.View>
 
         {/* Age range */}
-        <Animated.View entering={FadeInDown.delay(220).springify().damping(18)}>
+        <Animated.View entering={FadeInDown.delay(220)}>
           <AgeRangePicker
             min={ageMin}
             max={ageMax}
@@ -327,7 +327,7 @@ export default function SocialSetupPreferences() {
         </Animated.View>
 
         {/* Looking for */}
-        <Animated.View entering={FadeInDown.delay(260).springify().damping(18)}>
+        <Animated.View entering={FadeInDown.delay(260)}>
           <ChipGroup<string>
             label="Looking For"
             options={[
@@ -343,7 +343,7 @@ export default function SocialSetupPreferences() {
         </Animated.View>
 
         {/* Sexuality */}
-        <Animated.View entering={FadeInDown.delay(300).springify().damping(18)}>
+        <Animated.View entering={FadeInDown.delay(300)}>
           <ChipGroup<string>
             label="Sexuality (optional)"
             options={[
@@ -359,7 +359,7 @@ export default function SocialSetupPreferences() {
         </Animated.View>
 
         {/* Drinking */}
-        <Animated.View entering={FadeInDown.delay(340).springify().damping(18)}>
+        <Animated.View entering={FadeInDown.delay(340)}>
           <ChipGroup<string>
             label="Drinking"
             options={[
@@ -374,7 +374,7 @@ export default function SocialSetupPreferences() {
         </Animated.View>
 
         {/* Smoking */}
-        <Animated.View entering={FadeInDown.delay(380).springify().damping(18)}>
+        <Animated.View entering={FadeInDown.delay(380)}>
           <ChipGroup<string>
             label="Smoking"
             options={[

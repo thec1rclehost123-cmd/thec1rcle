@@ -94,7 +94,11 @@ export default function QRTicket({
   };
 
   return (
-    <div className="bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-200 w-full sm:max-w-sm mx-auto">
+    <div className="bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-200 w-full sm:max-w-sm mx-auto relative">
+      {/* Independent Cut outs */}
+      <div className="absolute -left-1.5 top-1/2 h-3 w-3 -translate-y-1/2 bg-slate-100 rounded-full z-10" />
+      <div className="absolute -right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 bg-slate-100 rounded-full z-10" />
+
       {/* Header */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-4 text-white">
         <div className="flex items-center gap-3">
@@ -120,7 +124,7 @@ export default function QRTicket({
       </div>
 
       {/* QR Code */}
-      <div className="p-6 flex flex-col items-center">
+      <div className="p-6 pb-2 flex flex-col items-center">
         <div className="bg-white p-4 rounded-2xl border-2 border-dashed border-slate-200 mb-4">
           <canvas ref={canvasRef} />
 
@@ -133,26 +137,6 @@ export default function QRTicket({
         </div>
 
         <p className="text-xs text-slate-500 mb-4">Show this QR code at the venue entrance</p>
-
-        {/* Entry Details */}
-        <div className="w-full bg-slate-50 rounded-xl p-4 space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-500">Entry Type</span>
-            <span className="font-bold text-slate-900">
-              {entryTypeLabels[entryType] || entryType}
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-500">Quantity</span>
-            <span className="font-bold text-slate-900">
-              {quantity} {quantity > 1 ? 'tickets' : 'ticket'}
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-500">Order ID</span>
-            <span className="font-mono text-xs text-slate-600">{orderId?.slice(0, 12)}...</span>
-          </div>
-        </div>
       </div>
 
       {/* Actions */}
@@ -189,19 +173,35 @@ export default function QRTicket({
       )}
 
       {/* Decorative tear line */}
-      <div className="relative h-4">
-        <div className="absolute inset-x-0 top-0 h-4 flex items-center">
-          <div className="w-full border-t-2 border-dashed border-slate-200" />
-        </div>
-        <div className="absolute -left-2 top-0 h-4 w-4 bg-slate-100 rounded-full" />
-        <div className="absolute -right-2 top-0 h-4 w-4 bg-slate-100 rounded-full" />
-      </div>
+      <div className="w-full border-t-2 border-dashed border-slate-200" />
 
-      {/* Footer */}
-      <div className="px-6 py-4 text-center">
-        <p className="text-[10px] text-slate-400 uppercase tracking-wider">
-          Keep this ticket safe • Valid for one-time entry only
-        </p>
+      {/* Black Footer Section for Entry Details */}
+      <div className="bg-[#0a0a0a] text-white">
+        <div className="p-6 space-y-3">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-white/60">Entry Type</span>
+            <span className="font-bold text-white text-right">
+              {entryTypeLabels[entryType] || entryType}
+            </span>
+          </div>
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-white/60">Quantity</span>
+            <span className="font-bold text-white text-right">
+              {quantity} {quantity > 1 ? 'tickets' : 'ticket'}
+            </span>
+          </div>
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-white/60">Order ID</span>
+            <span className="font-mono text-xs text-white/80 text-right">{orderId?.slice(0, 12)}...</span>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-6 text-center">
+          <p className="text-[10px] text-white/40 uppercase tracking-wider">
+            Keep this ticket safe • Valid for one-time entry only
+          </p>
+        </div>
       </div>
     </div>
   );

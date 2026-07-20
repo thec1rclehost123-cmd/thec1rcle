@@ -7,7 +7,9 @@
 import { randomUUID } from 'node:crypto';
 import { getRedisClient } from './redis.js';
 import { getAdminDb } from './admin.js';
+import { PUBLIC_LIFECYCLE_STATES } from './events.js';
 import { getEffectivePrice } from './pricing-engine.js';
+import { resolveFiniteInventoryRead } from './inventory-v2-engine.js';
 
 // ---------------------------------------------------------------------------
 // Typed error classes — callers must catch these and return HTTP 503
@@ -84,7 +86,7 @@ const DEFAULT_RESERVATION_MINUTES = 10;
 
 // Shard configuration for Firestore sharded counters
 const NUM_SHARDS = 10;
-const PUBLIC_TICKET_EVENT_LIFECYCLES = new Set(['active', 'published', 'scheduled', 'live']);
+const PUBLIC_TICKET_EVENT_LIFECYCLES = new Set(PUBLIC_LIFECYCLE_STATES);
 const HIDDEN_TICKET_STATUSES = new Set(['hidden', 'disabled', 'inactive', 'deleted', 'archived']);
 
 /**
@@ -115,11 +117,15 @@ function getBaseRemaining(tier) {
 
   const legacyRemaining = tier.remaining !== undefined ? Number(tier.remaining) : null;
 
-  if (legacyRemaining !== null && inv.soldQuantity === undefined && tier.sold === undefined) {
-    return legacyRemaining;
-  }
+  const calculatedRemaining =
+    legacyRemaining !== null && inv.soldQuantity === undefined && tier.sold === undefined
+      ? legacyRemaining
+      : Math.max(0, totalCapacity - sold - holdbackQuantity);
 
-  return Math.max(0, totalCapacity - sold - holdbackQuantity);
+  return resolveFiniteInventoryRead({
+    tier,
+    legacyRemaining: calculatedRemaining,
+  }).remaining;
 }
 
 function getTicketTiers(event = {}) {
@@ -128,7 +134,18 @@ function getTicketTiers(event = {}) {
   return catalogTiers.length > 0 ? catalogTiers : legacyTiers;
 }
 
-function isPublicTicketEvent(event = {}) {
+function timestampMillis(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  if (typeof value?.toDate === 'function') return value.toDate().getTime();
+  if (typeof value?._seconds === 'number') return value._seconds * 1000;
+  if (value instanceof Date) return value.getTime();
+  const parsed = typeof value === 'number' ? value : Date.parse(String(value));
+  if (!Number.isFinite(parsed)) return null;
+  return typeof value === 'number' && value < 10_000_000_000 ? value * 1000 : parsed;
+}
+
+function isPublicTicketEvent(event = {}, now = new Date()) {
   if (event.isPrivate || event.isDeleted) return false;
   const visibility = String(
     event.visibility || event.settings?.visibility || 'public',
@@ -136,8 +153,14 @@ function isPublicTicketEvent(event = {}) {
   if (visibility && visibility !== 'public') return false;
 
   const lifecycle = String(event.lifecycle || event.status || '').toLowerCase();
-  if (!lifecycle) return Boolean(event.publishedAt || event.startDate || event.startAt);
-  return PUBLIC_TICKET_EVENT_LIFECYCLES.has(lifecycle);
+  if (!PUBLIC_TICKET_EVENT_LIFECYCLES.has(lifecycle)) return false;
+
+  const cutoffValue = event.endDate ?? event.endAt ?? event.startDate ?? event.startAt ?? event.date;
+  if (cutoffValue !== undefined && cutoffValue !== null && cutoffValue !== '') {
+    const cutoff = timestampMillis(cutoffValue);
+    if (cutoff === null || cutoff <= now.getTime()) return false;
+  }
+  return true;
 }
 
 function toIsoOrNull(value) {
@@ -253,6 +276,12 @@ function reservationItemsMatch(left = [], right = []) {
   const normalizedLeft = normalizeReservationItems(left);
   const normalizedRight = normalizeReservationItems(right);
   return JSON.stringify(normalizedLeft) === JSON.stringify(normalizedRight);
+}
+
+function reservationCheckoutSnapshotsMatch(left, right) {
+  if (right === undefined || right === null) return true;
+  if (left === undefined || left === null) return false;
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function isReservationUsable(reservation) {
@@ -419,7 +448,7 @@ export async function listAvailableTicketTiers(db, eventId, options = {}) {
   if (!eventDoc.exists) return null;
 
   const event = { id: eventDoc.id || String(eventId), ...(eventDoc.data() || {}) };
-  if (!isPublicTicketEvent(event)) return null;
+  if (!isPublicTicketEvent(event, timestamp)) return null;
 
   const inventoryDb = typeof eventRef.collection === 'function' ? db : null;
   const tiers = getTicketTiers(event)
@@ -569,12 +598,17 @@ export async function createReservation(event, customerId, deviceId, items, opti
 
             if (
               isReservationUsable(existingReservation) &&
-              reservationItemsMatch(existingReservation.items, items)
+              reservationItemsMatch(existingReservation.items, items) &&
+              reservationCheckoutSnapshotsMatch(
+                existingReservation.checkoutSnapshot,
+                options.checkoutSnapshot,
+              )
             ) {
               return {
                 success: true,
                 reservationId: existingReservation.id,
                 items: existingReservation.items,
+                checkoutSnapshot: existingReservation.checkoutSnapshot || null,
                 expiresAt: existingReservation.expiresAt,
                 expiresInSeconds: Math.max(
                   0,
@@ -611,6 +645,7 @@ export async function createReservation(event, customerId, deviceId, items, opti
       customerId,
       deviceId,
       items: items.map((i) => ({ tierId: i.tierId, quantity: i.quantity })),
+      checkoutSnapshot: options.checkoutSnapshot || null,
       status: 'active',
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
@@ -637,7 +672,12 @@ export async function createReservation(event, customerId, deviceId, items, opti
       );
     }
 
-    return { success: true, reservationId, expiresAt: reservation.expiresAt };
+    return {
+      success: true,
+      reservationId,
+      expiresAt: reservation.expiresAt,
+      checkoutSnapshot: reservation.checkoutSnapshot,
+    };
     } finally {
     try {
       await redis.del(lockKey);
@@ -677,6 +717,84 @@ export async function releaseReservation(reservationId) {
   return { success: true };
 }
 
+function inventoryCommitError(message, code, details = {}) {
+  return Object.assign(new Error(message), {
+    name: 'InventoryCommitError',
+    code,
+    statusCode: 409,
+    details,
+  });
+}
+
+function assertTierStillSaleable(tier, now = new Date()) {
+  const status = String(tier?.status || tier?.lifecycle || '').toLowerCase();
+  if (
+    HIDDEN_TICKET_STATUSES.has(status) ||
+    tier?.isHidden === true ||
+    tier?.hidden === true ||
+    tier?.isDeleted === true
+  ) {
+    throw inventoryCommitError(
+      'Ticket tier is no longer available',
+      'STALE_CART',
+      { tierId: tier?.id || tier?.tierId || null, reason: 'hidden' },
+    );
+  }
+
+  const saleStatus = getSaleStatus(tier, now);
+  if (saleStatus !== 'active') {
+    throw inventoryCommitError(
+      saleStatus === 'not_started' ? 'Ticket sales have not started' : 'Ticket sales have ended',
+      'STALE_CART',
+      { tierId: tier?.id || tier?.tierId || null, reason: saleStatus },
+    );
+  }
+}
+
+function legacyRemainingForCommit(tier) {
+  if (tier?.remaining !== undefined && tier?.remaining !== null && tier?.remaining !== '') {
+    const remaining = Number(tier.remaining);
+    if (Number.isSafeInteger(remaining) && remaining >= 0) return remaining;
+    throw inventoryCommitError('Ticket inventory is invalid', 'INVENTORY_INCONSISTENT', {
+      tierId: tier?.id || tier?.tierId || null,
+      field: 'remaining',
+    });
+  }
+
+  const inventory = tier?.inventory || {};
+  const capacity = Number(
+    inventory.totalQuantity ?? tier?.totalQuantity ?? tier?.quantity ?? tier?.capacity,
+  );
+  const sold = Number(
+    inventory.soldQuantity ?? tier?.soldQuantity ?? tier?.sold ?? tier?.soldCount ?? 0,
+  );
+  const allocated = Number(
+    inventory.allocatedQuantity ?? tier?.allocatedQuantity ?? tier?.lockedQuantity ?? 0,
+  );
+  const activeHoldbacks = Array.isArray(inventory.holdbacks)
+    ? inventory.holdbacks.reduce((sum, holdback) => {
+        if (holdback?.expiresAt && new Date(holdback.expiresAt) < new Date()) return sum;
+        return sum + Number(holdback?.quantity || 0);
+      }, 0)
+    : 0;
+
+  if (
+    !Number.isSafeInteger(capacity) ||
+    capacity < 0 ||
+    !Number.isSafeInteger(sold) ||
+    sold < 0 ||
+    !Number.isSafeInteger(allocated) ||
+    allocated < 0 ||
+    !Number.isSafeInteger(activeHoldbacks) ||
+    activeHoldbacks < 0
+  ) {
+    throw inventoryCommitError('Ticket inventory is invalid', 'INVENTORY_INCONSISTENT', {
+      tierId: tier?.id || tier?.tierId || null,
+    });
+  }
+  return Math.max(0, capacity - sold - allocated - activeHoldbacks);
+}
+
 /**
  * Commits a reservation into a sale or deducts inventory directly.
  * Handles both sharded and standard Firestore structures.
@@ -684,17 +802,51 @@ export async function releaseReservation(reservationId) {
 export async function commitInventory(transaction, { event, items, reservationId = null }) {
   const db = getAdminDb();
   const eventRef = db.collection('events').doc(event.id);
-  const updatedTickets = [...(event.tickets || event.ticketCatalog?.tiers || [])];
+  const usesTicketCatalog = Array.isArray(event.ticketCatalog?.tiers);
+  const sourceTiers = usesTicketCatalog ? event.ticketCatalog.tiers : event.tickets;
+  if (!Array.isArray(sourceTiers)) {
+    throw inventoryCommitError('Event has no ticket inventory', 'INVENTORY_INCONSISTENT', {
+      eventId: event.id,
+    });
+  }
+  const updatedTickets = [...sourceTiers];
   const shardReads = [];
 
   for (const item of items) {
+    const tierId = String(item?.ticketId || item?.tierId || '').trim();
+    const quantity = Number(item?.quantity);
+    if (!tierId || !Number.isSafeInteger(quantity) || quantity <= 0) {
+      throw inventoryCommitError('Ticket quantity is invalid', 'INVENTORY_INVALID_QUANTITY', {
+        tierId: tierId || null,
+        quantity: item?.quantity,
+      });
+    }
+
     const ticketIndex = updatedTickets.findIndex(
-      (t) => t.id === item.ticketId || t.id === item.tierId,
+      (t) => String(t?.id || t?.tierId || '') === tierId,
     );
-    if (ticketIndex === -1) continue;
+    if (ticketIndex === -1) {
+      throw inventoryCommitError('Ticket tier no longer exists', 'STALE_CART', { tierId });
+    }
 
     const tier = updatedTickets[ticketIndex];
-    const quantity = Number(item.quantity);
+    assertTierStillSaleable(tier);
+
+    const isUnlimited = (tier.inventory?.type || tier.type) === 'unlimited';
+    if (isUnlimited) continue;
+
+    const legacyRemaining = legacyRemainingForCommit(tier);
+    const currentRemaining = resolveFiniteInventoryRead({
+      tier,
+      legacyRemaining,
+    }).remaining;
+    if (!Number.isSafeInteger(currentRemaining) || currentRemaining < quantity) {
+      throw inventoryCommitError('This ticket tier is now sold out', 'SOLD_OUT', {
+        tierId,
+        requested: quantity,
+        remaining: currentRemaining,
+      });
+    }
 
     // Check for Sharded Counter sub-collection
     const shardsRef = eventRef.collection('ticket_shards');
@@ -712,13 +864,19 @@ export async function commitInventory(transaction, { event, items, reservationId
       if (reservationId) {
         updatedTickets[ticketIndex] = {
           ...tier,
-          remaining: Math.max(0, (tier.remaining ?? tier.quantity) - quantity),
+          remaining: currentRemaining - quantity,
           lockedQuantity: Math.max(0, (tier.lockedQuantity || 0) - quantity),
+          ...(tier.inventory
+            ? { inventory: { ...tier.inventory, remaining: currentRemaining - quantity } }
+            : {}),
         };
       } else {
         updatedTickets[ticketIndex] = {
           ...tier,
-          remaining: Math.max(0, (tier.remaining ?? tier.quantity) - quantity),
+          remaining: currentRemaining - quantity,
+          ...(tier.inventory
+            ? { inventory: { ...tier.inventory, remaining: currentRemaining - quantity } }
+            : {}),
         };
       }
     }
@@ -739,7 +897,7 @@ export async function commitInventory(transaction, { event, items, reservationId
     }
   }
 
-  if (event.ticketCatalog) {
+  if (usesTicketCatalog) {
     transaction.update(eventRef, {
       'ticketCatalog.tiers': updatedTickets,
       updatedAt: new Date().toISOString(),
@@ -754,30 +912,42 @@ export async function commitInventory(transaction, { event, items, reservationId
  * Single source of truth for all ticket deductions (checkout, RSVP claim, bundle creation).
  * Throws if the tier is sold out.
  */
-export async function deductInventory(transaction, db, eventId, tierId, quantity) {
+export async function prepareInventoryDeduction(transaction, db, eventId, tierId, quantity) {
   const eventRef = db.collection('events').doc(eventId);
   const eDoc = await transaction.get(eventRef);
-  if (!eDoc.exists) return;
+  if (!eDoc.exists) throw new Error('Event not found');
 
   const eData = eDoc.data();
   const isCatalog = !!eData.ticketCatalog;
   const tiers = isCatalog ? [...(eData.ticketCatalog.tiers || [])] : [...(eData.tickets || [])];
   const tIdx = tiers.findIndex((t) => t.id === tierId);
-  if (tIdx === -1) return;
+  if (tIdx === -1) throw new Error('Ticket tier not found');
 
   const currentRem = Number(tiers[tIdx].remaining ?? tiers[tIdx].quantity) || 0;
-  if (currentRem <= 0) throw new Error('This ticket tier is now sold out');
+  if (currentRem < quantity) throw new Error('This ticket tier is now sold out');
 
   tiers[tIdx] = { ...tiers[tIdx], remaining: currentRem - quantity };
 
-  if (isCatalog) {
-    transaction.update(eventRef, {
-      'ticketCatalog.tiers': tiers,
+  return { eventRef, isCatalog, tiers };
+}
+
+export function applyPreparedInventoryDeduction(transaction, prepared) {
+  if (prepared.isCatalog) {
+    transaction.update(prepared.eventRef, {
+      'ticketCatalog.tiers': prepared.tiers,
       updatedAt: new Date().toISOString(),
     });
   } else {
-    transaction.update(eventRef, { tickets: tiers, updatedAt: new Date().toISOString() });
+    transaction.update(prepared.eventRef, {
+      tickets: prepared.tiers,
+      updatedAt: new Date().toISOString(),
+    });
   }
+}
+
+export async function deductInventory(transaction, db, eventId, tierId, quantity) {
+  const prepared = await prepareInventoryDeduction(transaction, db, eventId, tierId, quantity);
+  applyPreparedInventoryDeduction(transaction, prepared);
 }
 
 export default {

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { Audio } from 'expo-av';
+import type { AudioPlayer } from 'expo-audio';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/lib/design/theme';
@@ -20,49 +20,51 @@ type Props = {
 };
 
 export default function AnthemPlayer({ anthem, onPress, showEdit, variant = 'default' }: Props) {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const playerRef = useRef<AudioPlayer | null>(null);
+  const statusSubscriptionRef = useRef<{ remove(): void } | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     return () => {
-      if (sound) {
-        sound.unloadAsync();
-      }
+      statusSubscriptionRef.current?.remove();
+      statusSubscriptionRef.current = null;
+      playerRef.current?.remove();
+      playerRef.current = null;
     };
-  }, [sound]);
+  }, [anthem.previewUrl]);
 
   const togglePlay = async () => {
     if (!anthem.previewUrl) return;
 
-    if (isPlaying && sound) {
-      await sound.pauseAsync();
+    if (isPlaying && playerRef.current) {
+      playerRef.current.pause();
       setIsPlaying(false);
-      return;
-    }
-
-    if (sound) {
-      await sound.playAsync();
-      setIsPlaying(true);
       return;
     }
 
     setIsLoading(true);
     try {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: anthem.previewUrl },
-        { shouldPlay: true },
-      );
-      newSound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && !status.isPlaying && status.didJustFinish) {
-          setIsPlaying(false);
-        }
-      });
-      setSound(newSound);
+      // Lazy loading keeps route discovery functional in older dev-client builds that do not
+      // contain ExpoAudio yet. Rebuild the native client to enable inline anthem previews.
+      const { createAudioPlayer, setAudioModeAsync } = await import('expo-audio');
+      await setAudioModeAsync({ playsInSilentMode: true });
+
+      const player = playerRef.current ?? createAudioPlayer(anthem.previewUrl);
+      if (!playerRef.current) {
+        playerRef.current = player;
+        statusSubscriptionRef.current = player.addListener('playbackStatusUpdate', (status) => {
+          setIsPlaying(status.playing);
+        });
+      }
+
+      if (player.currentStatus.didJustFinish) await player.seekTo(0);
+      player.play();
       setIsPlaying(true);
     } catch {
-      // silently fail – preview URL may be expired
+      if (anthem.externalUrl) {
+        await Linking.openURL(anthem.externalUrl).catch(() => {});
+      }
     } finally {
       setIsLoading(false);
     }
@@ -111,7 +113,9 @@ export default function AnthemPlayer({ anthem, onPress, showEdit, variant = 'def
           </Text>
         </View>
         <View style={styles.actions}>
-          {anthem.source === 'spotify' && <FontAwesome5 name="spotify" size={18} color="#1DB954" />}
+          {anthem.source === 'spotify' && (
+            <FontAwesome5 name="spotify" size={18} color="#1DB954" />
+          )}
           {anthem.previewUrl ? (
             <Pressable
               onPress={(e) => {

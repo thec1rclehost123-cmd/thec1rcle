@@ -39,14 +39,7 @@ export default function GoingRedirect() {
     >
       <ActivityIndicator color={colors.iris} />
       {!orderId && (
-        <Text
-          style={{
-            color: colors.goldMetallic,
-            marginTop: 16,
-            textAlign: 'center',
-            paddingHorizontal: 32,
-          }}
-        >
+        <Text style={{ color: colors.goldMetallic, marginTop: 16, textAlign: 'center', paddingHorizontal: 32 }}>
           Invalid ticket link. Please use a valid link from your email or the app.
         </Text>
       )}

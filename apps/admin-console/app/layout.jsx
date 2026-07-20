@@ -2,7 +2,9 @@ import './globals.css';
 import { AuthProvider } from '@/components/providers/AuthProvider';
 import AdminConsoleShell from '@/components/admin/AdminConsoleShell';
 import { QueryProvider } from '@/components/providers/QueryProvider';
+import ToastProvider from '@/components/providers/ToastProvider';
 import { WebVitals } from '@/components/WebVitals';
+import { PageErrorBoundary } from '@/components/error/PageErrorBoundary';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +20,11 @@ export default function AdminLayout({ children }) {
         <WebVitals />
         <QueryProvider>
           <AuthProvider>
-            <AdminConsoleShell>{children}</AdminConsoleShell>
+            <ToastProvider>
+              <AdminConsoleShell>
+                <PageErrorBoundary>{children}</PageErrorBoundary>
+              </AdminConsoleShell>
+            </ToastProvider>
           </AuthProvider>
         </QueryProvider>
       </body>

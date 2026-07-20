@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Search, MoreVertical } from 'lucide-react';
+import { ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { EmptyState } from './EmptyState';
 
 interface DataTableProps {
   columns: any[];
@@ -10,6 +11,12 @@ interface DataTableProps {
   searchPlaceholder?: string;
   actions?: React.ReactNode;
   loading?: boolean;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  emptyIcon?: React.ReactNode;
+  emptyAction?: React.ReactNode;
 }
 
 export function DataTable({
@@ -19,8 +26,16 @@ export function DataTable({
   searchPlaceholder = 'Search records...',
   actions,
   loading = false,
+  searchQuery: externalSearchQuery,
+  onSearchChange,
+  emptyTitle = 'No records found',
+  emptyDescription,
+  emptyIcon,
+  emptyAction,
 }: DataTableProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [internalSearchQuery, setInternalSearchQuery] = useState('');
+  const searchQuery = externalSearchQuery ?? internalSearchQuery;
+  const setSearchQuery = onSearchChange ?? setInternalSearchQuery;
   const [sortConfig, setSortConfig] = useState<{
     key: string;
     direction: 'ascending' | 'descending';
@@ -79,7 +94,7 @@ export function DataTable({
                       {col.label}
                       {col.sortable &&
                         sortConfig?.key === col.key &&
-                        (sortConfig.direction === 'ascending' ? (
+                        (sortConfig?.direction === 'ascending' ? (
                           <ChevronUp className="h-3 w-3" />
                         ) : (
                           <ChevronDown className="h-3 w-3" />
@@ -110,9 +125,12 @@ export function DataTable({
               ) : (
                 <tr>
                   <td colSpan={columns.length} className="px-6 py-24 text-center">
-                    <p className="text-xs font-bold uppercase tracking-widest text-zinc-600">
-                      No records found
-                    </p>
+                    <EmptyState
+                      icon={emptyIcon}
+                      title={emptyTitle}
+                      description={emptyDescription}
+                      action={emptyAction}
+                    />
                   </td>
                 </tr>
               )}

@@ -96,7 +96,7 @@ export function VenueSheet({
             contentContainerStyle={styles.content}
           >
             {/* Hero */}
-            <Animated.View entering={FadeInDown.springify()} style={styles.hero}>
+            <Animated.View entering={FadeInDown} style={styles.hero}>
               <LinearGradient
                 colors={['rgba(244,74,34,0.2)', 'rgba(22,22,22,0)']}
                 style={StyleSheet.absoluteFill}
@@ -109,7 +109,7 @@ export function VenueSheet({
             </Animated.View>
 
             {/* Info grid */}
-            <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.infoGrid}>
+            <Animated.View entering={FadeInDown.delay(80)} style={styles.infoGrid}>
               {venue?.capacity && (
                 <View style={styles.infoChip}>
                   <Text style={styles.infoChipIcon}>👥</Text>
@@ -132,7 +132,7 @@ export function VenueSheet({
 
             {/* Description */}
             {venue?.description && (
-              <Animated.View entering={FadeInDown.delay(120).springify()} style={styles.section}>
+              <Animated.View entering={FadeInDown.delay(120)} style={styles.section}>
                 <Text style={styles.sectionTitle}>About</Text>
                 <Text style={styles.descriptionText}>{venue.description}</Text>
               </Animated.View>
@@ -140,7 +140,7 @@ export function VenueSheet({
 
             {/* Vibe tags */}
             {(venue?.vibeTags?.length ?? 0) > 0 && (
-              <Animated.View entering={FadeInDown.delay(140).springify()} style={styles.section}>
+              <Animated.View entering={FadeInDown.delay(140)} style={styles.section}>
                 <Text style={styles.sectionTitle}>Vibe</Text>
                 <View style={styles.tagsRow}>
                   {venue!.vibeTags!.map((tag) => (
@@ -154,7 +154,7 @@ export function VenueSheet({
 
             {/* Facilities */}
             {(venue?.facilities?.length ?? 0) > 0 && (
-              <Animated.View entering={FadeInDown.delay(160).springify()} style={styles.section}>
+              <Animated.View entering={FadeInDown.delay(160)} style={styles.section}>
                 <Text style={styles.sectionTitle}>Facilities</Text>
                 <View style={styles.tagsRow}>
                   {venue!.facilities!.map((f) => (
@@ -168,7 +168,7 @@ export function VenueSheet({
 
             {/* Directions CTA */}
             {(coords || displayArea || venueId) && (
-              <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.ctaStack}>
+              <Animated.View entering={FadeInDown.delay(200)} style={styles.ctaStack}>
                 {venueId ? (
                   <Pressable
                     onPress={() => {

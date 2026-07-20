@@ -68,7 +68,12 @@ const MONTHS = [
 ];
 
 type SlotState =
-  'open' | 'pending_mine' | 'approved_mine' | 'occupied_other' | 'blocked' | 'unavailable';
+  | 'open'
+  | 'pending_mine'
+  | 'approved_mine'
+  | 'occupied_other'
+  | 'blocked'
+  | 'unavailable';
 
 interface CalendarSlot {
   date: string;

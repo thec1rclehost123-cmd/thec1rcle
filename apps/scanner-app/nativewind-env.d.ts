@@ -33,11 +33,6 @@ declare module 'react-native' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface FlatListProps<ItemT = any> {
     columnWrapperClassName?: string;
-    // re-exposed ScrollViewProps lost via cross-tree @react-native/virtualized-lists dedup (TS 5.3.x)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    contentContainerStyle?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    refreshControl?: any;
   }
 }
 

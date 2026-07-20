@@ -37,7 +37,6 @@ import Animated, {
   FadeInRight,
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
 } from 'react-native-reanimated';
 
 import { colors, spacing, typography, radii } from '@/lib/design/theme';
@@ -53,6 +52,7 @@ import { useVenuesStore, type Venue } from '@/store/venuesStore';
 import { useProfileStore } from '@/store/profileStore';
 import { SkeletonList } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/EmptyState';
+import { buildVenueFeed } from '@/lib/venueFeed';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -133,8 +133,7 @@ function getEventsForVenue(venue: Venue, events: Event[]): Event[] {
     const eventKeys = getEventVenueCandidates(event).filter(Boolean);
     return eventKeys.some((eventKey) =>
       venueKeys.some(
-        (venueKey) =>
-          eventKey === venueKey || eventKey.startsWith(venueKey) || venueKey.startsWith(eventKey),
+        (venueKey) => eventKey === venueKey || eventKey.startsWith(venueKey) || venueKey.startsWith(eventKey),
       ),
     );
   });
@@ -145,16 +144,7 @@ function isVenueBookable(venue: Venue): boolean {
 
 // --- Zomato-Inspired Components ---
 
-function ZomatoHeader({
-  search,
-  setSearch,
-  activeFilter,
-  setFilter,
-  insetsTop,
-  cityName,
-  avatarUrl,
-  initials,
-}: any) {
+function ZomatoHeader({ search, setSearch, activeFilter, setFilter, insetsTop, cityName, avatarUrl, initials }: any) {
   return (
     <BlurView
       blurMethod="dimezisBlurView"
@@ -168,20 +158,14 @@ function ZomatoHeader({
           <Text style={styles.locationText}>{cityName || 'Pune'}</Text>
           <ChevronDown size={14} color="rgba(255,255,255,0.6)" />
         </View>
-        <Pressable style={styles.profileBtn} onPress={() => router.push('/(tabs)/profile')}>
+        <Pressable 
+          style={styles.profileBtn}
+          onPress={() => router.push('/(tabs)/profile')}
+        >
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} style={styles.profileImg} />
           ) : (
-            <View
-              style={[
-                styles.profileImg,
-                {
-                  backgroundColor: 'rgba(255,255,255,0.1)',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                },
-              ]}
-            >
+            <View style={[styles.profileImg, { backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' }]}>
               <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{initials}</Text>
             </View>
           )}
@@ -434,15 +418,15 @@ export default function VenuesTab() {
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<VenueFilter>('all');
-  const hasFetchedRef = useRef(false);
+  const fetchedCityRef = useRef<string | null>(null);
 
   const { venues, loading, error, fetchVenues } = useVenuesStore();
   const { events, fetchEvents } = useEventsStore();
-  const { user } = useAuth();
+  const { user, initialized } = useAuth();
   const profile = useProfileStore((s) => s.profile);
   const { fetchFollows } = useFollowStore();
 
-  const cityName = profile?.city || '';
+  const cityName = profile?.discoveryProfile?.cityName || profile?.city || '';
   const avatarUrl = profile?.photoURL || user?.photoURL || '';
   const initials = profile?.displayName
     ? profile.displayName
@@ -456,12 +440,17 @@ export default function VenuesTab() {
       : '?';
 
   useEffect(() => {
-    if (hasFetchedRef.current) return;
-    hasFetchedRef.current = true;
-    fetchVenues();
-    fetchEvents();
+    if (!initialized) return;
+    // Authenticated users reach this tab only after choosing a city. Waiting for
+    // that profile field prevents a misleading all-city request during boot.
+    if (user && !cityName) return;
+    const fetchKey = cityName || '__all__';
+    if (fetchedCityRef.current === fetchKey) return;
+    fetchedCityRef.current = fetchKey;
+    fetchVenues(cityName ? { city: cityName } : undefined);
+    fetchEvents(cityName || undefined);
     if (user?.uid) fetchFollows(user.uid);
-  }, [fetchVenues, fetchEvents, user?.uid, fetchFollows]);
+  }, [cityName, fetchVenues, fetchEvents, user?.uid, initialized, fetchFollows]);
 
   const enrichedVenues = useMemo(() => {
     const list = venues.map((v) => {
@@ -501,9 +490,14 @@ export default function VenuesTab() {
 
   const spotlightVenue = enrichedVenues.find((v) => v.coverImage || v.image) || enrichedVenues[0];
   const bookableVenues = enrichedVenues.filter(isVenueBookable).slice(0, 6);
+  const discoveryHeaderIsVisible = search.trim() === '' && activeFilter === 'all';
 
-  // Remove spotlight and curated from main feed to avoid duplication
-  const feedVenues = filteredVenues.filter((v) => v.id !== spotlightVenue?.id);
+  // Avoid duplication only while the spotlight hero is actually rendered.
+  const feedVenues = buildVenueFeed(
+    filteredVenues,
+    spotlightVenue?.id,
+    discoveryHeaderIsVisible,
+  );
 
   const renderVenueCard = useCallback(
     ({ item }: { item: Venue }) => <ZomatoVenueCard venue={item} />,
@@ -512,24 +506,24 @@ export default function VenuesTab() {
 
   return (
     <View style={styles.container}>
-      <ZomatoHeader
-        search={search}
-        setSearch={setSearch}
-        activeFilter={activeFilter}
-        setFilter={setActiveFilter}
-        insetsTop={insets.top}
-        cityName={cityName}
-        avatarUrl={avatarUrl}
-        initials={initials}
-      />
+        <ZomatoHeader
+          search={search}
+          setSearch={setSearch}
+          activeFilter={activeFilter}
+          setFilter={setActiveFilter}
+          insetsTop={insets.top}
+          cityName={cityName}
+          avatarUrl={avatarUrl}
+          initials={initials}
+        />
 
       {error && !loading && venues.length === 0 ? (
         <View style={[styles.scrollContent, { paddingTop: insets.top + 180 }]}>
           <ErrorState
             message={error}
             onRetry={() => {
-              hasFetchedRef.current = false;
-              fetchVenues();
+              fetchedCityRef.current = null;
+              fetchVenues({ ...(cityName ? { city: cityName } : {}), force: true });
             }}
           />
         </View>
@@ -544,8 +538,8 @@ export default function VenuesTab() {
             <RefreshControl
               refreshing={loading && venues.length > 0}
               onRefresh={() => {
-                fetchVenues();
-                fetchEvents();
+                fetchVenues({ ...(cityName ? { city: cityName } : {}), force: true });
+                fetchEvents(cityName || undefined, undefined, true);
               }}
               tintColor="#F44A22"
             />
@@ -553,14 +547,16 @@ export default function VenuesTab() {
           ListHeaderComponent={
             loading && venues.length === 0 ? (
               <SkeletonList count={3} />
-            ) : search === '' && activeFilter === 'all' ? (
-              <>
-                {spotlightVenue && <EditorialHeroCard venue={spotlightVenue} />}
-                {bookableVenues.length > 0 && (
-                  <CuratedRail title="Reserve a Table" venues={bookableVenues} />
-                )}
-              </>
-            ) : null
+            ) : (
+              discoveryHeaderIsVisible ? (
+                <>
+                  {spotlightVenue && <EditorialHeroCard venue={spotlightVenue} />}
+                  {bookableVenues.length > 0 && (
+                    <CuratedRail title="Reserve a Table" venues={bookableVenues} />
+                  )}
+                </>
+              ) : null
+            )
           }
           ListEmptyComponent={
             !loading ? (

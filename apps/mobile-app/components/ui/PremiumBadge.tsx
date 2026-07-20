@@ -1,11 +1,11 @@
-import { StyleSheet, Text, View, type ViewStyle, type StyleProp } from 'react-native';
+import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Crown } from 'lucide-react-native';
 
 type PremiumBadgeProps = {
   visible?: boolean;
   compact?: boolean;
-  style?: StyleProp<Omit<ViewStyle, 'display'>>;
+  style?: ViewStyle;
 };
 
 export function PremiumBadge({ visible = true, compact = false, style }: PremiumBadgeProps) {

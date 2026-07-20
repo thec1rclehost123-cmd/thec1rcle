@@ -252,7 +252,7 @@ describe('notificationsStore', () => {
       jest.useRealTimers();
     });
 
-    it('fetches immediately and polls every 15s', async () => {
+    it('fetches immediately and polls every 60s', async () => {
       mockApiFetch.mockResolvedValue({ data: { notifications: [], unreadCount: 0 } });
 
       useNotificationsStore.getState().subscribeToNotifications('user_1');
@@ -260,11 +260,11 @@ describe('notificationsStore', () => {
 
       expect(mockApiFetch).toHaveBeenCalledTimes(1);
 
-      jest.advanceTimersByTime(15000);
+      jest.advanceTimersByTime(60000);
       await flushMicrotasks();
       expect(mockApiFetch).toHaveBeenCalledTimes(2);
 
-      jest.advanceTimersByTime(15000);
+      jest.advanceTimersByTime(60000);
       await flushMicrotasks();
       expect(mockApiFetch).toHaveBeenCalledTimes(3);
     });

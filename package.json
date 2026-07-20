@@ -29,7 +29,7 @@
     "guardrails:check": "node scripts/check-backend-boundaries.mjs",
     "test:guardrails": "node --test scripts/check-backend-boundaries.test.mjs",
     "architecture:guest": "npm test -w apps/guest-portal",
-    "prepush": "npm run lint && npm run stylelint:check && npm run type-check && (npm test || echo Tests non-blocking per CI continue-on-error policy) && cross-env SKIP_ENV_VALIDATION=1 npm run build && npm run guardrails:check"
+    "prepush": "npm run lint && npm run stylelint:check && npm run type-check && (npm test || echo Tests non-blocking per CI continue-on-error policy) && npm run build && npm run guardrails:check"
   },
   "lint-staged": {
     "*": "prettier --write --ignore-unknown",
@@ -50,17 +50,15 @@
     "stylelint": "^17.13.0",
     "stylelint-config-standard": "^40.0.0",
     "turbo": "^2.7.3",
-    "vitest": "4.1.9",
-    "unicorn-magic": "^0.4.0"
+    "unicorn-magic": "^0.4.0",
+    "vitest": "4.1.9"
   },
   "overrides": {
     "@types/react": "^19.1.1",
     "@types/react-dom": "^19.1.1",
-    "@xmldom/xmldom": ">=0.9.0",
+    "@xmldom/xmldom": "~0.7.0",
     "tar": ">=7.5.16",
-    "tmp": ">=0.2.7",
-    "uuid": ">=11.1.1",
-    "postcss": ">=8.5.10"
+    "tmp": ">=0.2.7"
   },
   "dependencies": {
     "dotenv": "^17.2.3"

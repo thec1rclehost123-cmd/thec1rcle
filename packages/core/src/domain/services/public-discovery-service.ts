@@ -25,6 +25,11 @@ import { bumpCacheVersion } from '@c1rcle/core/redis';
 
 type ListParams = Record<string, any>;
 
+type PublicSearchOptions = {
+  type?: 'events' | 'hosts' | 'venues';
+  cityKey?: string | null;
+};
+
 const EVENT_CARD_INDEX = 'event_card_index';
 const EVENT_CARD_INDEX_VERSION = 2;
 const EVENT_CARD_BACKFILL_BATCH_SIZE = 100;
@@ -309,12 +314,43 @@ class EventCardIndexRepository {
     minEndAt?: string | null;
   }) {
     try {
-      let query: any = this.db.collection(EVENT_CARD_INDEX).where('visibility', '==', 'public');
-      if (cityKey) query = query.where('cityKey', '==', cityKey);
-      if (areaKey) query = query.where('areaKey', '==', areaKey);
-      if (hostId) query = query.where('hostId', '==', hostId);
-      if (venueId) query = query.where('venueId', '==', venueId);
-      const snapshot = await query.orderBy(orderByField, direction).limit(limit).get();
+      const buildQuery = () => {
+        let query: any = this.db.collection(EVENT_CARD_INDEX).where('visibility', '==', 'public');
+        // Use one indexed filter dimension. Secondary filters are applied to
+        // this bounded result by filterGuestEventCards(), which avoids an
+        // unbounded city + area + host + venue index matrix.
+        if (venueId) query = query.where('venueId', '==', venueId);
+        else if (hostId) query = query.where('hostId', '==', hostId);
+        else if (cityKey) query = query.where('cityKey', '==', cityKey);
+        else if (areaKey) query = query.where('areaKey', '==', areaKey);
+        return query;
+      };
+
+      if (orderByField === 'startAt' && direction === 'asc') {
+        const nowIso = new Date().toISOString();
+        const [recentSnapshot, upcomingSnapshot] = await Promise.all([
+          buildQuery()
+            .where('startAt', '<', nowIso)
+            .orderBy('startAt', 'asc')
+            .limitToLast(Math.min(limit, 12))
+            .get(),
+          buildQuery().where('startAt', '>=', nowIso).orderBy('startAt', 'asc').limit(limit).get(),
+        ]);
+        const current = recentSnapshot.docs.map(serializeDoc).filter((event: any) => {
+          const startAt = String(event.startAt || '');
+          const endAt = String(event.endAt || '');
+          return startAt <= nowIso && endAt >= nowIso;
+        });
+        const byId = new Map<string, Record<string, any>>();
+        for (const event of [...current, ...upcomingSnapshot.docs.map(serializeDoc)]) {
+          if (event.id) byId.set(event.id, event);
+        }
+        return [...byId.values()]
+          .sort((left, right) => String(left.startAt).localeCompare(String(right.startAt)))
+          .slice(0, limit);
+      }
+
+      const snapshot = await buildQuery().orderBy(orderByField, direction).limit(limit).get();
       return snapshot.docs.map(serializeDoc);
     } catch (error: any) {
       console.error(`[PublicDiscoveryService] queryList failed for ${EVENT_CARD_INDEX}`, error);
@@ -389,8 +425,11 @@ class HostSummaryRepository {
   }) {
     try {
       let query: any = this.db.collection(HOST_SUMMARY).where('visibility', '==', 'public');
+      // Use one indexed filter dimension and apply any secondary filter below.
+      // This keeps the supported query surface bounded instead of requiring every
+      // city + role composite permutation.
       if (cityKey) query = query.where('cityKey', '==', cityKey);
-      if (role) query = query.where('role', '==', role);
+      else if (role) query = query.where('role', '==', role);
       query = query.orderBy(orderByField, direction).orderBy(FieldPath.documentId(), direction);
       if (cursor?.id) {
         query = query.startAfter(cursor.value ?? null, cursor.id);
@@ -468,9 +507,10 @@ class VenueSummaryRepository {
   }) {
     try {
       let query: any = this.db.collection(VENUE_SUMMARY).where('visibility', '==', 'public');
+      // Use one indexed filter dimension and apply remaining filters below.
       if (cityKey) query = query.where('cityKey', '==', cityKey);
-      if (areaKey) query = query.where('areaKey', '==', areaKey);
-      if (tablesAvailable === true) query = query.where('tablesAvailable', '==', true);
+      else if (areaKey) query = query.where('areaKey', '==', areaKey);
+      else if (tablesAvailable === true) query = query.where('tablesAvailable', '==', true);
       query = query.orderBy(orderByField, direction).orderBy(FieldPath.documentId(), direction);
       if (cursor?.id) {
         query = query.startAfter(cursor.value ?? null, cursor.id);
@@ -1267,23 +1307,45 @@ export class PublicDiscoveryService {
     };
   }
 
-  async search(query: string, limit = 6, excludeUserIds?: string[]) {
+  async search(
+    query: string,
+    limit = 6,
+    excludeUserIds?: string[],
+    options: PublicSearchOptions = {},
+  ) {
     const needle = String(query || '')
       .trim()
       .toLowerCase();
     if (!needle) {
       return { events: [], hosts: [], venues: [] };
     }
-    const candidateLimit = Math.min(Math.max(Number(limit) || 6, 1), 24) * 6;
+    const resultLimit = Math.min(Math.max(Number(limit) || 6, 1), 24);
+    const candidateLimit = Math.min(Math.max(resultLimit * 2, 12), 48);
+    const requestedType = options.type;
 
     const [eventsResult, hostsResult, venuesResult] = await Promise.allSettled([
-      this.events.querySearchPrefix(needle, candidateLimit),
-      this.hosts.querySearchPrefix(needle, candidateLimit),
-      this.venues.querySearchPrefix(needle, candidateLimit),
+      !requestedType || requestedType === 'events'
+        ? this.events.querySearchPrefix(needle, candidateLimit)
+        : Promise.resolve([]),
+      !requestedType || requestedType === 'hosts'
+        ? this.hosts.querySearchPrefix(needle, candidateLimit)
+        : Promise.resolve([]),
+      !requestedType || requestedType === 'venues'
+        ? this.venues.querySearchPrefix(needle, candidateLimit)
+        : Promise.resolve([]),
     ]);
     let events = eventsResult.status === 'fulfilled' ? eventsResult.value : [];
     let hosts = hostsResult.status === 'fulfilled' ? hostsResult.value : [];
     let venues = venuesResult.status === 'fulfilled' ? venuesResult.value : [];
+
+    const cityKey = normalizeCityKey(options.cityKey || null);
+    if (cityKey) {
+      const matchesCity = (item: any) =>
+        normalizeCityKey(item?.cityKey || item?.cityLabel || item?.city || null) === cityKey;
+      events = events.filter(matchesCity);
+      hosts = hosts.filter(matchesCity);
+      venues = venues.filter(matchesCity);
+    }
 
     if (excludeUserIds?.length) {
       const excludeSet = new Set(excludeUserIds);
@@ -1292,6 +1354,6 @@ export class PublicDiscoveryService {
       venues = venues.filter((item: any) => !excludeSet.has(item.ownerUid || item.id));
     }
 
-    return rankGuestSearchGroups({ events, hosts, venues }, needle, limit);
+    return rankGuestSearchGroups({ events, hosts, venues }, needle, resultLimit);
   }
 }

@@ -20,7 +20,12 @@ const { width } = Dimensions.get('window');
 const SCAN_AREA_SIZE = width * 0.7;
 
 type ScanResultType =
-  'valid' | 'already_scanned' | 'invalid' | 'wrong_event' | 'not_confirmed' | null;
+  | 'valid'
+  | 'already_scanned'
+  | 'invalid'
+  | 'wrong_event'
+  | 'not_confirmed'
+  | null;
 
 interface ScanResultData {
   type: ScanResultType;

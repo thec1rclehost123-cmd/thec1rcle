@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { joinWaitlist, processWaitlist, verifyWaitlistAccess } from '@c1rcle/core/waitlist-engine';
+import { getAdminDb } from '@c1rcle/core/admin';
 import { z } from 'zod';
+import { createHash } from 'node:crypto';
 
 const JoinBody = z
   .object({
@@ -40,20 +42,56 @@ export default async function waitlistRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'email is required' });
       }
 
+      // Idempotency: deduplicate by idempotency key (client-generated)
+      const idempotencyKey = request.headers['idempotency-key'] as string | undefined;
+      if (idempotencyKey) {
+        const idHash = createHash('sha256').update(`${idempotencyKey}`).digest('hex');
+        const dedupRef = getAdminDb().collection('_idempotency').doc(idHash);
+        const existing = await dedupRef.get().catch(() => null);
+        if (existing?.exists) {
+          return existing.data()?.response || { status: 'already_processed' };
+        }
+      }
+
       try {
-        return await joinWaitlist({
+        const result = await joinWaitlist({
           eventId: body.eventId,
           tierId: body.tierId,
           email: resolvedEmail,
           phone: typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null,
           userId: request.user?.uid || null,
         });
+
+        // Store idempotency result (7-day TTL)
+        if (idempotencyKey) {
+          const idHash = createHash('sha256').update(`${idempotencyKey}`).digest('hex');
+          const dedupRef = getAdminDb().collection('_idempotency').doc(idHash);
+          await dedupRef.set({ response: result, createdAt: new Date().toISOString() }).catch(() => {});
+        }
+
+        return result;
       } catch (error: any) {
         fastify.log.warn(
           { requestId: request.id, eventId: body.eventId, error: error.message },
           'POST /waitlist/join failed',
         );
-        return reply.status(400).send({ error: error.message || 'Request failed' });
+        const message = String(error.message || '');
+        const statusCode =
+          message === 'Event not found'
+            ? 404
+            : message === 'Event is not sold out'
+              ? 409
+              : 400;
+        return reply.status(statusCode).send({
+          error: message || 'Request failed',
+          code:
+            statusCode === 404
+              ? 'NOT_FOUND'
+              : statusCode === 409
+                ? 'EVENT_NOT_SOLD_OUT'
+                : 'BAD_REQUEST',
+          statusCode,
+        });
       }
     },
   );

@@ -316,7 +316,7 @@ export default function ProfileViewScreen() {
   const insets = useSafeAreaInsets();
   const viewerProfile = useProfileStore((s) => s.profile);
   const viewerHasDating = viewerProfile?.datingActive === true;
-
+  
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -418,16 +418,7 @@ export default function ProfileViewScreen() {
               <Ionicons name="chevron-back" size={26} color="#fff" />
             </Pressable>
             <Text style={styles.emptyTitle}>Something went wrong</Text>
-            <Text
-              style={{
-                color: 'rgba(255,255,255,0.5)',
-                fontSize: 14,
-                marginTop: 8,
-                marginBottom: 24,
-                textAlign: 'center',
-                paddingHorizontal: 32,
-              }}
-            >
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginTop: 8, marginBottom: 24, textAlign: 'center', paddingHorizontal: 32 }}>
               Unable to load this profile. Check your connection and try again.
             </Text>
             <Pressable
@@ -435,12 +426,7 @@ export default function ProfileViewScreen() {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setLoadKey((k) => k + 1);
               }}
-              style={{
-                backgroundColor: colors.iris,
-                paddingHorizontal: 28,
-                paddingVertical: 13,
-                borderRadius: 24,
-              }}
+              style={{ backgroundColor: colors.iris, paddingHorizontal: 28, paddingVertical: 13, borderRadius: 24 }}
             >
               <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
             </Pressable>
@@ -505,7 +491,7 @@ export default function ProfileViewScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 148 }}
       >
-        <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.profileHeader}>
+        <Animated.View entering={FadeInDown.delay(100)} style={styles.profileHeader}>
           <Image
             source={imageSource}
             style={styles.profileHeroImage}
@@ -560,8 +546,8 @@ export default function ProfileViewScreen() {
 
         <View style={styles.nightsContent}>
           {profile.hasDatingProfile && !viewerHasDating ? (
-            <AnimatedPressable
-              entering={FadeInDown.delay(120).springify()}
+            <AnimatedPressable 
+              entering={FadeInDown.delay(120)}
               style={styles.upsellCard}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -572,19 +558,15 @@ export default function ProfileViewScreen() {
                 <Lock size={20} color={colors.iris} strokeWidth={2.5} />
               </View>
               <View style={styles.upsellInfo}>
-                <Text style={styles.upsellTitle}>
-                  Unlock {profile.displayName}'s Dating Profile
-                </Text>
-                <Text style={styles.upsellSub}>
-                  Set up your Nightlife Profile to view and send an Ask Out!
-                </Text>
+                <Text style={styles.upsellTitle}>Unlock {profile.displayName}'s Dating Profile</Text>
+                <Text style={styles.upsellSub}>Set up your Nightlife Profile to view and send an Ask Out!</Text>
               </View>
             </AnimatedPressable>
           ) : null}
 
           {profile.upcomingEvent ? (
             <AnimatedPressable
-              entering={FadeInDown.delay(140).springify()}
+              entering={FadeInDown.delay(140)}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 if (profile.upcomingEvent?.eventId) {

@@ -19,6 +19,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+let Brightness: any = null;
+try {
+  Brightness = require('expo-brightness');
+} catch (e) {
+  // Gracefully degrade if missing
+}
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import {
   ActionSheet,
@@ -27,15 +33,7 @@ import {
 } from '@/components/tickets/TicketActionSheets';
 import { colors, gradients, radii } from '@/lib/design/theme';
 import { resolveEventAccentColor } from '@/hooks/useEventAccent';
-import {
-  API_BASE,
-  cancelShareBundle,
-  createShareBundle,
-  getPendingFormalTransfers,
-  getTicketShares,
-  reclaimSharedTicket,
-  revokeSharedTicket,
-} from '@/lib/api';
+import { API_BASE, cancelShareBundle, createShareBundle, getPendingFormalTransfers, getTicketShares, reclaimSharedTicket, revokeSharedTicket } from '@/lib/api';
 import { initiateTransfer, cancelTransfer } from '@/lib/transfers';
 import { track, trackScreen, AnalyticsEvents } from '@/lib/analytics';
 import { shareEventLink } from '@/lib/deeplinks';
@@ -95,12 +93,42 @@ export default function TicketDetailScreen() {
   }, [id]);
 
   useEffect(() => {
-    if (!showQr || !order?.userId || !id) return;
-    const refreshTimer = setInterval(() => {
-      void refreshWallet();
-    }, 45_000);
-    return () => clearInterval(refreshTimer);
-  }, [id, order?.userId, showQr]);
+    let originalBrightness: number | null = null;
+    let isActive = true;
+
+    const setMaxBrightness = async () => {
+      try {
+        if (!Brightness) return;
+        const { status } = await Brightness.requestPermissionsAsync();
+        if (status === 'granted' && isActive) {
+          originalBrightness = await Brightness.getBrightnessAsync();
+          await Brightness.setBrightnessAsync(1);
+        }
+      } catch (err) {
+        if (__DEV__) console.warn('Brightness error:', err);
+      }
+    };
+
+    const restoreBrightness = async () => {
+      try {
+        if (!Brightness) return;
+        if (originalBrightness !== null) {
+          await Brightness.setBrightnessAsync(originalBrightness);
+        }
+      } catch (err) {}
+    };
+
+    if (showQr) {
+      setMaxBrightness();
+    } else {
+      restoreBrightness();
+    }
+
+    return () => {
+      isActive = false;
+      restoreBrightness();
+    };
+  }, [showQr]);
 
   const loadAll = async (orderId: string) => {
     const loadId = ++loadCountRef.current;
@@ -299,10 +327,11 @@ export default function TicketDetailScreen() {
 
     let result: any;
     try {
-      result = await initiateTransfer(claimedTicket.ticketId, order.userId, {
-        tierName: claimedTicket.tierName,
-        quantity: claimedTicket.quantity,
-      });
+      result = await initiateTransfer(
+        claimedTicket.ticketId,
+        order.userId,
+        { tierName: claimedTicket.tierName, quantity: claimedTicket.quantity },
+      );
       if (!result.success) {
         if (result.premiumRequired) {
           openPaywall('ticketTransfers', result.error);

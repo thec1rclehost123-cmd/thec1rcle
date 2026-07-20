@@ -294,8 +294,7 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
   const expectedSignature = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
 
   if (expectedSignature !== signature) {
-    const safeWebhookId = webhookId.replace(/[\n\r]/g, '_');
-    console.error('[Webhook] Signature mismatch (event_id=%s)', safeWebhookId);
+    console.error(`[Webhook] Signature mismatch (event_id=${webhookId})`);
     res.status(403).send('Invalid signature');
     return;
   }
@@ -307,8 +306,7 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
     await admin.firestore().runTransaction(async (transaction) => {
       const existing = await transaction.get(webhookLogRef);
       if (existing.exists) {
-        const safeDupWebhookId = webhookId.replace(/[\n\r]/g, '_');
-        console.log('[Webhook] Duplicate event %s skipped (idempotency)', safeDupWebhookId);
+        console.log(`[Webhook] Duplicate event ${webhookId} skipped (idempotency)`);
         return;
       }
       transaction.set(webhookLogRef, {
@@ -329,7 +327,7 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
     const payment = payload.payment.entity;
     const orderId = payment.notes.orderId || payment.description;
 
-    console.log('[Webhook] Payment CAPTURED for Order %s', orderId.replace(/[\n\r]/g, '_'));
+    console.log(`[Webhook] Payment CAPTURED for Order ${orderId}`);
 
     try {
       await confirmOrderPayment(orderId, {
@@ -340,7 +338,7 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
       await webhookLogRef.update({ status: 'completed', orderId, paymentId: payment.id });
     } catch (error) {
       await webhookLogRef.update({ status: 'failed', error: String(error) });
-      console.error('[Webhook] Error confirming order %s:', orderId.replace(/[\n\r]/g, '_'), error);
+      console.error(`[Webhook] Error confirming order ${orderId}:`, error);
     }
   } else {
     await webhookLogRef.update({ status: 'ignored', event });

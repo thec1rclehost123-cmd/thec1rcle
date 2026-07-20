@@ -10,6 +10,8 @@ const links = [
   { label: 'Careers', href: '/about#careers' },
   { label: 'Privacy', href: '/privacy' },
   { label: 'Terms', href: '/terms' },
+  { label: 'Refunds', href: '/refund' },
+  { label: 'Delete Account', href: '/account-deletion' },
 ];
 
 export default function Footer() {

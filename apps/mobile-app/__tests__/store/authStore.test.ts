@@ -1,4 +1,5 @@
 let mockAuthCallback: any = null;
+let mockCurrentUser: any = null;
 const mockUnsubscribe = jest.fn();
 const mockAppStateRemove = jest.fn();
 
@@ -20,6 +21,7 @@ const mockSubscriptionState = {
   fetchRevenueCatSubscription: jest.fn(),
   clearSubscription: jest.fn(),
 };
+const mockChatState = { clearChats: jest.fn() };
 
 jest.mock('react-native', () => ({
   AppState: {
@@ -30,9 +32,13 @@ jest.mock('react-native', () => ({
 
 jest.mock('../../lib/firebase', () => ({
   subscribeToAuthState: jest.fn((callback) => {
-    mockAuthCallback = callback;
+    mockAuthCallback = (user: any) => {
+      mockCurrentUser = user;
+      callback(user);
+    };
     return mockUnsubscribe;
   }),
+  getFirebaseAuth: jest.fn(() => ({ currentUser: mockCurrentUser })),
 }));
 
 jest.mock('../../lib/api', () => ({
@@ -66,7 +72,12 @@ jest.mock('../../store/subscriptionStore', () => ({
   useSubscriptionStore: { getState: () => mockSubscriptionState },
 }));
 
+jest.mock('../../store/chatStore', () => ({
+  useChatStore: { getState: () => mockChatState },
+}));
+
 import { initAuthListener, useAuthStore } from '../../store/authStore';
+import { useDatingStore } from '../../store/datingStore';
 import { syncAuthSession } from '../../lib/api';
 import { refreshPushToken } from '../../lib/notifications';
 import { wsManager } from '../../lib/websocket';
@@ -81,6 +92,8 @@ describe('authStore', () => {
     jest.useRealTimers();
     jest.clearAllMocks();
     mockAuthCallback = null;
+    mockCurrentUser = null;
+    useDatingStore.getState().clearDatingState();
     useAuthStore.setState({
       user: null,
       loading: true,
@@ -97,6 +110,12 @@ describe('authStore', () => {
 
   describe('setGuestMode', () => {
     it('sets guest state and clears sibling stores', () => {
+      useDatingStore.getState().setOwnerUserId('previous-user');
+      useDatingStore.setState({
+        profilesOwnerUserId: 'previous-user',
+        profiles: [{ userId: 'other-user' } as any],
+      });
+
       useAuthStore.getState().setGuestMode(true);
 
       const state = useAuthStore.getState();
@@ -111,6 +130,12 @@ describe('authStore', () => {
       expect(mockNotificationsState.clearNotifications).toHaveBeenCalled();
       expect(mockTicketsState.clearOrders).toHaveBeenCalled();
       expect(mockSubscriptionState.clearSubscription).toHaveBeenCalled();
+      expect(mockChatState.clearChats).toHaveBeenCalled();
+      expect(useDatingStore.getState()).toMatchObject({
+        ownerUserId: null,
+        profilesOwnerUserId: null,
+        profiles: [],
+      });
       expect(wsManager.stop).toHaveBeenCalled();
     });
 
@@ -178,10 +203,13 @@ describe('authStore', () => {
     it('hydrates authenticated user after successful sync', async () => {
       const user = {
         uid: 'user_1',
+        phoneNumber: '+919876543210',
+        providerData: [{ providerId: 'phone' }],
         getIdToken: jest.fn(async () => 'firebase-token'),
       };
       (syncAuthSession as jest.Mock).mockResolvedValueOnce({
         profile: { uid: 'user_1', role: 'guest' },
+        onboarding: { version: 2, currentStage: 'complete', completed: true },
         claims: { role: 'guest' },
         requiresTokenRefresh: true,
       });
@@ -221,8 +249,57 @@ describe('authStore', () => {
       cleanup();
     });
 
+    it('clears the previous dating deck immediately when the authenticated UID changes', async () => {
+      const firstUser = {
+        uid: 'dating-owner-a',
+        getIdToken: jest.fn(async () => 'token-a'),
+      };
+      const secondUser = {
+        uid: 'dating-owner-b',
+        getIdToken: jest.fn(async () => 'token-b'),
+      };
+      (syncAuthSession as jest.Mock)
+        .mockResolvedValueOnce({
+          profile: { uid: firstUser.uid },
+          onboarding: { version: 2, currentStage: 'complete', completed: true },
+          requiresTokenRefresh: false,
+        })
+        .mockResolvedValueOnce({
+          profile: { uid: secondUser.uid },
+          onboarding: { version: 2, currentStage: 'complete', completed: true },
+          requiresTokenRefresh: false,
+        });
+
+      const cleanup = initAuthListener();
+      mockAuthCallback?.(firstUser);
+      await flushPromises();
+      useDatingStore.setState({
+        profilesOwnerUserId: firstUser.uid,
+        matchesOwnerUserId: firstUser.uid,
+        profiles: [{ userId: 'other-user' } as any],
+        matches: [{ id: 'match-1', otherUserId: 'other-user' } as any],
+      });
+
+      mockAuthCallback?.(secondUser);
+
+      expect(useDatingStore.getState()).toMatchObject({
+        ownerUserId: secondUser.uid,
+        profilesOwnerUserId: null,
+        matchesOwnerUserId: null,
+        profiles: [],
+        matches: [],
+      });
+      await flushPromises();
+      cleanup();
+    });
+
     it('clears state and sibling stores on sign out', () => {
       const cleanup = initAuthListener();
+      useDatingStore.getState().setOwnerUserId('previous-user');
+      useDatingStore.setState({
+        matchesOwnerUserId: 'previous-user',
+        matches: [{ id: 'match-1', otherUserId: 'other-user' } as any],
+      });
 
       mockAuthCallback?.(null);
 
@@ -237,6 +314,11 @@ describe('authStore', () => {
       expect(mockNotificationsState.clearNotifications).toHaveBeenCalled();
       expect(mockTicketsState.clearOrders).toHaveBeenCalled();
       expect(mockSubscriptionState.clearSubscription).toHaveBeenCalled();
+      expect(useDatingStore.getState()).toMatchObject({
+        ownerUserId: null,
+        matchesOwnerUserId: null,
+        matches: [],
+      });
       expect(wsManager.stop).toHaveBeenCalled();
 
       cleanup();

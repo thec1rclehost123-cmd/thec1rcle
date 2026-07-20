@@ -101,6 +101,13 @@ import { initiateGuestTransfer } from '../../services/guest-gp5';
 
 async function buildServer() {
   const server = Fastify({ logger: false });
+  const requireAuthenticatedUser = async (request: any, reply: any) => {
+    if (!request.user?.uid) {
+      return reply.status(401).send({ success: false, error: 'Unauthorized' });
+    }
+  };
+  server.decorate('requireAuth', requireAuthenticatedUser);
+  server.decorate('requireVerifiedPhone', requireAuthenticatedUser);
   server.decorate('db', {
     collection: vi.fn(() => ({
       where: vi.fn(() => ({

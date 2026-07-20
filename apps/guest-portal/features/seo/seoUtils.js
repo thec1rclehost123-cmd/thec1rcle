@@ -1,5 +1,5 @@
 const DEFAULT_SITE_URL = 'https://thec1rcle.com';
-const DEFAULT_OG_IMAGE = '/og-image.jpg';
+const DEFAULT_OG_IMAGE = '/logo.jpg';
 
 export function getSiteUrl() {
   return (

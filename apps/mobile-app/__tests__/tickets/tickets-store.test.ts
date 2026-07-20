@@ -5,6 +5,11 @@ jest.mock('@/lib/api', () => ({
   apiFetch: jest.fn(),
 }));
 
+jest.mock('@/lib/demo', () => ({
+  DEMO_EVENTS: [],
+  PUBLIC_DEMO_MODE: false,
+}));
+
 const mockedApiFetch = apiFetch as jest.MockedFunction<typeof apiFetch>;
 
 describe('ticketsStore wallet sync', () => {
@@ -54,5 +59,40 @@ describe('ticketsStore wallet sync', () => {
     expect(useTicketsStore.getState().orders).toHaveLength(1);
     expect(useTicketsStore.getState().error).toBe('wallet backend down');
     expect(useTicketsStore.getState().loading).toBe(false);
+  });
+
+  it('does not repopulate cleared orders when an in-flight request resolves after sign out', async () => {
+    let resolveRequest!: (value: any) => void;
+    mockedApiFetch.mockImplementationOnce(
+      () => new Promise((resolve) => {
+        resolveRequest = resolve;
+      }),
+    );
+
+    const pendingFetch = useTicketsStore.getState().fetchUserOrders();
+    expect(useTicketsStore.getState().loading).toBe(true);
+
+    useTicketsStore.getState().clearOrders();
+    resolveRequest({
+      success: true,
+      orders: [
+        {
+          id: 'ord_prior_user',
+          userId: 'prior_user',
+          eventId: 'event_private',
+          status: 'confirmed',
+          tickets: [],
+          totalAmount: 0,
+          createdAt: '2026-07-18T00:00:00.000Z',
+        },
+      ],
+    });
+    await pendingFetch;
+
+    expect(useTicketsStore.getState()).toMatchObject({
+      orders: [],
+      loading: false,
+      error: null,
+    });
   });
 });

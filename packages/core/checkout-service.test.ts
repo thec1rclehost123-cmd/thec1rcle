@@ -1,14 +1,31 @@
 import { describe, expect, it, beforeEach, afterAll, vi } from 'vitest';
 import { CheckoutService } from './src/domain/services/checkout-service.js';
+import { buildCheckoutSnapshot } from './src/domain/services/checkout-reconciliation.js';
 // @ts-ignore
-import { createReservation, commitInventory } from '@c1rcle/core/inventory-engine';
+import {
+  createReservation,
+  commitInventory,
+  releaseReservation,
+} from '@c1rcle/core/inventory-engine';
+// @ts-ignore
+import { cancelOrder as cancelPendingCheckoutOrder } from '@c1rcle/core/order-engine';
 
 vi.mock('./admin.js', () => ({
   getAdminDb: vi.fn(() => ({
-    runTransaction: vi.fn(async (cb) =>
-      cb({
-        get: vi.fn(async () => ({ exists: false, data: () => ({}) })),
-        set: vi.fn(),
+    runTransaction: vi.fn(async (cb) => {
+      let hasWritten = false;
+      return cb({
+        get: vi.fn(async () => {
+          if (hasWritten) {
+            throw new Error(
+              'Firestore transactions require all reads to be executed before all writes.',
+            );
+          }
+          return { exists: false, data: () => ({}) };
+        }),
+        set: vi.fn(() => {
+          hasWritten = true;
+        }),
         update: vi.fn(),
         delete: vi.fn(),
         collection: vi.fn(() => ({
@@ -17,8 +34,8 @@ vi.mock('./admin.js', () => ({
             set: vi.fn(),
           })),
         })),
-      }),
-    ),
+      });
+    }),
     collection: vi.fn((col) => ({
       doc: vi.fn((id) => ({
         update: vi.fn(),
@@ -43,8 +60,13 @@ vi.mock('@c1rcle/core/order-engine', async (importOriginal) => {
   const mod = await importOriginal<any>();
   return {
     ...mod,
+    cancelOrder: vi.fn().mockResolvedValue({ status: 'cancelled' }),
+    cleanupStaleOrders: vi.fn().mockResolvedValue({ cleaned: 0, hasMore: false }),
     executeOrderCreation: vi.fn(
       async (transaction, { db, event, orderData, reservationId, inventoryEngine }) => {
+        if (typeof transaction?.get === 'function') {
+          await transaction.get({ id: 'inventory-read-sentinel' });
+        }
         const status =
           orderData.totalAmount === 0 || orderData.isRSVP ? 'confirmed' : 'payment_pending';
         const finalOrder = { ...orderData, status, updatedAt: new Date().toISOString() };
@@ -227,6 +249,20 @@ class FakeEventRepository {
   }
 }
 
+class SequencedEventRepository extends FakeEventRepository {
+  private index = 0;
+
+  constructor(private sequence: any[]) {
+    super({});
+  }
+
+  async getById() {
+    const value = this.sequence[Math.min(this.index, this.sequence.length - 1)] || null;
+    this.index += 1;
+    return value;
+  }
+}
+
 const futureIso = () => new Date(Date.now() + 60_000).toISOString();
 const pastIso = () => new Date(Date.now() - 60_000).toISOString();
 
@@ -247,7 +283,7 @@ function buildEvent({
     title: `Event ${id}`,
     cityKey: 'phoenix-us',
     lifecycle,
-    startDate: '2026-05-01T20:00:00.000Z',
+    startDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     venueId: 'venue_1',
     creatorId: 'creator_1',
     isRSVP,
@@ -270,11 +306,22 @@ function buildReservation({
   id,
   eventId,
   status = 'active',
+  event,
 }: {
   id: string;
   eventId: string;
   status?: string;
+  event?: any;
 }) {
+  const items = [
+    {
+      tierId: 'tier-1',
+      tierName: 'General Admission',
+      entryType: 'general',
+      quantity: 1,
+    },
+  ];
+  const snapshotEvent = event || buildEvent({ id: eventId });
   return {
     id,
     eventId,
@@ -282,14 +329,8 @@ function buildReservation({
     customerId: 'user_1',
     queueId: 'queue_1',
     status,
-    items: [
-      {
-        tierId: 'tier-1',
-        tierName: 'General Admission',
-        entryType: 'general',
-        quantity: 1,
-      },
-    ],
+    items,
+    checkoutSnapshot: buildCheckoutSnapshot(snapshotEvent, items),
     createdAt: new Date().toISOString(),
     expiresAt: futureIso(),
   };
@@ -310,12 +351,13 @@ describe('CheckoutService parity', () => {
   it('reuses the same paid order for repeated calls on one reservation', async () => {
     const orderRepo = new FakeOrderRepository();
     currentOrderRepo = orderRepo;
+    const event = buildEvent({ id: 'evt-paid', price: 500 });
     const eventRepo = new FakeEventRepository({
-      'evt-paid': buildEvent({ id: 'evt-paid', price: 500 }),
+      'evt-paid': event,
     });
     orderRepo.reservations.set(
       'res-paid',
-      buildReservation({ id: 'res-paid', eventId: 'evt-paid' }),
+      buildReservation({ id: 'res-paid', eventId: 'evt-paid', event }),
     );
     const service = new CheckoutService(orderRepo as any, eventRepo as any);
 
@@ -362,12 +404,13 @@ describe('CheckoutService parity', () => {
   it('reuses the latest pending payment intent for the same order instead of creating a new one', async () => {
     const orderRepo = new FakeOrderRepository();
     currentOrderRepo = orderRepo;
+    const event = buildEvent({ id: 'evt-paid', price: 500 });
     const eventRepo = new FakeEventRepository({
-      'evt-paid': buildEvent({ id: 'evt-paid', price: 500 }),
+      'evt-paid': event,
     });
     orderRepo.reservations.set(
       'res-paid',
-      buildReservation({ id: 'res-paid', eventId: 'evt-paid' }),
+      buildReservation({ id: 'res-paid', eventId: 'evt-paid', event }),
     );
     const service = new CheckoutService(orderRepo as any, eventRepo as any);
 
@@ -426,7 +469,11 @@ describe('CheckoutService parity', () => {
       'user_1',
       'device_1',
       [{ tierId: 'tier-1', quantity: 2 }],
-      { reservationMinutes: 5, strictMode: true },
+      expect.objectContaining({
+        reservationMinutes: 5,
+        strictMode: true,
+        checkoutSnapshot: expect.objectContaining({ version: 1, eventId: 'evt-paid' }),
+      }),
     );
     expect(intent).toMatchObject({
       success: true,
@@ -464,15 +511,98 @@ describe('CheckoutService parity', () => {
     expect(orderRepo.payments.size).toBe(1);
   });
 
+  it('rejects a canonical price race inside the order transaction before provider order creation', async () => {
+    const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
+    const reservedEvent = buildEvent({ id: 'evt-drift', price: 500 });
+    const changedEvent = {
+      ...reservedEvent,
+      tickets: reservedEvent.tickets.map((tier: any) => ({ ...tier, price: 600 })),
+    };
+    const eventRepo = new SequencedEventRepository([
+      reservedEvent,
+      reservedEvent,
+      reservedEvent,
+      changedEvent,
+    ]);
+    const service = new CheckoutService(orderRepo as any, eventRepo as any);
+
+    await expect(
+      service.createCheckoutIntent({
+        eventId: 'evt-drift',
+        tierId: 'tier-1',
+        quantity: 1,
+        user: { id: 'user_1', email: 'test@example.com' },
+        workspaceId: 'ws_1',
+        paymentGatewayConfig: { allowMockPayment: true },
+      }),
+    ).rejects.toMatchObject({ code: 'STALE_CART', statusCode: 409 });
+
+    expect(commitInventory).not.toHaveBeenCalled();
+    expect(orderRepo.payments.size).toBe(0);
+    expect(releaseReservation).toHaveBeenCalledWith('res-mock');
+  });
+
+  it('rejects a reservation owned by another user before pricing or inventory mutation', async () => {
+    const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
+    const event = buildEvent({ id: 'evt-owner', price: 500 });
+    orderRepo.reservations.set(
+      'res-owner',
+      buildReservation({ id: 'res-owner', eventId: event.id, event }),
+    );
+    const service = new CheckoutService(
+      orderRepo as any,
+      new FakeEventRepository({ [event.id]: event }) as any,
+    );
+
+    await expect(
+      service.initiateCheckout({
+        reservationId: 'res-owner',
+        userId: 'user_2',
+        userName: 'Wrong User',
+        userEmail: 'wrong@example.com',
+        userPhone: '+15555550002',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(commitInventory).not.toHaveBeenCalled();
+  });
+
+  it('fails closed for a legacy reservation without a canonical checkout snapshot', async () => {
+    const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
+    const event = buildEvent({ id: 'evt-legacy', price: 500 });
+    const reservation = buildReservation({ id: 'res-legacy', eventId: event.id, event });
+    delete reservation.checkoutSnapshot;
+    orderRepo.reservations.set(reservation.id, reservation);
+    const service = new CheckoutService(
+      orderRepo as any,
+      new FakeEventRepository({ [event.id]: event }) as any,
+    );
+
+    await expect(
+      service.initiateCheckout({
+        reservationId: reservation.id,
+        userId: 'user_1',
+        userName: 'Test User',
+        userEmail: 'test@example.com',
+        userPhone: '+15555550123',
+      }),
+    ).rejects.toMatchObject({ code: 'STALE_CART' });
+    expect(commitInventory).not.toHaveBeenCalled();
+    expect(releaseReservation).toHaveBeenCalledWith(reservation.id);
+  });
+
   it('returns the existing confirmed order after a free reservation is converted', async () => {
     const orderRepo = new FakeOrderRepository();
     currentOrderRepo = orderRepo;
+    const event = buildEvent({ id: 'evt-free', price: 0 });
     const eventRepo = new FakeEventRepository({
-      'evt-free': buildEvent({ id: 'evt-free', price: 0 }),
+      'evt-free': event,
     });
     orderRepo.reservations.set(
       'res-free',
-      buildReservation({ id: 'res-free', eventId: 'evt-free' }),
+      buildReservation({ id: 'res-free', eventId: 'evt-free', event }),
     );
     const service = new CheckoutService(orderRepo as any, eventRepo as any);
 
@@ -504,12 +634,13 @@ describe('CheckoutService parity', () => {
   it('blocks duplicate RSVP purchases for the same user identity', async () => {
     const orderRepo = new FakeOrderRepository();
     currentOrderRepo = orderRepo;
+    const event = buildEvent({ id: 'evt-rsvp', isRSVP: true });
     const eventRepo = new FakeEventRepository({
-      'evt-rsvp': buildEvent({ id: 'evt-rsvp', isRSVP: true }),
+      'evt-rsvp': event,
     });
     orderRepo.reservations.set(
       'res-rsvp',
-      buildReservation({ id: 'res-rsvp', eventId: 'evt-rsvp' }),
+      buildReservation({ id: 'res-rsvp', eventId: 'evt-rsvp', event }),
     );
     orderRepo.rsvpOrders.set('RSVP-existing', {
       id: 'RSVP-existing',
@@ -551,6 +682,59 @@ describe('CheckoutService parity', () => {
         workspaceId: 'ws_1',
       }),
     ).rejects.toThrow('Ticket sales for this event are temporarily paused.');
+  });
+
+  it('rejects reservations and checkout initiation after an event has ended', async () => {
+    const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
+    const pastEvent = {
+      ...buildEvent({ id: 'evt-ended' }),
+      startDate: new Date(Date.now() - 60_000).toISOString(),
+    };
+    const eventRepo = new FakeEventRepository({ 'evt-ended': pastEvent });
+    const service = new CheckoutService(orderRepo as any, eventRepo as any);
+
+    await expect(
+      service.reserveItems({
+        eventId: 'evt-ended',
+        userId: 'user_1',
+        deviceId: 'device_1',
+        items: [{ tierId: 'tier-1', quantity: 1 }],
+        workspaceId: 'ws_1',
+      }),
+    ).rejects.toMatchObject({ code: 'EVENT_NOT_PURCHASABLE' });
+
+    orderRepo.reservations.set(
+      'res-ended',
+      buildReservation({ id: 'res-ended', eventId: 'evt-ended', event: pastEvent }),
+    );
+    await expect(
+      service.initiateCheckout({
+        reservationId: 'res-ended',
+        userId: 'user_1',
+        userName: 'Test User',
+        userEmail: 'test@example.com',
+        userPhone: '+15555550123',
+      }),
+    ).rejects.toMatchObject({ code: 'EVENT_NOT_PURCHASABLE' });
+  });
+
+  it('validates preview pricing from the authoritative event instead of client prices', async () => {
+    const orderRepo = new FakeOrderRepository();
+    const eventRepo = new FakeEventRepository({
+      'evt-preview': buildEvent({ id: 'evt-preview', price: 500 }),
+    });
+    const service = new CheckoutService(orderRepo as any, eventRepo as any);
+
+    const result = await service.validatePricing({
+      eventId: 'evt-preview',
+      items: [{ tierId: 'tier-1', quantity: 2, price: 1 }],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.pricing.items).toEqual([
+      expect.objectContaining({ tierId: 'tier-1', quantity: 2, unitPrice: 500 }),
+    ]);
   });
 
   it('computes cancellation policy using event timing and policy snapshot rules', async () => {
@@ -629,5 +813,93 @@ describe('CheckoutService parity', () => {
     });
     expect(orderRepo.orders.get('ord-cancel')?.status).toBe('cancelled');
     expect(orderRepo.reservations.get('res-cancel')?.status).toBe('released');
+  });
+
+  it('restores inventory through the order engine when cancelling an unpaid order', async () => {
+    const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
+    const service = new CheckoutService(orderRepo as any, new FakeEventRepository({}) as any);
+    const order = {
+      id: 'ord-pending',
+      reservationId: 'res-pending',
+      eventId: 'evt-pending',
+      userId: 'user_1',
+      status: 'payment_pending',
+      totalAmount: 1499,
+      isRSVP: false,
+    };
+    orderRepo.reservations.set(
+      'res-pending',
+      buildReservation({ id: 'res-pending', eventId: 'evt-pending' }),
+    );
+    orderRepo.payments.set('ord-pending__order_pending', {
+      orderId: 'ord-pending',
+      razorpayOrderId: 'order_pending',
+      status: 'initiated',
+      amount: 1499,
+      userId: 'user_1',
+      createdAt: new Date().toISOString(),
+    });
+
+    const result = await service.cancelOrder({
+      order,
+      event: { id: 'evt-pending' },
+      cancelledBy: 'user_1',
+      cancelledByType: 'user',
+    });
+
+    expect(cancelPendingCheckoutOrder).toHaveBeenCalledWith('ord-pending');
+    expect(result).toMatchObject({ success: true, status: 'cancelled' });
+    expect(orderRepo.reservations.get('res-pending')?.status).toBe('released');
+    expect(orderRepo.payments.get('ord-pending__order_pending')).toMatchObject({
+      status: 'failed',
+      failedAt: expect.any(String),
+    });
+  });
+
+  it('treats retrying cleanup for an already-cancelled order as success', async () => {
+    const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
+    const service = new CheckoutService(orderRepo as any, new FakeEventRepository({}) as any);
+    const order = {
+      id: 'ord-already-cancelled',
+      reservationId: 'res-already-released',
+      eventId: 'evt-cancelled',
+      userId: 'user_1',
+      status: 'cancelled',
+      totalAmount: 1499,
+      isRSVP: false,
+    };
+    orderRepo.reservations.set(
+      order.reservationId,
+      buildReservation({ id: order.reservationId, eventId: order.eventId, status: 'released' }),
+    );
+    orderRepo.payments.set(`${order.id}__order_cancelled`, {
+      orderId: order.id,
+      razorpayOrderId: 'order_cancelled',
+      status: 'initiated',
+      amount: 1499,
+      userId: 'user_1',
+      createdAt: new Date().toISOString(),
+    });
+
+    const result = await service.cancelOrder({
+      order,
+      event: { id: order.eventId },
+      cancelledBy: 'user_1',
+      cancelledByType: 'user',
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      status: 'cancelled',
+      alreadyCancelled: true,
+    });
+    expect(cancelPendingCheckoutOrder).not.toHaveBeenCalledWith(order.id);
+    expect(orderRepo.reservations.get(order.reservationId)?.status).toBe('released');
+    expect(orderRepo.payments.get(`${order.id}__order_cancelled`)).toMatchObject({
+      status: 'failed',
+      failedAt: expect.any(String),
+    });
   });
 });

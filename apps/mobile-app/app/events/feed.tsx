@@ -7,6 +7,7 @@ import {
   Pressable,
   ActivityIndicator,
   Share as RNShare,
+  type ViewStyle,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,7 +23,7 @@ import Animated, {
   useAnimatedScrollHandler,
   SharedValue,
 } from 'react-native-reanimated';
-import { ChevronLeft, Search, Share, Heart, Check } from 'lucide-react-native';
+import { ChevronLeft, Search, Share, Heart, Check, Filter, VolumeX, Bookmark } from 'lucide-react-native';
 import { useEventsStore, type Event, getHeatScore } from '@/store/eventsStore';
 import { useRecommendationsStore } from '@/store/recommendationsStore';
 import { useEventInterestStore } from '@/store/eventInterestStore';
@@ -66,14 +67,8 @@ const attendeeAvatarImages = {
 };
 
 const AVATAR_COLORS = [
-  '#FF6B6B',
-  '#4ECDC4',
-  '#45B7D1',
-  '#96CEB4',
-  '#FFEAA7',
-  '#DDA0DD',
-  '#98D8C8',
-  '#F7DC6F',
+  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
+  '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
 ];
 
 function getFallbackInterestedUsers() {
@@ -197,24 +192,32 @@ function isViewerInterestedEntry(
 
   return Boolean(
     (viewerDisplayName && candidateName === normalizeIdentityString(viewerDisplayName)) ||
-    (viewerPhoto && candidatePhoto === viewerPhoto),
+      (viewerPhoto && candidatePhoto === viewerPhoto),
   );
 }
 
 function DynamicBackgroundLayer({
   img,
-  opacityStyle,
+  index,
+  scrollY,
 }: {
   img: string;
-  opacityStyle: { opacity: number };
+  index: number;
+  scrollY: SharedValue<number>;
 }) {
+  const opacityStyle = useAnimatedStyle(() => {
+    const input = [(index - 1) * ITEM_HEIGHT, index * ITEM_HEIGHT, (index + 1) * ITEM_HEIGHT];
+    const opacity = interpolate(scrollY.value, input, [0, 1, 0], Extrapolate.CLAMP);
+    return { opacity };
+  });
+
   return (
     <Animated.View style={[StyleSheet.absoluteFillObject, opacityStyle]}>
       <Image
         source={{ uri: img }}
         style={StyleSheet.absoluteFillObject}
         contentFit="cover"
-        blurRadius={60}
+        blurRadius={80}
       />
     </Animated.View>
   );
@@ -225,17 +228,12 @@ interface LayerData {
   img: string;
 }
 
-const MAX_DYNAMIC_LAYERS = 3;
-
 function DynamicBackground({ events, scrollY }: { events: Event[]; scrollY: SharedValue<number> }) {
   const layers: (LayerData | null)[] = useMemo(() => {
-    const arr: (LayerData | null)[] = [];
-    for (let i = 0; i < MAX_DYNAMIC_LAYERS; i++) {
-      const event = events[i];
+    return events.map((event) => {
       const img = event ? getEventImage(event) : null;
-      arr.push(img ? { key: event.id, img } : null);
-    }
-    return arr;
+      return img ? { key: event.id, img } : null;
+    });
   }, [events]);
 
   return (
@@ -245,31 +243,33 @@ function DynamicBackground({ events, scrollY }: { events: Event[]; scrollY: Shar
           return <View key={`bg-empty-${index}`} style={StyleSheet.absoluteFillObject} />;
         }
 
-        const opacityStyle = useAnimatedStyle(() => {
-          const input = [(index - 1) * ITEM_HEIGHT, index * ITEM_HEIGHT, (index + 1) * ITEM_HEIGHT];
-          const opacity = interpolate(scrollY.value, input, [0, 1, 0], Extrapolate.CLAMP);
-          return { opacity };
-        });
-
-        return (
-          <DynamicBackgroundLayer key={layer.key} img={layer.img} opacityStyle={opacityStyle} />
-        );
+        return <DynamicBackgroundLayer key={layer.key} img={layer.img} index={index} scrollY={scrollY} />;
       })}
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.6)' }]} />
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.15)' }]} />
     </View>
   );
 }
+
+const AVATAR_POSITIONS: ViewStyle[] = [
+  { left: -16, top: '25%' },
+  { right: -12, top: '40%' },
+  { left: -8, top: '65%' },
+  { right: -20, top: '75%' },
+  { left: '20%', bottom: -16 },
+];
 
 function FeedCard({
   event,
   index,
   scrollY,
   insetsTop,
+  insetsBottom,
 }: {
   event: Event;
   index: number;
   scrollY: SharedValue<number>;
   insetsTop: number;
+  insetsBottom: number;
 }) {
   const router = useRouter();
   const img = getEventImage(event);
@@ -347,64 +347,106 @@ function FeedCard({
             });
           }}
         >
-          <View style={{ flex: 1 }}>
-            <View style={styles.posterContainer}>
-              {img ? (
-                <AnimatedExpoImage
-                  sharedTransitionTag={posterTransitionTag}
-                  source={{ uri: img }}
-                  style={StyleSheet.absoluteFillObject}
-                  contentFit="cover"
-                  contentPosition="top"
-                />
-              ) : (
+          <View style={{ flex: 1, paddingTop: insetsTop + 80, paddingHorizontal: 16 }}>
+            {/* Poster Wrapper (allows overflow for floating avatars) */}
+            <View style={{ flex: 1, marginBottom: 8, zIndex: 10 }}>
+              <View style={styles.posterContainer}>
+                {img ? (
+                  <AnimatedExpoImage
+                    sharedTransitionTag={posterTransitionTag}
+                    source={{ uri: img }}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="cover"
+                    contentPosition="top"
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                )}
+                {/* Gradient to make text legible if it was overlapping, but since it's a card we can keep a subtle one at the bottom for aesthetics */}
                 <LinearGradient
-                  colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']}
+                  colors={['transparent', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.6)']}
+                  locations={[0.5, 0.85, 1]}
                   style={StyleSheet.absoluteFillObject}
                 />
-              )}
-              {/* Gradient to make text legible */}
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.8)', '#000']}
-                locations={[0.5, 0.85, 1]}
-                style={StyleSheet.absoluteFillObject}
-              />
+              </View>
+
+              {/* Floating Avatars */}
+              {guestlistUsers.slice(0, 4).map((userInfo: any, idx: number) => {
+                const initial = (userInfo?.displayName || userInfo?.name || '?')
+                  .charAt(0)
+                  .toUpperCase();
+                const avatarUri = firstNonEmptyString(
+                  userInfo?.photoURL,
+                  userInfo?.avatar,
+                  userInfo?.photo,
+                  userInfo?.imageUrl,
+                );
+                const avatarSource = userInfo?.photoSource
+                  ? userInfo.photoSource
+                  : avatarUri
+                    ? { uri: avatarUri }
+                    : null;
+                const userId = userInfo?.userId ?? userInfo?.uid ?? userInfo?.id;
+
+                return (
+                  <Pressable
+                    key={userId ?? `${initial}-${idx}`}
+                    style={[styles.floatingAvatar, AVATAR_POSITIONS[idx]]}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      if (userId && !userId.startsWith('fallback')) {
+                        router.push(`/social/profile/${userId}`);
+                      }
+                    }}
+                  >
+                    {avatarSource ? (
+                      <Image
+                        source={avatarSource}
+                        style={StyleSheet.absoluteFillObject}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <Text style={styles.floatingAvatarText}>{initial}</Text>
+                    )}
+                  </Pressable>
+                );
+              })}
             </View>
 
-            <View style={styles.infoOverlay}>
+            <View style={[styles.infoOverlay, { paddingBottom: insetsBottom + 58 }]}>
               <View style={styles.infoBlock}>
                 <View style={styles.titleRow}>
                   <View style={{ flex: 1, marginRight: 16 }}>
                     <Text style={styles.eventTitle} numberOfLines={2}>
                       {event.title}
                     </Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-                      <Text
-                        style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '600' }}
-                        numberOfLines={1}
-                      >
-                        {venueStr}
+                    
+                    {/* Host Row */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, marginBottom: 6 }}>
+                      {img && (
+                        <Image 
+                          source={{ uri: img }} 
+                          style={{ width: 18, height: 18, borderRadius: 9, marginRight: 8 }} 
+                        />
+                      )}
+                      <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700', textTransform: 'uppercase' }} numberOfLines={1}>
+                        {event.hostName || (event as any)?.host?.name || 'THE C1RCLE'}
                       </Text>
-                      <View style={styles.verifiedVenueDot}>
-                        <Check color="#FFFFFF" size={10} strokeWidth={3} />
+                      <View style={{ backgroundColor: '#FFD700', borderRadius: 8, width: 14, height: 14, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}>
+                        <Check color="#000" size={10} strokeWidth={3} />
                       </View>
                     </View>
-                    <Text style={[styles.dateVenueText, { marginTop: 4 }]} numberOfLines={1}>
-                      {dateStr} at {timeStr}
+
+                    {/* Subtitle Row */}
+                    <Text style={[styles.dateVenueText]} numberOfLines={2}>
+                      {dateStr} at {timeStr} at {venueStr}
                     </Text>
                   </View>
+
                   <View style={styles.actionIcons}>
-                    <Pressable
-                      hitSlop={12}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        const Haptics = require('expo-haptics');
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        handleShare();
-                      }}
-                    >
-                      <Share color="rgba(255,255,255,0.7)" size={22} />
-                    </Pressable>
                     <Pressable
                       hitSlop={12}
                       onPress={(e) => {
@@ -424,53 +466,30 @@ function FeedCard({
                         size={22}
                       />
                     </Pressable>
+
+                    <Pressable
+                      hitSlop={12}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        const Haptics = require('expo-haptics');
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        handleShare();
+                      }}
+                    >
+                      <Share color="rgba(255,255,255,0.7)" size={22} />
+                    </Pressable>
+
+                    <Pressable
+                      hitSlop={12}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        // Volume toggle logic placeholder
+                      }}
+                    >
+                      <VolumeX color="rgba(255,255,255,0.7)" size={22} />
+                    </Pressable>
                   </View>
                 </View>
-              </View>
-            </View>
-
-            <View style={styles.interestedBar}>
-              <View style={styles.interestedAvatars}>
-                {guestlistUsers.slice(0, 5).map((userInfo: any, idx: number) => {
-                  const initial = (userInfo?.displayName || userInfo?.name || '?')
-                    .charAt(0)
-                    .toUpperCase();
-                  const avatarUri = firstNonEmptyString(
-                    userInfo?.photoURL,
-                    userInfo?.avatar,
-                    userInfo?.photo,
-                    userInfo?.imageUrl,
-                  );
-                  const avatarSource = userInfo?.photoSource
-                    ? userInfo.photoSource
-                    : avatarUri
-                      ? { uri: avatarUri }
-                      : null;
-
-                  return (
-                    <View
-                      key={userInfo?.userId ?? userInfo?.uid ?? userInfo?.id ?? `${initial}-${idx}`}
-                      style={[
-                        styles.interestedAvatar,
-                        {
-                          marginLeft: idx > 0 ? -11 : 0,
-                          backgroundColor: AVATAR_COLORS[(index + idx) % AVATAR_COLORS.length],
-                          zIndex: 20 - idx,
-                        },
-                      ]}
-                    >
-                      {avatarSource ? (
-                        <Image
-                          source={avatarSource}
-                          style={StyleSheet.absoluteFill}
-                          contentFit="cover"
-                        />
-                      ) : (
-                        <Text style={styles.interestedAvatarText}>{initial}</Text>
-                      )}
-                    </View>
-                  );
-                })}
               </View>
             </View>
           </View>
@@ -543,12 +562,9 @@ export default function ImmersiveFeedScreen() {
 
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const viewabilityConfig = useMemo(
-    () => ({
-      itemVisiblePercentThreshold: 50,
-    }),
-    [],
-  );
+  const viewabilityConfig = useMemo(() => ({
+    itemVisiblePercentThreshold: 50,
+  }), []);
 
   const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
     if (viewableItems.length > 0) {
@@ -561,7 +577,13 @@ export default function ImmersiveFeedScreen() {
 
   const renderFeedItem = useCallback(
     ({ item, index }: { item: Event; index: number }) => (
-      <FeedCard event={item} index={index} scrollY={scrollY} insetsTop={insets.top} />
+      <FeedCard
+        event={item}
+        index={index}
+        scrollY={scrollY}
+        insetsTop={insets.top}
+        insetsBottom={insets.bottom}
+      />
     ),
     [insets.top, scrollY],
   );
@@ -597,7 +619,7 @@ export default function ImmersiveFeedScreen() {
         <View style={styles.topCapsuleContainer}>
           <BlurView
             blurMethod="dimezisBlurView"
-            intensity={30}
+            intensity={40}
             tint="dark"
             style={styles.topCapsule}
           >
@@ -605,17 +627,13 @@ export default function ImmersiveFeedScreen() {
               hitSlop={15}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.replace('/(tabs)/explore');
-                }
+                router.push('/search');
               }}
               style={styles.topCapsuleIconButton}
               accessibilityRole="button"
-              accessibilityLabel="Go back"
+              accessibilityLabel="Search events"
             >
-              <ChevronLeft color="#FFFFFF" size={21} strokeWidth={2.4} />
+              <Search color="rgba(255,255,255,0.8)" size={18} />
             </Pressable>
 
             <Pressable
@@ -635,13 +653,13 @@ export default function ImmersiveFeedScreen() {
               hitSlop={15}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/search');
+                // Open filter modal
               }}
               style={styles.topCapsuleIconButton}
               accessibilityRole="button"
-              accessibilityLabel="Search events"
+              accessibilityLabel="Filter events"
             >
-              <Search color="#FFFFFF" size={16} />
+              <Filter color="rgba(255,255,255,0.8)" size={18} />
             </Pressable>
           </BlurView>
         </View>
@@ -657,7 +675,7 @@ export default function ImmersiveFeedScreen() {
         snapToInterval={ITEM_HEIGHT}
         snapToAlignment="start"
         decelerationRate="fast"
-        onScroll={scrollHandler as any}
+        onScroll={scrollHandler}
         scrollEventThrottle={16}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
@@ -686,6 +704,7 @@ export default function ImmersiveFeedScreen() {
           </Text>
         </Pressable>
       </View>
+
     </View>
   );
 }
@@ -712,16 +731,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 12,
-    borderRadius: 24,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.05)',
     overflow: 'hidden',
   },
   topCapsuleIconButton: {
-    width: 38,
+    width: 36,
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
@@ -750,21 +769,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   posterContainer: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
+    width: '100%',
+    borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#000',
+    marginBottom: 16,
   },
 
   infoBlock: {
     gap: 4,
   },
   infoOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: 24, // Space for the interested bar
+    width: '100%',
   },
   titleRow: {
     flexDirection: 'row',
@@ -796,36 +813,30 @@ const styles = StyleSheet.create({
   },
   dateVenueText: {
     color: 'rgba(255,255,255,0.7)',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500',
+    lineHeight: 20,
   },
-  interestedBar: {
+  floatingAvatar: {
     position: 'absolute',
-    bottom: 8,
-    left: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  interestedAvatars: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  interestedAvatar: {
-    width: 53,
-    height: 53,
-    borderRadius: 26,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 2,
-    borderColor: '#050505',
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: '#1C1C1E',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
-  interestedAvatarText: {
+  floatingAvatarText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: 'bold',
   },
 
@@ -841,14 +852,14 @@ const styles = StyleSheet.create({
   buyButton: {
     backgroundColor: '#F44A22',
     width: '100%',
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buyButtonText: {
     color: '#FFFFFF',
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   buyButtonSubtext: {

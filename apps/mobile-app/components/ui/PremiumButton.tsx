@@ -19,7 +19,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  
   withTiming,
   withRepeat,
   withSequence,
@@ -122,12 +122,12 @@ export function PremiumButton({
 
   const handlePressIn = () => {
     if (disabled) return;
-    scale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.96, { duration: 250 });
     glowOpacity.value = withTiming(1, { duration: 100 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 12, stiffness: 300 });
+    scale.value = withTiming(1, { duration: 250 });
     glowOpacity.value = withTiming(glow ? 0.5 : 0, { duration: 200 });
   };
 
@@ -311,11 +311,11 @@ export function IconButton({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.9, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.9, { duration: 250 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 10, stiffness: 300 });
+    scale.value = withTiming(1, { duration: 250 });
   };
 
   const handlePress = () => {
@@ -398,11 +398,11 @@ export function FloatingActionButton({ icon: iconRaw, onPress, pulse = true, sty
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.9, { damping: 15 });
+    scale.value = withTiming(0.9, { duration: 250 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 12 });
+    scale.value = withTiming(1, { duration: 250 });
   };
 
   const handlePress = () => {

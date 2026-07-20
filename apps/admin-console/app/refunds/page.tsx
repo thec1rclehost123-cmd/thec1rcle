@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   RefreshCw,
   Check,
@@ -12,11 +13,13 @@ import {
   ArrowRight,
   CircleDashed,
   CreditCard,
-  ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { DataTable } from '@/components/ui/DataTable';
 import { ActionDrawer } from '@/components/ui/ActionDrawer';
+import { Pagination } from '@/components/ui/Pagination';
+import { apiGet, apiPost, getToken } from '@/lib/api/client';
+import { queryKeys } from '@/lib/api/queryKeys';
 
 interface RefundRequest {
   id: string;
@@ -36,92 +39,72 @@ interface RefundRequest {
   isPartial: boolean;
 }
 
+interface RefundListResponse {
+  refunds: RefundRequest[];
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
 export default function RefundsPage() {
   const { user } = useAuth();
-  const [refundRequests, setRefundRequests] = useState<RefundRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'pending' | 'all'>('pending');
   const [selectedRefund, setSelectedRefund] = useState<RefundRequest | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [processing, setProcessing] = useState<string | null>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [cursorStack, setCursorStack] = useState<Array<string | null>>([]); // stack of start cursors for each visited page
-  const [currentPageCursor, setCurrentPageCursor] = useState<string | null>(null);
+  const [cursorStack, setCursorStack] = useState<Array<string | null>>([]);
+  const [pageCursors, setPageCursors] = useState<{ current: string | null; next: string | null }>({
+    current: null,
+    next: null,
+  });
 
-  useEffect(() => {
-    // Reset pagination when filter changes
-    setCursor(null);
-    setCursorStack([]);
-    if (user) fetchRefundRequests(null);
-  }, [user, filter]);
+  const buildUrl = (cursor: string | null) => {
+    const params = new URLSearchParams({ status: filter, limit: '25' });
+    if (cursor) params.set('cursor', cursor);
+    return `/api/admin/refunds?${params}`;
+  };
 
-  const fetchRefundRequests = useCallback(
-    async (pageCursor: string | null) => {
-      setCurrentPageCursor(pageCursor);
-      setLoading(true);
-      try {
-        const token = await user.getIdToken();
-        const params = new URLSearchParams({ status: filter, limit: '25' });
-        if (pageCursor) params.set('cursor', pageCursor);
-        const res = await fetch(`/api/admin/refunds?${params}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        setRefundRequests(data.refunds || []);
-        setHasMore(data.hasMore || false);
-        setCursor(data.nextCursor || null);
-      } catch (error) {
-        console.error('Failed to fetch refund requests:', error);
-        // Mock data for development
-        setRefundRequests([
-          {
-            id: '1',
-            orderId: 'ORD-001',
-            eventId: 'evt-1',
-            eventName: 'NYE 2026 Bash',
-            customerId: 'user-1',
-            customerName: 'John Doe',
-            customerEmail: 'john@example.com',
-            amount: 2500,
-            reason: 'Cannot attend due to travel',
-            status: 'pending',
-            approvalType: 'single',
-            approversRequired: 1,
-            approvers: [],
-            createdAt: new Date().toISOString(),
-            isPartial: false,
-          },
-          {
-            id: '2',
-            orderId: 'ORD-002',
-            eventId: 'evt-2',
-            eventName: 'Tech Conference 2026',
-            customerId: 'user-2',
-            customerName: 'Jane Smith',
-            customerEmail: 'jane@example.com',
-            amount: 8500,
-            reason: 'Event date conflict',
-            status: 'pending',
-            approvalType: 'dual',
-            approversRequired: 2,
-            approvers: [{ uid: 'admin-1', name: 'Admin One', at: new Date().toISOString() }],
-            createdAt: new Date(Date.now() - 3600000).toISOString(),
-            isPartial: false,
-          },
-        ]);
-      } finally {
-        setLoading(false);
-      }
+  const { data, isLoading } = useQuery<RefundListResponse>({
+    queryKey: [...queryKeys.refunds.list(filter), pageCursors.current],
+    queryFn: async () => {
+      const token = await getToken(user);
+      return apiGet<RefundListResponse>(buildUrl(pageCursors.current), token);
     },
-    [user, filter],
-  );
+    enabled: !!user,
+    staleTime: 15_000,
+  });
+
+  const refundRequests = data?.refunds ?? [];
+  const hasMore = data?.hasMore ?? false;
+  const currentCursor = data?.nextCursor ?? null;
+
+  const approveMutation = useMutation({
+    mutationFn: async (refundId: string) => {
+      const token = await getToken(user);
+      return apiPost(`/api/admin/refunds/${refundId}/approve`, {}, token);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.refunds.all });
+      setIsDrawerOpen(false);
+      setSelectedRefund(null);
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ refundId, reason }: { refundId: string; reason: string }) => {
+      const token = await getToken(user);
+      return apiPost(`/api/admin/refunds/${refundId}/reject`, { reason }, token);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.refunds.all });
+      setIsDrawerOpen(false);
+      setSelectedRefund(null);
+    },
+  });
 
   const handleNextPage = () => {
-    if (!hasMore || !cursor) return;
-    // push the start cursor of the current page so we can return to it
-    setCursorStack((prev) => [...prev, currentPageCursor]);
-    fetchRefundRequests(cursor);
+    if (!hasMore || !currentCursor) return;
+    setCursorStack((prev) => [...prev, pageCursors.current]);
+    setPageCursors({ current: currentCursor, next: null });
   };
 
   const handlePrevPage = () => {
@@ -129,52 +112,7 @@ export default function RefundsPage() {
     const newStack = [...cursorStack];
     const prevCursor = newStack.pop() ?? null;
     setCursorStack(newStack);
-    fetchRefundRequests(prevCursor);
-  };
-
-  const handleApprove = async (refundId: string) => {
-    setProcessing(refundId);
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch(`/api/admin/refunds/${refundId}/approve`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (res.ok) {
-        fetchRefundRequests(currentPageCursor);
-      }
-    } catch (error) {
-      console.error('Failed to approve refund:', error);
-    } finally {
-      setProcessing(null);
-    }
-  };
-
-  const handleReject = async (refundId: string, reason: string) => {
-    setProcessing(refundId);
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch(`/api/admin/refunds/${refundId}/reject`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ reason }),
-      });
-
-      if (res.ok) {
-        fetchRefundRequests(currentPageCursor);
-      }
-    } catch (error) {
-      console.error('Failed to reject refund:', error);
-    } finally {
-      setProcessing(null);
-    }
+    setPageCursors({ current: prevCursor, next: null });
   };
 
   const getStatusStyle = (status: string) => {
@@ -349,11 +287,15 @@ export default function RefundsPage() {
             Export History
           </button>
           <button
-            onClick={() => fetchRefundRequests(null)}
-            disabled={loading}
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: queryKeys.refunds.all });
+              setPageCursors({ current: null, next: null });
+              setCursorStack([]);
+            }}
+            disabled={isLoading}
             className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-zinc-400 text-[11px] font-bold uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh Queue
           </button>
         </div>
@@ -434,28 +376,15 @@ export default function RefundsPage() {
         }}
       />
 
-      {/* Pagination controls */}
-      <div className="flex items-center justify-between px-1 pt-2 pb-1">
-        <p className="text-[11px] text-zinc-500 font-medium">
-          Showing {refundRequests.length} refund{refundRequests.length !== 1 ? 's' : ''}
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handlePrevPage}
-            disabled={cursorStack.length === 0 || loading}
-            className="h-8 px-3 rounded-lg text-[11px] font-bold uppercase tracking-widest border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            Prev
-          </button>
-          <button
-            onClick={handleNextPage}
-            disabled={!hasMore || loading}
-            className="h-8 px-3 rounded-lg text-[11px] font-bold uppercase tracking-widest border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1"
-          >
-            Next <ChevronRight className="w-3 h-3" />
-          </button>
-        </div>
-      </div>
+      <Pagination
+        itemCount={refundRequests.length}
+        hasMore={hasMore}
+        loading={isLoading}
+        onNext={handleNextPage}
+        onPrev={handlePrevPage}
+        canGoPrev={cursorStack.length > 0}
+        label="refund"
+      />
 
       <ActionDrawer
         isOpen={isDrawerOpen}
@@ -466,11 +395,11 @@ export default function RefundsPage() {
           selectedRefund?.status === 'pending' && (
             <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={() => selectedRefund && handleApprove(selectedRefund.id)}
-                disabled={processing === selectedRefund?.id}
+                onClick={() => selectedRefund && approveMutation.mutate(selectedRefund.id)}
+                disabled={approveMutation.isPending || rejectMutation.isPending}
                 className="h-12 rounded-xl bg-white text-black text-[11px] font-bold uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-lg shadow-white/5 flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                {processing === selectedRefund?.id ? (
+                {approveMutation.isPending ? (
                   <CircleDashed className="w-4 h-4 animate-spin" />
                 ) : (
                   <Check className="w-4 h-4" />
@@ -479,9 +408,13 @@ export default function RefundsPage() {
               </button>
               <button
                 onClick={() =>
-                  selectedRefund && handleReject(selectedRefund.id, 'Declined by administration.')
+                  selectedRefund &&
+                  rejectMutation.mutate({
+                    refundId: selectedRefund.id,
+                    reason: 'Declined by administration.',
+                  })
                 }
-                disabled={processing === selectedRefund?.id}
+                disabled={approveMutation.isPending || rejectMutation.isPending}
                 className="h-12 rounded-xl bg-white/5 border border-white/10 text-zinc-500 text-[11px] font-bold uppercase tracking-widest hover:text-rose-500 hover:border-rose-500/20 hover:bg-rose-500/5 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <X className="w-4 h-4" />

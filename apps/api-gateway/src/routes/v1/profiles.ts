@@ -19,9 +19,6 @@ const PersonalUpdateSchema = z
     age: z.number().min(1).max(150).optional(),
     gender: z.string().max(20).optional(),
     city: z.string().max(100).optional(),
-    phone: z.string().max(20).optional(),
-    phoneNumber: z.string().max(20).optional(),
-    onboardingComplete: z.boolean().optional(),
   })
   .strict();
 
@@ -55,12 +52,10 @@ const UserProfileCreateBody = z
     displayName: z.string().max(100).optional(),
     age: z.number().min(1).max(150).optional(),
     gender: z.string().max(20).optional(),
-    phone: z.string().max(20).optional(),
     photoURL: z.string().optional(),
     avatar: z.string().optional(),
     city: z.string().max(100).optional(),
     instagram: z.string().max(100).optional(),
-    onboardingComplete: z.boolean().optional(),
     bio: z.string().max(500).optional(),
   })
   .strict();
@@ -396,6 +391,71 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           fastify.matchingService,
         );
         if (!data) return reply.status(404).send({ error: 'Profile not found' });
+
+        // Populate event details for pastEvents/attendedEvents/orders
+        // Convert array of strings to array of objects so we can attach metadata
+        if (Array.isArray(data.pastEvents)) {
+          data.pastEvents = data.pastEvents.map((e: any) => typeof e === 'string' ? { eventId: e } : e);
+        }
+        if (Array.isArray(data.attendedEvents)) {
+          data.attendedEvents = data.attendedEvents.map((e: any) => typeof e === 'string' ? { eventId: e } : e);
+        }
+        if (Array.isArray(data.orders)) {
+          data.orders = data.orders.map((e: any) => typeof e === 'string' ? { eventId: e } : e);
+        }
+
+        const eventSources = [data.pastEvents, data.attendedEvents, data.orders];
+        const eventIdsToFetch = new Set<string>();
+
+        for (const source of eventSources) {
+          if (Array.isArray(source)) {
+            for (const item of source) {
+              const eventId = item?.eventId || item?.id;
+              if (eventId && !item.eventCoverImage && !item.poster && !item.image) {
+                eventIdsToFetch.add(String(eventId));
+              }
+            }
+          }
+        }
+
+        if (eventIdsToFetch.size > 0) {
+          try {
+            const eventsRefs = Array.from(eventIdsToFetch).map(eid => fastify.db.collection('events').doc(eid));
+            // Firestore getAll is limited to 100 docs, slice if necessary
+            const chunks = [];
+            for (let i = 0; i < eventsRefs.length; i += 100) {
+              chunks.push(eventsRefs.slice(i, i + 100));
+            }
+
+            const eventsMap = new Map();
+            for (const chunk of chunks) {
+              const eventsDocs = await fastify.db.getAll(...chunk);
+              eventsDocs.forEach((doc: any) => {
+                if (doc.exists) eventsMap.set(doc.id, doc.data());
+              });
+            }
+
+            for (const source of eventSources) {
+              if (Array.isArray(source)) {
+                for (const item of source) {
+                  const eventId = item?.eventId || item?.id;
+                  if (eventId && eventsMap.has(String(eventId))) {
+                    const ev = eventsMap.get(String(eventId));
+                    item.eventTitle = item.eventTitle || ev.title || ev.name;
+                    item.eventCoverImage = item.eventCoverImage || ev.coverImage || ev.poster || ev.image;
+                    item.eventDate = item.eventDate || ev.date || ev.startsAt || ev.startTime;
+                    item.hostName = item.hostName || ev.hostName || ev.host?.name;
+                    item.venueLocation = item.venueLocation || ev.venueLocation || ev.venue?.name;
+                    fastify.log.info(`Populated event ${eventId}: title=${item.eventTitle}, cover=${item.eventCoverImage}`);
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            fastify.log.warn(`Failed to populate event details for profile ${id}`);
+          }
+        }
+
         return { id, ...data };
       } catch (error: any) {
         fastify.log.error(`Error in GET /profiles/:id: ${error.message}`);
@@ -449,6 +509,12 @@ export default async function profileRoutes(fastify: FastifyInstance) {
   fastify.patch('/profiles/bio', async (request, reply) =>
     handleUpdate(request, reply, BioUpdateSchema, request.body),
   );
+
+  fastify.get('/debug/user/:id', async (request: any, reply: any) => {
+    const { id } = request.params;
+    const doc = await fastify.db.collection('users').doc(id).get();
+    return { id, data: doc.data() };
+  });
   fastify.patch('/profiles/avatar', async (request, reply) =>
     handleUpdate(request, reply, AvatarUpdateSchema, request.body),
   );
@@ -497,6 +563,32 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         if (type === 'user') {
           const existingDoc = await fastify.db.collection('users').doc(actualId).get();
           const rawUpdates = updates || request.body || {};
+          const trustedFields = [
+            'email',
+            'emailVerified',
+            'phone',
+            'phoneNumber',
+            'phoneNumberE164',
+            'phoneVerifiedAt',
+            'auth',
+            'consumerOnboarding',
+            'basicSetupComplete',
+            'profileSetupComplete',
+            'profileComplete',
+            'onboardingComplete',
+          ];
+          const attemptedTrustedFields = trustedFields.filter(
+            (field) => rawUpdates[field] !== undefined,
+          );
+          if (attemptedTrustedFields.length > 0) {
+            return reply.status(400).send(
+              buildErrorResponse({
+                code: 'TRUSTED_FIELD_UPDATE_REJECTED',
+                message: `Trusted profile fields cannot be updated here: ${attemptedTrustedFields.join(', ')}`,
+                requestId: request.id,
+              }),
+            );
+          }
 
           const canOverride = request.user?.role === 'admin' || request.user?.admin === true;
           const isAdminOverride = canOverride && rawUpdates.adminOverrideGenderCooldown === true;

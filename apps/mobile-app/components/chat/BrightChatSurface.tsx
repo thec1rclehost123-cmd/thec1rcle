@@ -10,6 +10,7 @@ import {
   TextInputProps,
   View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import Animated, {
   FadeIn,
@@ -20,9 +21,12 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+
   Easing,
+  runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 import { ArrowLeft, Send, Heart, Search, Flag, Ban } from 'lucide-react-native';
 import { colors, radii, spacing, typography } from '@/lib/design/theme';
 
@@ -47,16 +51,16 @@ type BrightChatSurfaceProps = {
 };
 
 export function BrightChatSurface({ theme, children }: BrightChatSurfaceProps) {
-  const glowOpacity = useSharedValue(0.06);
+  const glowOpacity = useSharedValue(0.12);
 
   useEffect(() => {
     if (!theme.moodColor) return;
     const interval = setInterval(() => {
-      glowOpacity.value = withTiming(glowOpacity.value > 0.04 ? 0.02 : 0.06, {
-        duration: 2500,
+      glowOpacity.value = withTiming(glowOpacity.value > 0.08 ? 0.04 : 0.12, {
+        duration: 3000,
         easing: Easing.inOut(Easing.sin),
       });
-    }, 2500);
+    }, 3000);
     return () => clearInterval(interval);
   }, [theme.moodColor, glowOpacity]);
 
@@ -65,27 +69,7 @@ export function BrightChatSurface({ theme, children }: BrightChatSurfaceProps) {
   }));
 
   return (
-    <View style={brightChatStyles.screen}>
-      {theme.backgroundImage ? (
-        <>
-          <Image
-            source={{ uri: theme.backgroundImage }}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-            blurRadius={90}
-          />
-          <View
-            style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.7)' }]}
-            pointerEvents="none"
-          />
-        </>
-      ) : null}
-      {theme.moodColor ? (
-        <Animated.View
-          style={[StyleSheet.absoluteFill, glowStyle, { backgroundColor: theme.moodColor }]}
-          pointerEvents="none"
-        />
-      ) : null}
+    <View style={[brightChatStyles.screen, { backgroundColor: '#000000' }]}>
       {children}
     </View>
   );
@@ -136,7 +120,9 @@ export function BrightChatHeader({
           <View style={brightChatStyles.headerPill}>{content}</View>
         )}
         {rightAccessory ? (
-          <View style={brightChatStyles.headerRightButton}>{rightAccessory}</View>
+          <View style={brightChatStyles.headerRightButton}>
+            {rightAccessory}
+          </View>
         ) : (
           <View style={{ width: 38 }} />
         )}
@@ -207,6 +193,13 @@ type BrightMessageProps = {
   onLongPress?: () => void;
   onDoubleTap?: () => void;
   badgeLabel?: string;
+  onSwipeReply?: () => void;
+  replyContext?: {
+    type: 'prompt' | 'photo';
+    title: string;
+    answer?: string;
+    imageUrl?: string;
+  };
 };
 
 export const BrightMessage = memo(function BrightMessage({
@@ -222,8 +215,12 @@ export const BrightMessage = memo(function BrightMessage({
   onLongPress,
   onDoubleTap,
   badgeLabel,
+  onSwipeReply,
+  replyContext,
 }: BrightMessageProps) {
   const lastTapRef = useRef(0);
+  const translateX = useSharedValue(0);
+  const swipeActivated = useSharedValue(false);
 
   const handlePress = () => {
     if (!onDoubleTap) return;
@@ -246,7 +243,7 @@ export const BrightMessage = memo(function BrightMessage({
   if (type === 'announcement') {
     return (
       <Animated.View
-        entering={animate ? FadeInDown.delay(Math.min(index * 18, 150)).duration(240) : undefined}
+        entering={animate ? FadeInDown.delay(Math.min(index * 18, 150)).mass(0.6).stiffness(160) : undefined}
         style={brightChatStyles.announcement}
       >
         <Text style={brightChatStyles.announcementLabel}>{senderName || 'Host update'}</Text>
@@ -256,24 +253,44 @@ export const BrightMessage = memo(function BrightMessage({
     );
   }
 
+  const panGesture = Gesture.Pan()
+    .activeOffsetX([15, 100])
+    .failOffsetY([-20, 20])
+    .onUpdate((event) => {
+      if (!onSwipeReply) return;
+      translateX.value = Math.max(0, Math.min(50, event.translationX));
+      if (translateX.value > 40 && !swipeActivated.value) {
+        swipeActivated.value = true;
+        const triggerHaptic = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        runOnJS(triggerHaptic)();
+      } else if (translateX.value <= 40 && swipeActivated.value) {
+        swipeActivated.value = false;
+      }
+    })
+    .onEnd(() => {
+      if (!onSwipeReply) return;
+      if (swipeActivated.value) {
+        runOnJS(onSwipeReply)();
+      }
+      translateX.value = withTiming(0, { duration: 250 });
+      swipeActivated.value = false;
+    });
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
   const bubble = (
     <Animated.View
-      entering={animate ? FadeInDown.delay(Math.min(index * 18, 150)).duration(240) : undefined}
+      entering={animate ? FadeInDown.delay(Math.min(index * 18, 150)).mass(0.6).stiffness(160) : undefined}
       style={[
         brightChatStyles.messageWrap,
         isOwnMessage ? brightChatStyles.messageWrapOwn : brightChatStyles.messageWrapOther,
+        animatedStyle,
       ]}
     >
       {!isOwnMessage && senderName ? (
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
-            marginLeft: 34,
-            marginBottom: 4,
-          }}
-        >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 34, marginBottom: 4 }}>
           <Text style={brightChatStyles.senderName}>{senderName}</Text>
           {badgeLabel ? (
             <View style={brightChatStyles.hostBadge}>
@@ -302,6 +319,14 @@ export const BrightMessage = memo(function BrightMessage({
               isOwnMessage ? brightChatStyles.ownBubble : brightChatStyles.otherBubble,
             ]}
           >
+            {replyContext ? (
+              <View style={[brightChatStyles.replyContextCard, isOwnMessage && brightChatStyles.replyContextCardOwn]}>
+                <Text style={brightChatStyles.replyContextTitle} numberOfLines={1}>{replyContext.title}</Text>
+                {replyContext.answer ? (
+                  <Text style={brightChatStyles.replyContextAnswer} numberOfLines={2}>{replyContext.answer}</Text>
+                ) : null}
+              </View>
+            ) : null}
             <Text
               style={[
                 brightChatStyles.messageText,
@@ -324,24 +349,21 @@ export const BrightMessage = memo(function BrightMessage({
         )}
       </View>
       {isLiked && (
-        <View
-          style={[
-            brightChatStyles.heartBadge,
-            isOwnMessage ? brightChatStyles.heartBadgeOwn : brightChatStyles.heartBadgeOther,
-          ]}
-        >
+        <View style={[brightChatStyles.heartBadge, isOwnMessage ? brightChatStyles.heartBadgeOwn : brightChatStyles.heartBadgeOther]}>
           <Heart size={12} color="#F44A22" fill="#F44A22" />
         </View>
       )}
     </Animated.View>
   );
 
-  if (!onLongPress && !onDoubleTap) return bubble;
+  if (!onLongPress && !onDoubleTap && !onSwipeReply) return bubble;
 
   return (
-    <Pressable onPress={handlePress} onLongPress={onLongPress}>
-      {bubble}
-    </Pressable>
+    <GestureDetector gesture={panGesture}>
+      <Pressable onPress={handlePress} onLongPress={onLongPress}>
+        {bubble}
+      </Pressable>
+    </GestureDetector>
   );
 });
 
@@ -376,11 +398,7 @@ type BrightTypingIndicatorProps = {
   energy?: number; // 0 (gentle) to 1 (intense), default 0.5
 };
 
-export function BrightTypingIndicator({
-  name,
-  avatarUrl,
-  energy = 0.5,
-}: BrightTypingIndicatorProps) {
+export function BrightTypingIndicator({ name, avatarUrl, energy = 0.5 }: BrightTypingIndicatorProps) {
   const bounceHeight = 2 + energy * 4;
   const bounceDuration = 280 - energy * 120;
   const restDuration = 320 - energy * 80;
@@ -390,37 +408,16 @@ export function BrightTypingIndicator({
       <MessageAvatar senderAvatar={avatarUrl} senderName={name} />
       <View style={brightChatStyles.typingBubble}>
         <View style={brightChatStyles.typingDots}>
-          <TypingDot
-            delay={0}
-            bounceHeight={bounceHeight}
-            bounceDuration={bounceDuration}
-            restDuration={restDuration}
-          />
-          <TypingDot
-            delay={bounceDuration * 0.5}
-            bounceHeight={bounceHeight}
-            bounceDuration={bounceDuration}
-            restDuration={restDuration}
-          />
-          <TypingDot
-            delay={bounceDuration}
-            bounceHeight={bounceHeight}
-            bounceDuration={bounceDuration}
-            restDuration={restDuration}
-          />
+          <TypingDot delay={0} bounceHeight={bounceHeight} bounceDuration={bounceDuration} restDuration={restDuration} />
+          <TypingDot delay={bounceDuration * 0.5} bounceHeight={bounceHeight} bounceDuration={bounceDuration} restDuration={restDuration} />
+          <TypingDot delay={bounceDuration} bounceHeight={bounceHeight} bounceDuration={bounceDuration} restDuration={restDuration} />
         </View>
-        <Text style={brightChatStyles.typingText}>{name} is typing</Text>
       </View>
     </Animated.View>
   );
 }
 
-function TypingDot({
-  delay,
-  bounceHeight,
-  bounceDuration,
-  restDuration,
-}: {
+function TypingDot({ delay, bounceHeight, bounceDuration, restDuration }: {
   delay: number;
   bounceHeight: number;
   bounceDuration: number;
@@ -586,12 +583,13 @@ export function SwipeableMessage({
 
   const actionsStyle = useAnimatedStyle(() => ({
     opacity: translateX.value < -10 ? 1 : 0,
-    transform: [{ translateX: translateX.value }],
   }));
 
   return (
     <View style={{ overflow: 'hidden' }}>
-      <View style={[swipeStyles.actionsContainer, { width: totalActionWidth }]}>
+      <Animated.View
+        style={[swipeStyles.actionsContainer, { width: totalActionWidth }, actionsStyle]}
+      >
         {actions.map((action, index) => (
           <Pressable
             key={action.label}
@@ -605,7 +603,7 @@ export function SwipeableMessage({
             <Text style={swipeStyles.actionLabel}>{action.label}</Text>
           </Pressable>
         ))}
-      </View>
+      </Animated.View>
       <GestureDetector gesture={composed}>
         <Animated.View style={animatedStyle}>{children}</Animated.View>
       </GestureDetector>
@@ -708,6 +706,45 @@ export const brightChatStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  hostBadge: {
+    backgroundColor: 'rgba(244,74,34,0.2)',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  hostBadgeText: {
+    color: '#F44A22',
+    fontFamily: fonts.heading,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  replyContextCard: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.iris,
+  },
+  replyContextCardOwn: {
+    backgroundColor: 'rgba(0,0,0,0.15)',
+    borderLeftColor: 'rgba(255,255,255,0.4)',
+  },
+  replyContextTitle: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  replyContextAnswer: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontStyle: 'italic',
+  },
   avatarStack: {
     position: 'absolute',
     bottom: -2,
@@ -803,9 +840,7 @@ export const brightChatStyles = StyleSheet.create({
   },
   ownBubble: {
     borderBottomRightRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: '#F44A22',
   },
   messageText: {
     flexShrink: 1,
@@ -904,21 +939,22 @@ export const brightChatStyles = StyleSheet.create({
     minHeight: 34,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginLeft: 6,
   },
   typingDots: {
     flexDirection: 'row',
-    gap: 3,
+    gap: 4,
   },
   typingDot: {
-    width: 5,
-    height: 5,
-    borderRadius: radii.pill,
-    backgroundColor: colors.iris,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.6)',
   },
   typingText: {
     color: 'rgba(255,255,255,0.42)',
@@ -1003,17 +1039,5 @@ export const brightChatStyles = StyleSheet.create({
     fontSize: typography.fontSize.xs,
     textAlign: 'center',
     marginBottom: spacing.sm,
-  },
-  hostBadge: {
-    backgroundColor: 'rgba(244,74,34,0.2)',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-  },
-  hostBadgeText: {
-    color: '#F44A22',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
   },
 });

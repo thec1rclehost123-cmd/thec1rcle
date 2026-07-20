@@ -10,7 +10,6 @@ import { router } from 'expo-router';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   FadeIn,
   interpolate,
   SharedValue,

@@ -373,6 +373,116 @@ async function recordScanLedgerEntry(data, transaction = null) {
 /**
  * Transfer Entitlement (Revoke old, Issue new)
  */
+export async function prepareEntitlementTransfer(entitlementId, transaction) {
+  const db = getAdminDb();
+  const entRef = db.collection(ENTITLEMENT_COLLECTION).doc(entitlementId);
+  const entDoc = await transaction.get(entRef);
+
+  if (!entDoc.exists) throw new Error('Entitlement not found');
+  const entitlement = entDoc.data();
+  if (
+    entitlement.state !== ENTITLEMENT_STATES.ISSUED &&
+    entitlement.state !== ENTITLEMENT_STATES.ACTIVE
+  ) {
+    throw new Error(`Cannot transfer entitlement in state: ${entitlement.state}`);
+  }
+
+  return { entitlementId, entRef, entitlement };
+}
+
+export function applyPreparedEntitlementTransfer(
+  prepared,
+  newOwnerUserId,
+  actorId,
+  transaction,
+  boundGender = null,
+) {
+  const db = getAdminDb();
+  const now = new Date().toISOString();
+  const { entitlementId, entRef, entitlement: oldEnt } = prepared;
+  const previousEntitlementId = oldEnt.id || entitlementId;
+
+  transaction.update(entRef, {
+    state: ENTITLEMENT_STATES.REVOKED,
+    revokedAt: now,
+    revokedReason: 'TRANSFER',
+    revokedBy: actorId,
+    transferredTo: newOwnerUserId,
+  });
+
+  const newEnt = {
+    ...oldEnt,
+    id: `ENT-${randomUUID().substring(0, 12).toUpperCase()}`,
+    ownerUserId: newOwnerUserId,
+    state: ENTITLEMENT_STATES.ISSUED,
+    issuedAt: now,
+    scanCountUsed: 0,
+    consumedAt: null,
+    ...(boundGender ? { boundGender } : {}),
+    metadata: {
+      ...oldEnt.metadata,
+      transferredFrom: previousEntitlementId,
+      transferHistory: [...(oldEnt.metadata?.transferHistory || []), previousEntitlementId],
+    },
+  };
+
+  transaction.set(db.collection(ENTITLEMENT_COLLECTION).doc(newEnt.id), newEnt);
+  return newEnt;
+}
+
+/**
+ * Revoke the current holder's entitlement and issue a clean replacement back
+ * to the purchaser. Share-slot revocation is not a refund: the purchased entry
+ * still exists and must be transferable to another recipient without reviving
+ * the revoked holder's credential.
+ */
+export function applyPreparedEntitlementRevocationWithReplacement(
+  prepared,
+  replacementOwnerUserId,
+  actorId,
+  reason,
+  transaction,
+) {
+  const db = getAdminDb();
+  const now = new Date().toISOString();
+  const { entitlementId, entRef, entitlement: oldEnt } = prepared;
+  const previousEntitlementId = oldEnt.id || entitlementId;
+
+  transaction.update(entRef, {
+    state: ENTITLEMENT_STATES.REVOKED,
+    revokedAt: now,
+    revokedReason: reason,
+    revokedBy: actorId,
+  });
+
+  const replacement = {
+    ...oldEnt,
+    id: `ENT-${randomUUID().substring(0, 12).toUpperCase()}`,
+    ownerUserId: replacementOwnerUserId,
+    state: ENTITLEMENT_STATES.ISSUED,
+    issuedAt: now,
+    scanCountUsed: 0,
+    consumedAt: null,
+    consumedBy: null,
+    revokedAt: null,
+    revokedReason: null,
+    revokedBy: null,
+    transferredTo: null,
+    metadata: {
+      ...oldEnt.metadata,
+      replacedFrom: previousEntitlementId,
+      replacementReason: reason,
+      replacementHistory: [
+        ...(oldEnt.metadata?.replacementHistory || []),
+        previousEntitlementId,
+      ],
+    },
+  };
+
+  transaction.set(db.collection(ENTITLEMENT_COLLECTION).doc(replacement.id), replacement);
+  return replacement;
+}
+
 export async function transferEntitlement(
   entitlementId,
   newOwnerUserId,
@@ -381,47 +491,15 @@ export async function transferEntitlement(
   boundGender = null,
 ) {
   const db = getAdminDb();
-  const now = new Date().toISOString();
-
   const transferLogic = async (t) => {
-    const entRef = db.collection(ENTITLEMENT_COLLECTION).doc(entitlementId);
-    const entDoc = await t.get(entRef);
-
-    if (!entDoc.exists) throw new Error('Entitlement not found');
-    const oldEnt = entDoc.data();
-
-    if (oldEnt.state !== ENTITLEMENT_STATES.ISSUED && oldEnt.state !== ENTITLEMENT_STATES.ACTIVE) {
-      throw new Error(`Cannot transfer entitlement in state: ${oldEnt.state}`);
-    }
-
-    // Revoke old
-    t.update(entRef, {
-      state: ENTITLEMENT_STATES.REVOKED,
-      revokedAt: now,
-      revokedReason: 'TRANSFER',
-      revokedBy: actorId,
-      transferredTo: newOwnerUserId,
-    });
-
-    // Issue new
-    const newEnt = {
-      ...oldEnt,
-      id: `ENT-${randomUUID().substring(0, 12).toUpperCase()}`,
-      ownerUserId: newOwnerUserId,
-      state: ENTITLEMENT_STATES.ISSUED,
-      issuedAt: now,
-      scanCountUsed: 0,
-      consumedAt: null,
-      ...(boundGender ? { boundGender } : {}),
-      metadata: {
-        ...oldEnt.metadata,
-        transferredFrom: oldEnt.id,
-        transferHistory: [...(oldEnt.metadata.transferHistory || []), oldEnt.id],
-      },
-    };
-
-    t.set(db.collection(ENTITLEMENT_COLLECTION).doc(newEnt.id), newEnt);
-    return newEnt;
+    const prepared = await prepareEntitlementTransfer(entitlementId, t);
+    return applyPreparedEntitlementTransfer(
+      prepared,
+      newOwnerUserId,
+      actorId,
+      t,
+      boundGender,
+    );
   };
 
   if (transaction) {

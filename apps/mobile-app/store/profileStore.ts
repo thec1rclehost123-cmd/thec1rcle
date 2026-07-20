@@ -9,13 +9,27 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // extends it with mobile-specific fields (gender, vibeTags, isPremium, etc.).
 // When harmonizing: import type { Profile as BaseProfile } from '@c1rcle/types';
 import { apiFetch, deduplicateRequest } from '@/lib/api';
+import type { FirstRunStage, NightlifeTaste, UserIntent } from '@/lib/firstRun';
 
 const NIGHTLIFE_PROFILE_PROMPT_DISMISSED_KEY = 'c1rcle_nightlife_profile_prompt_dismissed';
+
+function nightlifePromptDismissedKey(userId: string) {
+  return `${NIGHTLIFE_PROFILE_PROMPT_DISMISSED_KEY}:${userId}`;
+}
 
 export interface DatingVitals {
   height?: string | null;
   gender?: string | null;
   location?: string | null;
+  pronouns?: string | null;
+  lifestyle?: string | null;
+}
+
+export interface ProfilePrompt {
+  promptId: string;
+  question: string;
+  answer: string;
+  type: 'text';
 }
 
 export interface ProfileAnthem {
@@ -73,13 +87,19 @@ export interface UserProfile {
 
   // Personalisation
   vibeTags?: string[];
-  prompts?: any[];
+  nightlifeVibeTags?: string[];
+  prompts?: ProfilePrompt[];
 
   // Onboarding funnel
   basicSetupComplete?: boolean;
   profileSetupComplete?: boolean;
   profileComplete?: boolean;
+  nightlifeProfileComplete?: boolean;
   onboardingComplete?: boolean;
+  intents?: UserIntent[];
+  identity?: { displayName?: string; dateOfBirth?: string };
+  discoveryProfile?: { cityId?: string; cityName?: string; citySource?: 'manual' | 'location'; vibeTags?: NightlifeTaste[]; intents?: UserIntent[] };
+  onboarding?: { version?: number; currentStage?: FirstRunStage; completedAt?: string; emailPromptStatus?: string };
   socialSetupComplete?: boolean;
 
   // Status
@@ -102,8 +122,8 @@ interface ProfileState {
   // Actions
   loadProfile: (userId: string) => Promise<void>;
   updateProfile: (userId: string, updates: Partial<UserProfile>) => Promise<boolean>;
-  hydrateNightlifePromptDismissed: () => Promise<void>;
-  dismissNightlifePrompt: () => Promise<void>;
+  hydrateNightlifePromptDismissed: (userId: string) => Promise<void>;
+  dismissNightlifePrompt: (userId: string) => Promise<void>;
   setProfileFromGateway: (userId: string, profile: Partial<UserProfile>) => void;
   subscribeToProfile: (userId: string) => () => void;
   clearProfile: () => void;
@@ -122,6 +142,8 @@ function normalizeDatingVitals(value: unknown): DatingVitals | undefined {
     height: typeof raw.height === 'string' || raw.height === null ? raw.height : undefined,
     gender: typeof raw.gender === 'string' || raw.gender === null ? raw.gender : undefined,
     location: typeof raw.location === 'string' || raw.location === null ? raw.location : undefined,
+    pronouns: typeof raw.pronouns === 'string' || raw.pronouns === null ? raw.pronouns : undefined,
+    lifestyle: typeof raw.lifestyle === 'string' || raw.lifestyle === null ? raw.lifestyle : undefined,
   };
 }
 
@@ -188,6 +210,10 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
     eventsAttended: data?.eventsAttended,
     connections: data?.connections,
     vibeTags: data?.vibeTags,
+    nightlifeVibeTags: Array.isArray(rawData.nightlifeVibeTags)
+      ? rawData.nightlifeVibeTags
+      : [],
+    prompts: data?.prompts,
     isVerified: data?.isVerified,
     subscription: normalizeSubscription(rawData.subscription, rawData.isPremium === true),
     isPremium:
@@ -205,16 +231,8 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
     datingActive: rawData.datingActive === true,
     datingVitals: normalizeDatingVitals(rawData.datingVitals),
     anthem: normalizeAnthem(rawData.anthem),
-    datingPhotos: Array.isArray(rawData.datingPhotos)
-      ? rawData.datingPhotos
-      : Array.isArray(rawData.photos)
-        ? rawData.photos
-        : [],
-    photos: Array.isArray(rawData.photos)
-      ? rawData.photos
-      : Array.isArray(rawData.datingPhotos)
-        ? rawData.datingPhotos
-        : [],
+    datingPhotos: Array.isArray(rawData.datingPhotos) ? rawData.datingPhotos : [],
+    photos: Array.isArray(rawData.photos) ? rawData.photos : [],
     notificationPreferences:
       typeof rawData.notificationPreferences === 'object' && rawData.notificationPreferences
         ? rawData.notificationPreferences
@@ -228,10 +246,19 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
     basicSetupComplete,
     profileSetupComplete: rawData.profileSetupComplete === true || basicSetupComplete,
     profileComplete: rawData.profileComplete === true,
+    nightlifeProfileComplete: rawData.nightlifeProfileComplete === true,
     onboardingComplete: rawData.onboardingComplete === true,
+    intents: Array.isArray(rawData.intents) ? rawData.intents : rawData.discoveryProfile?.intents,
+    identity: rawData.identity,
+    discoveryProfile: rawData.discoveryProfile,
+    onboarding: rawData.onboarding,
     socialSetupComplete,
   };
 }
+
+let profileRequestGeneration = 0;
+let profileLoadUserId: string | null = null;
+let nightlifePromptGeneration = 0;
 
 export const useProfileStore = create<ProfileState>((set, get) => ({
   profile: null,
@@ -247,13 +274,20 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     if (get()._loadedUserId === userId && get().profile) return;
 
     const existing = get()._loadPromise;
-    if (existing) return existing;
+    if (existing && profileLoadUserId === userId) return existing;
+    if (existing) {
+      profileRequestGeneration += 1;
+      profileLoadUserId = null;
+      set({ _loadPromise: null });
+    }
 
-    const promise = (async () => {
+    const requestGeneration = profileRequestGeneration;
+    let promise!: Promise<void>;
+    promise = (async () => {
       set({ loading: true, error: null });
 
       try {
-        const key = `/api/v1/users/me:GET`;
+        const key = `/api/v1/users/me:GET:${userId}`;
         const response = await deduplicateRequest<{
           profile?: Partial<UserProfile>;
           data?: { profile?: Partial<UserProfile> };
@@ -263,22 +297,31 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
             { requireAuth: true },
           ),
         );
+        if (requestGeneration !== profileRequestGeneration) return;
         const data = response.profile || response.data?.profile;
         const profile = normalizeProfile(userId, data);
         set({ profile, loading: false, _loadedUserId: userId });
       } catch (error: any) {
+        if (requestGeneration !== profileRequestGeneration) return;
         console.warn('Unable to load profile through gateway.', error);
         set({ profile: get().profile, error: error.message, loading: false });
       } finally {
-        set({ _loadPromise: null });
+        if (get()._loadPromise === promise) {
+          profileLoadUserId = null;
+          set({ _loadPromise: null });
+        }
       }
     })();
 
+    profileLoadUserId = userId;
     set({ _loadPromise: promise });
     return promise;
   },
 
   updateProfile: async (userId: string, updates: Partial<UserProfile>) => {
+    profileRequestGeneration += 1;
+    const requestGeneration = profileRequestGeneration;
+    profileLoadUserId = null;
     const now = new Date().toISOString();
     const { profile: prevProfile } = get();
     const nextProfile = normalizeProfile(userId, {
@@ -288,7 +331,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     });
 
     // Optimistic update
-    set({ profile: nextProfile, error: null });
+    set({ profile: nextProfile, error: null, _loadPromise: null });
 
     try {
       const response = await apiFetch<{
@@ -298,40 +341,69 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         method: 'PATCH',
         body: JSON.stringify(omitUndefined(updates)),
       });
+      if (requestGeneration !== profileRequestGeneration) return false;
       const savedProfile = response.profile || response.data?.profile;
       if (savedProfile) {
-        set({ profile: normalizeProfile(userId, savedProfile) });
+        const currentProfile = get().profile;
+        set({
+          profile: normalizeProfile(userId, {
+            ...(currentProfile?.uid === userId ? currentProfile : {}),
+            ...savedProfile,
+          }),
+        });
       }
 
       return true;
     } catch (error: any) {
-      console.warn('Error updating profile:', error);
-      // Revert on failure
-      set({ profile: prevProfile, error: error.message });
+      if (requestGeneration !== profileRequestGeneration) return false;
+      if (__DEV__) console.warn('Error updating profile:', error);
+      set({
+        profile: prevProfile,
+        error: error.message || 'Failed to update profile',
+        _loadedUserId: null,
+      });
       return false;
     }
   },
 
-  hydrateNightlifePromptDismissed: async () => {
+  hydrateNightlifePromptDismissed: async (userId) => {
+    nightlifePromptGeneration += 1;
+    const generation = nightlifePromptGeneration;
     try {
-      const dismissed = await AsyncStorage.getItem(NIGHTLIFE_PROFILE_PROMPT_DISMISSED_KEY);
+      const dismissed = await AsyncStorage.getItem(nightlifePromptDismissedKey(userId));
+      if (generation !== nightlifePromptGeneration) return;
       set({ nightlifePromptDismissed: dismissed === 'true' });
     } catch {
+      if (generation !== nightlifePromptGeneration) return;
       set({ nightlifePromptDismissed: false });
     }
   },
 
-  dismissNightlifePrompt: async () => {
+  dismissNightlifePrompt: async (userId) => {
+    nightlifePromptGeneration += 1;
     set({ nightlifePromptDismissed: true });
     try {
-      await AsyncStorage.setItem(NIGHTLIFE_PROFILE_PROMPT_DISMISSED_KEY, 'true');
+      await AsyncStorage.setItem(nightlifePromptDismissedKey(userId), 'true');
     } catch {
       // Keep the in-memory dismissal for this session even if local storage is unavailable.
     }
   },
 
   setProfileFromGateway: (userId: string, profile: Partial<UserProfile>) => {
-    set({ profile: normalizeProfile(userId, profile), loading: false, error: null });
+    profileRequestGeneration += 1;
+    profileLoadUserId = null;
+    set((state) => ({
+      profile: normalizeProfile(userId, {
+        ...(state.profile?.uid === userId ? state.profile : {}),
+        ...profile,
+      }),
+      loading: false,
+      error: null,
+      // Auth sync returns a canonical but intentionally partial profile. Keep it
+      // for immediate routing, then allow /users/me to hydrate private fields.
+      _loadedUserId: null,
+      _loadPromise: null,
+    }));
   },
 
   subscribeToProfile: (userId: string) => {
@@ -349,12 +421,25 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   },
 
   invalidateProfileCache: () => {
+    profileRequestGeneration += 1;
+    profileLoadUserId = null;
     set({ _loadedUserId: null, _loadPromise: null });
   },
 
   clearProfile: () => {
+    profileRequestGeneration += 1;
+    nightlifePromptGeneration += 1;
+    profileLoadUserId = null;
     get()._unsubscribe?.();
-    set({ profile: null, loading: false, error: null, _unsubscribe: null, _loadPromise: null, _loadedUserId: null });
+    set({
+      profile: null,
+      loading: false,
+      error: null,
+      _unsubscribe: null,
+      _loadPromise: null,
+      _loadedUserId: null,
+      nightlifePromptDismissed: false,
+    });
   },
 }));
 

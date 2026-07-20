@@ -13,10 +13,12 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Modal,
+  KeyboardAvoidingView,
+  BackHandler,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,7 +30,6 @@ import Animated, {
   FadeInDown,
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '@/store/authStore';
@@ -71,7 +72,7 @@ function PromptModal({
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onCancel}>
       <KeyboardAvoidingView
         style={styles.modalOverlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>{title}</Text>
@@ -129,7 +130,7 @@ function FormField({
   const [isFocused, setIsFocused] = useState(false);
 
   return (
-    <Animated.View entering={FadeInDown.delay(delay).springify()} style={styles.fieldContainer}>
+    <Animated.View entering={FadeInDown.delay(delay)} style={styles.fieldContainer}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         value={value}
@@ -165,7 +166,7 @@ function CitySelector({
   delay?: number;
 }) {
   return (
-    <Animated.View entering={FadeInDown.delay(delay).springify()} style={styles.fieldContainer}>
+    <Animated.View entering={FadeInDown.delay(delay)} style={styles.fieldContainer}>
       <Text style={styles.fieldLabel}>City</Text>
       <Pressable onPress={onSelect} style={styles.selectorButton}>
         <Text style={[styles.selectorText, !value && styles.selectorPlaceholder]}>
@@ -220,6 +221,18 @@ export default function EditProfileScreen() {
   const [isDirty, setIsDirty] = useState(false);
   const markDirty = useCallback(() => setIsDirty(true), []);
 
+  const handleLeave = useCallback(() => {
+    if (!isDirty || saved) {
+      router.back();
+      return;
+    }
+
+    Alert.alert('Unsaved Changes', 'Discard the changes you made to your profile?', [
+      { text: 'Keep Editing', style: 'cancel' },
+      { text: 'Discard', style: 'destructive', onPress: () => router.back() },
+    ]);
+  }, [isDirty, saved]);
+
   const handleInstagramChange = useCallback(
     (text: string) => {
       markDirty();
@@ -249,12 +262,15 @@ export default function EditProfileScreen() {
     [markDirty],
   );
 
-  // usePreventRemove(isDirty && !saved, ({ data }) => {
-  //   Alert.alert('Unsaved Changes', 'You have unsaved changes. Are you sure you want to leave?', [
-  //     { text: 'Stay', style: 'cancel', onPress: () => {} },
-  //     { text: 'Discard', style: 'destructive', onPress: () => data.action() },
-  //   ]);
-  // });
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!isDirty || saved) return false;
+      handleLeave();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [handleLeave, isDirty, saved]);
 
   useEffect(() => {
     trackScreen('EditProfile');
@@ -347,9 +363,11 @@ export default function EditProfileScreen() {
     dimensions?: { width?: number; height?: number },
   ) => {
     if (!user?.uid) return;
+    const uploadUserId = user.uid;
 
     try {
-      const uploadedUrl = await uploadUserPhoto(user.uid, uri, `profile-${Date.now()}`, dimensions);
+      const uploadedUrl = await uploadUserPhoto(uploadUserId, uri, `profile-${Date.now()}`, dimensions);
+      if (useAuthStore.getState().user?.uid !== uploadUserId) return;
       setPhotoURL(uploadedUrl);
       markDirty();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -368,7 +386,14 @@ export default function EditProfileScreen() {
         { text: 'Take Photo', onPress: handleTakePhoto },
         { text: 'Choose from Library', onPress: handlePickImage },
         photoURL
-          ? { text: 'Remove Photo', onPress: () => setPhotoURL(''), style: 'destructive' }
+          ? {
+              text: 'Remove Photo',
+              onPress: () => {
+                setPhotoURL('');
+                markDirty();
+              },
+              style: 'destructive',
+            }
           : null,
         { text: 'Cancel', style: 'cancel' },
       ].filter(Boolean) as any,
@@ -387,6 +412,10 @@ export default function EditProfileScreen() {
   };
 
   const handleSave = async () => {
+    if (uploading) {
+      Alert.alert('Photo still uploading', 'Wait for the photo upload to finish, then save again.');
+      return;
+    }
     if (!validate()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
@@ -422,6 +451,7 @@ export default function EditProfileScreen() {
 
       track('profile_updated', { hasPhoto: !!photoURL, hasCity: !!city });
 
+      setIsDirty(false);
       setSaved(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -440,7 +470,10 @@ export default function EditProfileScreen() {
       } else if (error.code === 'GENDER_UPDATE_REQUIRED') {
         Alert.alert('Gender Required', 'Please set your gender to continue with this action.');
       } else {
-        Alert.alert('Error', 'Failed to save profile. Please try again.');
+        Alert.alert(
+          'Could not save profile',
+          error?.message || 'Please check your connection and try again.',
+        );
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -514,18 +547,15 @@ export default function EditProfileScreen() {
     : '?';
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={styles.container}>
       <View style={[styles.container, { paddingTop: insets.top }]}>
         {/* Header */}
         <Animated.View entering={FadeIn} style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.cancelButton}>
+          <Pressable onPress={handleLeave} style={styles.cancelButton}>
             <Text style={styles.cancelText}>Cancel</Text>
           </Pressable>
           <Text style={styles.headerTitle}>Edit Profile</Text>
-          <Pressable onPress={handleSave} disabled={saving || saved}>
+          <Pressable onPress={handleSave} disabled={saving || saved || uploading}>
             {saving ? (
               <ActivityIndicator size="small" color={colors.iris} />
             ) : saved ? (
@@ -536,16 +566,18 @@ export default function EditProfileScreen() {
           </Pressable>
         </Animated.View>
 
-        <ScrollView
+        <KeyboardAwareScrollView
           bounces={false}
           overScrollMode="never"
           style={styles.scrollView}
           contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          enableOnAndroid={true}
+          extraScrollHeight={20}
         >
           {/* Photo Section */}
-          <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.photoSection}>
+          <Animated.View entering={FadeInDown.delay(100)} style={styles.photoSection}>
             <Pressable onPress={showPhotoOptions} style={styles.avatarContainer}>
               {photoURL ? (
                 <Image source={{ uri: photoURL }} style={styles.avatarImage} contentFit="cover" />
@@ -600,7 +632,7 @@ export default function EditProfileScreen() {
 
             {/* Gender Selector */}
             <Animated.View
-              entering={FadeInDown.delay(450).springify()}
+              entering={FadeInDown.delay(450)}
               style={styles.fieldContainer}
             >
               <Text style={styles.fieldLabel}>Gender</Text>
@@ -642,7 +674,7 @@ export default function EditProfileScreen() {
           </View>
 
           {/* Social Section */}
-          <Animated.View entering={FadeInDown.delay(450).springify()} style={styles.socialSection}>
+          <Animated.View entering={FadeInDown.delay(450)} style={styles.socialSection}>
             <Text style={styles.sectionTitle}>Social Profiles</Text>
             <View style={styles.socialGroup}>
               <Pressable
@@ -701,7 +733,7 @@ export default function EditProfileScreen() {
 
           {/* Read-only info */}
           <Animated.View
-            entering={FadeInDown.delay(500).springify()}
+            entering={FadeInDown.delay(500)}
             style={styles.readOnlySection}
           >
             <Text style={styles.sectionTitle}>Account Info</Text>
@@ -713,14 +745,14 @@ export default function EditProfileScreen() {
           </Animated.View>
 
           {/* Privacy notice */}
-          <Animated.View entering={FadeInDown.delay(600).springify()} style={styles.privacyNotice}>
+          <Animated.View entering={FadeInDown.delay(600)} style={styles.privacyNotice}>
             <Text style={styles.privacyIcon}>🔒</Text>
             <Text style={styles.privacyText}>
               Your profile is visible to other ticket holders at events you attend. You can control
               who can message you in Settings.
             </Text>
           </Animated.View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
         <PromptModal
           visible={promptConfig.visible}
           title={promptConfig.title}
@@ -739,7 +771,7 @@ export default function EditProfileScreen() {
           }}
         />
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -108,25 +108,18 @@ export default function WaitlistScreen() {
         {checking ? (
           <ActivityIndicator color={colors.iris} size="large" />
         ) : error ? (
-          <Animated.View entering={FadeInDown.springify()}>
+          <Animated.View entering={FadeInDown}>
             <View style={styles.card}>
               <Text style={styles.errorEmoji}>⚠️</Text>
               <Text style={styles.cardTitle}>Something went wrong</Text>
               <Text style={styles.cardSubtitle}>{error}</Text>
-              <Pressable
-                onPress={() => {
-                  setError(null);
-                  setChecking(true);
-                  checkWaitlistStatus();
-                }}
-                style={styles.retryBtn}
-              >
+              <Pressable onPress={() => { setError(null); setChecking(true); checkWaitlistStatus(); }} style={styles.retryBtn}>
                 <Text style={styles.retryText}>Try Again</Text>
               </Pressable>
             </View>
           </Animated.View>
         ) : alreadyJoined ? (
-          <Animated.View entering={FadeInDown.springify()}>
+          <Animated.View entering={FadeInDown}>
             <View style={styles.card}>
               <View style={styles.positionCircle}>
                 <Text style={styles.positionNumber}>#{position ?? '—'}</Text>
@@ -141,7 +134,7 @@ export default function WaitlistScreen() {
             </View>
           </Animated.View>
         ) : (
-          <Animated.View entering={FadeInDown.springify()}>
+          <Animated.View entering={FadeInDown}>
             <View style={styles.card}>
               <Text style={styles.soldOutBadge}>SOLD OUT</Text>
               <Text style={styles.cardTitle}>{event?.title ?? 'Event'}</Text>

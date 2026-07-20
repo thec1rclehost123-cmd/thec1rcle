@@ -57,7 +57,7 @@ async function buildServer() {
 }
 
 describe('profile routes GP-1 contracts', () => {
-  it('POST /users/profile creates the authenticated guest profile only for the current user', async () => {
+  it('POST /users/profile rejects client-owned onboarding completion', async () => {
     const { server, createProfile } = await buildServer();
 
     const response = await server.inject({
@@ -71,24 +71,27 @@ describe('profile routes GP-1 contracts', () => {
       },
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(createProfile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        uid: 'user_1',
-        email: 'guest@example.com',
-        displayName: 'Guest',
-        onboardingComplete: true,
-      }),
-    );
-    expect(response.json()).toMatchObject({
-      success: true,
-      uid: 'user_1',
-      profile: {
-        uid: 'user_1',
-        email: 'guest@example.com',
-        displayName: 'Guest',
+    expect(response.statusCode).toBe(400);
+    expect(createProfile).not.toHaveBeenCalled();
+
+    await server.close();
+  });
+
+  it('PATCH /profiles rejects trusted phone and completion fields', async () => {
+    const { server, updateProfile } = await buildServer();
+
+    const response = await server.inject({
+      method: 'PATCH',
+      url: '/profiles',
+      payload: {
+        type: 'user',
+        updates: { phoneNumber: '+919999999999', onboardingComplete: true },
       },
     });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('TRUSTED_FIELD_UPDATE_REJECTED');
+    expect(updateProfile).not.toHaveBeenCalled();
 
     await server.close();
   });

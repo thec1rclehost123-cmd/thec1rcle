@@ -5,6 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { withAdminAuth } from '@/lib/server/adminMiddleware';
+import { rateLimit } from '@/lib/server/rateLimit';
 import { queryIncidents, createIncident } from '@c1rcle/core/security-logger';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,10 @@ async function handleGet(req) {
 }
 
 async function handlePost(req) {
+  if (!(await rateLimit(req, 10))) {
+    return NextResponse.json({ error: 'Too many requests. Please slow down.' }, { status: 429 });
+  }
+
   const body = await req.json();
   const { entityType, entityId, severity, reason, evidence, linkedEventId } = body;
 

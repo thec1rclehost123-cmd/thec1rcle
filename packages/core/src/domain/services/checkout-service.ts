@@ -4,6 +4,10 @@ import { InventoryService } from './inventory-service.js';
 import { PaymentService } from './payment-service.js';
 import { FulfillmentService } from './fulfillment-service.js';
 import { CancellationService } from './cancellation-service.js';
+import {
+  CheckoutReconciliationError,
+  assertCheckoutSnapshotCurrent,
+} from './checkout-reconciliation.js';
 // @ts-ignore
 import { calculatePricing } from '@c1rcle/core/pricing-engine';
 // @ts-ignore
@@ -13,6 +17,8 @@ import { PUBLIC_LIFECYCLE_STATES } from '@c1rcle/core/events';
 // @ts-ignore
 import {
   buildOrderPayload,
+  cancelOrder as cancelPendingCheckoutOrder,
+  cleanupStaleOrders,
   executeOrderCreation,
   isPaymentPendingOrderStatus,
   PAYMENT_PENDING_ORDER_STATUS,
@@ -62,6 +68,15 @@ export class CheckoutService {
     workspaceId?: string | null;
     options?: { queueId?: string | null };
   }): Promise<any> {
+    // Opportunistically restore inventory from abandoned payment attempts.
+    // This is a safety net; the client also cancels an abandoned order directly.
+    await cleanupStaleOrders(null, 10).catch((error: any) => {
+      telemetry.error('[Checkout] Stale-order cleanup failed before reservation', error, {
+        userId: params.userId,
+        eventId: params.eventId,
+      });
+    });
+
     const event = await this.eventRepo.getById(
       params.eventId,
       params.workspaceId || (undefined as any),
@@ -79,6 +94,39 @@ export class CheckoutService {
       ...params,
       queueId: params.options?.queueId,
     });
+  }
+
+  /**
+   * Resolve a checkout preview from the authoritative event document.
+   * The client never supplies prices, fees, or totals.
+   */
+  async validatePricing(
+    params: { eventId: string; items?: any[] },
+    workspaceId?: string | null,
+  ): Promise<any> {
+    const event = await this.eventRepo.getById(params.eventId, workspaceId || (undefined as any));
+    if (!event) throw this.withCode(new Error('Event not found'), 'NOT_FOUND');
+    this.inventory.assertEventAvailable(event);
+
+    const items = Array.isArray(params.items)
+      ? params.items.map((item: any) => ({
+          tierId: item.tierId || item.ticketId,
+          quantity: Number(item.quantity),
+        }))
+      : [];
+    const totalQuantity = items.reduce(
+      (sum: number, item: any) => sum + (Number(item.quantity) || 0),
+      0,
+    );
+    const maxTickets = (event as any).isRSVP ? 1 : Number((event as any).maxTicketsPerOrder || 10);
+    if (totalQuantity > maxTickets) {
+      throw this.withCode(
+        new Error(`Maximum ${maxTickets} ticket(s) per order allowed.`),
+        'BAD_REQUEST',
+      );
+    }
+
+    return calculatePricing({ event, items, userId: null });
   }
 
   /**
@@ -116,6 +164,7 @@ export class CheckoutService {
       userId: user.id,
     });
 
+    let activeReservationId: string | null = null;
     try {
       const event = await this.eventRepo.getById(eventId, workspaceId || (undefined as any));
       if (!event) throw this.withCode(new Error('Event not found'), 'NOT_FOUND');
@@ -150,15 +199,28 @@ export class CheckoutService {
       });
 
       const reservationId = reservationResult.reservationId;
+      activeReservationId = reservationId;
       const expiresAt = reservationResult.expiresAt;
+      const checkoutSnapshot = reservationResult.checkoutSnapshot;
+      const pricedEvent = await this.eventRepo.getById(
+        eventId,
+        workspaceId || (undefined as any),
+      );
+      if (!pricedEvent) throw this.withCode(new Error('Event not found'), 'NOT_FOUND');
+      this.inventory.assertEventAvailable(pricedEvent);
+      assertCheckoutSnapshotCurrent(checkoutSnapshot, pricedEvent, [item]);
       const pricingResult = await calculatePricing({
-        event,
+        event: pricedEvent,
         items: [item],
         userId: user.id,
         subscriptionTier: subscriptionContext.subscription.tier,
         waiveBookingFees: subscriptionContext.subscription.isPremium,
-        promoValidator: async (eventId: string, code: string, uid: string | null, pricingItems: any[]) =>
-          validatePromoCode(eventId, code, uid || '', pricingItems),
+        promoValidator: async (
+          eventId: string,
+          code: string,
+          uid: string | null,
+          pricingItems: any[],
+        ) => validatePromoCode(eventId, code, uid || '', pricingItems),
       });
 
       if (!pricingResult.success) {
@@ -180,7 +242,7 @@ export class CheckoutService {
         );
       }
 
-      const resolvedWorkspaceId = workspaceId || (event as any).workspaceId || null;
+      const resolvedWorkspaceId = workspaceId || (pricedEvent as any).workspaceId || null;
       const reservation = {
         id: reservationId,
         eventId,
@@ -189,6 +251,7 @@ export class CheckoutService {
         deviceId: params.deviceId || null,
         queueId: null,
         items: [item],
+        checkoutSnapshot,
         status: 'active',
         createdAt: new Date().toISOString(),
         expiresAt,
@@ -196,7 +259,7 @@ export class CheckoutService {
 
       const orderPayload = buildOrderPayload({
         reservation,
-        event,
+        event: pricedEvent,
         pricing,
         user: {
           id: user.id,
@@ -209,20 +272,44 @@ export class CheckoutService {
 
       let order: Order | null = null;
       await this.orderRepo.runInTransaction(async (transaction) => {
-        const existingOrder = await this.orderRepo.getOrderByReservationId(
+        const currentReservation = await this.orderRepo.getReservationById(
           reservationId,
           transaction,
         );
-        if (existingOrder) {
-          if (existingOrder.userId !== user.id) {
-            throw this.withCode(new Error('Forbidden'), 'FORBIDDEN');
+        if (!currentReservation) {
+          throw new CheckoutReconciliationError(undefined, ['reservation_missing']);
+        }
+        if (currentReservation.customerId !== user.id) {
+          throw this.withCode(new Error('Forbidden'), 'FORBIDDEN');
+        }
+        if (currentReservation.status !== 'active') {
+          if (!currentReservation.orderId) {
+            throw new CheckoutReconciliationError(undefined, [
+              `reservation_${currentReservation.status}`,
+            ]);
+          }
+          const existingOrder = await this.orderRepo.getOrderById(
+            currentReservation.orderId,
+            transaction,
+          );
+          if (!existingOrder || existingOrder.reservationId !== reservationId) {
+            throw new CheckoutReconciliationError(undefined, ['reservation_order_inconsistent']);
           }
           order = existingOrder;
           return;
         }
 
+        const canonicalEvent = await this.eventRepo.getById(
+          eventId,
+          resolvedWorkspaceId || (undefined as any),
+          transaction,
+        );
+        if (!canonicalEvent) throw this.withCode(new Error('Event not found'), 'NOT_FOUND');
+        this.inventory.assertEventAvailable(canonicalEvent);
+        assertCheckoutSnapshotCurrent(checkoutSnapshot, canonicalEvent, [item]);
+
         await this.inventoryCommitter.commitInventory(transaction, {
-          event,
+          event: canonicalEvent,
           items: orderPayload.tickets,
           reservationId,
         });
@@ -244,14 +331,10 @@ export class CheckoutService {
       const finalOrder = (order ?? orderPayload) as Order;
       if (!finalOrder) throw new Error('Checkout order could not be created');
 
-      const payment = await this.payment.prepareRazorpayOrder({
-        order: finalOrder,
-        userId: user.id,
-        config: {
-          keyId: params.paymentGatewayConfig.keyId || '',
-          keySecret: params.paymentGatewayConfig.keySecret || '',
-          allowMockPayment: params.paymentGatewayConfig.allowMockPayment,
-        },
+      const payment = await this.preparePayment(finalOrder.id, user.id, {
+        keyId: params.paymentGatewayConfig.keyId || '',
+        keySecret: params.paymentGatewayConfig.keySecret || '',
+        allowMockPayment: params.paymentGatewayConfig.allowMockPayment,
       });
 
       telemetry.track('CHECKOUT_INTENT_CREATED', {
@@ -275,6 +358,9 @@ export class CheckoutService {
         pricing,
       };
     } catch (error: any) {
+      if (error?.code === 'STALE_CART' && activeReservationId) {
+        await this.inventory.release(activeReservationId).catch(() => undefined);
+      }
       const message = String(error?.message || '');
       if (
         message.toLowerCase().includes('sold out') ||
@@ -316,6 +402,10 @@ export class CheckoutService {
       // 1. Validate Reservation
       const reservation = await this.inventory.validateAndExpire(reservationId);
 
+      if (reservation.customerId !== userId) {
+        throw this.withCode(new Error('Forbidden'), 'FORBIDDEN');
+      }
+
       const existingOrder = await this.orderRepo.getOrderByReservationId(reservationId);
       if (existingOrder && reservation.status !== 'active') {
         return this.buildExistingOrderResponse(existingOrder, reservationId);
@@ -330,6 +420,8 @@ export class CheckoutService {
         resolvedWorkspaceId || (undefined as any),
       );
       if (!event) throw new Error('Event not found');
+      this.inventory.assertEventAvailable(event);
+      assertCheckoutSnapshotCurrent(reservation.checkoutSnapshot, event, reservation.items);
       const db = await getAdminDb();
       const subscriptionContext = await assertCanCheckoutEvent(db, userId, event);
 
@@ -352,8 +444,12 @@ export class CheckoutService {
         userId,
         subscriptionTier: subscriptionContext.subscription.tier,
         waiveBookingFees: subscriptionContext.subscription.isPremium,
-        promoValidator: async (eventId: string, code: string, uid: string | null, pricingItems: any[]) =>
-          validatePromoCode(eventId, code, uid || '', pricingItems),
+        promoValidator: async (
+          eventId: string,
+          code: string,
+          uid: string | null,
+          pricingItems: any[],
+        ) => validatePromoCode(eventId, code, uid || '', pricingItems),
       });
 
       if (!pricingResult.success) throw new Error(pricingResult.error);
@@ -382,21 +478,73 @@ export class CheckoutService {
       // so concurrent requests cannot both pass the check before either writes.
       let createdOrder: any = null;
       await db.runTransaction(async (transaction: any) => {
-        if ((event as any).isRSVP) {
+        const currentReservation = await this.orderRepo.getReservationById(
+          reservationId,
+          transaction,
+        );
+        if (!currentReservation) {
+          throw new CheckoutReconciliationError(undefined, ['reservation_missing']);
+        }
+        if (currentReservation.customerId !== userId) {
+          throw this.withCode(new Error('Forbidden'), 'FORBIDDEN');
+        }
+        if (currentReservation.status !== 'active') {
+          if (!currentReservation.orderId) {
+            throw new CheckoutReconciliationError(undefined, [
+              `reservation_${currentReservation.status}`,
+            ]);
+          }
+          const currentOrder = await this.orderRepo.getOrderById(
+            currentReservation.orderId,
+            transaction,
+          );
+          if (!currentOrder || currentOrder.reservationId !== reservationId) {
+            throw new CheckoutReconciliationError(undefined, ['reservation_order_inconsistent']);
+          }
+          createdOrder = currentOrder;
+          return;
+        }
+
+        const canonicalEvent = await this.eventRepo.getById(
+          event.id,
+          resolvedWorkspaceId || (undefined as any),
+          transaction,
+        );
+        if (!canonicalEvent) throw new Error('Event not found');
+        this.inventory.assertEventAvailable(canonicalEvent);
+        assertCheckoutSnapshotCurrent(
+          reservation.checkoutSnapshot,
+          canonicalEvent,
+          reservation.items,
+        );
+
+        if ((canonicalEvent as any).isRSVP) {
           const hasExistingRSVP = await this.orderRepo.checkExistingRSVP(
-            event.id,
+            canonicalEvent.id,
             { userId, email: userEmail },
             transaction,
           );
           if (hasExistingRSVP) throw new Error('Already registered. One RSVP per person.');
         }
+
         createdOrder = await executeOrderCreation(transaction, {
           db,
-          event,
+          event: canonicalEvent,
           orderData: orderPayload,
           reservationId: reservationId,
           inventoryEngine: this.inventoryCommitter,
         });
+
+        // Firestore transactions require every read to happen before the first
+        // write. Order creation reads inventory, so profile persistence belongs
+        // after that read set has completed.
+        if (userEmail && userId) {
+          transaction.set(
+            db.collection('users').doc(userId),
+            { email: userEmail },
+            { merge: true },
+          );
+        }
       });
       const finalOrder = (createdOrder || orderPayload) as Order;
 
@@ -419,6 +567,9 @@ export class CheckoutService {
         pricing,
       };
     } catch (error: any) {
+      if (error?.code === 'STALE_CART') {
+        await this.inventory.release(reservationId).catch(() => undefined);
+      }
       telemetry.error('[Checkout] Initiation failed', error, { userId, reservationId });
       throw error;
     }
@@ -432,6 +583,24 @@ export class CheckoutService {
     if (!order) throw new Error('Order not found');
     if (order.userId !== userId) throw new Error('Forbidden');
     if (!isPaymentPendingOrderStatus(order.status)) throw new Error(`Order is ${order.status}`);
+
+    try {
+      const event = await this.eventRepo.getById(
+        order.eventId,
+        order.workspaceId || (undefined as any),
+      );
+      if (!event) throw new CheckoutReconciliationError(undefined, ['event_missing']);
+      this.inventory.assertEventAvailable(event);
+      assertCheckoutSnapshotCurrent(order.checkoutSnapshot, event, order.tickets);
+    } catch (error: any) {
+      if (error?.code === 'STALE_CART' || error?.code === 'EVENT_NOT_PURCHASABLE') {
+        await cancelPendingCheckoutOrder(order.id).catch(() => undefined);
+        if (order.reservationId) {
+          await this.inventory.release(order.reservationId).catch(() => undefined);
+        }
+      }
+      throw error;
+    }
 
     return this.payment.prepareRazorpayOrder({ order, userId, config: razorpayConfig });
   }
@@ -642,6 +811,47 @@ export class CheckoutService {
       orderId: order.id,
     });
 
+    // Mobile may retry cleanup after the server committed cancellation but the
+    // response was lost. Treat the terminal state as success so local recovery
+    // data can be cleared without re-running refund/cancellation policy.
+    if (order.status === 'cancelled') {
+      await this.failLatestPendingPayment(order.id);
+      if (order.reservationId) {
+        await this.inventory.release(order.reservationId).catch(() => undefined);
+      }
+      return {
+        success: true,
+        orderId: order.id,
+        status: 'cancelled',
+        alreadyCancelled: true,
+        refund: {
+          percentage: 0,
+          amount: 0,
+          status: 'not_applicable',
+        },
+      };
+    }
+
+    // An unpaid order has already decremented event inventory. It must use the
+    // order engine's transactional cancellation path to put those tickets back.
+    if (isPaymentPendingOrderStatus(order.status)) {
+      await cancelPendingCheckoutOrder(order.id);
+      await this.failLatestPendingPayment(order.id);
+      if (order.reservationId) {
+        await this.inventory.release(order.reservationId).catch(() => undefined);
+      }
+      return {
+        success: true,
+        orderId: order.id,
+        status: 'cancelled',
+        refund: {
+          percentage: 0,
+          amount: 0,
+          status: 'not_applicable',
+        },
+      };
+    }
+
     const result = await this.cancellation.cancel({
       ...params,
       refundPayment: options.refundPayment,
@@ -665,5 +875,16 @@ export class CheckoutService {
 
   async getCancellationDecision(order: any, event: any) {
     return this.cancellation.getDecision(order, event);
+  }
+
+  private async failLatestPendingPayment(orderId: string): Promise<void> {
+    const pendingPayment = await this.orderRepo.getLatestPendingPaymentRecord(orderId);
+    if (pendingPayment) {
+      await this.payment.recordPaymentFailure(orderId, pendingPayment.razorpayOrderId);
+    }
+  }
+
+  async releaseReservation(reservationId: string) {
+    return this.inventory.release(reservationId);
   }
 }

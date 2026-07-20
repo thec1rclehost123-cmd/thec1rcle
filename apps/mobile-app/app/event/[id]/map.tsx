@@ -35,9 +35,7 @@ export default function EventDetailMapScreen() {
           <Text style={styles.headerTitle}>Location Unavailable</Text>
         </View>
         <View style={styles.center}>
-          <Text style={styles.errorText}>
-            We couldn't find the exact coordinates for this event.
-          </Text>
+          <Text style={styles.errorText}>We couldn't find the exact coordinates for this event.</Text>
         </View>
       </SafeAreaView>
     );
@@ -104,11 +102,11 @@ export default function EventDetailMapScreen() {
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
         <View style={styles.header}>
-          <Pressable
+          <Pressable 
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.back();
-            }}
+            }} 
             style={styles.backBtn}
           >
             <ChevronLeft size={28} color="#FFF" />
@@ -124,12 +122,9 @@ export default function EventDetailMapScreen() {
             {imageUrl ? (
               <Image source={{ uri: imageUrl }} style={styles.cardImage} contentFit="cover" />
             ) : (
-              <LinearGradient
-                colors={gradients.primary as [string, string]}
-                style={styles.cardImage}
-              />
+              <LinearGradient colors={gradients.primary as [string, string]} style={styles.cardImage} />
             )}
-
+            
             <View style={styles.cardContent}>
               <Text style={styles.cardEyebrow} numberOfLines={1}>
                 {venueName}

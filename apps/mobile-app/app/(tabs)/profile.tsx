@@ -29,7 +29,7 @@ import Animated, {
   FadeInDown,
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { colors, gradients } from '@/lib/design/theme';
 import { safeDate } from '@/lib/utils/date';
@@ -95,10 +95,10 @@ function HistoryTimelineItem({
       <AnimatedPressable
         onPress={handlePress}
         onPressIn={() => {
-          scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
+          scale.value = withTiming(0.98, { duration: 250 });
         }}
         onPressOut={() => {
-          scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+          scale.value = withTiming(1, { duration: 250 });
         }}
         style={[animStyle, styles.historyCard]}
       >
@@ -179,7 +179,7 @@ function openInstagramProfile(handle: string) {
 function UpcomingOrderCard({ order, index }: { order: Order; index: number }) {
   return (
     <AnimatedPressable
-      entering={FadeInDown.delay(140 + index * 35).springify()}
+      entering={FadeInDown.delay(140 + index * 35)}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         if (order.eventId) {
@@ -268,8 +268,9 @@ export default function ProfileScreen() {
   }, []);
 
   useEffect(() => {
-    void hydrateNightlifePromptDismissed();
-  }, [hydrateNightlifePromptDismissed]);
+    if (!userId) return;
+    void hydrateNightlifePromptDismissed(userId);
+  }, [hydrateNightlifePromptDismissed, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -288,7 +289,10 @@ export default function ProfileScreen() {
     if (!userId) return;
     setRefreshing(true);
     setErrorDismissed(false);
-    Promise.allSettled([fetchUserOrders(), loadProfile(userId)]).finally(() => {
+    Promise.allSettled([
+      fetchUserOrders(),
+      loadProfile(userId),
+    ]).finally(() => {
       setRefreshing(false);
     });
   }, [userId, fetchUserOrders, loadProfile]);
@@ -314,14 +318,19 @@ export default function ProfileScreen() {
       const eventTime = getOrderEventTime(order);
       return eventTime !== null && eventTime < nowMs;
     })
-    .sort((a, b) => (getOrderEventTime(b) ?? 0) - (getOrderEventTime(a) ?? 0));
+    .sort(
+      (a, b) => (getOrderEventTime(b) ?? 0) - (getOrderEventTime(a) ?? 0),
+    );
   const hasProfileEvents = upcomingOrders.length > 0 || pastOrders.length > 0;
 
   const profilePhotos = Array.from(
     new Set([profile?.photoURL, ...(profile?.photos ?? []), ...(profile?.datingPhotos ?? [])]),
   ).filter((photo): photo is string => Boolean(photo && !photo.includes('img=68')));
   const displayName = profile?.displayName?.trim() || 'Your profile';
-  const attendedCount = Number(profile?.eventsAttended ?? 0);
+  const walletAttendedCount = new Set(
+    pastOrders.map((order) => order.eventId).filter(Boolean),
+  ).size;
+  const attendedCount = Math.max(Number(profile?.eventsAttended ?? 0), walletAttendedCount);
   const displayPhoto = profilePhotos[0] || '';
   const isDefaultMockPhoto = !displayPhoto || displayPhoto.includes('img=68');
   const avatarSource =
@@ -331,7 +340,14 @@ export default function ProfileScreen() {
   const instagramHandle = profile?.instagram?.trim().replace(/^@+/, '') || '';
   const joinedDateText = formatJoinedDate(profile?.createdAt);
   const profileBio = profile?.bio?.trim() || '';
-  const profileTags = (profile?.vibeTags ?? []).filter(Boolean).slice(0, 6);
+  const profileTags = (profile?.vibeTags ?? [])
+    .filter(Boolean)
+    .map((tag) =>
+      String(tag)
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+    )
+    .slice(0, 6);
   const shouldShowNightlifePrompt = !nightlifePromptDismissed && profile?.datingActive !== true;
   const handleShareProfile = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -342,20 +358,9 @@ export default function ProfileScreen() {
 
   if (!userId) {
     return (
-      <View
-        style={[styles.container, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}
-      >
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
         <View style={{ marginBottom: 32, alignItems: 'center' }}>
-          <View
-            style={{
-              width: 120,
-              height: 120,
-              borderRadius: 60,
-              backgroundColor: 'rgba(255,255,255,0.05)',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
+          <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="person" size={60} color="rgba(255,255,255,0.2)" />
           </View>
           <Text style={[styles.userName, { fontSize: 28, marginTop: 16 }]}>Welcome Guest</Text>
@@ -403,9 +408,7 @@ export default function ProfileScreen() {
           >
             <Ionicons name="chevron-back" size={26} color="#fff" />
           </Pressable>
-        ) : (
-          <View style={{ width: 44 }} />
-        )}
+        ) : <View style={{ width: 44 }} />}
 
         <View style={styles.topRightActions}>
           <Pressable
@@ -435,7 +438,7 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.iris} />
         }
       >
-        <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.profileHeader}>
+        <Animated.View entering={FadeInDown.delay(100)} style={styles.profileHeader}>
           <Image
             source={avatarSource}
             style={styles.profileHeroImage}
@@ -527,12 +530,12 @@ export default function ProfileScreen() {
 
           {shouldShowNightlifePrompt ? (
             <Animated.View
-              entering={FadeInDown.delay(120).springify()}
+              entering={FadeInDown.delay(120)}
               style={styles.nightlifePromptShell}
             >
               <View style={styles.nightlifePromptCard}>
                 <Pressable
-                  onPress={() => void dismissNightlifePrompt()}
+                  onPress={() => userId && void dismissNightlifePrompt(userId)}
                   style={styles.nightlifePromptClose}
                   hitSlop={10}
                 >
@@ -547,7 +550,7 @@ export default function ProfileScreen() {
                   <Pressable
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      router.push('/profile-creation');
+                      router.push('/(nightlife-onboarding)/intro');
                     }}
                     style={styles.nightlifePromptButton}
                   >
@@ -571,7 +574,7 @@ export default function ProfileScreen() {
 
         {/* Error banner */}
         {profileError && !errorDismissed ? (
-          <Animated.View entering={FadeInDown.delay(120).springify()} style={styles.nightsContent}>
+          <Animated.View entering={FadeInDown.delay(120)} style={styles.nightsContent}>
             <View style={styles.errorBanner}>
               <Text style={styles.errorBannerText}>{profileError}</Text>
               <View style={styles.errorBannerActions}>

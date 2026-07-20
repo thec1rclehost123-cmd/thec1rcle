@@ -269,6 +269,10 @@ function isJwtLike(value: unknown): value is string {
   return typeof value === 'string' && value.split('.').length === 3;
 }
 
+function looksLikeTicketDocumentId(value: unknown): value is string {
+  return typeof value === 'string' && /^TKT[-_]/i.test(value.trim());
+}
+
 function getJwtCandidate(value: any): string | null {
   if (isJwtLike(value)) return value;
   if (value && isJwtLike(value.qrJwt)) return value.qrJwt;
@@ -437,23 +441,42 @@ async function resolveTicketForJwt(fastify: FastifyInstance, claims: any) {
 
 function getTicketQrCandidate(value: any): string | null {
   if (isJwtLike(value)) return value;
+  if (looksLikeTicketDocumentId(value)) return value.trim();
   if (!value || typeof value !== 'object') return null;
-  return isJwtLike(value.ticketId)
-    ? value.ticketId
-    : isJwtLike(value.bookingCode)
-      ? value.bookingCode
-      : isJwtLike(value.qrData)
-        ? value.qrData
-        : isJwtLike(value.qrCode)
-          ? value.qrCode
-          : isJwtLike(value.qrPayload)
-            ? value.qrPayload
-            : isJwtLike(value.qrJwt)
-              ? value.qrJwt
-              : null;
+  return looksLikeTicketDocumentId(value.ticketId)
+    ? value.ticketId.trim()
+    : isJwtLike(value.ticketId)
+      ? value.ticketId
+      : looksLikeTicketDocumentId(value.qrData)
+        ? value.qrData.trim()
+        : isJwtLike(value.bookingCode)
+          ? value.bookingCode
+          : isJwtLike(value.qrData)
+            ? value.qrData
+            : looksLikeTicketDocumentId(value.qrCode)
+              ? value.qrCode.trim()
+              : isJwtLike(value.qrCode)
+                ? value.qrCode
+                : looksLikeTicketDocumentId(value.qrPayload)
+                  ? value.qrPayload.trim()
+                  : isJwtLike(value.qrPayload)
+                    ? value.qrPayload
+                    : isJwtLike(value.qrJwt)
+                      ? value.qrJwt
+                      : null;
 }
 
 async function resolveTicketForQrValue(fastify: FastifyInstance, qrValue: string) {
+  if (looksLikeTicketDocumentId(qrValue)) {
+    const ref = fastify.db.collection('tickets').doc(qrValue.trim());
+    const doc = await ref.get();
+    return {
+      ticketLookup: doc.exists ? { ref, id: doc.id, data: { id: doc.id, ...doc.data() } } : null,
+      legacyClaims: null,
+      qrMode: 'raw_id',
+    };
+  }
+
   if (!isJwtLike(qrValue)) {
     const error = new Error('Invalid ticket QR');
     (error as any).result = 'invalid';
@@ -764,9 +787,10 @@ async function processWalletTicketScan(
   const pendingWalletRef = pendingWalletSnap.empty ? null : pendingWalletSnap.docs[0].ref;
 
   await fastify.db.runTransaction(async (tx: any) => {
-    const [freshTicketDoc, existingScanDoc] = await Promise.all([
+    const [freshTicketDoc, existingScanDoc, pendingWalletDoc] = await Promise.all([
       tx.get(ticketLookup.ref),
       tx.get(scanRef),
+      pendingWalletRef ? tx.get(pendingWalletRef) : Promise.resolve(null),
     ]);
 
     if (existingScanDoc.exists && existingScanDoc.data()?.result === 'valid') {
@@ -830,9 +854,8 @@ async function processWalletTicketScan(
     // If the scanned order has a PENDING cover wallet, activate it atomically.
     // If this fails, the entire scan transaction aborts, preventing entry
     // without an active wallet.
-    if (pendingWalletRef) {
-      const walletDoc = await tx.get(pendingWalletRef);
-      if (walletDoc.exists && walletDoc.data().state === 'PENDING') {
+    if (pendingWalletRef && pendingWalletDoc) {
+      if (pendingWalletDoc.exists && pendingWalletDoc.data().state === 'PENDING') {
         tx.update(pendingWalletRef, {
           state: 'ACTIVE',
           activatedAt: now,
@@ -1008,7 +1031,6 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/wallet-qr',
     {
-      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ScanBody })],
     },
     async (request: any, reply) => {
@@ -1020,8 +1042,8 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'QR data is required', result: 'invalid' });
       }
 
-      // Support both Bearer token and X-Scanner-Code header auth
-      const auth = await validateScannerAccess(fastify, request);
+      // Support both Bearer token and X-Scanner-Code header auth.
+      let auth = await validateScannerAccess(fastify, request);
       if (!auth.authorized) {
         // Fallback: check X-Scanner-Code header for scanner-app compat
         const scannerCode = (request.headers['x-scanner-code'] as string) || '';
@@ -1031,10 +1053,23 @@ export default async function scanRoutes(fastify: FastifyInstance) {
             .where('code', '==', scannerCode.toUpperCase().trim())
             .limit(1)
             .get();
-          if (codeSnap.empty || codeSnap.docs[0].data().isRevoked) {
+          const codeDoc = codeSnap.docs[0];
+          const codeData = codeDoc?.data();
+          if (
+            codeSnap.empty ||
+            codeData?.isRevoked ||
+            (codeData?.expiresAt && new Date(codeData.expiresAt) < new Date())
+          ) {
             return scannerSessionError(reply);
           }
-          request.scannerCodeId = codeSnap.docs[0].id;
+          request.scannerCodeId = codeDoc.id;
+          request.scannerCodeData = codeData;
+          auth = {
+            authorized: true,
+            usingFirebase: false,
+            codeDoc,
+            codeData,
+          };
         } else {
           return scannerSessionError(reply);
         }
@@ -1054,6 +1089,34 @@ export default async function scanRoutes(fastify: FastifyInstance) {
       }
 
       const wallet = walletDoc.data() as any;
+      if (wallet.userId !== claims.userId) {
+        return reply.status(403).send({
+          error: 'Wallet QR does not belong to this wallet',
+          result: 'wallet_user_mismatch',
+        });
+      }
+
+      if (!matchesScannerContext(auth, { eventId: wallet.eventId, venueId: wallet.venueId })) {
+        return reply.status(403).send({
+          error: 'Scanner is not authorized for this wallet',
+          result: 'wallet_context_mismatch',
+        });
+      }
+
+      if (auth.usingFirebase) {
+        const role = request.user?.role || (request.user?.admin ? 'admin' : null);
+        if (!['admin', 'staff', 'manager', 'host', 'super'].includes(role)) {
+          return reply.status(403).send({ error: 'Charge permission required', result: 'forbidden' });
+        }
+        const access = await requireEventManagementAccess(fastify, request, wallet.eventId);
+        if (!access.allowed) {
+          return reply.status(access.status).send({ error: access.error, result: 'forbidden' });
+        }
+      } else if (auth.codeData?.type !== 'charge') {
+        return reply
+          .status(403)
+          .send({ error: 'Charge scanner code required', result: 'charge_not_allowed' });
+      }
 
       if (wallet.state !== 'ACTIVE') {
         return reply.status(400).send({
@@ -1070,11 +1133,17 @@ export default async function scanRoutes(fastify: FastifyInstance) {
           id: walletDoc.id,
           userId: wallet.userId,
           orderId: wallet.orderId,
+          eventId: wallet.eventId,
+          venueId: wallet.venueId,
           currentBalancePaise: wallet.currentBalancePaise,
           openingBalancePaise: wallet.openingBalancePaise,
+          totalDebitedPaise: wallet.totalDebitedPaise || 0,
+          guestFirstName: wallet.guestFirstName || 'Guest',
           guestName: wallet.guestFirstName || 'Guest',
           state: wallet.state,
+          paymentQrJwt: qrValue,
           rules: {
+            allowedPresetItems: wallet.rules?.allowedPresetItems || [],
             minChargeAmountPaise: wallet.rules?.minChargeAmountPaise || 0,
             maxChargeAmountPaise: wallet.rules?.maxChargeAmountPaise || wallet.currentBalancePaise,
             showBalanceToGuest: wallet.rules?.showBalanceToGuest ?? true,
@@ -1091,7 +1160,6 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/',
     {
-      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ScanBody })],
     },
     async (request: any, reply) => {

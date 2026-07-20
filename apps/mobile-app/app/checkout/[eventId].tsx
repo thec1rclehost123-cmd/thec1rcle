@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -29,6 +30,8 @@ import { colors, gradients, typography } from '@/lib/design/theme';
 import { resolveEventAccentColor, TICKET_ACCENT } from '@/hooks/useEventAccent';
 import { getEventImage } from '@/lib/utils/event';
 import { formatEventDate, formatEventTime } from '@/lib/utils/date';
+import { discardPendingCheckout } from '@/lib/payments';
+import { formatInr } from '@/lib/money';
 
 const ticketFont = {
   regular: typography.fontFamily.body,
@@ -36,11 +39,6 @@ const ticketFont = {
   bold: typography.fontFamily.heading,
   black: typography.fontFamily.brandAccent,
 };
-
-function formatMoney(value: number) {
-  if (value <= 0) return 'Free';
-  return `₹${Math.round(value).toLocaleString('en-IN')}`;
-}
 
 function getTierMeta(tier: TicketTier, index: number) {
   const fallbackDescriptions = [
@@ -128,7 +126,7 @@ function MiniCharacter({
   const imageSource = getPersonaImage(persona.kind);
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 45).springify()}
+      entering={FadeInDown.delay(index * 45)}
       style={[styles.avatarWrap, { marginLeft: index > 0 ? -16 : 0, zIndex: 10 - index }]}
     >
       <Image source={imageSource} style={styles.avatarImage} contentFit="cover" transition={200} />
@@ -161,7 +159,7 @@ function TicketCharacterStage({
     .slice(0, 5);
 
   return (
-    <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.characterStage}>
+    <Animated.View entering={FadeInDown.delay(80)} style={styles.characterStage}>
       <View style={styles.characterRunway}>
         {characters.map((character, index) => (
           <MiniCharacter key={character.id} persona={character.persona} index={index} />
@@ -275,7 +273,7 @@ function TicketTierRow({
             />
           </Pressable>
           <View style={styles.tierMetaLine}>
-            <Text style={styles.tierPrice}>{formatMoney(tier.price)}</Text>
+            <Text style={styles.tierPrice}>{formatInr(tier.price)}</Text>
             {isLowStock || isSoldOut ? (
               <>
                 <View style={styles.tierMetaDot} />
@@ -342,7 +340,7 @@ export default function TicketSelectionScreen() {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
   const { getEventById, events, featuredEvents } = useEventsStore();
-  const { clearCart, addItem } = useCartStore();
+  const { items: cartItems, clearCart, addItem } = useCartStore();
   const [event, setEvent] = useState<Event | null>(() => {
     if (!eventId) return null;
     return (
@@ -352,7 +350,13 @@ export default function TicketSelectionScreen() {
     );
   });
   const [loading, setLoading] = useState(!event);
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [quantities, setQuantities] = useState<Record<string, number>>(() =>
+    Object.fromEntries(
+      cartItems
+        .filter((item) => item.eventId === eventId)
+        .map((item) => [item.tier.id, item.quantity]),
+    ),
+  );
   const [expandedTiers, setExpandedTiers] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -393,9 +397,15 @@ export default function TicketSelectionScreen() {
 
   const posterAccent = event ? resolveEventAccentColor(event as any, 'ticket') : TICKET_ACCENT;
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (!event || selectedItems.length === 0) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await discardPendingCheckout();
+    } catch {
+      Alert.alert('Tickets still held', 'Could not release the current hold. Please retry.');
+      return;
+    }
     clearCart();
     selectedItems.forEach(({ tier, quantity }) => {
       addItem({
@@ -542,7 +552,7 @@ export default function TicketSelectionScreen() {
       <View style={[styles.bottomBar, { bottom: Math.max(insets.bottom, 12) }]}>
         <View style={styles.bottomCopy}>
           <Text style={styles.bottomLabel}>Total</Text>
-          <Text style={styles.bottomTotal}>{formatMoney(subtotal)}</Text>
+          <Text style={styles.bottomTotal}>{formatInr(subtotal)}</Text>
           <Text style={styles.bottomCount} numberOfLines={1}>
             {bottomHelper}
           </Text>

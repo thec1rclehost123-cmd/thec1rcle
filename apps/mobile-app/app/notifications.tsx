@@ -15,7 +15,7 @@ import Animated, {
   SlideOutRight,
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  withTiming,
   Layout,
 } from 'react-native-reanimated';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -54,11 +54,11 @@ function NotificationItem({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.98, { duration: 250 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(1, { duration: 250 });
   };
 
   const handlePress = () => {
@@ -77,9 +77,9 @@ function NotificationItem({
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 50).springify()}
-      exiting={SlideOutRight.springify()}
-      layout={Layout.springify()}
+      entering={FadeInDown.delay(index * 50)}
+      exiting={SlideOutRight}
+      layout={Layout}
     >
       <View>
         <Swipeable renderRightActions={renderRightActions}>
@@ -143,12 +143,7 @@ function DittoNotificationEmptyState() {
         <View style={styles.phoneFrame}>
           {/* Mock Row 1 */}
           <View style={styles.listRow}>
-            <View
-              style={[
-                styles.avatarOrb,
-                { borderRadius: 12, backgroundColor: '#8B5CF6', overflow: 'hidden' },
-              ]}
-            >
+            <View style={[styles.avatarOrb, { borderRadius: 12, backgroundColor: '#8B5CF6', overflow: 'hidden' }]}>
               <Image
                 source={require('../assets/images/attendees/riya.png')}
                 style={{ width: '100%', height: '100%' }}
@@ -180,12 +175,7 @@ function DittoNotificationEmptyState() {
 
           {/* Mock Row 3 */}
           <View style={styles.listRow}>
-            <View
-              style={[
-                styles.avatarOrb,
-                { borderRadius: 22, backgroundColor: '#EAB308', overflow: 'hidden' },
-              ]}
-            >
+            <View style={[styles.avatarOrb, { borderRadius: 22, backgroundColor: '#EAB308', overflow: 'hidden' }]}>
               <Image
                 source={require('../assets/images/attendees/neil.png')}
                 style={{ width: '100%', height: '100%' }}

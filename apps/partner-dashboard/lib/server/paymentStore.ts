@@ -28,7 +28,10 @@ import type { ReservationDoc } from '../types/booking';
 export class PaymentError extends Error {
   constructor(
     public readonly code:
-      'RESERVATION_NOT_FOUND' | 'RESERVATION_NOT_PENDING' | 'RESERVATION_EXPIRED' | 'WRONG_USER',
+      | 'RESERVATION_NOT_FOUND'
+      | 'RESERVATION_NOT_PENDING'
+      | 'RESERVATION_EXPIRED'
+      | 'WRONG_USER',
     message: string,
   ) {
     super(message);

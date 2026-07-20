@@ -15,6 +15,7 @@
 
 import { NextResponse } from 'next/server';
 import { withAdminAuth } from '@/lib/server/adminMiddleware';
+import { rateLimit } from '@/lib/server/rateLimit';
 import {
   unblockIp,
   unblockUser,
@@ -28,6 +29,9 @@ export const dynamic = 'force-dynamic';
 const VALID_TYPES = new Set(['ip', 'user', 'flag', 'admin']);
 
 async function handler(req) {
+  if (!(await rateLimit(req, 10))) {
+    return NextResponse.json({ error: 'Too many requests. Please slow down.' }, { status: 429 });
+  }
   const body = await req.json().catch(() => null);
 
   if (!body || !body.type || !body.target) {

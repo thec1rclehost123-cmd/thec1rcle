@@ -264,7 +264,7 @@ async function getMember(db, chatId, userId) {
   return doc.exists ? { id: doc.id, ...doc.data() } : null;
 }
 
-async function hasActiveEventEntitlement(db, userId, eventId) {
+export async function hasActiveEventEntitlement(db, userId, eventId) {
   if (!userId || !eventId) return false;
 
   const queries = [
@@ -287,6 +287,20 @@ async function hasActiveEventEntitlement(db, userId, eventId) {
       .where('userId', '==', userId)
       .where('eventId', '==', eventId)
       .where('status', '==', 'approved')
+      .limit(1)
+      .get(),
+    db
+      .collection('ticket_assignments')
+      .where('redeemerId', '==', userId)
+      .where('eventId', '==', eventId)
+      .where('status', '==', 'active')
+      .limit(1)
+      .get(),
+    db
+      .collection('entitlements')
+      .where('ownerUserId', '==', userId)
+      .where('eventId', '==', eventId)
+      .where('state', 'in', ['ISSUED', 'ACTIVE'])
       .limit(1)
       .get(),
   ];
@@ -627,6 +641,22 @@ export async function getChatMessages(db, userId, chatId, { limit = 50, before =
       hasMore,
     },
   };
+}
+
+export async function countApprovedEventMedia(db, eventId) {
+  if (!eventId) throw new Error('eventId is required');
+
+  const query = db
+    .collection('eventMedia')
+    .where('eventId', '==', eventId)
+    .where('isApproved', '==', true);
+  if (typeof query.count === 'function') {
+    const aggregate = await query.count().get();
+    return Number(aggregate.data()?.count || 0);
+  }
+
+  const snapshot = await query.get();
+  return snapshot.docs?.length || 0;
 }
 
 async function assertCanSendEventMessage(db, chat, userId) {

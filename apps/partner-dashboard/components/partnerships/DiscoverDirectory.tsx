@@ -305,7 +305,13 @@ export interface StatusCardData {
   eventsCount?: number;
   followersCount?: number;
   connectionStatus:
-    'active' | 'approved' | 'pending' | 'incoming' | 'declined' | 'rejected' | 'blocked';
+    | 'active'
+    | 'approved'
+    | 'pending'
+    | 'incoming'
+    | 'declined'
+    | 'rejected'
+    | 'blocked';
   onViewProfile?: () => void;
   onApprove?: () => void;
   onReject?: () => void;

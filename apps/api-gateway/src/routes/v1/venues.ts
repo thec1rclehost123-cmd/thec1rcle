@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 // @ts-ignore
 import { getAdminStorage } from '@c1rcle/core/admin';
 
@@ -81,7 +82,7 @@ function normalizeSlotRecord(doc: any): any {
   };
 }
 
-function isVenueBlock(slot: Record<string, any>) {
+function isBlockedSlot(slot: Record<string, any>) {
   return (
     String(slot.source || '').toLowerCase() === 'venue_block' ||
     String(slot.status || '').toLowerCase() === 'blocked'
@@ -843,7 +844,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
 
       const requests = snap.docs
         .map((doc: any) => normalizeSlotRecord(doc))
-        .filter((slot) => !isVenueBlock(slot));
+        .filter((slot) => !isBlockedSlot(slot));
       requests.sort((a: any, b: any) => {
         const dateA = new Date(a.createdAt || 0).getTime();
         const dateB = new Date(b.createdAt || 0).getTime();
@@ -1339,10 +1340,187 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // NOTE: Public GET /venues and GET /venues/:id are defined in the
-  // "Public Venue Directory" section below (core venue-service backed,
-  // { success, data } envelope consumed by the mobile app). The earlier
-  // inline Firestore versions were removed to avoid FST_ERR_DUPLICATED_ROUTE.
+  /**
+   * GET /api/v1/venues
+   * List venues with optional sorting and limit
+   */
+  fastify.get(
+    '/venues',
+    {
+      preHandler: [fastify.requireAuth],
+      config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    },
+    async (request: any, reply) => {
+      try {
+        const { sort = 'Popular', limit = 12, cursor } = request.query as any;
+        const pageSize = Math.min(Number(limit) || 12, 100);
+        let q: any = fastify.db.collection('venues');
+
+        // Apply sorting logic
+        if (sort === 'Popular') {
+          q = q.orderBy('heatScore', 'desc');
+        } else if (sort === 'new') {
+          q = q.orderBy('createdAt', 'desc');
+        }
+
+        if (cursor) {
+          const cursorDoc = await fastify.db.collection('venues').doc(cursor).get();
+          if (cursorDoc.exists) q = q.startAfter(cursorDoc);
+        }
+
+        q = q.limit(pageSize + 1);
+
+        const snapshot = await q.get();
+        const docs = snapshot.docs.slice(0, pageSize);
+        const hasMore = snapshot.docs.length > pageSize;
+        const venues = docs.map((d: any) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+
+        return buildSuccessResponse({ venues, hasMore, nextCursor: hasMore ? docs[docs.length - 1].id : null });
+      } catch (error: any) {
+        fastify.log.error(`Error in GET /venues: ${error.message}`);
+        return reply.status(500).send(
+          buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal Server Error', requestId: request.id }),
+        );
+      }
+    },
+  );
+
+  /**
+   * GET /api/v1/venues/:id
+   * Fetch a specific venue by ID or slug
+   */
+  fastify.get('/venues/:id', async (request: any, reply) => {
+    const { id } = request.params as any;
+    try {
+      let venue: any = null;
+      let venueId = id;
+
+      // Check by ID first
+      const docSnap = await fastify.db.collection('venues').doc(id).get();
+      if (docSnap.exists) {
+        venue = { id: docSnap.id, ...docSnap.data() };
+      } else {
+        // Check by slug
+        const slugSnap = await fastify.db
+          .collection('venues')
+          .where('slug', '==', id)
+          .limit(1)
+          .get();
+
+        if (!slugSnap.empty) {
+          const d = slugSnap.docs[0];
+          venue = { id: d.id, ...d.data() };
+          venueId = d.id;
+        }
+      }
+
+      if (!venue) {
+        return reply.status(404).send(
+          buildErrorResponse({ code: 'NOT_FOUND', message: 'Venue not found', requestId: request.id }),
+        );
+      }
+
+      const now = new Date().toISOString();
+      const subFetches: Promise<any>[] = [];
+
+      if (venue.highlights !== false) {
+        subFetches.push(
+          fastify.db
+            .collection('venue_highlights')
+            .where('venueId', '==', venueId)
+            .where('isActive', '==', true)
+            .get()
+            .catch(() => ({ docs: [] as any[] })),
+        );
+      } else {
+        subFetches.push(Promise.resolve({ docs: [] as any[] }));
+      }
+
+      if (venue.gallery !== false) {
+        subFetches.push(
+          fastify.db
+            .collection('venue_gallery')
+            .where('venueId', '==', venueId)
+            .limit(50)
+            .get()
+            .catch(() => ({ docs: [] as any[] })),
+        );
+      } else {
+        subFetches.push(Promise.resolve({ docs: [] as any[] }));
+      }
+
+      if (venue.menu !== false) {
+        subFetches.push(
+          fastify.db
+            .collection('venue_menu')
+            .where('venueId', '==', venueId)
+            .get()
+            .catch(() => ({ docs: [] as any[] })),
+        );
+      } else {
+        subFetches.push(Promise.resolve({ docs: [] as any[] }));
+      }
+
+      if (venue.facilities !== false) {
+        subFetches.push(
+          fastify.db
+            .collection('venue_facilities')
+            .where('venueId', '==', venueId)
+            .where('isEnabled', '==', true)
+            .get()
+            .catch(() => ({ docs: [] as any[] })),
+        );
+      } else {
+        subFetches.push(Promise.resolve({ docs: [] as any[] }));
+      }
+
+      subFetches.push(
+        fastify.db
+          .collection('events')
+          .where('venueId', '==', venueId)
+          .where('startDate', '>=', now)
+          .where('visibility', '==', 'public')
+          .get()
+          .catch(() => ({ docs: [] as any[] })),
+      );
+
+      const [highlightsSnap, gallerySnap, menuSnap, facilitiesSnap, eventsSnap] = await Promise.all(subFetches);
+
+      const highlights = highlightsSnap.docs.map((item: any) => ({ id: item.id, ...item.data() }));
+      highlights.sort((a: any, b: any) => Number(a.order || 0) - Number(b.order || 0));
+
+      const gallery = gallerySnap.docs.map((item: any) => ({ id: item.id, ...item.data() }));
+      gallery.sort((a: any, b: any) => Number(a.order || 0) - Number(b.order || 0));
+
+      const menu = menuSnap.docs.map((item: any) => ({ id: item.id, ...item.data() }));
+      menu.sort((a: any, b: any) => Number(a.order || 0) - Number(b.order || 0));
+
+      const facilities = facilitiesSnap.docs.map((item: any) => ({ id: item.id, ...item.data() }));
+      facilities.sort((a: any, b: any) => Number(a.order || 0) - Number(b.order || 0));
+
+      const upcomingEvents = eventsSnap.docs
+        .map((item: any) => ({ id: item.id, ...item.data() }))
+        .sort((a: any, b: any) => a.startDate.localeCompare(b.startDate))
+        .slice(0, 10);
+
+      return buildSuccessResponse({
+        venue,
+        highlights,
+        gallery: gallery.slice(0, 9),
+        menu,
+        facilities,
+        upcomingEvents,
+      });
+    } catch (error: any) {
+      fastify.log.error(`Error in GET /venues/:id: ${error.message}`);
+      return reply.status(500).send(
+        buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal Server Error', requestId: request.id }),
+      );
+    }
+  });
 
   // ── Cover Charge Reconciliation ───────────────────────────────────────────
 
@@ -1491,7 +1669,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           const slotDate = slot.requestedDate || slot.date;
           return (!startDate || slotDate >= startDate) && (!endDate || slotDate <= endDate);
         });
-      const blocks = slots.filter((slot: any) => isVenueBlock(slot));
+      const blocks = slots.filter((slot: any) => isBlockedSlot(slot));
 
       const dates: any[] = [];
       let cur = new Date(startDate);
@@ -1501,7 +1679,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         const ds = cur.toISOString().split('T')[0];
         const dayEvents = events.filter((e: any) => e.startDate.startsWith(ds));
         const daySlots = slots.filter(
-          (s: any) => (s.requestedDate || s.date) === ds && !isVenueBlock(s),
+          (s: any) => (s.requestedDate || s.date) === ds && !isBlockedSlot(s),
         );
         const block = blocks.find((b: any) => b.date === ds);
         const confirmedSlots = daySlots.filter((slot: any) =>
@@ -1725,62 +1903,5 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       };
     },
   );
-  // ── Public Venue Directory ──────────────────────────────────────────────
-
-  const VenueDirectoryQuery = z.object({ city: z.string().optional() });
-  const VenuePublicIdParam = z.object({ id: z.string() });
-
-  fastify.get(
-    '/venues',
-    {
-      preHandler: [fastify.validate({ querystring: VenueDirectoryQuery })],
-    },
-    async (request: any, reply: any) => {
-      try {
-        const { getAllVenues } = await import('@c1rcle/core/venue-service');
-        const venues = await getAllVenues(fastify.db, request.query.city);
-        return { success: true, data: venues };
-      } catch (error: any) {
-        fastify.log.error({ error: error.message }, 'GET /venues failed');
-        return reply.status(500).send({ error: 'Internal server error' });
-      }
-    },
-  );
-
-  fastify.get(
-    '/venues/:id',
-    {
-      preHandler: [fastify.validate({ params: VenuePublicIdParam })],
-    },
-    async (request: any, reply: any) => {
-      try {
-        const { getVenueById } = await import('@c1rcle/core/venue-service');
-        const venue = await getVenueById(fastify.db, request.params.id);
-        return { success: true, data: venue };
-      } catch (error: any) {
-        fastify.log.error({ error: error.message }, 'GET /venues/:id failed');
-        if (error.message.includes('not found')) {
-          return reply.status(404).send({ error: 'Venue not found' });
-        }
-        return reply.status(500).send({ error: 'Internal server error' });
-      }
-    },
-  );
-
-  fastify.get(
-    '/venues/:id/events',
-    {
-      preHandler: [fastify.validate({ params: VenuePublicIdParam })],
-    },
-    async (request: any, reply: any) => {
-      try {
-        const { getVenueEvents } = await import('@c1rcle/core/venue-service');
-        const events = await getVenueEvents(fastify.db, request.params.id);
-        return { success: true, data: events };
-      } catch (error: any) {
-        fastify.log.error({ error: error.message }, 'GET /venues/:id/events failed');
-        return reply.status(500).send({ error: 'Internal server error' });
-      }
-    },
-  );
+  // Removed duplicate Public Venue Directory block to fix Fastify crash
 }

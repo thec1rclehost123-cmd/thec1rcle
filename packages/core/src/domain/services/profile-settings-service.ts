@@ -9,6 +9,8 @@ export type DatingVitals = {
   height?: string | null;
   gender?: string | null;
   location?: string | null;
+  pronouns?: string | null;
+  lifestyle?: string | null;
 };
 
 export type ProfileAnthem = {
@@ -21,6 +23,13 @@ export type ProfileAnthem = {
   externalUrl?: string | null;
 };
 
+export type ProfilePrompt = {
+  promptId: string;
+  question: string;
+  answer: string;
+  type: 'text';
+};
+
 export type ProfileSettingsUpdate = {
   gender?: string | null;
   bio?: string | null;
@@ -29,6 +38,8 @@ export type ProfileSettingsUpdate = {
   anthem?: ProfileAnthem | null;
   photos?: string[];
   vibeTags?: string[];
+  nightlifeVibeTags?: string[];
+  prompts?: ProfilePrompt[];
   notificationPreferences?: Partial<Record<NotificationPreferenceKey, boolean>>;
   pushNewMatches?: boolean;
   pushEventUpdates?: boolean;
@@ -41,10 +52,6 @@ export type ProfileSettingsUpdate = {
   instagram?: string | null;
   spotify?: string | null;
   datingActive?: boolean;
-  basicSetupComplete?: boolean;
-  profileSetupComplete?: boolean;
-  profileComplete?: boolean;
-  onboardingComplete?: boolean;
   socialSetupComplete?: boolean;
   notifications?: Partial<Record<SettingsNotificationKey, boolean>>;
   privacy?: Partial<SettingsPrivacyUpdate>;
@@ -112,15 +119,11 @@ type SettingsPatch = {
 const MAX_BIO_LENGTH = 500;
 const MAX_DATING_PHOTOS = 6;
 const MAX_VIBE_TAGS = 20;
+const MAX_NIGHTLIFE_VIBE_TAGS = 8;
+const MAX_PROFILE_PROMPTS = 3;
 const GENDER_CHANGE_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 const VALID_GENDERS = new Set(['male', 'female', 'other', 'prefer_not_to_say']);
-const PROFILE_FLOW_FLAG_KEYS = [
-  'basicSetupComplete',
-  'profileSetupComplete',
-  'profileComplete',
-  'onboardingComplete',
-  'socialSetupComplete',
-] as const;
+const PROFILE_FLOW_FLAG_KEYS = ['socialSetupComplete'] as const;
 
 const DEFAULT_USER_SETTINGS: UserSettings = {
   notifications: {
@@ -271,7 +274,13 @@ function normalizePhotoList(value: unknown): string[] | undefined {
   for (const entry of value) {
     if (typeof entry !== 'string') continue;
     const photo = entry.trim();
-    if (!photo || seen.has(photo)) continue;
+    if (!photo || seen.has(photo) || photo.length > 2048) continue;
+    try {
+      const url = new URL(photo);
+      if (url.protocol !== 'https:') continue;
+    } catch {
+      continue;
+    }
     seen.add(photo);
     photos.push(photo);
     if (photos.length >= MAX_DATING_PHOTOS) break;
@@ -299,6 +308,71 @@ function normalizeVibeTags(value: unknown): string[] | undefined {
   return tags;
 }
 
+function normalizeNightlifeVibeTags(value: unknown): string[] | undefined {
+  const tags = normalizeVibeTags(value);
+  return tags?.slice(0, MAX_NIGHTLIFE_VIBE_TAGS);
+}
+
+function normalizeProfilePrompts(value: unknown): ProfilePrompt[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return undefined;
+
+  const prompts: ProfilePrompt[] = [];
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    const raw = entry as Record<string, unknown>;
+    const promptId = normalizeNullableString(raw.promptId, 120);
+    const question = normalizeNullableString(raw.question, 180);
+    const answer = normalizeNullableString(raw.answer, 500);
+    if (!promptId || !question || !answer || seen.has(promptId)) continue;
+    seen.add(promptId);
+    prompts.push({ promptId, question, answer, type: 'text' });
+    if (prompts.length >= MAX_PROFILE_PROMPTS) break;
+  }
+
+  return prompts;
+}
+
+function hasRequiredNightlifeVitals(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const vitals = value as Record<string, unknown>;
+  return ['height', 'pronouns', 'lifestyle'].every(
+    (key) => typeof vitals[key] === 'string' && vitals[key].trim().length > 0,
+  );
+}
+
+function validateNightlifeActivation(
+  safeUpdates: Record<string, unknown>,
+  existingData: Record<string, unknown>,
+): string | undefined {
+  const photos = safeUpdates.datingPhotos ?? existingData.datingPhotos ?? existingData.photos;
+  const hasPortablePhoto =
+    Array.isArray(photos) &&
+    photos.some((photo) => {
+      if (typeof photo !== 'string' || photo.length > 2048) return false;
+      try {
+        return new URL(photo).protocol === 'https:';
+      } catch {
+        return false;
+      }
+    });
+  if (!hasPortablePhoto) return 'Add at least one uploaded profile photo';
+
+  const vitals = safeUpdates.datingVitals ?? existingData.datingVitals;
+  if (!hasRequiredNightlifeVitals(vitals)) {
+    return 'Height, pronouns, and lifestyle are required';
+  }
+
+  const vibes = safeUpdates.nightlifeVibeTags ?? existingData.nightlifeVibeTags;
+  if (!Array.isArray(vibes) || vibes.length < 1) return 'Select at least one Nightlife vibe';
+
+  const prompts = safeUpdates.prompts ?? existingData.prompts;
+  if (!Array.isArray(prompts) || prompts.length < 1) return 'Answer at least one profile prompt';
+
+  return undefined;
+}
+
 function normalizeDatingVitals(value: unknown): DatingVitals | undefined {
   if (value === undefined) return undefined;
   if (!value || typeof value !== 'object') return undefined;
@@ -314,6 +388,12 @@ function normalizeDatingVitals(value: unknown): DatingVitals | undefined {
 
   const location = normalizeNullableString(raw.location, 120);
   if (location !== undefined) vitals.location = location;
+
+  const pronouns = normalizeNullableString(raw.pronouns, 80);
+  if (pronouns !== undefined) vitals.pronouns = pronouns;
+
+  const lifestyle = normalizeNullableString(raw.lifestyle, 120);
+  if (lifestyle !== undefined) vitals.lifestyle = lifestyle;
 
   return Object.keys(vitals).length ? vitals : undefined;
 }
@@ -455,14 +535,24 @@ export function buildSafeProfileSettingsUpdate(
   const bio = normalizeNullableString(updates.bio, MAX_BIO_LENGTH);
   if (bio !== undefined) safe.bio = bio;
 
-  const datingPhotos = normalizePhotoList(updates.datingPhotos ?? updates.photos);
+  const datingPhotos = normalizePhotoList(updates.datingPhotos);
   if (datingPhotos !== undefined) {
     safe.datingPhotos = datingPhotos;
-    safe.photos = datingPhotos;
+  }
+
+  const basicPhotos = normalizePhotoList(updates.photos);
+  if (basicPhotos !== undefined) {
+    safe.photos = basicPhotos;
   }
 
   const vibeTags = normalizeVibeTags(updates.vibeTags);
   if (vibeTags !== undefined) safe.vibeTags = vibeTags;
+
+  const nightlifeVibeTags = normalizeNightlifeVibeTags(updates.nightlifeVibeTags);
+  if (nightlifeVibeTags !== undefined) safe.nightlifeVibeTags = nightlifeVibeTags;
+
+  const prompts = normalizeProfilePrompts(updates.prompts);
+  if (prompts !== undefined) safe.prompts = prompts;
 
   const datingVitals = normalizeDatingVitals(updates.datingVitals);
   if (datingVitals !== undefined) safe.datingVitals = datingVitals;
@@ -531,6 +621,25 @@ export function buildSafeProfileSettingsUpdate(
 
   if (typeof updates.datingActive === 'boolean') safe.datingActive = updates.datingActive;
 
+  const touchesNightlifeProfile =
+    updates.datingActive !== undefined ||
+    updates.datingPhotos !== undefined ||
+    updates.photos !== undefined ||
+    updates.datingVitals !== undefined ||
+    updates.nightlifeVibeTags !== undefined ||
+    updates.prompts !== undefined;
+  const willBeActive =
+    updates.datingActive === true ||
+    (updates.datingActive !== false && existingData.datingActive === true);
+  if (willBeActive && touchesNightlifeProfile) {
+    const activationError = validateNightlifeActivation(safe, existingData);
+    if (activationError) {
+      return { safeUpdates: {}, error: activationError, statusCode: 400 };
+    }
+    safe.nightlifeProfileComplete = true;
+    safe.lastActiveAt = now;
+  }
+
   for (const key of PROFILE_FLOW_FLAG_KEYS) {
     if (typeof updates[key] === 'boolean') safe[key] = updates[key];
   }
@@ -571,7 +680,7 @@ export async function updateUserProfileSettings(
   if (!userId) throw new Error('Missing userId');
 
   const userRef = db.collection('users').doc(userId);
-  
+
   return await db.runTransaction(async (transaction: any) => {
     const existing = await transaction.get(userRef);
     const existingData = existing.exists ? existing.data() || {} : {};

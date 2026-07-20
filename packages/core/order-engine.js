@@ -176,6 +176,7 @@ export function buildOrderPayload(params) {
     totalAmount: pricing.grandTotal,
     status: pricing.isFree || isRSVP ? 'confirmed' : PAYMENT_PENDING_ORDER_STATUS,
     reservationId: reservation.id,
+    checkoutSnapshot: reservation.checkoutSnapshot || null,
     promoterCode: promoterCode || null,
     createdAt: new Date().toISOString(),
     isRSVP,

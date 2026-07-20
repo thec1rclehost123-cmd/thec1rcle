@@ -14,13 +14,7 @@ export const PHONE_COUNTRIES: PhoneCountry[] = [
   { iso2: 'US', name: 'United States', dialCode: '+1', localDigits: 10, example: '555 123 4567' },
   { iso2: 'CA', name: 'Canada', dialCode: '+1', localDigits: 10, example: '416 555 0199' },
   { iso2: 'GB', name: 'United Kingdom', dialCode: '+44', localDigits: 10, example: '7400 123456' },
-  {
-    iso2: 'AE',
-    name: 'United Arab Emirates',
-    dialCode: '+971',
-    localDigits: 9,
-    example: '50 123 4567',
-  },
+  { iso2: 'AE', name: 'United Arab Emirates', dialCode: '+971', localDigits: 9, example: '50 123 4567' },
   { iso2: 'SG', name: 'Singapore', dialCode: '+65', localDigits: 8, example: '8123 4567' },
   { iso2: 'AU', name: 'Australia', dialCode: '+61', localDigits: 9, example: '412 345 678' },
   { iso2: 'DE', name: 'Germany', dialCode: '+49', localDigits: 10, example: '1512 345678' },
@@ -52,10 +46,7 @@ export function normalizePhoneNumber(value: string, country: PhoneCountry = DEFA
   return `${country.dialCode}${getLocalPhoneDigits(value, country)}`;
 }
 
-export function getPhoneNumberInputError(
-  value: string,
-  country: PhoneCountry = DEFAULT_PHONE_COUNTRY,
-) {
+export function getPhoneNumberInputError(value: string, country: PhoneCountry = DEFAULT_PHONE_COUNTRY) {
   const digits = getLocalPhoneDigits(value, country);
 
   if (!value.trim()) {

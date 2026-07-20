@@ -51,6 +51,17 @@ describe('eventsStore', () => {
   });
 
   describe('fetchEvents', () => {
+    it('reuses a fresh city result while allowing an explicit refresh', async () => {
+      mockApiFetch.mockResolvedValue({ items: [makeEvent()], nextCursor: null });
+
+      await useEventsStore.getState().fetchEvents('Mumbai');
+      await useEventsStore.getState().fetchEvents('mumbai');
+      expect(mockApiFetch).toHaveBeenCalledTimes(1);
+
+      await useEventsStore.getState().fetchEvents('Mumbai', undefined, true);
+      expect(mockApiFetch).toHaveBeenCalledTimes(2);
+    });
+
     it('fetches events and appends on pagination', async () => {
       mockApiFetch.mockResolvedValueOnce({
         items: [makeEvent({ id: 'evt_1', title: 'Event 1' })],

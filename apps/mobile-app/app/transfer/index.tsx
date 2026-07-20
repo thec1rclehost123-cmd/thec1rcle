@@ -21,7 +21,10 @@ import * as Haptics from 'expo-haptics';
 import { colors, typography } from '@/lib/design/theme';
 
 export default function TransferScreen() {
-  const { orderId, ticketName } = useLocalSearchParams<{ orderId?: string; ticketName?: string }>();
+  const { ticketId, ticketName } = useLocalSearchParams<{
+    ticketId?: string;
+    ticketName?: string;
+  }>();
   const { user } = useAuthStore();
   const { fetchUserOrders } = useTicketsStore();
   const openPaywall = useSubscriptionStore((state) => state.openPaywall);
@@ -30,14 +33,12 @@ export default function TransferScreen() {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [transferCode, setTransferCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [transferResult, setTransferResult] = useState<{ code: string; expiresAt?: string } | null>(
-    null,
-  );
+  const [transferResult, setTransferResult] = useState<{ code: string; expiresAt?: string } | null>(null);
 
   const handleInitiateTransfer = async () => {
     Keyboard.dismiss();
 
-    if (!orderId || !user?.uid || !recipientEmail.trim()) {
+    if (!ticketId || !user?.uid || !recipientEmail.trim()) {
       Alert.alert('Error', 'Please enter recipient email');
       return;
     }
@@ -46,7 +47,7 @@ export default function TransferScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const result = await initiateTransfer(
-      orderId,
+      ticketId,
       user.uid,
       { tierName: ticketName || 'Ticket', quantity: 1 },
       recipientEmail.trim(),
@@ -131,12 +132,8 @@ export default function TransferScreen() {
             <Text style={styles.codeText}>{transferResult.code}</Text>
             {transferResult.expiresAt ? (
               <Text style={styles.codeExpiry}>
-                Expires{' '}
-                {new Date(transferResult.expiresAt).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
+                Expires {new Date(transferResult.expiresAt).toLocaleDateString('en-US', {
+                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
                 })}
               </Text>
             ) : (
@@ -187,9 +184,7 @@ export default function TransferScreen() {
             onPress={() => setMode('receive')}
             style={[styles.modeButton, mode === 'receive' && styles.modeButtonActive]}
           >
-            <Text
-              style={[styles.modeButtonText, mode === 'receive' && styles.modeButtonTextActive]}
-            >
+            <Text style={[styles.modeButtonText, mode === 'receive' && styles.modeButtonTextActive]}>
               Receive Ticket
             </Text>
           </Pressable>

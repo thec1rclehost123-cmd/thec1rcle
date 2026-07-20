@@ -1,6 +1,7 @@
 // Typing Indicators Service via API Gateway
 import { AppState } from 'react-native';
 import { apiFetch } from '@/lib/api';
+import { wsManager, type WSMessage } from '@/lib/websocket';
 
 // Typing indicator data
 export interface TypingIndicator {
@@ -84,13 +85,31 @@ export function subscribeToGroupTyping(
   onTypingChange: (status: TypingStatus) => void,
 ): () => void {
   let active = true;
+  let clearTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const unsubscribeWS = wsManager.subscribe(`event-chat:${eventId}`, (message: WSMessage) => {
+    if (!active || message.type !== 'chat:typing') return;
+    const payload = message.payload as any;
+    if (payload.chatType !== 'group' || payload.chatId !== eventId) return;
+    if (payload.userId === currentUserId) return;
+    const users = payload.isTyping
+      ? [{ userId: String(payload.userId), userName: String(payload.userName || 'Attendee') }]
+      : [];
+    onTypingChange({ isTyping: users.length > 0, users });
+    if (clearTimer) clearTimeout(clearTimer);
+    if (users.length > 0) {
+      clearTimer = setTimeout(() => {
+        if (active) onTypingChange({ isTyping: false, users: [] });
+      }, TYPING_TIMEOUT + 1000);
+    }
+  });
 
   async function poll() {
     if (!active) return;
     if (AppState.currentState !== 'active') return;
     try {
       const response = await apiFetch<{ typers: TypingIndicator[] }>(
-        `/api/v1/social/typing/${eventId}`,
+        `/api/v1/social/typing/${eventId}?chatType=group`,
         {
           requireAuth: true,
         },
@@ -112,11 +131,15 @@ export function subscribeToGroupTyping(
     } catch (e) {}
   }
 
-  poll();
-  const intervalId = setInterval(poll, 4000); // 4s poll
+  if (!wsManager.isConnected) void poll();
+  const intervalId = setInterval(() => {
+    if (!wsManager.isConnected) void poll();
+  }, 10_000);
 
   return () => {
     active = false;
+    unsubscribeWS();
+    if (clearTimer) clearTimeout(clearTimer);
     clearInterval(intervalId);
   };
 }
@@ -128,13 +151,29 @@ export function subscribeToDMTyping(
   onTypingChange: (isTyping: boolean, userName?: string) => void,
 ): () => void {
   let active = true;
+  let clearTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const unsubscribeWS = wsManager.subscribe(`dm:${conversationId}`, (message: WSMessage) => {
+    if (!active || message.type !== 'chat:typing') return;
+    const payload = message.payload as any;
+    if (payload.chatType !== 'dm' || payload.chatId !== conversationId) return;
+    if (payload.userId === currentUserId) return;
+    const isTyping = payload.isTyping === true;
+    onTypingChange(isTyping, isTyping ? String(payload.userName || 'Attendee') : undefined);
+    if (clearTimer) clearTimeout(clearTimer);
+    if (isTyping) {
+      clearTimer = setTimeout(() => {
+        if (active) onTypingChange(false);
+      }, TYPING_TIMEOUT + 1000);
+    }
+  });
 
   async function poll() {
     if (!active) return;
     if (AppState.currentState !== 'active') return;
     try {
       const response = await apiFetch<{ typers: TypingIndicator[] }>(
-        `/api/v1/social/typing/${conversationId}`,
+        `/api/v1/social/typing/${conversationId}?chatType=dm`,
         {
           requireAuth: true,
         },
@@ -150,11 +189,15 @@ export function subscribeToDMTyping(
     } catch (e) {}
   }
 
-  poll();
-  const intervalId = setInterval(poll, 3000); // 3s poll for DMs (snappier)
+  if (!wsManager.isConnected) void poll();
+  const intervalId = setInterval(() => {
+    if (!wsManager.isConnected) void poll();
+  }, 10_000);
 
   return () => {
     active = false;
+    unsubscribeWS();
+    if (clearTimer) clearTimeout(clearTimer);
     clearInterval(intervalId);
   };
 }

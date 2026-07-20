@@ -8,7 +8,6 @@ import { flagPaymentFailure } from '@c1rcle/core/surge';
 // @ts-ignore
 import {
   calculateEffectiveInventory,
-  releaseReservation,
   InventoryReadError,
   InventoryUnavailableError,
   LockAcquisitionError,
@@ -121,6 +120,7 @@ const CheckoutInitiateBody = z
     userName: z.string().max(120).optional(),
     userEmail: z.string().email().max(254).optional(),
     userPhone: z.string().max(20).optional(),
+    hostUpdatesOptIn: z.boolean().optional(),
   })
   .strict();
 
@@ -173,12 +173,10 @@ async function enforceGenderRestriction(
     const profile = userDoc.exists ? userDoc.data() : null;
     const userGender = profile?.gender || null;
 
-    // Edge case: null/other/prefer_not_to_say users cannot buy gender-restricted tickets
-    if (!userGender || ['other', 'prefer_not_to_say'].includes(userGender.toLowerCase())) {
+    // Edge case: users with no gender set cannot buy gender-restricted tickets
+    if (!userGender) {
       const err = new Error(
-        !userGender
-          ? 'Please set your gender in profile settings before purchasing this ticket.'
-          : 'This ticket is restricted to specific genders. Update your gender in profile settings to continue.',
+        'Please set your gender in profile settings before purchasing this ticket.',
       );
       (err as any).statusCode = 403;
       (err as any).code = 'GENDER_UPDATE_REQUIRED';
@@ -211,7 +209,12 @@ async function buildCheckoutQuote(event: any, items: any[], pricing: any, db: an
   const tierConstraints = await Promise.all(
     tiers.map(async (tier: any) => {
       // Use the authoritative effective inventory — same source as reservation enforcement
-      const available = await calculateEffectiveInventory(tier, event, null, inventoryDb);
+      const available = await calculateEffectiveInventory(
+        tier,
+        event,
+        null,
+        inventoryDb || undefined,
+      );
       const isFree = Number(tier.basePrice ?? tier.price ?? 0) === 0;
       const perOrderLimit = isFree ? 1 : maxTickets;
 
@@ -289,19 +292,8 @@ function premiumRequiredResponse(request: any, reply: any, error: any) {
 }
 
 export default async function checkoutRoutes(fastify: FastifyInstance) {
-  fastify.addContentTypeParser(
-    'application/json',
-    { parseAs: 'buffer' },
-    (_req: any, body, done) => {
-      _req.rawBody = (body as Buffer).toString('utf8');
-      try {
-        done(null, JSON.parse(_req.rawBody));
-      } catch (err: any) {
-        done(err, undefined);
-      }
-    },
-  );
-
+  const requireVerifiedPhone =
+    (fastify as any).requireVerifiedPhone || (fastify as any).requireAuth;
   /**
    * Calculate server-side pricing (discounts, fees, grand total)
    * POST /checkout/calculate
@@ -398,6 +390,12 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           userId,
           subscriptionTier: subscriptionContext?.subscription?.tier || 'free',
           waiveBookingFees: subscriptionContext?.subscription?.isPremium === true,
+          promoValidator: async (
+            eventId: string,
+            code: string,
+            uid: string | null,
+            pricingItems: any[],
+          ) => validatePromoCode(eventId, code, uid, pricingItems),
         });
         const pricing = pricingResult?.pricing || pricingResult;
         const quote = await buildCheckoutQuote(event, items, pricing, fastify.db, fastify.redis);
@@ -511,7 +509,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/reserve',
     {
-      preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutReserveBody })],
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: CheckoutReserveBody })],
     },
     async (request: any, reply) => {
       const { eventId, items, deviceId, admissionToken } = request.body;
@@ -549,6 +547,12 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           result = await fastify.idempotencyService.executeOnce(idempotencyKey, userId, work);
           if (result.cached) return result.body;
         } else {
+          if (idempotencyKey) {
+            request.log.warn(
+              { idempotencyKey, route: request.routeOptions?.url },
+              'Idempotency key provided but idempotency service not configured',
+            );
+          }
           result = await work();
         }
 
@@ -565,6 +569,13 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
 
         return result;
       } catch (error: any) {
+        if (error.code === 'EVENT_NOT_PURCHASABLE') {
+          return reply.status(409).send({
+            success: false,
+            code: error.code,
+            error: error.message,
+          });
+        }
         if (error.statusCode === 403) {
           return reply.status(403).send({
             success: false,
@@ -596,7 +607,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/intent',
     {
-      preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutIntentBody })],
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: CheckoutIntentBody })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
@@ -635,6 +646,12 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           result = await fastify.idempotencyService.executeOnce(idempotencyKey, userId, work);
           if (result.cached) return result.body;
         } else {
+          if (idempotencyKey) {
+            request.log.warn(
+              { idempotencyKey, route: request.routeOptions?.url },
+              'Idempotency key provided but idempotency service not configured',
+            );
+          }
           result = await work();
         }
 
@@ -665,11 +682,26 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         if (isPremiumRequiredError(error)) {
           return premiumRequiredResponse(request, reply, error);
         }
+        if (error.code === 'EVENT_NOT_PURCHASABLE') {
+          return reply.status(409).send({
+            success: false,
+            code: error.code,
+            error: error.message,
+          });
+        }
         if (error.code === 'RATE_LIMITED') {
           reply.header('Retry-After', String(error.retryAfter ?? 60));
           return reply.status(429).send({
             success: false,
             error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
+          });
+        }
+
+        if (error.code === 'STALE_CART') {
+          return reply.status(409).send({
+            success: false,
+            code: 'STALE_CART',
+            error: 'Your cart changed. Review the latest price and availability before paying.',
           });
         }
 
@@ -803,7 +835,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
     '/checkout/verify',
     {
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutVerifyBody })],
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: CheckoutVerifyBody })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
@@ -811,20 +843,51 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         return reply.status(401).send({ success: false, error: 'Authentication required' });
       }
 
+      const idempotencyKey = request.headers['x-idempotency-key'] as string;
+
       try {
         await enforcePublicRateLimit(fastify, request, `checkout:verify:${userId}`, 10, 60);
 
-        const result = await verifyCheckoutPayment({
-          db: fastify.db,
-          userId,
-          razorpay_order_id: request.body.razorpay_order_id,
-          razorpay_payment_id: request.body.razorpay_payment_id,
-          razorpay_signature: request.body.razorpay_signature,
-          paymentGatewayConfig: {
-            keySecret: process.env.RAZORPAY_KEY_SECRET,
-            allowMockPayment: allowMockRazorpay(),
-          },
-        });
+        const work = async () => {
+          const verification = await verifyCheckoutPayment({
+            db: fastify.db,
+            userId,
+            razorpay_order_id: request.body.razorpay_order_id,
+            razorpay_payment_id: request.body.razorpay_payment_id,
+            razorpay_signature: request.body.razorpay_signature,
+            paymentGatewayConfig: {
+              keySecret: process.env.RAZORPAY_KEY_SECRET,
+              allowMockPayment: allowMockRazorpay(),
+            },
+          });
+
+          return {
+            success: true,
+            alreadyVerified: Boolean(verification.alreadyVerified),
+            order: verification.order,
+            tickets: verification.tickets,
+            ticketsCount: verification.ticketsCount,
+            razorpayOrderId: verification.razorpayOrderId,
+            razorpayPaymentId: verification.razorpayPaymentId,
+            chatUnlocked: verification.chatUnlocked,
+            chat: verification.chat,
+            redisReleased: verification.redisReleased,
+          };
+        };
+
+        let result: any;
+        if (idempotencyKey && fastify.idempotencyService?.executeOnce) {
+          result = await fastify.idempotencyService.executeOnce(idempotencyKey, userId, work);
+          if (result.cached) return result.body;
+        } else {
+          if (idempotencyKey) {
+            request.log.warn(
+              { idempotencyKey, route: request.routeOptions?.url },
+              'Idempotency key provided but idempotency service not configured',
+            );
+          }
+          result = await work();
+        }
 
         request.log.info(
           {
@@ -839,18 +902,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           'Checkout payment verified',
         );
 
-        return {
-          success: true,
-          alreadyVerified: Boolean(result.alreadyVerified),
-          order: result.order,
-          tickets: result.tickets,
-          ticketsCount: result.ticketsCount,
-          razorpayOrderId: result.razorpayOrderId,
-          razorpayPaymentId: result.razorpayPaymentId,
-          chatUnlocked: result.chatUnlocked,
-          chat: result.chat,
-          redisReleased: result.redisReleased,
-        };
+        return result;
       } catch (error: any) {
         if (isPremiumRequiredError(error)) {
           return premiumRequiredResponse(request, reply, error);
@@ -900,7 +952,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
     '/checkout/initiate',
     {
       config: { rateLimit: { max: 3, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutInitiateBody })],
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: CheckoutInitiateBody })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
@@ -943,6 +995,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             razorpay: {
               orderId: payment.razorpayOrderId,
               amount: payment.amount,
+              amountPaise: Math.round(Number(payment.amount || 0) * 100),
               currency: payment.currency,
               key: payment.key,
             },
@@ -954,6 +1007,12 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           finalResult = await fastify.idempotencyService.executeOnce(idempotencyKey, userId, work);
           if (finalResult.cached) return finalResult.body;
         } else {
+          if (idempotencyKey) {
+            request.log.warn(
+              { idempotencyKey, route: request.routeOptions?.url },
+              'Idempotency key provided but idempotency service not configured',
+            );
+          }
           finalResult = await work();
         }
 
@@ -1011,11 +1070,33 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         if (isPremiumRequiredError(error)) {
           return premiumRequiredResponse(request, reply, error);
         }
+        if (error.code === 'STALE_CART' || error.code === 'EVENT_NOT_PURCHASABLE') {
+          return reply.status(409).send({
+            success: false,
+            code: error.code,
+            error:
+              error.code === 'STALE_CART'
+                ? 'Your cart changed. Review the latest price and availability before paying.'
+                : error.message,
+          });
+        }
         if (error.code === 'RATE_LIMITED') {
           reply.header('Retry-After', String(error.retryAfter ?? 60));
           return reply.status(429).send({
             success: false,
             error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
+          });
+        }
+
+        if (
+          String(error?.message || '')
+            .toLowerCase()
+            .includes('reservation has expired')
+        ) {
+          return reply.status(409).send({
+            success: false,
+            code: 'RESERVATION_EXPIRED',
+            error: 'Your cart reservation has expired. Prices and availability may have changed.',
           });
         }
 
@@ -1043,7 +1124,6 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         }
 
         fastify.log.error(`Initiate checkout failed: ${error.message}`);
-        console.error('FULL ERROR STACK:', error.stack);
         return reply.status(500).send({ success: false, error: 'Internal server error' });
       }
     },
@@ -1093,7 +1173,8 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         const resDoc = await fastify.db.collection('cart_reservations').doc(reservationId).get();
         if (!resDoc.exists)
           return reply.status(404).send({ success: false, error: 'Reservation not found' });
-        if ((resDoc.data() as any).userId !== userId) {
+        const reservation = resDoc.data() as any;
+        if ((reservation.customerId || reservation.userId) !== userId) {
           fastify.log.warn(
             { uid: userId, reservationId, ip: request.ip },
             'SECURITY: Unauthorized cancel attempt on reservation',
@@ -1121,7 +1202,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         let result: any;
         if (reservationId) {
           // Release a cart reservation (user never paid — just free the held inventory)
-          await releaseReservation(reservationId);
+          await fastify.checkoutService.releaseReservation(reservationId);
           result = { success: true, message: 'Reservation released' };
         } else {
           // Cancel a confirmed order — fetch event, delegate to checkout service

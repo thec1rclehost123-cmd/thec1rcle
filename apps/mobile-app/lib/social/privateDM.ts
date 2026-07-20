@@ -7,6 +7,7 @@ import { PrivateConversation, DirectMessage } from './types';
 
 const MESSAGE_LIMIT_MAX = 50;
 const FALLBACK_POLL_INTERVAL_MS = 30_000;
+const INBOX_FALLBACK_POLL_INTERVAL_MS = 120_000;
 
 function clampMessageLimit(limit: number): number {
   return Math.max(1, Math.min(Number(limit) || MESSAGE_LIMIT_MAX, MESSAGE_LIMIT_MAX));
@@ -145,11 +146,12 @@ export async function sendDirectMessage(
   conversationId: string,
   senderId: string,
   content: string,
+  replyToId?: string,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     return await apiFetch(`/api/v1/social/dm/${conversationId}/send`, {
       method: 'POST',
-      body: JSON.stringify({ text: content }),
+      body: JSON.stringify({ text: content, replyToId }),
       requireAuth: true,
     });
   } catch (error: any) {
@@ -179,13 +181,15 @@ export function subscribeToDirectMessages(
   conversationId: string,
   onMessages: (messages: DirectMessage[]) => void,
   messageLimit: number = 50,
+  initialMessages: DirectMessage[] = [],
+  enablePolling: boolean = true,
 ): () => void {
   let active = true;
   let unsubscribeWS: (() => void) | null = null;
   let pollIntervalId: ReturnType<typeof setInterval> | null = null;
   let connectCheck: ReturnType<typeof setInterval> | null = null;
   const safeMessageLimit = clampMessageLimit(messageLimit);
-  let latestMessages: DirectMessage[] = [];
+  let latestMessages: DirectMessage[] = initialMessages.slice(-safeMessageLimit);
 
   function publishMessages(nextMessages: DirectMessage[]) {
     latestMessages = nextMessages.slice(-safeMessageLimit);
@@ -225,9 +229,8 @@ export function subscribeToDirectMessages(
     }, 10000);
   }
 
-  async function pollOnce() {
+  async function fetchHistory() {
     if (!active) return;
-    if (AppState.currentState !== 'active') return;
     try {
       const response = await apiFetch<{ messages: DirectMessage[] }>(
         `/api/v1/social/dm/${conversationId}/messages?limit=${safeMessageLimit}`,
@@ -236,7 +239,7 @@ export function subscribeToDirectMessages(
       if (active && response.messages) {
         publishMessages(
           mergeMessages(
-            [],
+            latestMessages,
             response.messages
               .map((message) => normalizeDirectMessage(message, conversationId))
               .filter((message): message is DirectMessage => Boolean(message)),
@@ -249,9 +252,26 @@ export function subscribeToDirectMessages(
     }
   }
 
-  pollOnce();
+  async function pollOnce() {
+    if (AppState.currentState !== 'active') return;
+    await fetchHistory();
+  }
+
+  // A socket only delivers messages created after subscription. Every full
+  // conversation must hydrate its authorized REST history once, then merge new
+  // socket messages by id. Inbox preview subscriptions pass enablePolling=false
+  // and keep avoiding one Firestore-backed request per conversation.
+  if (enablePolling && initialMessages.length === 0) {
+    void fetchHistory();
+  }
   const jitterMs = Math.random() * 10_000;
-  pollIntervalId = setInterval(pollOnce, FALLBACK_POLL_INTERVAL_MS + jitterMs);
+  const fallbackInterval =
+    safeMessageLimit === 1 ? INBOX_FALLBACK_POLL_INTERVAL_MS : FALLBACK_POLL_INTERVAL_MS;
+  if (enablePolling) {
+    pollIntervalId = setInterval(() => {
+      if (!wsManager.isConnected) void pollOnce();
+    }, fallbackInterval + jitterMs);
+  }
 
   return () => {
     active = false;
@@ -283,9 +303,10 @@ export async function getUserEventConversations(
 // Get saved contacts for a user
 export async function getSavedContacts(userId: string): Promise<any[]> {
   try {
-    const response = await apiFetch<{ contacts: any[] }>('/api/v1/social/contacts', {
-      requireAuth: true,
-    });
+    const response = await apiFetch<{ contacts: any[] }>(
+      '/api/v1/social/contacts',
+      { requireAuth: true },
+    );
     return response.contacts || [];
   } catch (error) {
     return [];

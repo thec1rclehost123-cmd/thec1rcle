@@ -4,7 +4,6 @@ import {
   Alert,
   ActionSheetIOS,
   Image,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import { ChatKeyboardAvoidingView } from '@/components/ui/ChatKeyboardAvoidingView';
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,7 +27,6 @@ import {
   BrightTextInput,
   BrightToolButton,
   BrightTypingIndicator,
-  SwipeableMessage,
   formatChatTime,
   type ChatSurfaceTheme,
 } from '@/components/chat/BrightChatSurface';
@@ -52,7 +51,7 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { useChatImagePicker } from '@/hooks/useChatImagePicker';
 import { PremiumBadgeDot } from '@/components/ui/PremiumBadge';
-import { MoreVertical, Flag, Ban, ImagePlus } from 'lucide-react-native';
+import { MoreVertical, ImagePlus, X } from 'lucide-react-native';
 
 const fonts = typography.fontFamily;
 
@@ -107,6 +106,7 @@ export default function DirectMessageScreen() {
   const [otherIsTyping, setOtherIsTyping] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
   const [sharedEvent, setSharedEvent] = useState<string | undefined>(undefined);
+  const [replyMessageId, setReplyMessageId] = useState<string | null>(null);
   const [hiddenMessageIds, setHiddenMessageIds] = useState<Set<string>>(() => new Set());
   const [likedMessageIds, setLikedMessageIds] = useState<Set<string>>(() => new Set());
   const [conversationError, setConversationError] = useState(false);
@@ -135,15 +135,11 @@ export default function DirectMessageScreen() {
       if (dateStr !== lastDateStr) {
         const today = new Date().toLocaleDateString();
         const yesterday = new Date(Date.now() - 86400000).toLocaleDateString();
-        let text: string;
+        let text = dateStr;
         if (dateStr === today) text = 'Today';
         else if (dateStr === yesterday) text = 'Yesterday';
         else {
-          text = d.toLocaleDateString(undefined, {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-          });
+          text = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
         }
         withDividers.push({ id: `divider-${dateStr}`, type: 'divider', text });
         lastDateStr = dateStr;
@@ -153,6 +149,11 @@ export default function DirectMessageScreen() {
     return withDividers;
   }, [hiddenMessageIds, messages, tempMessages]);
   const sortedMessages = useMemo(() => [...visibleMessages].reverse(), [visibleMessages]);
+
+  const replyMessage = useMemo(() => {
+    if (!replyMessageId) return null;
+    return messages.find((m) => m.id === replyMessageId) || null;
+  }, [replyMessageId, messages]);
 
   const typingHandler = useMemo(() => {
     if (conversationId && user?.uid) {
@@ -204,10 +205,17 @@ export default function DirectMessageScreen() {
       }
 
       fetchConversation();
+      let lastSeenMessageId: string | null = null;
       const unsubscribeMessages = subscribeToDirectMessages(conversationId, (nextMessages) => {
-        if (active) {
-          setMessages(nextMessages);
+        if (!active) return;
+        if (nextMessages.length > 0) {
+          const latestMsg = nextMessages[nextMessages.length - 1];
+          if (lastSeenMessageId && latestMsg.id !== lastSeenMessageId && latestMsg.senderId !== user!.uid) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          }
+          lastSeenMessageId = latestMsg.id;
         }
+        setMessages(nextMessages);
       });
       const unsubscribeTyping = subscribeToDMTyping(conversationId, user.uid, (isTyping, name) => {
         if (active) {
@@ -232,6 +240,7 @@ export default function DirectMessageScreen() {
     setInputText('');
     setSending(true);
     typingHandler.onBlur();
+    setDMTypingStatus(conversationId, user.uid, user.displayName || 'Guest', false).catch(console.error);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -244,11 +253,21 @@ export default function DirectMessageScreen() {
       createdAt: new Date().toISOString(),
       readAt: undefined,
       isDeleted: false,
+      replyTo: replyMessageId || undefined,
     };
     setTempMessages((current) => [...current, tempMsg]);
+    setReplyMessageId(null);
 
     try {
-      await sendDirectMessage(conversationId, senderId, content);
+      const result = await sendDirectMessage(
+        conversationId,
+        senderId,
+        content,
+        replyMessageId || undefined,
+      );
+      if (!result.success) {
+        throw new Error(result.error || 'Unable to send message.');
+      }
       setTempMessages((current) => current.filter((m) => m.id !== tempId));
     } catch (error: any) {
       setTempMessages((current) => current.filter((m) => m.id !== tempId));
@@ -446,69 +465,49 @@ export default function DirectMessageScreen() {
       if (item.type === 'divider') {
         return (
           <View style={[styles.flip, { alignItems: 'center', marginVertical: 16 }]}>
-            <View
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                paddingHorizontal: 12,
-                paddingVertical: 4,
-                borderRadius: 12,
-              }}
-            >
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600' }}>
-                {item.text}
-              </Text>
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600' }}>{item.text}</Text>
             </View>
           </View>
         );
       }
 
       const isOwnMessage = item.senderId === user?.uid;
-      const actions = isOwnMessage
-        ? [
-            {
-              label: 'Delete',
-              icon: <Ban size={14} color="#fff" />,
-              color: '#FF3B30',
-              onPress: () => hideMessageLocally(item.id),
-            },
-          ]
-        : [
-            {
-              label: 'Report',
-              icon: <Flag size={14} color="#fff" />,
-              color: '#FF6B4A',
-              onPress: () => handleReportMessage(item),
-            },
-          ];
 
       return (
         <View style={styles.flip}>
-          <SwipeableMessage actions={actions}>
-            <BrightMessage
-              content={item.content}
-              time={formatChatTime(item.createdAt)}
-              senderAvatar={avatarUrl}
-              type={item.type === 'image' ? 'image' : 'text'}
-              isOwnMessage={isOwnMessage}
-              index={index}
-              animate={index < 5}
-              isLiked={item.isLiked || likedMessageIds.has(item.id)}
-              onLongPress={() => handleMessageOptions(item)}
-              onDoubleTap={() => toggleMessageLikeLocally(item.id)}
-            />
-          </SwipeableMessage>
+          <BrightMessage
+            content={item.content}
+            time={formatChatTime(item.createdAt, 'en-IN')}
+            senderName={!isOwnMessage ? otherUserName : undefined}
+            senderAvatar={!isOwnMessage ? avatarUrl : undefined}
+            type={item.type}
+            isOwnMessage={isOwnMessage}
+            index={index}
+            animate={index < 5}
+            isLiked={item.isLiked || likedMessageIds.has(item.id)}
+            onLongPress={() => handleMessageOptions(item)}
+            onDoubleTap={() => toggleMessageLikeLocally(item.id)}
+            onSwipeReply={() => setReplyMessageId(item.id)}
+            replyContext={
+              item.replyTo
+                ? (() => {
+                    const repliedTo = messages.find((m) => m.id === item.replyTo);
+                    return repliedTo
+                      ? {
+                          type: repliedTo.type === 'image' ? 'photo' : 'prompt',
+                          title: repliedTo.senderId === user?.uid ? 'You' : otherUserName,
+                          answer: repliedTo.content,
+                        }
+                      : { type: 'prompt', title: 'Deleted message', answer: 'This message was deleted' };
+                  })()
+                : undefined
+            }
+          />
         </View>
       );
     },
-    [
-      avatarUrl,
-      handleMessageOptions,
-      toggleMessageLikeLocally,
-      likedMessageIds,
-      hideMessageLocally,
-      handleReportMessage,
-      user?.uid,
-    ],
+    [avatarUrl, handleMessageOptions, toggleMessageLikeLocally, likedMessageIds, hideMessageLocally, handleReportMessage, user?.uid, messages, otherUserName],
   );
 
   const messageListEmpty = useMemo(
@@ -540,7 +539,7 @@ export default function DirectMessageScreen() {
     );
   }
 
-  if (!conversation && conversationError) {
+  if (!loading && !conversation && conversationError) {
     return (
       <BrightChatSurface theme={theme}>
         <View style={styles.conversation}>
@@ -552,28 +551,16 @@ export default function DirectMessageScreen() {
                 else router.replace('/(tabs)/inbox');
               }}
             />
-            <View
-              style={[
-                styles.conversation,
-                { alignItems: 'center', justifyContent: 'center', padding: 24 },
-              ]}
-            >
+            <View style={[styles.conversation, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
               <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
                 Failed to load conversation
               </Text>
-              <Text
-                style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 16 }}
-              >
+              <Text style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 16 }}>
                 This conversation may not exist or you may not have access.
               </Text>
               <Pressable
                 onPress={() => router.back()}
-                style={{
-                  backgroundColor: colors.iris,
-                  paddingHorizontal: 24,
-                  paddingVertical: 12,
-                  borderRadius: 24,
-                }}
+                style={{ backgroundColor: colors.iris, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 }}
               >
                 <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
               </Pressable>
@@ -586,10 +573,7 @@ export default function DirectMessageScreen() {
 
   return (
     <BrightChatSurface theme={theme}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <ChatKeyboardAvoidingView style={{ flex: 1 }}>
         <SafeAreaView style={styles.conversation} edges={['top']}>
           <BrightChatHeader
             theme={theme}
@@ -652,7 +636,7 @@ export default function DirectMessageScreen() {
             style={styles.messagesFlipped}
             contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
-            onScroll={(e: any) => {
+            onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
               const y = e.nativeEvent.contentOffset.y;
               if (y > 40 && !isScrolled) setIsScrolled(true);
               else if (y <= 40 && isScrolled) setIsScrolled(false);
@@ -672,6 +656,21 @@ export default function DirectMessageScreen() {
 
         {isAccepted ? (
           <SafeAreaView edges={['bottom']}>
+            {replyMessage ? (
+              <View style={{ paddingHorizontal: 16, paddingBottom: 8, paddingTop: 4 }}>
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', padding: 10, borderRadius: 12, borderLeftWidth: 3, borderLeftColor: colors.iris, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 'bold', marginBottom: 2 }}>
+                      Replying to {replyMessage.senderId === user?.uid ? 'You' : otherUserName}
+                    </Text>
+                    <Text style={{ color: '#fff', fontSize: 14 }} numberOfLines={1}>{replyMessage.content}</Text>
+                  </View>
+                  <Pressable onPress={() => setReplyMessageId(null)} style={{ padding: 4 }}>
+                    <X size={16} color="rgba(255,255,255,0.5)" />
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
             <BrightComposerDock>
               <BrightTextInput
                 value={inputText}
@@ -684,40 +683,7 @@ export default function DirectMessageScreen() {
                 multiline
                 maxLength={500}
               />
-              <BrightToolButton
-                onPress={async () => {
-                  if (!conversationId || !user?.uid) return;
-                  if (!checkRateLimit()) return;
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  const url = await pickAndUpload();
-                  if (url) {
-                    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-                    const tempMsg: DirectMessage = {
-                      id: tempId,
-                      conversationId,
-                      senderId: user.uid,
-                      content: url,
-                      type: 'image',
-                      createdAt: new Date().toISOString(),
-                      readAt: undefined,
-                      isDeleted: false,
-                    };
-                    setTempMessages((current) => [...current, tempMsg]);
-                    const result = await sendDirectImageMessage(conversationId, user.uid, url);
-                    setTempMessages((current) => current.filter((m) => m.id !== tempId));
-                    if (!result.success) {
-                      Alert.alert('Error', result.error || 'Failed to send image');
-                    }
-                  }
-                }}
-                disabled={imageUploading || !canSend}
-              >
-                {imageUploading ? (
-                  <ActivityIndicator size="small" color={colors.iris} />
-                ) : (
-                  <ImagePlus size={19} color={colors.iris} />
-                )}
-              </BrightToolButton>
+
               <BrightSendButton
                 onPress={handleSend}
                 disabled={!inputText.trim() || sending || !canSend}
@@ -727,7 +693,7 @@ export default function DirectMessageScreen() {
             </BrightComposerDock>
           </SafeAreaView>
         ) : null}
-      </KeyboardAvoidingView>
+      </ChatKeyboardAvoidingView>
     </BrightChatSurface>
   );
 }

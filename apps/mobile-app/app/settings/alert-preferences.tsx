@@ -94,6 +94,7 @@ export default function AlertPreferencesScreen() {
             ) : null}
           </Pressable>
         </SettingsGroup>
+
       </DittoSettingsScreen>
     </View>
   );
@@ -192,4 +193,5 @@ const styles = StyleSheet.create({
     transform: [{ scaleX: 0.78 }, { scaleY: 0.78 }],
     marginRight: -8,
   },
+
 });

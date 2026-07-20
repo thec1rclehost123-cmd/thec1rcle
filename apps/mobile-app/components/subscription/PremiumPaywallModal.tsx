@@ -3,7 +3,7 @@ import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'rea
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Crown, Sparkles, X, Lock, RefreshCw } from 'lucide-react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import Purchases, { type PurchasesPackage } from 'react-native-purchases';
 import { colors, radii, spacing } from '@/lib/design/theme';
@@ -91,9 +91,9 @@ export function PremiumPaywallModal() {
 
   const sheetAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateY: withSpring(slideUp.value === 0 ? 300 : 0, { damping: 28, stiffness: 260 }) },
+      { translateY: withTiming(slideUp.value === 0 ? 300 : 0, { duration: 250 }) },
     ],
-    opacity: withSpring(slideUp.value === 0 ? 0 : 1, { damping: 28, stiffness: 260 }),
+    opacity: withTiming(slideUp.value === 0 ? 0 : 1, { duration: 250 }),
   }));
 
   const loadOfferings = useCallback(async () => {
@@ -121,7 +121,7 @@ export function PremiumPaywallModal() {
     setError(null);
     setOfferings([]);
     setLoadFailed(false);
-    slideUp.value = withSpring(1, { damping: 28, stiffness: 260 });
+    slideUp.value = withTiming(1, { duration: 250 });
     loadOfferings();
   }, [paywall.visible]);
 

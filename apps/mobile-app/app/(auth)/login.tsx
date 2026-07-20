@@ -4,35 +4,30 @@ import {
   Text,
   TextInput,
   Pressable,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  StyleSheet,
   Animated,
   Keyboard,
   AppState,
-  ScrollView,
   InteractionManager,
+  Platform,
+  ActivityIndicator,
+  StyleSheet,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Eye, EyeOff, Mail, Phone } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { Image } from 'expo-image';
+import { useReducedMotion } from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/store/authStore';
 import Svg, { Path } from 'react-native-svg';
 import { colors } from '@/lib/design/theme';
-import { CountryCodePicker } from '@/components/ui/CountryCodePicker';
-import {
-  DEFAULT_PHONE_COUNTRY,
-  getLocalPhoneDigits,
-  getPhoneNumberInputError,
-  normalizePhoneNumber,
-  type PhoneCountry,
-} from '@/lib/phone';
+import { trackFirstRun } from '@/lib/firstRunAnalytics';
+import { finishFirstRunMetric, startFirstRunMetric } from '@/lib/firstRunPerformance';
 
 function GoogleSvg({ size = 18 }: { size?: number }) {
   return (
@@ -58,20 +53,19 @@ function GoogleSvg({ size = 18 }: { size?: number }) {
 }
 
 export default function LoginScreen() {
+  const reducedMotion = useReducedMotion();
   const params = useLocalSearchParams<{ returnTo?: string }>();
+  const authenticatedUserId = useAuthStore((state) => state.user?.uid);
+  const serverSynced = useAuthStore((state) => state.serverSynced);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
-  const [phone, setPhone] = useState('');
-  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
-  const [showPhoneForm, setShowPhoneForm] = useState(false);
   const emailInputRef = useRef<TextInput>(null);
-  const phoneInputRef = useRef<TextInput>(null);
+  const authNavigationStarted = useRef(false);
 
-  const { login, loginApple, loginGoogle, sendPhoneCode, loading, error, setError, clearError } =
-    useAuth();
-  const insets = useSafeAreaInsets();
+  const { login, loginApple, loginGoogle, loading, error, setError, clearError } = useAuth();
+
 
   // Animated values for staggered layout slide & fade-in
   const fadeLogo = useRef(new Animated.Value(1)).current;
@@ -96,11 +90,18 @@ export default function LoginScreen() {
   const player = useVideoPlayer(require('../../assets/background-video.mp4'), (player) => {
     player.loop = true;
     player.muted = true;
-    player.play();
+    if (!reducedMotion) player.play();
   });
 
   useEffect(() => {
+    finishFirstRunMetric('app_launch_to_login');
+    trackFirstRun('first_run_login_viewed', { stage: 'login' });
+    if (!reducedMotion) startFirstRunMetric('login_video_first_frame');
+  }, []);
+
+  useEffect(() => {
     const resumeVideo = () => {
+      if (reducedMotion) return;
       try {
         player.play();
       } catch {
@@ -121,7 +122,7 @@ export default function LoginScreen() {
         // Ignore native crash during Fast Refresh when player is already released
       }
     };
-  }, [player]);
+  }, [player, reducedMotion]);
 
   useEffect(() => {
     // Staggered layout mount animation
@@ -150,85 +151,61 @@ export default function LoginScreen() {
   }, []);
 
   useEffect(() => {
-    if (!showEmailForm && !showPhoneForm) return;
+    if (!showEmailForm) return;
 
     const focusTask = InteractionManager.runAfterInteractions(() => {
-      const input = showPhoneForm ? phoneInputRef.current : emailInputRef.current;
-      input?.focus();
+      emailInputRef.current?.focus();
     });
 
     return () => focusTask.cancel();
-  }, [showEmailForm, showPhoneForm]);
+  }, [showEmailForm]);
 
   const [verificationSent, setVerificationSent] = useState(false);
-  const isAuthFormOpen = showEmailForm || showPhoneForm;
-  const returnTo =
-    typeof params.returnTo === 'string' && params.returnTo.startsWith('/') ? params.returnTo : '/';
+  const isAuthFormOpen = showEmailForm;
+  const returnTo = typeof params.returnTo === 'string' && params.returnTo.startsWith('/')
+    ? params.returnTo
+    : '/';
 
   const finishAuthNavigation = () => {
+    if (authNavigationStarted.current) return;
+    authNavigationStarted.current = true;
     if (router.canDismiss()) router.dismissAll();
     router.replace(returnTo as any);
   };
 
+  useEffect(() => {
+    if (!authenticatedUserId || !serverSynced || loading) return;
+    finishAuthNavigation();
+  }, [authenticatedUserId, loading, serverSynced]);
+
   const handleLogin = async () => {
     Keyboard.dismiss();
     const trimmedEmail = email.trim();
-    if (!trimmedEmail) {
-      setError('Please enter your email');
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setError('Please enter a valid email address');
-      return;
-    }
-    if (!password) {
-      setError('Please enter your password');
-      return;
-    }
+    if (!trimmedEmail) { setError('Please enter your email'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) { setError('Please enter a valid email address'); return; }
+    if (!password) { setError('Please enter your password'); return; }
+    trackFirstRun('first_run_auth_started', { provider: 'email', mode: 'sign_in' });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const result = await login(trimmedEmail, password);
     if (result.success) {
+      trackFirstRun('first_run_auth_succeeded', { provider: 'email', mode: 'sign_in', outcome: 'success' });
       if ((result as any).action === 'signup_verification_sent') {
         setVerificationSent(true);
       } else {
         finishAuthNavigation();
       }
-    }
-  };
-
-  const handlePhoneSubmit = async () => {
-    Keyboard.dismiss();
-    setError(null);
-    clearError();
-
-    const inputError = getPhoneNumberInputError(phone, phoneCountry);
-    if (inputError) {
-      setError(inputError);
-      return;
-    }
-
-    const phoneNumber = normalizePhoneNumber(phone, phoneCountry);
-    const result = await sendPhoneCode(phoneNumber);
-    if (result.success && result.verificationId) {
-      router.push({
-        pathname: '/(auth)/otp',
-        params: { verificationId: result.verificationId, phoneNumber, returnTo },
-      });
-    }
-  };
-
-  const handleCountrySelect = (country: PhoneCountry) => {
-    setPhoneCountry(country);
-    setPhone((current) => getLocalPhoneDigits(current, country).slice(0, country.localDigits));
-    setError(null);
-    clearError();
+    } else trackFirstRun('first_run_auth_failed', { provider: 'email', mode: 'sign_in', outcome: 'failure', reason_code: 'provider_error' });
   };
 
   const handleApple = async () => {
+    trackFirstRun('first_run_auth_started', { provider: 'apple', mode: 'sign_in' });
     const result = await loginApple();
     if (result.success) {
+      trackFirstRun('first_run_auth_succeeded', { provider: 'apple', mode: 'sign_in', outcome: 'success' });
       finishAuthNavigation();
+      return;
     }
+    trackFirstRun('first_run_auth_failed', { provider: 'apple', mode: 'sign_in', outcome: result.error ? 'failure' : 'cancelled', reason_code: result.error ? 'provider_error' : undefined });
     if ((result as any).requiresPasswordLink && (result as any).email) {
       setEmail((result as any).email);
       setPassword('');
@@ -237,10 +214,14 @@ export default function LoginScreen() {
   };
 
   const handleGoogle = async () => {
+    trackFirstRun('first_run_auth_started', { provider: 'google', mode: 'sign_in' });
     const result = await loginGoogle();
     if (result.success) {
+      trackFirstRun('first_run_auth_succeeded', { provider: 'google', mode: 'sign_in', outcome: 'success' });
       finishAuthNavigation();
+      return;
     }
+    trackFirstRun('first_run_auth_failed', { provider: 'google', mode: 'sign_in', outcome: result.error ? 'failure' : 'cancelled', reason_code: result.error ? 'provider_error' : undefined });
     if ((result as any).requiresPasswordLink && (result as any).email) {
       setEmail((result as any).email);
       setPassword('');
@@ -249,13 +230,14 @@ export default function LoginScreen() {
   };
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !loading;
-  const phoneDigits = getLocalPhoneDigits(phone, phoneCountry);
 
   return (
     <View style={s.container}>
-      {player && (
+      <Image source={require('../../assets/09f5dd049312a8bf3c50ea656e1a203b.jpg')} style={StyleSheet.absoluteFillObject} contentFit="cover" accessibilityIgnoresInvertColors />
+      {player && !reducedMotion && (
         <VideoView
           player={player}
+          onFirstFrameRender={() => finishFirstRunMetric('login_video_first_frame')}
           style={[StyleSheet.absoluteFillObject, { top: -140 }]}
           contentFit="cover"
           nativeControls={false}
@@ -272,287 +254,192 @@ export default function LoginScreen() {
       />
 
       <SafeAreaView style={s.safeArea}>
-        <View style={[s.skipRow, { top: insets.top > 0 ? insets.top : 20 }]}>
-          <Pressable
-            onPress={() => {
-              useAuthStore.getState().setGuestMode(true);
-              router.replace('/(tabs)/explore');
-            }}
-          >
-            <Text style={s.skipText}>Skip</Text>
-          </Pressable>
-        </View>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+
+        <KeyboardAwareScrollView
           style={s.kav}
+          contentContainerStyle={s.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          enableOnAndroid={true}
+          extraScrollHeight={20}
         >
-          <ScrollView
-            contentContainerStyle={s.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            bounces={false}
-          >
-            <View style={s.content}>
+          <View style={s.content}>
               {/* Header Section */}
-              <Animated.View
-                style={[
-                  s.header,
-                  isAuthFormOpen && s.headerCompact,
-                  { opacity: fadeLogo, transform: [{ translateY: slideLogo }] },
-                ]}
-              >
-                <Text style={s.title}>THEC1RCLE</Text>
-                <Text style={s.tagline}>Nightlife, sorted.</Text>
-              </Animated.View>
+            <Animated.View
+              style={[
+                s.header,
+                isAuthFormOpen && s.headerCompact,
+                { opacity: fadeLogo, transform: [{ translateY: slideLogo }] },
+              ]}
+            >
+              <Text style={s.title}>THEC1RCLE</Text>
+              <Text style={s.tagline}>Nightlife, sorted.</Text>
+            </Animated.View>
 
-              {/* Error box */}
-              {error ? (
-                <View style={s.errorBox}>
-                  <Text style={s.errorText}>{error}</Text>
+            {/* Error box */}
+            {error ? (
+              <View style={s.errorBox}>
+                <Text style={s.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            {/* Buttons / Form */}
+            {verificationSent ? (
+              <View style={s.form}>
+                <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                  <Mail size={48} color="#ffffff" style={{ opacity: 0.8, marginBottom: 16 }} />
+                  <Text style={{ color: '#fff', fontSize: 24, fontWeight: '700', marginBottom: 8 }}>Check your email</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, textAlign: 'center', lineHeight: 22 }}>
+                    We couldn't find an account for <Text style={{ fontWeight: '600', color: '#fff' }}>{email}</Text>, so we're creating one for you!
+                  </Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, textAlign: 'center', marginTop: 12, lineHeight: 22 }}>
+                    Click the secure link we just sent you to verify your email and finish setting up your account.
+                  </Text>
                 </View>
-              ) : null}
-
-              {/* Buttons / Form */}
-              {verificationSent ? (
-                <View style={s.form}>
-                  <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                    <Mail size={48} color="#ffffff" style={{ opacity: 0.8, marginBottom: 16 }} />
-                    <Text
-                      style={{ color: '#fff', fontSize: 24, fontWeight: '700', marginBottom: 8 }}
-                    >
-                      Check your email
-                    </Text>
-                    <Text
-                      style={{
-                        color: 'rgba(255,255,255,0.7)',
-                        fontSize: 16,
-                        textAlign: 'center',
-                        lineHeight: 22,
-                      }}
-                    >
-                      We couldn't find an account for{' '}
-                      <Text style={{ fontWeight: '600', color: '#fff' }}>{email}</Text>, so we're
-                      creating one for you!
-                    </Text>
-                    <Text
-                      style={{
-                        color: 'rgba(255,255,255,0.7)',
-                        fontSize: 16,
-                        textAlign: 'center',
-                        marginTop: 12,
-                        lineHeight: 22,
-                      }}
-                    >
-                      Click the secure link we just sent you to verify your email and finish setting
-                      up your account.
-                    </Text>
-                  </View>
-                  <Pressable onPress={() => setVerificationSent(false)} style={s.backBtn}>
-                    <Text style={s.backText}>Back to Login</Text>
-                  </Pressable>
-                </View>
-              ) : !showEmailForm && !showPhoneForm ? (
-                <View style={s.buttonGroup}>
-                  {Platform.OS === 'ios' && (
-                    <Animated.View
-                      style={{ opacity: fadeApple, transform: [{ translateY: slideApple }] }}
-                      pointerEvents={loading ? 'none' : 'auto'}
-                    >
-                      <AppleAuthentication.AppleAuthenticationButton
-                        buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-                        buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-                        cornerRadius={8}
-                        style={s.appleAuthButton}
-                        onPress={handleApple}
-                      />
-                    </Animated.View>
-                  )}
-
-                  <Animated.View
-                    style={{ opacity: fadeGoogle, transform: [{ translateY: slideGoogle }] }}
-                  >
-                    <Pressable style={s.googleBtn} onPress={handleGoogle} disabled={loading}>
-                      <View style={s.btnIcon}>
-                        <GoogleSvg size={18} />
-                      </View>
-                      <Text style={s.googleBtnText}>Continue with Google</Text>
-                    </Pressable>
-                  </Animated.View>
-
-                  <Animated.View
-                    style={{ opacity: fadeEmail, transform: [{ translateY: slideEmail }] }}
-                  >
-                    <Pressable
-                      style={s.emailBtn}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setShowPhoneForm(true);
-                      }}
-                      disabled={loading}
-                    >
-                      <View style={s.btnIcon}>
-                        <Phone size={16} color="#ffffff" />
-                      </View>
-                      <Text style={s.emailBtnText}>Continue with Phone</Text>
-                    </Pressable>
-                  </Animated.View>
-
-                  <Animated.View
-                    style={{ opacity: fadeEmail, transform: [{ translateY: slideEmail }] }}
-                  >
-                    <Pressable
-                      style={s.emailBtn}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setShowEmailForm(true);
-                      }}
-                      disabled={loading}
-                    >
-                      <View style={s.btnIcon}>
-                        <Mail size={16} color="#ffffff" />
-                      </View>
-                      <Text style={s.emailBtnText}>Continue with Email</Text>
-                    </Pressable>
-                  </Animated.View>
-                </View>
-              ) : showPhoneForm ? (
-                <Animated.View
-                  style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}
+                <Pressable
+                  onPress={() => setVerificationSent(false)}
+                  style={s.backBtn}
                 >
-                  <View style={s.phoneInputRow}>
-                    <CountryCodePicker
-                      selectedCountry={phoneCountry}
-                      onSelect={handleCountrySelect}
-                    />
-                    <TextInput
-                      ref={phoneInputRef}
-                      style={[s.input, s.phoneNumberInput]}
-                      placeholder={phoneCountry.example}
-                      placeholderTextColor="rgba(255,255,255,0.4)"
-                      keyboardType="number-pad"
-                      autoComplete="tel"
-                      autoFocus
-                      maxLength={phoneCountry.localDigits}
-                      value={phone}
-                      onChangeText={(t) => {
-                        setPhone(t.replace(/\D/g, '').slice(0, phoneCountry.localDigits));
-                        clearError();
-                      }}
-                    />
-                  </View>
-
-                  <Pressable
-                    onPress={handlePhoneSubmit}
-                    disabled={loading || phoneDigits.length < phoneCountry.localDigits}
-                    style={[
-                      s.submitBtn,
-                      (loading || phoneDigits.length < phoneCountry.localDigits) &&
-                        s.submitBtnDisabled,
-                    ]}
+                  <Text style={s.backText}>Back to Login</Text>
+                </Pressable>
+              </View>
+            ) : !showEmailForm ? (
+              <View style={s.buttonGroup}>
+                {Platform.OS === 'ios' && (
+                  <Animated.View
+                    style={{ opacity: fadeApple, transform: [{ translateY: slideApple }] }}
+                    pointerEvents={loading ? 'none' : 'auto'}
                   >
-                    {loading ? (
-                      <ActivityIndicator color="#000" />
-                    ) : (
-                      <Text style={s.submitBtnText}>Send OTP</Text>
-                    )}
-                  </Pressable>
+                    <AppleAuthentication.AppleAuthenticationButton
+                      buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                      buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                      cornerRadius={8}
+                      style={s.appleAuthButton}
+                      onPress={handleApple}
+                    />
+                  </Animated.View>
+                )}
 
-                  <Pressable
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setShowPhoneForm(false);
-                    }}
-                    style={s.backBtn}
-                  >
-                    <Text style={s.backText}>Use another method</Text>
+                <Animated.View
+                  style={{ opacity: fadeGoogle, transform: [{ translateY: slideGoogle }] }}
+                >
+                  <Pressable style={s.googleBtn} onPress={handleGoogle} disabled={loading}>
+                    <View style={s.btnIcon}>
+                      <GoogleSvg size={18} />
+                    </View>
+                    <Text style={s.googleBtnText}>Continue with Google</Text>
                   </Pressable>
                 </Animated.View>
-              ) : showEmailForm ? (
+
                 <Animated.View
-                  style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}
+                  style={{ opacity: fadeEmail, transform: [{ translateY: slideEmail }] }}
                 >
+                  <Pressable
+                    style={s.emailBtn}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push({ pathname: '/(auth)/phone', params: { mode: 'sign_in', returnTo } });
+                    }}
+                    disabled={loading}
+                  >
+                    <View style={s.btnIcon}>
+                      <Phone size={16} color="#ffffff" />
+                    </View>
+                    <Text style={s.emailBtnText}>Continue with Phone</Text>
+                  </Pressable>
+                </Animated.View>
+
+                <Animated.View
+                  style={{ opacity: fadeFooter, transform: [{ translateY: slideFooter }] }}
+                >
+                  <Pressable
+                    style={s.guestBtn}
+                    onPress={() => {
+                      trackFirstRun('first_run_auth_succeeded', { provider: 'guest', mode: 'sign_in', outcome: 'skipped' });
+                      useAuthStore.getState().setGuestMode(true);
+                      router.replace('/(tabs)/explore');
+                    }}
+                    disabled={loading}
+                  >
+                    <Text style={s.guestBtnText}>Explore as Guest</Text>
+                  </Pressable>
+                </Animated.View>
+              </View>
+            ) : (
+              <Animated.View style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}>
+                <Text style={s.recoveryTitle}>Confirm your existing account</Text>
+                <Text style={s.recoveryCopy}>Enter the password for {email}. We’ll securely connect it to the provider you just chose.</Text>
+                <TextInput
+                  style={s.input}
+                  value={email}
+                  editable={false}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
+                <View style={s.passwordContainer}>
                   <TextInput
                     ref={emailInputRef}
-                    style={s.input}
-                    placeholder="Email"
+                    style={[s.input, { paddingRight: 52 }]}
+                    value={password}
+                    onChangeText={(value) => { setPassword(value); clearError(); }}
+                    placeholder="Password"
                     placeholderTextColor="rgba(255,255,255,0.4)"
-                    keyboardType="email-address"
+                    secureTextEntry={!showPassword}
                     autoCapitalize="none"
-                    autoCorrect={false}
-                    autoFocus
-                    value={email}
-                    onChangeText={(t) => {
-                      setEmail(t);
-                      clearError();
-                    }}
+                    autoComplete="current-password"
                   />
-
-                  <View style={s.passwordContainer}>
-                    <TextInput
-                      style={[s.input, { paddingRight: 48 }]}
-                      placeholder="Password"
-                      placeholderTextColor="rgba(255,255,255,0.4)"
-                      secureTextEntry={!showPassword}
-                      value={password}
-                      onChangeText={(t) => {
-                        setPassword(t);
-                        clearError();
-                      }}
-                    />
-                    <Pressable onPress={() => setShowPassword((v) => !v)} style={s.eyeIcon}>
-                      {showPassword ? (
-                        <EyeOff size={18} color="rgba(255,255,255,0.6)" />
-                      ) : (
-                        <Eye size={18} color="rgba(255,255,255,0.6)" />
-                      )}
-                    </Pressable>
-                  </View>
-
-                  <Pressable
-                    onPress={handleLogin}
-                    disabled={!canSubmit}
-                    style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#000" />
-                    ) : (
-                      <Text style={s.submitBtnText}>Sign In</Text>
-                    )}
+                  <Pressable onPress={() => setShowPassword((value) => !value)} style={s.eyeIcon} accessibilityRole="button" accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}>
+                    {showPassword ? <EyeOff size={20} color="rgba(255,255,255,0.7)" /> : <Eye size={20} color="rgba(255,255,255,0.7)" />}
                   </Pressable>
-
-                  <Pressable
-                    onPress={() => router.push('/(auth)/forgot-password')}
-                    style={s.forgotBtn}
-                  >
-                    <Text style={s.forgotText}>Forgot Password?</Text>
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setShowEmailForm(false);
-                    }}
-                    style={s.backBtn}
-                  >
-                    <Text style={s.backText}>Use another method</Text>
-                  </Pressable>
-                </Animated.View>
-              ) : null}
-
-              {/* Staggered Footer & Request Access / Legal text */}
-              <Animated.View
-                style={[
-                  s.footerContainer,
-                  { opacity: fadeFooter, transform: [{ translateY: slideFooter }] },
-                ]}
-              >
-                <View style={s.footerSubContainer}>
-                  {/* Removed Signup link since auth is now unified */}
                 </View>
+
+                <Pressable
+                  onPress={() => void handleLogin()}
+                  disabled={!canSubmit}
+                  style={[
+                    s.submitBtn,
+                    !canSubmit && s.submitBtnDisabled,
+                  ]}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#000" />
+                  ) : (
+                    <Text style={s.submitBtnText}>Connect account</Text>
+                  )}
+                </Pressable>
+
+                <Pressable onPress={() => router.push('/(auth)/forgot-password')} style={s.forgotBtn}>
+                  <Text style={s.forgotText}>Forgot password?</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowEmailForm(false);
+                    setPassword('');
+                    clearError();
+                  }}
+                  style={s.backBtn}
+                >
+                  <Text style={s.backText}>Use another method</Text>
+                </Pressable>
               </Animated.View>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+            )}
+
+            {/* Staggered Footer & Request Access / Legal text */}
+            <Animated.View
+              style={[
+                s.footerContainer,
+                { opacity: fadeFooter, transform: [{ translateY: slideFooter }] },
+              ]}
+            >
+              <View style={s.footerSubContainer}>
+                {/* Removed Signup link since auth is now unified */}
+              </View>
+            </Animated.View>
+          </View>
+          </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );
@@ -566,34 +453,28 @@ const s = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  skipRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    zIndex: 10,
+  guestBtn: {
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
   },
-  skipText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 15,
+  guestBtnText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
     fontWeight: '600',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
   },
   kav: {
     flex: 1,
-    justifyContent: 'flex-end',
   },
   scrollContent: {
     flexGrow: 1,
+    justifyContent: 'flex-end',
   },
   content: {
     paddingHorizontal: 24,
     paddingBottom: 20,
-    paddingTop: 50, // Space for the absolute Skip button
+    paddingTop: 20,
     flex: 1,
   },
   header: {
@@ -712,15 +593,8 @@ const s = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  phoneInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    width: '100%',
-  },
-  phoneNumberInput: {
-    flex: 1,
-  },
+  recoveryTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800' },
+  recoveryCopy: { color: 'rgba(255,255,255,0.68)', fontSize: 14, lineHeight: 20, marginBottom: 4 },
   passwordContainer: {
     position: 'relative',
     justifyContent: 'center',

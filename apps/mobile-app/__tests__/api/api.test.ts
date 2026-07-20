@@ -17,6 +17,7 @@ import { getFirebaseAuth } from '../../lib/firebase';
 import {
   apiFetch,
   API_BASE,
+  deduplicateRequest,
   getAuthToken,
   syncAuthSession,
   reserveTickets,
@@ -69,6 +70,24 @@ describe('api', () => {
       expect(call[0]).toContain('/api/v1/test');
       expect(call[1]?.headers).toMatchObject({
         Authorization: 'Bearer mock-token',
+      });
+      expect(call[1]?.headers).not.toHaveProperty('Content-Type');
+    });
+
+    it('does not label a bodyless POST as JSON', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ data: 'ok' }));
+
+      await apiFetch('/api/v1/test', { method: 'POST' });
+
+      expect(fetchMock.mock.calls[0][1]?.headers).not.toHaveProperty('Content-Type');
+    });
+
+    it('labels a JSON request body as JSON', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ data: 'ok' }));
+
+      await apiFetch('/api/v1/test', { method: 'POST', body: JSON.stringify({}) });
+
+      expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject({
         'Content-Type': 'application/json',
       });
     });
@@ -119,6 +138,33 @@ describe('api', () => {
       }
 
       jest.useRealTimers();
+    });
+  });
+
+  describe('deduplicateRequest', () => {
+    it('shares one in-flight request and releases the key after settlement', async () => {
+      let resolveRequest!: (value: string) => void;
+      const fetcher = jest.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveRequest = resolve;
+          }),
+      );
+
+      const first = deduplicateRequest('tickets:cover-charge-wallet:user_1', fetcher);
+      const second = deduplicateRequest('tickets:cover-charge-wallet:user_1', fetcher);
+
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(second).toBe(first);
+
+      resolveRequest('wallet');
+      await expect(Promise.all([first, second])).resolves.toEqual(['wallet', 'wallet']);
+
+      const thirdFetcher = jest.fn(async () => 'refreshed-wallet');
+      await expect(
+        deduplicateRequest('tickets:cover-charge-wallet:user_1', thirdFetcher),
+      ).resolves.toBe('refreshed-wallet');
+      expect(thirdFetcher).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -204,6 +250,14 @@ describe('api', () => {
       await fetchEvents({ category: 'music', city: 'mumbai', limit: 10 });
       expect(fetchMock.mock.calls[0][0]).toContain('category=music');
       expect(fetchMock.mock.calls[0][0]).toContain('city=mumbai');
+    });
+
+    it('fetchPublicVenues sends the selected city to discovery', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ items: [] }));
+      await fetchPublicVenues({ city: 'Pune', limit: 24 });
+      expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/public/venues?');
+      expect(fetchMock.mock.calls[0][0]).toContain('city=Pune');
+      expect(fetchMock.mock.calls[0][0]).toContain('limit=24');
     });
 
     it('searchEvents encodes query', async () => {

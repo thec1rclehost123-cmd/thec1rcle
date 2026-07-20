@@ -720,16 +720,7 @@ export default function MapScreen() {
     }
 
     return DEFAULT_REGION;
-  }, [
-    eventClusters,
-    initialLat,
-    initialLatDelta,
-    initialLng,
-    initialLngDelta,
-    mapMode,
-    userLocation,
-    venuesWithCoords,
-  ]);
+  }, [eventClusters, initialLat, initialLatDelta, initialLng, initialLngDelta, mapMode, userLocation, venuesWithCoords]);
 
   const subtitle = useMemo(() => {
     if (mapMode === 'venues') {
@@ -859,13 +850,7 @@ export default function MapScreen() {
               onPress={() => {
                 void loadEventPinsForRegion(currentRegionRef.current);
               }}
-              style={{
-                marginTop: 12,
-                paddingVertical: 8,
-                paddingHorizontal: 20,
-                backgroundColor: colors.iris,
-                borderRadius: radii.pill,
-              }}
+              style={{ marginTop: 12, paddingVertical: 8, paddingHorizontal: 20, backgroundColor: colors.iris, borderRadius: radii.pill }}
             >
               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Retry</Text>
             </Pressable>

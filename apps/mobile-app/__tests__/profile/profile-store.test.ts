@@ -23,6 +23,16 @@ import { apiFetch } from '../../lib/api';
 
 const mockApiFetch = apiFetch as jest.Mock;
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('profileStore', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -31,6 +41,7 @@ describe('profileStore', () => {
       loading: false,
       error: null,
       _unsubscribe: null,
+      _loadPromise: null,
       _loadedUserId: null,
       nightlifePromptDismissed: false,
     });
@@ -81,6 +92,29 @@ describe('profileStore', () => {
       expect(state.loading).toBe(false);
       expect(state.profile?.displayName).toBe('Existing');
     });
+
+    it('rejects an old account response after logout and a second-account load', async () => {
+      const userAResponse = deferred<any>();
+      const userBResponse = deferred<any>();
+      mockApiFetch
+        .mockReturnValueOnce(userAResponse.promise)
+        .mockReturnValueOnce(userBResponse.promise);
+
+      const userALoad = useProfileStore.getState().loadProfile('user-a');
+      useProfileStore.getState().clearProfile();
+      const userBLoad = useProfileStore.getState().loadProfile('user-b');
+
+      userBResponse.resolve({ profile: { uid: 'user-b', displayName: 'User B' } });
+      await userBLoad;
+      userAResponse.resolve({ profile: { uid: 'user-a', displayName: 'User A' } });
+      await userALoad;
+
+      expect(useProfileStore.getState()).toMatchObject({
+        profile: expect.objectContaining({ uid: 'user-b', displayName: 'User B' }),
+        _loadedUserId: 'user-b',
+        loading: false,
+      });
+    });
   });
 
   describe('updateProfile', () => {
@@ -106,27 +140,70 @@ describe('profileStore', () => {
       });
     });
 
-    it('returns false and refetches on server error', async () => {
+    it('returns false and rolls back without doubling the failed offline request', async () => {
       useProfileStore.setState({
         profile: { uid: 'user_1', email: 'a@b.com', displayName: 'Name' } as any,
       });
 
       mockApiFetch.mockRejectedValueOnce(new Error('Update failed'));
-      // loadProfile will be called as fallback
-      mockApiFetch.mockResolvedValueOnce({
-        profile: { uid: 'user_1', email: 'a@b.com', displayName: 'Name' },
-      });
-
       const ok = await useProfileStore.getState().updateProfile('user_1', { bio: 'New bio' });
 
       expect(ok).toBe(false);
-      // Should have attempted refetch
-      expect(mockApiFetch).toHaveBeenCalledTimes(2);
+      expect(mockApiFetch).toHaveBeenCalledTimes(1);
+      expect(useProfileStore.getState().profile?.displayName).toBe('Name');
+      expect(useProfileStore.getState().error).toBe('Update failed');
+    });
+
+    it('does not restore an optimistic update after the account is cleared', async () => {
+      useProfileStore.setState({
+        profile: { uid: 'user-a', email: 'a@b.com', displayName: 'User A' } as any,
+      });
+      const response = deferred<any>();
+      mockApiFetch.mockReturnValueOnce(response.promise);
+
+      const update = useProfileStore
+        .getState()
+        .updateProfile('user-a', { displayName: 'Updated A' });
+      useProfileStore.getState().clearProfile();
+      response.resolve({ profile: { uid: 'user-a', displayName: 'Updated A' } });
+
+      await expect(update).resolves.toBe(false);
+      expect(useProfileStore.getState().profile).toBeNull();
+    });
+
+    it('merges a partial PATCH response without erasing Nightlife fields', async () => {
+      useProfileStore.setState({
+        profile: {
+          uid: 'user_1',
+          email: 'a@b.com',
+          displayName: 'Old Name',
+          photoURL: 'https://cdn/basic.jpg',
+          datingPhotos: ['https://cdn/nightlife.jpg'],
+          datingActive: true,
+        } as any,
+      });
+      mockApiFetch.mockResolvedValueOnce({ profile: { displayName: 'New Name' } });
+
+      await useProfileStore.getState().updateProfile('user_1', { displayName: 'New Name' });
+
+      expect(useProfileStore.getState().profile).toMatchObject({
+        displayName: 'New Name',
+        photoURL: 'https://cdn/basic.jpg',
+        datingPhotos: ['https://cdn/nightlife.jpg'],
+        datingActive: true,
+      });
     });
   });
 
   describe('setProfileFromGateway', () => {
-    it('sets the profile directly from gateway payload', () => {
+    it('merges the partial auth payload and leaves private hydration open', () => {
+      useProfileStore.setState({
+        profile: {
+          uid: 'user_1',
+          datingPhotos: ['https://storage.googleapis.com/c1rcle/nightlife.jpg'],
+        } as any,
+        _loadedUserId: 'user_1',
+      });
       useProfileStore.getState().setProfileFromGateway('user_1', {
         displayName: 'Gateway User',
         email: 'gateway@test.com',
@@ -135,8 +212,12 @@ describe('profileStore', () => {
       const profile = useProfileStore.getState().profile;
       expect(profile?.displayName).toBe('Gateway User');
       expect(profile?.uid).toBe('user_1');
+      expect(profile?.datingPhotos).toEqual([
+        'https://storage.googleapis.com/c1rcle/nightlife.jpg',
+      ]);
       expect(useProfileStore.getState().loading).toBe(false);
       expect(useProfileStore.getState().error).toBeNull();
+      expect(useProfileStore.getState()._loadedUserId).toBeNull();
     });
   });
 
@@ -161,19 +242,43 @@ describe('profileStore', () => {
       const AsyncStorage = require('@react-native-async-storage/async-storage');
       AsyncStorage.getItem.mockResolvedValueOnce('true');
 
-      await useProfileStore.getState().hydrateNightlifePromptDismissed();
+      await useProfileStore.getState().hydrateNightlifePromptDismissed('user_1');
       expect(useProfileStore.getState().nightlifePromptDismissed).toBe(true);
     });
 
     it('dismissNightlifePrompt persists to AsyncStorage', async () => {
       const AsyncStorage = require('@react-native-async-storage/async-storage');
 
-      await useProfileStore.getState().dismissNightlifePrompt();
+      await useProfileStore.getState().dismissNightlifePrompt('user_1');
 
       expect(useProfileStore.getState().nightlifePromptDismissed).toBe(true);
       expect(AsyncStorage.setItem).toHaveBeenCalledWith(
-        'c1rcle_nightlife_profile_prompt_dismissed',
+        'c1rcle_nightlife_profile_prompt_dismissed:user_1',
         'true',
+      );
+    });
+
+    it('ignores an old account dismissal hydration after the account changes', async () => {
+      const AsyncStorage = require('@react-native-async-storage/async-storage');
+      const userARead = deferred<string | null>();
+      AsyncStorage.getItem
+        .mockReturnValueOnce(userARead.promise)
+        .mockResolvedValueOnce(null);
+
+      const hydrateA = useProfileStore.getState().hydrateNightlifePromptDismissed('user-a');
+      const hydrateB = useProfileStore.getState().hydrateNightlifePromptDismissed('user-b');
+      await hydrateB;
+      userARead.resolve('true');
+      await hydrateA;
+
+      expect(useProfileStore.getState().nightlifePromptDismissed).toBe(false);
+      expect(AsyncStorage.getItem).toHaveBeenNthCalledWith(
+        1,
+        'c1rcle_nightlife_profile_prompt_dismissed:user-a',
+      );
+      expect(AsyncStorage.getItem).toHaveBeenNthCalledWith(
+        2,
+        'c1rcle_nightlife_profile_prompt_dismissed:user-b',
       );
     });
   });

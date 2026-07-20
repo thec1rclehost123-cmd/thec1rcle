@@ -29,7 +29,12 @@ const { width } = Dimensions.get('window');
 const SCAN_AREA_SIZE = width * 0.7;
 
 type ScreenState =
-  'SCANNING' | 'WALLET_LOADED' | 'AMOUNT_INPUT' | 'SUBMITTING' | 'SUCCESS' | 'ERROR';
+  | 'SCANNING'
+  | 'WALLET_LOADED'
+  | 'AMOUNT_INPUT'
+  | 'SUBMITTING'
+  | 'SUCCESS'
+  | 'ERROR';
 
 const NUMPAD_KEYS = [
   ['1', '2', '3'],

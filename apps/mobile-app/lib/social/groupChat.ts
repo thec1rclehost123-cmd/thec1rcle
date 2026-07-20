@@ -9,6 +9,7 @@ import { GroupMessage, EventPhase, getEventPhase } from './types';
 let lastGroupMessageTime = 0;
 const MESSAGE_LIMIT_MAX = 50;
 const FALLBACK_POLL_INTERVAL_MS = 30_000;
+const INBOX_FALLBACK_POLL_INTERVAL_MS = 120_000;
 
 export function canSendGroupMessage(): boolean {
   const now = Date.now();
@@ -134,6 +135,7 @@ export async function sendGroupMessage(
   content: string,
   userAvatar?: string,
   userBadge?: string,
+  replyToId?: string,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     const response = await apiFetch<any>('/api/v1/social/chat', {
@@ -141,6 +143,7 @@ export async function sendGroupMessage(
       body: JSON.stringify({
         eventId,
         text: content,
+        replyToId,
         metadata: {
           senderAvatar: userAvatar,
           senderBadge: userBadge,
@@ -226,13 +229,15 @@ export function subscribeToGroupChat(
   eventId: string,
   onMessages: (messages: GroupMessage[]) => void,
   messageLimit: number = 50,
+  initialMessages: GroupMessage[] = [],
+  enablePolling: boolean = true,
 ): () => void {
   let active = true;
   let unsubscribeWS: (() => void) | null = null;
   let pollIntervalId: ReturnType<typeof setInterval> | null = null;
   let connectCheck: ReturnType<typeof setInterval> | null = null;
   const safeMessageLimit = clampMessageLimit(messageLimit);
-  let latestMessages: GroupMessage[] = [];
+  let latestMessages: GroupMessage[] = initialMessages.slice(-safeMessageLimit);
 
   function publishMessages(nextMessages: GroupMessage[]) {
     latestMessages = nextMessages.slice(-safeMessageLimit);
@@ -252,12 +257,12 @@ export function subscribeToGroupChat(
 
   // Subscribe via WebSocket if connected
   if (wsManager.isConnected) {
-    unsubscribeWS = wsManager.subscribe(`event:${eventId}`, wsHandler);
+    unsubscribeWS = wsManager.subscribe(`event-chat:${eventId}`, wsHandler);
   } else {
     // Check periodically for WS connection
     connectCheck = setInterval(() => {
       if (wsManager.isConnected && !unsubscribeWS) {
-        unsubscribeWS = wsManager.subscribe(`event:${eventId}`, wsHandler);
+        unsubscribeWS = wsManager.subscribe(`event-chat:${eventId}`, wsHandler);
         if (connectCheck) clearInterval(connectCheck);
         connectCheck = null;
       }
@@ -281,7 +286,7 @@ export function subscribeToGroupChat(
       if (active && response.messages) {
         publishMessages(
           mergeMessages(
-            [],
+            latestMessages,
             response.messages
               .map((message) => normalizeGroupMessage(message, eventId))
               .filter((message): message is GroupMessage => Boolean(message)),
@@ -294,12 +299,21 @@ export function subscribeToGroupChat(
     }
   }
 
-  // Initial fetch
-  pollOnce();
+  // The websocket is authoritative while connected. Poll only as a fallback,
+  // otherwise every open chat causes a redundant Firestore-backed request.
+  if (enablePolling && initialMessages.length === 0 && !wsManager.isConnected) {
+    pollOnce();
+  }
 
   // Slow polling fallback with jitter to prevent thundering herd when many chats are active.
   const jitterMs = Math.random() * 10_000;
-  pollIntervalId = setInterval(pollOnce, FALLBACK_POLL_INTERVAL_MS + jitterMs);
+  const fallbackInterval =
+    safeMessageLimit === 1 ? INBOX_FALLBACK_POLL_INTERVAL_MS : FALLBACK_POLL_INTERVAL_MS;
+  if (enablePolling) {
+    pollIntervalId = setInterval(() => {
+      if (!wsManager.isConnected) void pollOnce();
+    }, fallbackInterval + jitterMs);
+  }
 
   return () => {
     active = false;

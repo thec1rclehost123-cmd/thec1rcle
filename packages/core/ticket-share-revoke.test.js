@@ -54,6 +54,7 @@ vi.mock('@c1rcle/core/admin', () => {
   }
 
   return {
+    __reset: () => store.clear(),
     getAdminDb: () => ({
       collection: () => queryBuilder(),
       runTransaction: async (cb) => {
@@ -82,10 +83,21 @@ vi.mock('@c1rcle/core/admin', () => {
 });
 
 vi.mock('@c1rcle/core/entitlement-engine', () => ({
+  ENTITLEMENT_STATES: {
+    ISSUED: 'ISSUED',
+    ACTIVE: 'ACTIVE',
+    CONSUMED: 'CONSUMED',
+    REVOKED: 'REVOKED',
+  },
+  prepareEntitlementTransfer: async () => ({}),
+  applyPreparedEntitlementTransfer: () => ({}),
+  applyPreparedEntitlementRevocationWithReplacement: () => ({}),
   transferEntitlement: async () => {},
 }));
 
 vi.mock('@c1rcle/core/inventory-engine', () => ({
+  prepareInventoryDeduction: async () => ({}),
+  applyPreparedInventoryDeduction: () => {},
   deductInventory: async () => {},
 }));
 
@@ -110,7 +122,7 @@ async function seedBundle(overrides = {}) {
   const { createShareBundle } = await import('./ticket-share-engine.js');
   const db = (await import('@c1rcle/core/admin')).getAdminDb();
   const col = db.collection('share_bundles');
-  return col.add({
+  const bundleRef = await col.add({
     orderId: 'order-1',
     eventId: 'event-1',
     tierId: 'tier-1',
@@ -146,11 +158,23 @@ async function seedBundle(overrides = {}) {
     expiresAt: new Date(Date.now() + 86400000).toISOString(),
     ...overrides,
   });
+  await db.collection('ticket_assignments').doc('CLAIM-bundle-friend-mock').set({
+    bundleId: bundleRef.id,
+    orderId: 'order-1',
+    eventId: 'event-1',
+    tierId: 'tier-1',
+    slotIndex: 2,
+    redeemerId: 'friend-456',
+    status: 'active',
+  });
+  return bundleRef;
 }
 
 describe('revokeClaimedTicket', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    const admin = await import('@c1rcle/core/admin');
+    admin.__reset();
   });
 
   it('is exported as a function', async () => {
@@ -228,6 +252,33 @@ describe('revokeClaimedTicket', () => {
 
     await expect(revokeClaimedTicket(bundleRef.id, 'host-123', 99)).rejects.toThrow(
       'Slot not found',
+    );
+  });
+
+  it('fails closed when the active assignment cannot be verified', async () => {
+    const { revokeClaimedTicket } = await import('./ticket-share-engine.js');
+    const db = (await import('@c1rcle/core/admin')).getAdminDb();
+    const bundleRef = await seedBundle({
+      slots: [
+        {
+          slotIndex: 1,
+          slotType: 'owner_locked',
+          currentOwnerUserId: 'host-123',
+          claimStatus: 'claimed',
+        },
+        {
+          slotIndex: 2,
+          slotType: 'shareable',
+          currentOwnerUserId: 'friend-without-assignment',
+          claimStatus: 'claimed',
+          issuedTicketId: 'CLAIM-missing',
+        },
+      ],
+    });
+    await db.collection('ticket_assignments').doc('CLAIM-bundle-friend-mock').delete();
+
+    await expect(revokeClaimedTicket(bundleRef.id, 'host-123', 2)).rejects.toThrow(
+      'active ticket assignment could not be verified',
     );
   });
 

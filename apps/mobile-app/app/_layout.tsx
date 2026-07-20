@@ -18,9 +18,13 @@ import { initSentry } from '@/lib/sentry';
 import { initAuthListener, useAuthStore } from '@/store/authStore';
 import { useCartStore } from '@/store/cartStore';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
-import { subscribeToDeepLinks, handleDeepLink } from '@/lib/deeplinks';
+import { subscribeToDeepLinks, handleDeepLink, handleProtectedRoute } from '@/lib/deeplinks';
 import { addNotificationResponseListener } from '@/lib/notifications';
 import { apiFetch } from '@/lib/api';
+import { discardPendingCheckout } from '@/lib/payments';
+import { useProfileStore } from '@/store/profileStore';
+import { useFirstRunStore } from '@/store/firstRunStore';
+import { resolveFirstRunStage } from '@/lib/firstRun';
 
 initSentry();
 
@@ -55,7 +59,10 @@ export default function RootLayout() {
 
   useEffect(() => {
     const unsubscribe = subscribeToDeepLinks((url) => {
-      handleDeepLink(url);
+      // Expo Router automatically navigates native URLs that match file routes.
+      // Keep this subscriber for auth gating and legacy route rewrites without
+      // pushing a duplicate host/venue screen on top of Expo Router's route.
+      handleDeepLink(url, { nativeFileRouteAlreadyHandled: true });
     });
     return unsubscribe;
   }, []);
@@ -64,26 +71,27 @@ export default function RootLayout() {
     const sub = addNotificationResponseListener((response) => {
       const data = response.notification.request.content.data;
       if (!data) return;
-      const { type, eventId, conversationId, matchId, profileId } = data as Record<string, string>;
+      const { type, eventId, conversationId, matchId } = data as Record<string, string>;
+      const segment = (value: string) => encodeURIComponent(value);
       switch (type) {
         case 'event_reminder':
         case 'event_update':
-          if (eventId) router.push(`/event/${eventId}`);
+          if (eventId) handleProtectedRoute(`/event/${segment(eventId)}`);
           break;
         case 'new_message':
-          if (conversationId) router.push(`/social/dm/${conversationId}`);
+          if (conversationId) handleProtectedRoute(`/social/dm/${segment(conversationId)}`);
           break;
         case 'match':
-          if (matchId) router.push(`/social/matches/${matchId}` as any);
+          if (matchId) handleProtectedRoute(`/social/matches/${segment(matchId)}`);
           break;
         case 'dm_request':
-          if (conversationId) router.push(`/social/dm/${conversationId}`);
+          if (conversationId) handleProtectedRoute(`/social/dm/${segment(conversationId)}`);
           break;
         case 'ticket_update':
-          if (eventId) router.push(`/event/${eventId}`);
+          if (eventId) handleProtectedRoute(`/event/${segment(eventId)}`);
           break;
         default:
-          router.push('/(tabs)/notifications' as any);
+          handleProtectedRoute('/(tabs)/notifications');
           break;
       }
     });
@@ -93,12 +101,23 @@ export default function RootLayout() {
   useEffect(() => {
     let resumeTimer: ReturnType<typeof setTimeout> | null = null;
     let unsubHydrate: (() => void) | null = null;
+    let recoveryStartedFor: string | null = null;
 
     const recoverPendingPayment = async () => {
       const { pendingPaymentOrderId, pendingReservation, items } = useCartStore.getState();
       const user = useAuthStore.getState().user;
 
       if (!user || !pendingPaymentOrderId) return;
+      if (
+        resolveFirstRunStage(
+          user,
+          useProfileStore.getState().profile,
+          useFirstRunStore.getState().snapshot,
+        ) !== 'complete'
+      )
+        return;
+      if (recoveryStartedFor === pendingPaymentOrderId) return;
+      recoveryStartedFor = pendingPaymentOrderId;
 
       // First, poll server to check if order is already confirmed (via webhook)
       try {
@@ -130,7 +149,14 @@ export default function RootLayout() {
           {
             text: 'Cancel Payment',
             style: 'destructive',
-            onPress: () => useCartStore.getState().setPendingPaymentOrderId(null),
+            onPress: () => {
+              void discardPendingCheckout().catch(() => {
+                Alert.alert(
+                  'Cancellation failed',
+                  'The pending ticket hold is still active. Please try again.',
+                );
+              });
+            },
           },
           {
             text: 'Resume Payment',
@@ -148,16 +174,20 @@ export default function RootLayout() {
     };
 
     if (useCartStore.persist.hasHydrated()) {
-      recoverPendingPayment();
+      void recoverPendingPayment();
     } else {
       unsubHydrate = useCartStore.persist.onFinishHydration(() => {
         recoverPendingPayment();
       });
     }
+    const unsubscribeAuth = useAuthStore.subscribe(() => {
+      if (useCartStore.persist.hasHydrated()) void recoverPendingPayment();
+    });
 
     return () => {
       if (resumeTimer) clearTimeout(resumeTimer);
       if (unsubHydrate) unsubHydrate();
+      unsubscribeAuth();
     };
   }, []);
 
@@ -188,10 +218,15 @@ export default function RootLayout() {
                   >
                     <Stack.Screen name="index" />
                     <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="(first-run)" />
                     <Stack.Screen name="profile-setup" />
                     <Stack.Screen name="profile-creation" />
                     <Stack.Screen name="social-setup" />
                     <Stack.Screen name="(tabs)" />
+                    <Stack.Screen
+                      name="dating/match"
+                      options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+                    />
                   </Stack>
                 </ThemeProvider>
                 <PremiumPaywallModal />

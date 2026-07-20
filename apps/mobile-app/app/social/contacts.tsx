@@ -32,7 +32,7 @@ function ContactCard({
     : '';
 
   return (
-    <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
+    <Animated.View entering={FadeInDown.delay(index * 50)}>
       <Pressable
         onPress={onPress}
         className="flex-row items-center bg-midnight-100 rounded-bubble p-4 mb-3 border border-white/10 active:bg-surface"

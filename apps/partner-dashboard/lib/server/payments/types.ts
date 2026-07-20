@@ -13,10 +13,21 @@ export type PayoutOnboardingStatus =
   | 'disabled';
 
 export type PayoutVerificationStatus =
-  'not_started' | 'skipped' | 'pending' | 'verified' | 'failed' | 'manual_review';
+  | 'not_started'
+  | 'skipped'
+  | 'pending'
+  | 'verified'
+  | 'failed'
+  | 'manual_review';
 
 export type PayoutExecutionStatus =
-  'queued' | 'pending' | 'processing' | 'paid' | 'failed' | 'reversed' | 'cancelled';
+  | 'queued'
+  | 'pending'
+  | 'processing'
+  | 'paid'
+  | 'failed'
+  | 'reversed'
+  | 'cancelled';
 
 export interface PayoutMethodRecord {
   id: string;

@@ -24,8 +24,9 @@ import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import { trackPurchaseFailed, trackTicketPurchase } from '@/lib/analytics';
 import { calculatePricing, type PricingResult } from '@/lib/api';
 import { colors, gradients, typography } from '@/lib/design/theme';
-import { processFullCheckout, type CheckoutStatus } from '@/lib/payments';
+import { discardPendingCheckout, processFullCheckout, type CheckoutStatus } from '@/lib/payments';
 import { formatEventDate, formatEventTime } from '@/lib/utils/date';
+import { formatInr } from '@/lib/money';
 import { useAuthStore } from '@/store/authStore';
 import { useCartStore, type CartItem } from '@/store/cartStore';
 import { useProfileStore } from '@/store/profileStore';
@@ -64,11 +65,6 @@ const checkoutFont = {
   bold: typography.fontFamily.heading,
   black: typography.fontFamily.brandAccent,
 };
-
-function formatMoney(value: number) {
-  if (value <= 0) return 'Free';
-  return `₹${Math.round(value).toLocaleString('en-IN')}`;
-}
 
 function getCheckoutStatusLabel(status: CheckoutStatus | null) {
   switch (status) {
@@ -213,13 +209,10 @@ function PromoModal({
 
 function GlassCard({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   return (
-    <Animated.View
-      entering={FadeInUp.delay(delay).springify().damping(20)}
-      style={styles.glassCard}
-    >
+    <Animated.View entering={FadeInUp.delay(delay)} style={styles.glassCard}>
       <BlurView
         blurMethod="dimezisBlurView"
-        intensity={28}
+        intensity={55}
         tint="dark"
         style={StyleSheet.absoluteFill}
       />
@@ -232,8 +225,18 @@ export default function CheckoutScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const profile = useProfileStore((state) => state.profile);
-  const { items, promo, removeItem, updateQuantity, clearCart, applyPromoCode, clearPromoCode } =
-    useCartStore();
+  const {
+    items,
+    promo,
+    reservationExpiry,
+    pendingPaymentOrderId,
+    pendingReservation,
+    removeItem,
+    updateQuantity,
+    clearPendingReservation,
+    applyPromoCode,
+    clearPromoCode,
+  } = useCartStore();
   const openPaywall = useSubscriptionStore((state) => state.openPaywall);
 
   const [promoInput, setPromoInput] = useState('');
@@ -246,7 +249,19 @@ export default function CheckoutScreen() {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [hostUpdatesOptIn, setHostUpdatesOptIn] = useState(true);
-  const cartExpired = useCartStore((s) => s.isReservationExpired());
+  const [reservationClock, setReservationClock] = useState(Date.now());
+
+  const reservationExpiresAt = pendingReservation
+    ? new Date(pendingReservation.expiresAt).getTime()
+    : null;
+  const cartExpired = Boolean(
+    reservationExpiresAt &&
+    Number.isFinite(reservationExpiresAt) &&
+    reservationExpiresAt <= reservationClock,
+  );
+  const reservationSecondsLeft = reservationExpiresAt
+    ? Math.max(0, Math.ceil((reservationExpiresAt - reservationClock) / 1000))
+    : 0;
 
   const cartEventTitle = items[0]?.eventTitle || 'Your booking';
   const cartEventDate = items[0]?.eventDate || '';
@@ -315,6 +330,21 @@ export default function CheckoutScreen() {
     fetchPricing();
   }, [fetchPricing]);
 
+  useEffect(() => {
+    if (!pendingReservation) return;
+    setReservationClock(Date.now());
+    const timer = setInterval(() => setReservationClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [pendingReservation]);
+
+  // Remove legacy client-only timers. A reservation countdown is valid only
+  // after the backend has returned a real reservation id and expiry.
+  useEffect(() => {
+    if (!pendingReservation && !pendingPaymentOrderId && reservationExpiry) {
+      clearPendingReservation();
+    }
+  }, [clearPendingReservation, pendingPaymentOrderId, pendingReservation, reservationExpiry]);
+
   const subtotal = Number(pricing?.subtotal ?? localSubtotal);
   const discount = Number(
     pricing?.discountTotal ?? pricing?.discount ?? promo?.discountAmount ?? 0,
@@ -333,12 +363,17 @@ export default function CheckoutScreen() {
   const paymentMethodDetail = isFreeOrder
     ? 'No payment required'
     : 'UPI, cards, wallets, netbanking';
-  const payDisabled = processing || quoteLoading || !!quoteError || cartExpired;
+  const billingEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billingEmail.trim());
+  const payDisabled = processing || quoteLoading || !!quoteError || !billingEmailValid;
   const payButtonLabel = processing
     ? getCheckoutStatusLabel(checkoutStatus)
-    : isFreeOrder
-      ? 'Confirm order'
-      : `Pay ${formatMoney(total)}`;
+    : cartExpired
+      ? isFreeOrder
+        ? 'Refresh & confirm'
+        : `Refresh & pay ${formatInr(total)}`
+      : isFreeOrder
+        ? 'Confirm order'
+        : `Pay ${formatInr(total)}`;
   const showingPaymentHandoff =
     processing && (checkoutStatus === 'verifying' || checkoutStatus === 'confirmed');
 
@@ -346,6 +381,12 @@ export default function CheckoutScreen() {
     if (!code || !eventId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setPromoError(null);
+    try {
+      await discardPendingCheckout();
+    } catch {
+      setPromoError('Could not release the current ticket hold. Please retry.');
+      return;
+    }
     const result = await applyPromoCode(code, eventId);
     if (!result.success) {
       setPromoError(result.error || 'This promo code is not available for this order.');
@@ -356,9 +397,39 @@ export default function CheckoutScreen() {
     setPromoInput('');
   };
 
-  const handleRemovePromo = () => {
+  const handleRemovePromo = async () => {
     Haptics.selectionAsync();
+    try {
+      await discardPendingCheckout();
+    } catch {
+      Alert.alert('Tickets still held', 'Could not release the current hold. Please retry.');
+      return;
+    }
     clearPromoCode();
+  };
+
+  const handleQuantityChange = async (item: CartItem, quantity: number) => {
+    if (processing) return;
+    Haptics.selectionAsync();
+    try {
+      await discardPendingCheckout();
+    } catch {
+      Alert.alert('Tickets still held', 'Could not release the current hold. Please retry.');
+      return;
+    }
+    updateQuantity(item.eventId, item.tier.id, quantity);
+  };
+
+  const handleRemoveItem = async (item: CartItem) => {
+    if (processing) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await discardPendingCheckout();
+    } catch {
+      Alert.alert('Tickets still held', 'Could not release the current hold. Please retry.');
+      return;
+    }
+    removeItem(item.eventId, item.tier.id);
   };
 
   const handlePaymentMethodChange = () => {
@@ -408,10 +479,14 @@ export default function CheckoutScreen() {
     });
 
     if (!result.success || !result.orderId) {
-      trackPurchaseFailed(eventId, result.error || 'Checkout failed');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       setProcessing(false);
       if (result.premiumRequired) return;
+      if (result.cancelled) {
+        Alert.alert('Payment cancelled', 'No charge was made. Your ticket hold was released.');
+        return;
+      }
+      trackPurchaseFailed(eventId, result.error || 'Checkout failed');
       Alert.alert(
         'Checkout failed',
         result.error || 'We could not complete checkout. Please try again.',
@@ -526,7 +601,7 @@ export default function CheckoutScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 260 }]}
       >
-        <Animated.View entering={FadeInUp.springify().damping(20)} style={styles.heroSection}>
+        <Animated.View entering={FadeInUp} style={styles.heroSection}>
           <View style={styles.heroPosterWrap}>
             {cartEventImage ? (
               <Image
@@ -569,8 +644,28 @@ export default function CheckoutScreen() {
 
         <GlassCard delay={80}>
           <View style={styles.cardSectionHeader}>
-            <Ionicons name="receipt-outline" size={15} color="rgba(254,248,232,0.6)" />
-            <Text style={styles.cardSectionTitle}>Order</Text>
+            <View style={styles.cardSectionHeading}>
+              <Ionicons name="receipt-outline" size={15} color="rgba(254,248,232,0.6)" />
+              <Text style={styles.cardSectionTitle}>Order Receipt</Text>
+            </View>
+            <Pressable
+              onPress={async () => {
+                Haptics.selectionAsync();
+                try {
+                  await discardPendingCheckout();
+                } catch {
+                  Alert.alert(
+                    'Tickets still held',
+                    'Could not release the current hold. Please retry.',
+                  );
+                  return;
+                }
+                router.push(`/checkout/${eventId}`);
+              }}
+              hitSlop={8}
+            >
+              <Text style={styles.editTicketsText}>Edit tickets</Text>
+            </Pressable>
           </View>
 
           <View style={styles.ticketSummaryList}>
@@ -581,12 +676,46 @@ export default function CheckoutScreen() {
                     {item.tier.name}
                   </Text>
                   <Text style={styles.ticketSummaryQty}>
-                    {item.quantity} × {formatMoney(item.tier.price)}
+                    {item.quantity} × {formatInr(item.tier.price)}
                   </Text>
                 </View>
-                <Text style={styles.ticketSummaryTotal}>
-                  {formatMoney(item.tier.price * item.quantity)}
-                </Text>
+                <View style={styles.ticketSummaryRight}>
+                  <Text style={styles.ticketSummaryTotal}>
+                    {formatInr(item.tier.price * item.quantity)}
+                  </Text>
+                  <View style={styles.quantityControls}>
+                    <Pressable
+                      accessibilityLabel={`Decrease ${item.tier.name} quantity`}
+                      disabled={processing}
+                      onPress={() => handleQuantityChange(item, item.quantity - 1)}
+                      style={styles.quantityButton}
+                    >
+                      <Ionicons name="remove" size={14} color="#fff" />
+                    </Pressable>
+                    <Text style={styles.quantityValue}>{item.quantity}</Text>
+                    <Pressable
+                      accessibilityLabel={`Increase ${item.tier.name} quantity`}
+                      disabled={
+                        processing ||
+                        item.quantity >=
+                          Math.max(item.quantity, Math.min(10, Number(item.tier.remaining) || 10))
+                      }
+                      onPress={() => handleQuantityChange(item, item.quantity + 1)}
+                      style={styles.quantityButton}
+                    >
+                      <Ionicons name="add" size={14} color="#fff" />
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel={`Remove ${item.tier.name} from cart`}
+                      disabled={processing}
+                      onPress={() => handleRemoveItem(item)}
+                      hitSlop={6}
+                      style={styles.removeTicketButton}
+                    >
+                      <Ionicons name="trash-outline" size={15} color={colors.error} />
+                    </Pressable>
+                  </View>
+                </View>
               </View>
             ))}
           </View>
@@ -596,7 +725,7 @@ export default function CheckoutScreen() {
           <View style={styles.priceLines}>
             <View style={styles.priceLine}>
               <Text style={styles.priceLabel}>Subtotal</Text>
-              <Text style={styles.priceValue}>{formatMoney(subtotal)}</Text>
+              <Text style={styles.priceValue}>{formatInr(subtotal)}</Text>
             </View>
             {discount > 0 ? (
               <View style={styles.priceLine}>
@@ -604,26 +733,16 @@ export default function CheckoutScreen() {
                   {promo?.code ? `${promo.code}` : 'Discount'}
                 </Text>
                 <Text style={[styles.priceValue, styles.discountValue]}>
-                  −{formatMoney(discount)}
+                  −{formatInr(discount)}
                 </Text>
               </View>
             ) : null}
-            {platformFee > 0 ? (
+            {platformFee + paymentFee + taxes > 0 ? (
               <View style={styles.priceLine}>
-                <Text style={styles.priceLabel}>Platform fee</Text>
-                <Text style={styles.priceValue}>{formatMoney(platformFee)}</Text>
-              </View>
-            ) : null}
-            {paymentFee > 0 ? (
-              <View style={styles.priceLine}>
-                <Text style={styles.priceLabel}>Payment fee</Text>
-                <Text style={styles.priceValue}>{formatMoney(paymentFee)}</Text>
-              </View>
-            ) : null}
-            {taxes > 0 ? (
-              <View style={styles.priceLine}>
-                <Text style={styles.priceLabel}>GST</Text>
-                <Text style={styles.priceValue}>{formatMoney(taxes)}</Text>
+                <Text style={styles.priceLabel}>Taxes & Fees</Text>
+                <Text style={styles.priceValue}>
+                  {formatInr(platformFee + paymentFee + taxes)}
+                </Text>
               </View>
             ) : null}
           </View>
@@ -632,7 +751,7 @@ export default function CheckoutScreen() {
 
           <View style={styles.totalLine}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>{formatMoney(total)}</Text>
+            <Text style={styles.totalValue}>{formatInr(total)}</Text>
           </View>
 
           {quoteLoading ? (
@@ -651,43 +770,45 @@ export default function CheckoutScreen() {
               </Pressable>
             </View>
           ) : null}
-        </GlassCard>
 
-        <GlassCard delay={160}>
-          <View style={styles.cardSectionHeader}>
-            <Ionicons name="card-outline" size={15} color="rgba(254,248,232,0.6)" />
-            <Text style={styles.cardSectionTitle}>Payment</Text>
-          </View>
-          <Pressable onPress={handlePaymentMethodChange} style={styles.paymentRow}>
-            <View style={styles.paymentIconWrap}>
+          <View style={styles.divider} />
+
+          {/* Payment Method integrated cleanly */}
+          <Pressable onPress={handlePaymentMethodChange} style={styles.compactPaymentRow}>
+            <View style={styles.compactPaymentLeft}>
               <Ionicons
                 name={isFreeOrder ? 'checkmark-circle' : 'card'}
-                size={20}
+                size={16}
                 color={colors.iris}
               />
+              <Text style={styles.compactPaymentTitle}>{paymentMethodLabel}</Text>
             </View>
-            <View style={styles.paymentInfo}>
-              <Text style={styles.paymentTitle}>{paymentMethodLabel}</Text>
-              <Text style={styles.paymentSubtitle}>{paymentMethodDetail}</Text>
+            <View style={styles.compactPaymentRight}>
+              <Text style={styles.compactPaymentSubtitle}>{paymentMethodDetail}</Text>
+              <Ionicons name="chevron-forward" size={14} color="rgba(254,248,232,0.3)" />
             </View>
-            <Ionicons name="chevron-forward" size={16} color="rgba(254,248,232,0.3)" />
           </Pressable>
-        </GlassCard>
 
-        <GlassCard delay={240}>
-          <View style={styles.cardSectionHeader}>
-            <Ionicons name="mail-outline" size={15} color="rgba(254,248,232,0.6)" />
-            <Text style={styles.cardSectionTitle}>Receipt</Text>
+          <View style={styles.divider} />
+
+          {/* Receipt Email integrated cleanly */}
+          <View style={styles.compactEmailRow}>
+            <Ionicons name="mail-outline" size={16} color="rgba(254,248,232,0.6)" />
+            <TextInput
+              placeholder="Email for receipt"
+              placeholderTextColor="rgba(254,248,232,0.3)"
+              value={billingEmail}
+              onChangeText={setBillingEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              accessibilityLabel="Email for ticket receipt"
+              style={styles.compactEmailInput}
+            />
           </View>
-          <TextInput
-            placeholder="Email for receipt"
-            placeholderTextColor="rgba(254,248,232,0.3)"
-            value={billingEmail}
-            onChangeText={setBillingEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={styles.emailInput}
-          />
+          {!billingEmailValid && billingEmail.length > 0 ? (
+            <Text style={styles.emailValidationText}>Enter a valid receipt email.</Text>
+          ) : null}
         </GlassCard>
 
         <View style={styles.optInRow}>
@@ -709,7 +830,15 @@ export default function CheckoutScreen() {
           <View style={styles.expiredBanner}>
             <Ionicons name="time-outline" size={14} color={colors.warning} />
             <Text style={styles.expiredBannerText}>
-              Your cart reservation has expired. Prices and availability may have changed.
+              Your previous hold expired. Continue to refresh live pricing and availability.
+            </Text>
+          </View>
+        ) : pendingReservation && reservationSecondsLeft > 0 ? (
+          <View style={styles.reservationBanner}>
+            <Ionicons name="time-outline" size={14} color={colors.success} />
+            <Text style={styles.reservationBannerText}>
+              Tickets held for {Math.floor(reservationSecondsLeft / 60)}:
+              {String(reservationSecondsLeft % 60).padStart(2, '0')}
             </Text>
           </View>
         ) : null}
@@ -901,8 +1030,8 @@ const styles = StyleSheet.create({
   glassCard: {
     borderRadius: 20,
     overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   glassCardInner: {
     padding: 18,
@@ -910,8 +1039,13 @@ const styles = StyleSheet.create({
   cardSectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     marginBottom: 14,
+  },
+  cardSectionHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   cardSectionTitle: {
     color: 'rgba(254,248,232,0.6)',
@@ -919,6 +1053,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
+  },
+  editTicketsText: {
+    color: colors.irisGlow,
+    fontSize: 12,
+    fontWeight: '800',
   },
   ticketSummaryList: {
     gap: 10,
@@ -931,6 +1070,7 @@ const styles = StyleSheet.create({
   ticketSummaryLeft: {
     flex: 1,
     minWidth: 0,
+    paddingRight: 12,
   },
   ticketSummaryName: {
     color: '#fff',
@@ -947,6 +1087,40 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '700',
+    textAlign: 'right',
+  },
+  ticketSummaryRight: {
+    alignItems: 'flex-end',
+    gap: 7,
+  },
+  quantityControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  quantityButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  quantityValue: {
+    minWidth: 18,
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  removeTicketButton: {
+    width: 26,
+    height: 26,
+    marginLeft: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   divider: {
     height: StyleSheet.hairlineWidth,
@@ -1102,6 +1276,22 @@ const styles = StyleSheet.create({
     color: colors.warning,
     fontSize: 12,
     fontWeight: '500',
+  },
+  reservationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.successMuted,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0,214,143,0.2)',
+  },
+  reservationBannerText: {
+    flex: 1,
+    color: colors.success,
+    fontSize: 12,
+    fontWeight: '600',
   },
   footer: {
     position: 'absolute',
@@ -1315,5 +1505,52 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
     fontWeight: '900',
+  },
+  compactPaymentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  compactPaymentLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  compactPaymentTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  compactPaymentRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  compactPaymentSubtitle: {
+    color: 'rgba(254,248,232,0.5)',
+    fontSize: 13,
+  },
+  compactEmailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginTop: 8,
+  },
+  compactEmailInput: {
+    flex: 1,
+    height: 48,
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  emailValidationText: {
+    color: colors.error,
+    fontSize: 12,
+    marginTop: 6,
+    marginLeft: 4,
   },
 });
