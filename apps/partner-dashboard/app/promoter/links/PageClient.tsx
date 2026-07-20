@@ -608,7 +608,7 @@ export default function PromoLinksPage() {
                             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-zinc-950/90 px-2 py-0.5 text-[11px] font-medium text-text-tertiary">
                               {link.tierCommissions && Object.keys(link.tierCommissions).length > 0
                                 ? 'Varying commission'
-                                : link.commissionRate
+                                : link.commissionRate !== undefined && link.commissionRate !== null
                                   ? link.commissionType === 'fixed' ||
                                     link.commissionType === 'flat'
                                     ? `₹${link.commissionRate} commission`

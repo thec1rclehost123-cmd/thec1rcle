@@ -124,7 +124,7 @@ export async function generatePromoterLink(promoterId, eventId) {
   return {
     promoterId,
     eventId,
-    token: `p_${randomUUID().replace(/-/g, '').substring(0, 16)}`,
+    token: `p_${randomUUID()}`,
     url: `/e/${eventId}?ref=${promoterId}`,
   };
 }
@@ -343,8 +343,12 @@ export async function recordConversion(linkId, orderId, orderAmount, ticketTierI
   // Custom compensation model: look up this tier's own rate. Falls back to the
   // link's flat rate for Standard (one rate for everyone) and Salary (rate 0).
   const tierCommission = ticketTierId ? link.tierCommissions?.[ticketTierId] : null;
-  const commissionRate = tierCommission ? tierCommission.rate : link.commissionRate;
-  const commissionType = tierCommission ? tierCommission.type : link.commissionType;
+  const commissionRate = tierCommission
+    ? (tierCommission.rate ?? link.commissionRate)
+    : link.commissionRate;
+  const commissionType = tierCommission
+    ? (tierCommission.type ?? link.commissionType)
+    : link.commissionType;
 
   // Use ?? rather than || so an intentional 0% / ₹0 commission (a valid,
   // explicitly-allowed value for the Custom compensation model) isn't

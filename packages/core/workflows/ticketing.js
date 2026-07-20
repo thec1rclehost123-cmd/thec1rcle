@@ -303,10 +303,7 @@ export async function verifyCheckoutPayment({
       throw codedError('Forbidden', 'FORBIDDEN');
     }
 
-    if (
-      order.status !== 'confirmed' &&
-      !PAYMENT_PENDING_STATUSES.has(String(order.status || ''))
-    ) {
+    if (order.status !== 'confirmed' && !PAYMENT_PENDING_STATUSES.has(String(order.status || ''))) {
       throw codedError(`Order is ${order.status}`, 'CONFLICT');
     }
 
@@ -631,7 +628,7 @@ export const handleTicketFulfillment = inngest.createFunction(
 
         const promo = promoDoc.docs[0].data();
         const promoterId = promo.promoterId;
-        const commissionRate = promo.commissionRate || 0.1; // 10% default
+        const commissionRate = promo.commissionRate ?? 0.1; // 10% default
 
         const commission = Math.round(totalAmount * commissionRate * 100) / 100;
 

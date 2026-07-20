@@ -167,7 +167,7 @@ function resolveEventCommissionRate(event: Record<string, any>, promoterId: stri
     const pc = normalizeCompensationForRead(event.promoterCompensation);
     return toNumber(resolveEffectiveCommission(pc, promoterId).rate);
   }
-  return toNumber(event.promoterSettings?.commissionRate || event.commissionRate || 0);
+  return toNumber(event.promoterSettings?.commissionRate ?? event.commissionRate ?? 0);
 }
 
 function resolveEventCommissionType(
@@ -184,7 +184,6 @@ function resolveEventCommissionType(
   const type = event.promoterSettings?.commissionType || event.commissionType;
   return type === 'flat' || type === 'fixed' ? 'fixed' : 'percentage';
 }
-
 function toIso(value: any): string | null {
   if (!value) return null;
   if (typeof value?.toDate === 'function') return value.toDate().toISOString();
@@ -508,7 +507,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       },
       compensationModel: event.promoterCompensation?.model || event.compensationModel || 'standard',
       commissionRate: toNumber(
-        activeLink?.commissionRate || resolveEventCommissionRate(event, promoterId || ''),
+        activeLink?.commissionRate ?? resolveEventCommissionRate(event, promoterId || ''),
       ),
       commissionType:
         activeLink?.commissionType || resolveEventCommissionType(event, promoterId || ''),
@@ -689,7 +688,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
     const now = new Date().toISOString();
     const id = randomUUID();
-    let resolvedRate = assignment.commissionRate || resolveEventCommissionRate(event, promoterId);
+    let resolvedRate = assignment.commissionRate ?? resolveEventCommissionRate(event, promoterId);
     const resolvedType = resolveEventCommissionType(event, promoterId);
     let resolvedTierCommissions = null;
     if (event.promoterCompensation) {
@@ -969,7 +968,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       const revenue = toNumber(
         assignment.totalRevenue || assignment.revenue || activeLink?.revenue,
       );
-      const commissionRate = toNumber(assignment.commissionRate || activeLink?.commissionRate);
+      const commissionRate = toNumber(assignment.commissionRate ?? activeLink?.commissionRate);
       const estimatedCommission = toNumber(
         assignment.totalCommission || assignment.commissionEarned || activeLink?.commission,
       );
@@ -1395,7 +1394,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       const order = doc.data() as Record<string, any>;
       const totalPaise = toNumber(order.totalPaise || 0);
       const amount = totalPaise > 0 ? totalPaise / 100 : toNumber(order.amount || 0);
-      const commissionRate = toNumber(order.commissionRate || 0.1);
+      const commissionRate = toNumber(order.commissionRate ?? 0.1);
       return {
         id: doc.id,
         guestName: order.guestName || order.buyerName || 'Guest',
@@ -1706,7 +1705,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
               attributedRevenue: toNumber(topLinkData.revenue),
               clicks: toNumber(topLinkData.clicks),
               conversions: toNumber(topLinkData.conversions),
-              commission: toNumber(topLinkData.commissionRate || topLinkData.commission),
+              commission: toNumber(topLinkData.commissionRate ?? topLinkData.commission ?? 0),
             }
           : null;
 
@@ -1888,7 +1887,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             clicks: link.clicks || link.clickCount || 0,
             conversions: link.conversions || link.conversionCount || 0,
             revenue: link.revenue || 0,
-            commission: link.commissionRate || link.commission || 0,
+            commission: link.commissionRate ?? link.commission ?? 0,
           };
           return normalizePromoterLink(legacyFormat, unifiedById.get(String(link.linkId || '')));
         });
@@ -2047,7 +2046,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           clicks: analytics.clicks,
           conversions: analytics.conversions,
           revenue: analytics.revenue,
-          commission: linkData.commissionRate || linkData.commission || 0,
+          commission: linkData.commissionRate ?? linkData.commission ?? 0,
         };
 
         const rawLink = await loadRawLink(request.params.linkId);

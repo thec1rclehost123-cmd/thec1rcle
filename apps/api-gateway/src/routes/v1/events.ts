@@ -1853,7 +1853,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
     },
     async (request: any, reply) => {
       const { lat, lng, radius = 50, limit = 20 } = request.query;
-      if (!lat || !lng)
+      if (lat == null || lat === '' || lng == null || lng === '')
         return reply.status(400).send(
           buildErrorResponse({
             code: 'BAD_REQUEST',
@@ -3546,4 +3546,210 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         })) ?? [],
     });
   });
+}
+
+const SCHEMA_VERSION = 2 as const;
+
+function toRateType(t: string | undefined): 'percentage' | 'flat' {
+  if (!t) return 'percentage';
+  const n = t.toLowerCase();
+  return n === 'fixed' || n === 'flat' ? 'flat' : 'percentage';
+}
+
+export function normalizeCompensationForRead(pc: any): any {
+  if (!pc) return pc;
+  if (pc.schemaVersion === SCHEMA_VERSION) return pc;
+
+  const model = pc.model || 'standard';
+  let defaults: any = {};
+  const overrides: Record<string, any> = {};
+
+  if (model === 'standard') {
+    const s = pc.standard || {};
+    defaults = {
+      ticketCommission: {
+        type: toRateType(s.commissionType),
+        value: Number(s.commissionValue) || 0,
+      },
+    };
+    if (s.tableCommission) {
+      defaults.tableCommission = {
+        enabled: s.tableCommission.enabled ?? true,
+        type: toRateType(s.tableCommission.type),
+        value: Number(s.tableCommission.value) || 0,
+      };
+    }
+  } else if (model === 'custom') {
+    const c = pc.custom || {};
+    defaults = {
+      ticketCommissions: (c.ticketCommissions || []).map((tc: any) => ({
+        ticketTierId: tc.ticketTierId,
+        type: toRateType(tc.commissionType),
+        value: Number(tc.commissionValue) || 0,
+      })),
+    };
+    if (c.tableCommission) {
+      defaults.tableCommission = {
+        enabled: c.tableCommission.enabled ?? true,
+        type: toRateType(c.tableCommission.type),
+        value: Number(c.tableCommission.value) || 0,
+      };
+    }
+  } else {
+    // salary
+    const s = pc.salary || {};
+    defaults = { notes: s.notes || '' };
+    if (s.tableIncentives?.enabled) {
+      defaults.tableIncentive = {
+        enabled: true,
+        type: toRateType(s.tableIncentives.type),
+        value: Number(s.tableIncentives.value) || 0,
+      };
+    }
+  }
+
+  // Extract per-promoter overrides from V1 promoters array
+  for (const promoter of pc.promoters || []) {
+    if (promoter.useEventDefault === false && promoter.overrides) {
+      const pOv = promoter.overrides;
+      if (model === 'standard' && pOv.tableCommission) {
+        overrides[promoter.promoterId] = {
+          ticketCommission: {
+            type: toRateType(pOv.tableCommission.type),
+            value: Number(pOv.tableCommission.value) || 0,
+          },
+        };
+      } else if (model === 'custom' && pOv.ticketCommissions) {
+        overrides[promoter.promoterId] = {
+          ticketOverrides: (pOv.ticketCommissions || []).map((tc: any) => ({
+            ticketTierId: tc.ticketTierId,
+            type: toRateType(tc.commissionType),
+            value: Number(tc.commissionValue) || 0,
+          })),
+        };
+      }
+    }
+  }
+
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    enabled: pc.enabled ?? false,
+    model,
+    defaults,
+    overrides,
+    revenueSummary: pc.revenueSummary,
+  };
+}
+
+export function resolveEffectiveCommission(
+  pcOrPromoterId: any,
+  promoterIdOrModel?: string | string,
+  standardRate?: number,
+  standardType?: 'percent' | 'fixed',
+  tiers?: any[],
+  overrides?: Record<string, any>,
+): {
+  rate: number;
+  type: 'percentage' | 'fixed';
+  tierCommissions: Record<string, { rate: number; type: 'percentage' | 'fixed' }> | null;
+} {
+  const toStored = (t: string | undefined): 'percentage' | 'fixed' =>
+    t === 'fixed' || t === 'flat' ? 'fixed' : 'percentage';
+
+  // V2 path: resolveEffectiveCommission(pc, promoterId)
+  if (
+    pcOrPromoterId &&
+    typeof pcOrPromoterId === 'object' &&
+    pcOrPromoterId.schemaVersion === SCHEMA_VERSION
+  ) {
+    const pc = pcOrPromoterId;
+    const promoterId = promoterIdOrModel as string;
+    const model = pc.model || 'standard';
+    const defaults = pc.defaults || {};
+    const pcOverrides = pc.overrides || {};
+
+    if (model === 'salary') {
+      return { rate: 0, type: 'percentage', tierCommissions: null };
+    }
+
+    if (model === 'custom') {
+      const ticketCommissions = defaults.ticketCommissions || [];
+      const pOv = pcOverrides[promoterId];
+      const tierCommissions: Record<string, { rate: number; type: 'percentage' | 'fixed' }> = {};
+      for (const tc of ticketCommissions) {
+        const ovEntry = pOv?.ticketOverrides?.find((o: any) => o.ticketTierId === tc.ticketTierId);
+        const effectiveEntry = ovEntry || tc;
+        tierCommissions[tc.ticketTierId] = {
+          rate: Number(effectiveEntry.value) || 0,
+          type: toStored(effectiveEntry.type),
+        };
+      }
+      const firstEntry = ticketCommissions[0];
+      const flat = firstEntry
+        ? tierCommissions[firstEntry.ticketTierId] || { rate: 0, type: 'percentage' as const }
+        : { rate: 0, type: 'percentage' as const };
+      return { rate: flat.rate, type: flat.type, tierCommissions };
+    }
+
+    // standard
+    const pOv = pcOverrides[promoterId];
+    if (pOv?.ticketCommission) {
+      return {
+        rate: Number(pOv.ticketCommission.value) || 0,
+        type: toStored(pOv.ticketCommission.type),
+        tierCommissions: null,
+      };
+    }
+    return {
+      rate: Number(defaults.ticketCommission?.value) || 0,
+      type: toStored(defaults.ticketCommission?.type),
+      tierCommissions: null,
+    };
+  }
+
+  // LEGACY flat-field path
+  const promoterId = pcOrPromoterId as string;
+  const compensationModel = promoterIdOrModel as string;
+  const legacyRate = standardRate ?? 0;
+  const legacyType = standardType ?? 'percent';
+  const legacyTiers = tiers ?? [];
+  const legacyOverrides = overrides ?? {};
+
+  if (compensationModel === 'salary') {
+    return { rate: 0, type: 'percentage', tierCommissions: null };
+  }
+
+  if (compensationModel === 'custom') {
+    const override = legacyOverrides?.[promoterId];
+    const tierCommissions: Record<string, { rate: number; type: 'percentage' | 'fixed' }> = {};
+    for (const tier of legacyTiers) {
+      const overrideRate = override?.hasCustomCommission
+        ? override.tierRates?.[tier.id]
+        : undefined;
+      tierCommissions[tier.id] = {
+        rate: typeof overrideRate === 'number' ? overrideRate : tier.commissionValue || 0,
+        type: toStored(tier.commissionType),
+      };
+    }
+    const firstTierId = legacyTiers[0]?.id;
+    const flat = firstTierId
+      ? tierCommissions[firstTierId]
+      : { rate: 0, type: 'percentage' as const };
+    return { rate: flat.rate, type: flat.type, tierCommissions };
+  }
+
+  // standard
+  const override = legacyOverrides?.[promoterId];
+  if (
+    override?.hasCustomCommission &&
+    override.globalRate !== undefined &&
+    override.globalRate !== null
+  ) {
+    return {
+      rate: Number(override.globalRate) || 0,
+      type: toStored(override.globalRateType as any),
+      tierCommissions: null,
+    };
+  }
+  return { rate: legacyRate, type: toStored(legacyType), tierCommissions: null };
 }

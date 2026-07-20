@@ -100,7 +100,7 @@ function resolveEventCommissionRate(event: Record<string, any>, promoterId: stri
     const pc = normalizeCompensationForRead(event.promoterCompensation);
     return toNumber(resolveEffectiveCommission(pc, promoterId).rate);
   }
-  return toNumber(event.promoterSettings?.commissionRate || event.commissionRate || 0);
+  return toNumber(event.promoterSettings?.commissionRate ?? event.commissionRate ?? 0);
 }
 
 function resolveEventCommissionType(
@@ -117,7 +117,6 @@ function resolveEventCommissionType(
   const type = event.promoterSettings?.commissionType || event.commissionType;
   return type === 'flat' || type === 'fixed' ? 'fixed' : 'percentage';
 }
-
 function isPromoterAllowedForEvent(event: Record<string, any>, promoterId: string) {
   const globallyEnabled =
     event?.promotersEnabled === true || event?.promoterSettings?.enabled === true;
@@ -236,7 +235,7 @@ function buildLegacyPromoterEvent(
     },
     compensationModel: event.promoterCompensation?.model || event.compensationModel || 'standard',
     commissionRate: toNumber(
-      activeLink?.commissionRate || resolveEventCommissionRate(event, promoterId || ''),
+      activeLink?.commissionRate ?? resolveEventCommissionRate(event, promoterId || ''),
     ),
     commissionType:
       activeLink?.commissionType || resolveEventCommissionType(event, promoterId || ''),
@@ -624,7 +623,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         await promoterRef.set({ trackingCode }, { merge: true });
       }
 
-      let resolvedRate = resolveEventCommissionRate(event, promoterId);
+      let resolvedRate = body.commissionRate ?? resolveEventCommissionRate(event, promoterId);
       const resolvedType = resolveEventCommissionType(event, promoterId);
       let resolvedTierCommissions = null;
       if (event.promoterCompensation) {
@@ -1027,7 +1026,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
       const revenue = toNumber(
         assignment.totalRevenue || assignment.revenue || activeLink?.revenue,
       );
-      const commissionRate = toNumber(assignment.commissionRate || activeLink?.commissionRate);
+      const commissionRate = toNumber(assignment.commissionRate ?? activeLink?.commissionRate);
       const estimatedCommission = toNumber(
         assignment.totalCommission || assignment.commissionEarned || activeLink?.commission,
       );
