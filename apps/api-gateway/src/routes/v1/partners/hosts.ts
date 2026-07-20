@@ -1907,7 +1907,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         return reply.send({
           success: true,
           email: invData.email,
-          tempPassword: invData.tempPassword,
+          tempPassword: decrypt(invData.tempPassword),
           alreadyAccepted: true,
         });
       }
@@ -1918,7 +1918,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           ? `${invData.firstName} ${invData.lastName}`
           : 'Team Member';
       const role = invData.role;
-      const tempPassword = invData.tempPassword;
+      const tempPassword = decrypt(invData.tempPassword);
 
       // 1. Create/update the Firebase user
       let userRecord;
@@ -3165,7 +3165,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             granularPermissions: granularPermissions || {},
             partnerName: partnerName || null,
             status: 'pending',
-            tempPassword,
+            tempPassword: encrypt(tempPassword),
             inviteToken,
             inviteExpires,
             createdAt: now,

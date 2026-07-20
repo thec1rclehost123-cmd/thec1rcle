@@ -6,6 +6,7 @@ import {
   enrichVenueProfileWithSignedUrls,
   cleanVenueProfilePatch,
 } from '../../lib/signed-urls.js';
+import { decrypt } from '../../lib/encryption.js';
 
 const VenueIdQuery = z.object({ venueId: z.string() });
 const VenueCrmQuery = z.object({
@@ -1718,7 +1719,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return {
           success: true,
           email: staffData.email,
-          tempPassword: staffData.tempPassword,
+          tempPassword: decrypt(staffData.tempPassword),
           alreadyAccepted: true,
         };
       }
@@ -1730,7 +1731,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       const email = staffData.email;
       const name = staffData.name;
       const role = staffData.role;
-      const tempPassword = staffData.tempPassword;
+      const tempPassword = decrypt(staffData.tempPassword);
 
       // 1. Create the user in Firebase Auth if they don't exist
       let userRecord;

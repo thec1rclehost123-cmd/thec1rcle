@@ -2226,7 +2226,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             status: 'invited',
             verified: false,
             isActive: true,
-            tempPassword,
+            tempPassword: encrypt(tempPassword),
             inviteToken,
             inviteExpires,
             createdAt: now,

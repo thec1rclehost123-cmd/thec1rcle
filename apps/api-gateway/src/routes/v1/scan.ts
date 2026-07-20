@@ -21,7 +21,7 @@ import {
   updateScannerSummary,
   upsertScannerDeviceState,
 } from '../../lib/scannerLiveState';
-import { verifyPassword } from '../../lib/encryption';
+import { verifyPassword, decrypt } from '../../lib/encryption';
 
 const ScanBody = z
   .object({
@@ -2074,7 +2074,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         if (staffData.password) {
           isMatch = verifyPassword(password, staffData.password);
         } else if (staffData.tempPassword) {
-          isMatch = password === staffData.tempPassword;
+          isMatch = password === decrypt(staffData.tempPassword);
         }
 
         if (!isMatch) {

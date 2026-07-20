@@ -24,7 +24,6 @@ function StaffInviteContent() {
   const code = searchParams.get('code') || '';
   const venueId = searchParams.get('venue') || '';
   const hostId = searchParams.get('host') || '';
-  const tempPasswordParam = searchParams.get('temp') || '';
 
   const isHost = !!hostId;
 
@@ -73,7 +72,7 @@ function StaffInviteContent() {
         setErrorMsg('Failed to load invite details. Please try again.');
         setStep('error');
       });
-  }, [code, venueId, hostId, isHost, router, tempPasswordParam]);
+  }, [code, venueId, hostId, isHost, router]);
 
   const handleAccept = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +97,7 @@ function StaffInviteContent() {
         return;
       }
 
-      const tempPassword = tempPasswordParam || data.tempPassword;
+      const tempPassword = data.tempPassword;
 
       // Sign in with the temp password (used in-memory only; never persisted to
       // browser storage or the URL — staff re-enter it on the change-password page).
@@ -106,8 +105,6 @@ function StaffInviteContent() {
 
       setStep('success');
       setTimeout(() => {
-        // Do not put the temp password in the URL (leaks via history / referer /
-        // server logs). The change-password page reads it from sessionStorage.
         router.replace('/auth/change-password');
       }, 1500);
     } catch (err: any) {
