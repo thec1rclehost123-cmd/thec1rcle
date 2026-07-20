@@ -201,6 +201,40 @@ async function handleComputedAnalytics(req: NextRequest, id: string): Promise<Ne
   });
 }
 
+function redactQueryString(searchStr: string): string {
+  if (!searchStr) return '';
+  try {
+    const params = new URLSearchParams(searchStr);
+    const sensitiveKeys = ['token', 'temp', 'password', 'key', 'code', 'secret', 'email'];
+    params.forEach((value, key) => {
+      const lowerKey = key.toLowerCase();
+      if (sensitiveKeys.some((k) => lowerKey.includes(k))) {
+        params.set(key, '[REDACTED]');
+      }
+    });
+    const result = params.toString();
+    return result ? `?${result}` : '';
+  } catch (e) {
+    return searchStr;
+  }
+}
+
+function redactUrl(urlStr: string): string {
+  if (!urlStr) return '';
+  try {
+    const url = new URL(urlStr);
+    const searchRedacted = redactQueryString(url.search);
+    url.search = searchRedacted;
+    return url.toString();
+  } catch (e) {
+    const parts = urlStr.split('?');
+    if (parts.length > 1) {
+      return `${parts[0]}${redactQueryString('?' + parts[1])}`;
+    }
+    return urlStr;
+  }
+}
+
 async function partnerProxy(req: NextRequest, segments: string[]): Promise<NextResponse> {
   if (!GATEWAY_URL) {
     console.error('[partners proxy] GATEWAY_URL is not configured');
@@ -211,8 +245,11 @@ async function partnerProxy(req: NextRequest, segments: string[]): Promise<NextR
   const gatewayPath = segments.join('/');
   const targetUrl = `${GATEWAY_URL}/api/v1/partners/${gatewayPath}${search}`;
 
+  const redactedSearch = redactQueryString(search);
+  const redactedTargetUrl = redactUrl(targetUrl);
+
   console.log(
-    `[BFF Proxy] Incoming Request: ${req.method} /api/partners/${gatewayPath}${search} -> Proxying to: ${targetUrl}`,
+    `[BFF Proxy] Incoming Request: ${req.method} /api/partners/${gatewayPath}${redactedSearch} -> Proxying to: ${redactedTargetUrl}`,
   );
 
   try {
@@ -249,10 +286,10 @@ async function partnerProxy(req: NextRequest, segments: string[]): Promise<NextR
     }
 
     const response = await proxyToGateway(req, targetUrl, init);
-    console.log(`[BFF Proxy] Response Status: ${response.status} for target: ${targetUrl}`);
+    console.log(`[BFF Proxy] Response Status: ${response.status} for target: ${redactedTargetUrl}`);
     return response;
   } catch (err) {
-    console.error('[BFF Proxy] Gateway request failed', { targetUrl, err });
+    console.error('[BFF Proxy] Gateway request failed', { targetUrl: redactedTargetUrl, err });
     return errorResponse(req, 502, 'Failed to communicate with API gateway');
   }
 }
