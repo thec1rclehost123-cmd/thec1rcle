@@ -128,27 +128,40 @@ export async function recordRedemption(
   orderId: string,
   userId: string,
   details: any = {},
+  transaction?: any,
 ) {
   const db = admin.firestore();
-  const batch = db.batch();
 
-  // 1. Create redemption record
-  const redemptionRef = db.collection(PROMO_REDEMPTIONS_COLLECTION).doc();
-  batch.set(redemptionRef, {
+  // 1. Create redemption record payload
+  const redemptionData = {
     promoCodeId,
     orderId,
     userId,
     ...details,
     timestamp: new Date().toISOString(),
-  });
+  };
 
   // 2. Increment redemption count on promo code
-  const promoCodeRef = db.collection(PROMO_CODES_COLLECTION).doc(promoCodeId);
-  batch.update(promoCodeRef, {
+  const promoUpdates = {
     redemptionCount: admin.firestore.FieldValue.increment(1),
     updatedAt: new Date().toISOString(),
-  });
+  };
 
-  await batch.commit();
+  if (transaction) {
+    // Atomic transactional write (bound to order transaction)
+    const redemptionRef = db.collection(PROMO_REDEMPTIONS_COLLECTION).doc();
+    const promoCodeRef = db.collection(PROMO_CODES_COLLECTION).doc(promoCodeId);
+    transaction.set(redemptionRef, redemptionData);
+    transaction.update(promoCodeRef, promoUpdates);
+  } else {
+    // Standalone batch write mode
+    const batch = db.batch();
+    const redemptionRef = db.collection(PROMO_REDEMPTIONS_COLLECTION).doc();
+    batch.set(redemptionRef, redemptionData);
+    const promoCodeRef = db.collection(PROMO_CODES_COLLECTION).doc(promoCodeId);
+    batch.update(promoCodeRef, promoUpdates);
+    await batch.commit();
+  }
+
   return { success: true };
 }
