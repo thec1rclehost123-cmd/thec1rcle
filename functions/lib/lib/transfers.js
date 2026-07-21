@@ -26,8 +26,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.cancelTransferInternal = exports.acceptTransferInternal = exports.initiateTransferInternal = void 0;
 const firebase_1 = require("./firebase");
 const crypto = __importStar(require("crypto"));
-const TRANSFERS_COLLECTION = "transfers";
-const ORDERS_COLLECTION = "orders";
+const TRANSFERS_COLLECTION = 'transfers';
+const ORDERS_COLLECTION = 'orders';
 /**
  * Initiate a ticket transfer from the server
  */
@@ -40,19 +40,19 @@ async function initiateTransferInternal(payload) {
         const orderRef = firebase_1.db.collection(ORDERS_COLLECTION).doc(orderId);
         const orderDoc = await transaction.get(orderRef);
         if (!orderDoc.exists)
-            throw new Error("Order not found");
+            throw new Error('Order not found');
         const order = orderDoc.data();
         if (order.userId !== fromUserId)
-            throw new Error("Unauthorized: Order ownership mismatch");
+            throw new Error('Unauthorized: Order ownership mismatch');
         if (order.status !== 'confirmed')
-            throw new Error("Only confirmed orders can be transferred");
+            throw new Error('Only confirmed orders can be transferred');
         const transferData = {
             orderId,
             fromUserId,
             toEmail: recipientEmail || null,
             toPhone: recipientPhone || null,
             ticketDetails,
-            status: "pending",
+            status: 'pending',
             transferCode,
             createdAt: now.toISOString(),
             expiresAt: expiresAt.toISOString(),
@@ -72,35 +72,36 @@ exports.initiateTransferInternal = initiateTransferInternal;
  * Accept a ticket transfer from the server
  */
 async function acceptTransferInternal(transferCode, recipientUserId) {
-    const transferQuery = firebase_1.db.collection(TRANSFERS_COLLECTION)
-        .where("transferCode", "==", transferCode)
-        .where("status", "==", "pending")
+    const transferQuery = firebase_1.db
+        .collection(TRANSFERS_COLLECTION)
+        .where('transferCode', '==', transferCode)
+        .where('status', '==', 'pending')
         .limit(1);
     const transferSnap = await transferQuery.get();
     if (transferSnap.empty)
-        throw new Error("Invalid or expired transfer code");
+        throw new Error('Invalid or expired transfer code');
     const transferDoc = transferSnap.docs[0];
     const transfer = transferDoc.data();
     const now = new Date();
     if (new Date(transfer.expiresAt) < now) {
-        throw new Error("Transfer has expired");
+        throw new Error('Transfer has expired');
     }
     return await firebase_1.db.runTransaction(async (transaction) => {
         const orderRef = firebase_1.db.collection(ORDERS_COLLECTION).doc(transfer.orderId);
         const orderDoc = await transaction.get(orderRef);
         if (!orderDoc.exists)
-            throw new Error("Original order not found");
+            throw new Error('Original order not found');
         const originalOrder = orderDoc.data();
         // 1. Mark transfer as accepted
         transaction.update(transferDoc.ref, {
-            status: "accepted",
+            status: 'accepted',
             toUserId: recipientUserId,
             acceptedAt: now.toISOString(),
-            updatedAt: now.toISOString()
+            updatedAt: now.toISOString(),
         });
         // 2. Update original order
         transaction.update(orderRef, {
-            status: "transferred",
+            status: 'transferred',
             transferredTo: recipientUserId,
             transferPending: false,
             updatedAt: now.toISOString(),
@@ -115,11 +116,13 @@ async function acceptTransferInternal(transferCode, recipientUserId) {
             eventTitle: originalOrder.eventTitle,
             eventDate: originalOrder.eventDate,
             eventLocation: originalOrder.eventLocation,
-            status: "confirmed",
-            tickets: [{
+            status: 'confirmed',
+            tickets: [
+                {
                     name: transfer.ticketDetails.name,
                     quantity: transfer.ticketDetails.quantity,
-                }],
+                },
+            ],
             totalAmount: 0,
             transferredFrom: transfer.fromUserId,
             originalOrderId: transfer.orderId,
@@ -128,18 +131,20 @@ async function acceptTransferInternal(transferCode, recipientUserId) {
         };
         transaction.set(newOrderRef, newOrderData);
         // 4. Sync to public attendees
-        const attendeeRef = firebase_1.db.collection('public_attendees').doc(`${recipientUserId}_${originalOrder.eventId}`);
+        const attendeeRef = firebase_1.db
+            .collection('public_attendees')
+            .doc(`${recipientUserId}_${originalOrder.eventId}`);
         // Fetch profile for denormalization
         const userDoc = await transaction.get(firebase_1.db.collection('users').doc(recipientUserId));
         const userData = userDoc.exists ? userDoc.data() : {};
         transaction.set(attendeeRef, {
             userId: recipientUserId,
-            userName: (userData === null || userData === void 0 ? void 0 : userData.displayName) || "C1RCLE Member",
+            userName: (userData === null || userData === void 0 ? void 0 : userData.displayName) || 'C1RCLE Member',
             userAvatar: (userData === null || userData === void 0 ? void 0 : userData.photoURL) || null,
             eventId: originalOrder.eventId,
             orderId: newOrderId,
             joinedAt: now.toISOString(),
-            type: 'transfer'
+            type: 'transfer',
         });
         return { success: true, orderId: newOrderId };
     });
@@ -153,22 +158,22 @@ async function cancelTransferInternal(transferId, userId) {
     return await firebase_1.db.runTransaction(async (transaction) => {
         const transferDoc = await transaction.get(transferRef);
         if (!transferDoc.exists)
-            throw new Error("Transfer not found");
+            throw new Error('Transfer not found');
         const transfer = transferDoc.data();
         if (transfer.fromUserId !== userId)
-            throw new Error("Unauthorized");
+            throw new Error('Unauthorized');
         if (transfer.status !== 'pending')
-            throw new Error("Only pending transfers can be cancelled");
+            throw new Error('Only pending transfers can be cancelled');
         const orderRef = firebase_1.db.collection(ORDERS_COLLECTION).doc(transfer.orderId);
         transaction.update(transferRef, {
-            status: "cancelled",
+            status: 'cancelled',
             cancelledAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
         });
         transaction.update(orderRef, {
             transferPending: false,
             transferId: null,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
         });
         return { success: true };
     });

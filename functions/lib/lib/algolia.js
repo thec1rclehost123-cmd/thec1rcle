@@ -2,26 +2,28 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.removeEventFromAlgolia = exports.syncEventToAlgolia = exports.mapEventToAlgolia = void 0;
 const algoliasearch_1 = require("algoliasearch");
-// Initialize Algolia
-// In production, these should be set via environment variables:
-// firebase functions:config:set algolia.app_id="APP_ID" algolia.api_key="API_KEY"
-const APP_ID = process.env.ALGOLIA_APP_ID || "";
-const API_KEY = process.env.ALGOLIA_API_KEY || "";
-let clientInstance = null;
+// Lazy initialization of Algolia client to prevent crash during deployment analysis
+let client = null;
+const INDEX_NAME = 'events';
+/**
+ * Gets or initializes the Algolia client
+ */
 function getAlgoliaClient() {
-    if (!clientInstance) {
-        if (!APP_ID || !API_KEY) {
-            throw new Error("Algolia credentials are not configured.");
-        }
-        clientInstance = (0, algoliasearch_1.algoliasearch)(APP_ID, API_KEY);
+    const APP_ID = process.env.ALGOLIA_APP_ID || '';
+    const API_KEY = process.env.ALGOLIA_API_KEY || '';
+    if (!APP_ID || !API_KEY) {
+        return null;
     }
-    return clientInstance;
+    if (!client) {
+        client = (0, algoliasearch_1.algoliasearch)(APP_ID, API_KEY);
+    }
+    return client;
 }
-const INDEX_NAME = "events";
 /**
  * Maps a Firestore event document to an Algolia record
  */
 function mapEventToAlgolia(event, eventId) {
+    var _a;
     return {
         objectID: eventId,
         title: event.title,
@@ -42,6 +44,10 @@ function mapEventToAlgolia(event, eventId) {
         heatScore: event.heatScore || 0,
         status: event.status,
         lifecycle: event.lifecycle,
+        // Promoter discovery: used by promoter event filter in guest portal & dashboard
+        promotersEnabled: event.promotersEnabled === true || ((_a = event.promoterSettings) === null || _a === void 0 ? void 0 : _a.enabled) === true,
+        // Creator type: 'venue' | 'host' — used for dashboard filtering
+        creatorRole: event.creatorRole || (event.hostId ? 'host' : 'venue'),
         _geoloc: event.coordinates
             ? {
                 lat: event.coordinates.latitude,
@@ -55,25 +61,23 @@ exports.mapEventToAlgolia = mapEventToAlgolia;
  * Syncs an event to Algolia
  */
 async function syncEventToAlgolia(eventId, event) {
-    if (!APP_ID || !API_KEY) {
-        console.warn("[Algolia] Missing credentials, skipping sync");
+    const algoliaClient = getAlgoliaClient();
+    if (!algoliaClient) {
+        console.warn('[Algolia] Missing credentials, skipping sync');
         return;
     }
-    // Only index events that are approved or live
-    const publicStates = ["approved", "scheduled", "live"];
-    if (!publicStates.includes(event.lifecycle)) {
-        console.log(`[Algolia] Skipping sync for event ${eventId} (lifecycle: ${event.lifecycle})`);
-        try {
-            await getAlgoliaClient().deleteObject({ indexName: INDEX_NAME, objectID: eventId });
-        }
-        catch (e) {
-            // Non-fatal if the object doesn't exist
-        }
+    // Only index events in canonical PUBLIC lifecycle states.
+    // 'approved' is an internal pre-publish state — intentionally excluded.
+    // This must mirror PUBLIC_LIFECYCLE_STATES from @c1rcle/core/events.
+    const PUBLIC_LIFECYCLE_STATES = ['scheduled', 'live'];
+    if (!PUBLIC_LIFECYCLE_STATES.includes(event.lifecycle)) {
+        console.log(`[Algolia] Removing/skipping event ${eventId} (lifecycle: ${event.lifecycle} is not public)`);
+        await algoliaClient.deleteObject({ indexName: INDEX_NAME, objectID: eventId });
         return;
     }
     try {
         const record = mapEventToAlgolia(event, eventId);
-        await getAlgoliaClient().saveObject({ indexName: INDEX_NAME, body: record });
+        await algoliaClient.saveObject({ indexName: INDEX_NAME, body: record });
         console.log(`[Algolia] Successfully synced event ${eventId}`);
     }
     catch (error) {
@@ -85,10 +89,11 @@ exports.syncEventToAlgolia = syncEventToAlgolia;
  * Removes an event from Algolia
  */
 async function removeEventFromAlgolia(eventId) {
-    if (!APP_ID || !API_KEY)
+    const algoliaClient = getAlgoliaClient();
+    if (!algoliaClient)
         return;
     try {
-        await getAlgoliaClient().deleteObject({ indexName: INDEX_NAME, objectID: eventId });
+        await algoliaClient.deleteObject({ indexName: INDEX_NAME, objectID: eventId });
         console.log(`[Algolia] Successfully removed event ${eventId}`);
     }
     catch (error) {

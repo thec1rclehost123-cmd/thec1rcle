@@ -36,10 +36,10 @@ export async function calculatePricingInternal(event: any, items: any[], options
   // Re-populate fee formatted versions if missing
   if (!pricing.fees.formatted) {
     pricing.fees.formatted = {
-      platform: `₹${pricing.fees.platform.toLocaleString()}`,
-      payment: `₹${pricing.fees.payment.toLocaleString()}`,
+      platform: `₹${(pricing.fees.platform ?? pricing.fees.platformFee ?? 0).toLocaleString()}`,
+      payment: `₹${(pricing.fees.payment ?? pricing.fees.paymentFee ?? 0).toLocaleString()}`,
       gst: `₹${(pricing.fees.gst ?? pricing.fees.tax ?? 0).toLocaleString()}`,
-      total: `₹${pricing.fees.total.toLocaleString()}`,
+      total: `₹${(pricing.fees.total ?? 0).toLocaleString()}`,
     };
   }
 

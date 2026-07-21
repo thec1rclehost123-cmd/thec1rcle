@@ -406,8 +406,6 @@ export const onUserCreated = functions.auth.user().onCreate(async (user) => {
 export const onEventUpdated = functions.firestore
   .document('events/{eventId}')
   .onWrite(async (change, context) => {
-    const eventId = context.params.eventId;
-
     // 1. Update Platform Stats (only on create)
     if (!change.before.exists && change.after.exists) {
       const statsRef = admin.firestore().collection('platform_stats').doc('current');
