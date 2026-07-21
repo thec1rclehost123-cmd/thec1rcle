@@ -19,15 +19,17 @@ export default fp(async (fastify: FastifyInstance) => {
       request.url.includes('/api/v1/tickets/') && request.url.includes('/handshake');
     const isMatching = request.url.startsWith('/api/v1/matching');
     const isProfile = request.url.startsWith('/api/v1/profiles/');
+    const isCheckEmail = request.url.includes('/api/v1/auth/check-email');
 
-    if (isHandshake || isMatching || isProfile) {
+    if (isHandshake || isMatching || isProfile || isCheckEmail) {
       // @ts-ignore
       const identifier = request.user?.uid || request.ip;
+      const maxLimit = isCheckEmail ? 5 : 30;
 
       try {
         const { success, reset } = await checkAdaptiveRateLimit(
           `sensitive:${identifier}`,
-          30,
+          maxLimit,
           60,
           'ip',
           request.ip,
