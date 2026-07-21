@@ -1225,57 +1225,52 @@ export class PublicDiscoveryService {
   }
 
   async getHostPublicProfile(slug: string) {
-    const host = await this.hosts.getBySlug(slug);
-    if (!host) return null;
-    const [rawDoc, postsSnap, highlightsSnap, statsSnap, allEvents] = await Promise.all([
-      this.db
-        .collection('hosts')
-        .doc(host.id)
-        .get()
-        .catch(() => null),
-      this.db
-        .collection(PROFILE_POSTS)
-        .where('profileId', '==', host.id)
-        .where('profileType', '==', 'host')
-        .limit(12)
-        .get()
-        .catch(() => null),
-      this.db
-        .collection(PROFILE_HIGHLIGHTS)
-        .where('profileId', '==', host.id)
-        .where('profileType', '==', 'host')
-        .get()
-        .catch(() => null),
-      this.db
-        .collection(PROFILE_STATS)
-        .doc(`host_${host.id}`)
-        .get()
-        .catch(() => null),
-      this.events
-        .queryList({
+    try {
+      const host = await this.hosts.getBySlug(slug);
+      if (!host) return null;
+      const [rawDoc, postsSnap, highlightsSnap, statsSnap, allEvents] = await Promise.all([
+        this.db.collection('hosts').doc(host.id).get(),
+        this.db
+          .collection(PROFILE_POSTS)
+          .where('profileId', '==', host.id)
+          .where('profileType', '==', 'host')
+          .limit(12)
+          .get(),
+        this.db
+          .collection(PROFILE_HIGHLIGHTS)
+          .where('profileId', '==', host.id)
+          .where('profileType', '==', 'host')
+          .get(),
+        this.db.collection(PROFILE_STATS).doc(`host_${host.id}`).get(),
+        this.events.queryList({
           hostId: host.id,
           limit: 48,
           orderByField: 'startAt',
           direction: 'asc',
           minStartAt: new Date().toISOString().slice(0, 10),
-        })
-        .catch(() => []),
-    ]);
-    const hostEvents = allEvents
-      .filter((event: any) => event.hostId === host.id)
-      .sort((a: any, b: any) => String(a.startAt || '').localeCompare(String(b.startAt || '')));
-    const rawHost = rawDoc?.exists ? serializeDoc(rawDoc) : {};
-    if (!isGuestPublicProfileEnabled({ ...rawHost, ...host })) return null;
-    return {
-      host: projectGuestHostDetail(rawHost, host),
-      stats: statsSnap?.exists
-        ? serializeDoc(statsSnap)
-        : { followersCount: host.followersCount, upcomingEventsCount: host.upcomingEventsCount },
-      posts: postsSnap?.docs?.map(serializeDoc) || [],
-      highlights: highlightsSnap?.docs?.map(serializeDoc) || [],
-      upcomingEvents: hostEvents.filter((event: any) => event.statusKey === 'upcoming').slice(0, 6),
-      pastEvents: hostEvents.filter((event: any) => event.statusKey === 'ended').slice(0, 6),
-    };
+        }),
+      ]);
+      const hostEvents = allEvents
+        .filter((event: any) => event.hostId === host.id)
+        .sort((a: any, b: any) => String(a.startAt || '').localeCompare(String(b.startAt || '')));
+      const rawHost = rawDoc?.exists ? serializeDoc(rawDoc) : {};
+      if (!isGuestPublicProfileEnabled({ ...rawHost, ...host })) return null;
+      return {
+        host: projectGuestHostDetail(rawHost, host),
+        stats: statsSnap?.exists
+          ? serializeDoc(statsSnap)
+          : { followersCount: host.followersCount, upcomingEventsCount: host.upcomingEventsCount },
+        posts: postsSnap?.docs?.map(serializeDoc) || [],
+        highlights: highlightsSnap?.docs?.map(serializeDoc) || [],
+        upcomingEvents: hostEvents
+          .filter((event: any) => event.statusKey === 'upcoming')
+          .slice(0, 6),
+        pastEvents: hostEvents.filter((event: any) => event.statusKey === 'ended').slice(0, 6),
+      };
+    } catch (error: any) {
+      console.error(`[PublicDiscoveryService] getHostPublicProfile failed for ${slug}:`, error);
+      throw error;
+    }
   }
 
   async listVenues(query: ListParams) {
@@ -1343,76 +1338,68 @@ export class PublicDiscoveryService {
   }
 
   async getVenuePublicProfile(slug: string) {
-    const venue = await this.venues.getBySlug(slug);
-    if (!venue) return null;
-    const [rawDoc, highlightsSnap, statsSnap, menuSnap, allEvents, allVenues] = await Promise.all([
-      this.db
-        .collection('venues')
-        .doc(venue.id)
-        .get()
-        .catch(() => null),
-      this.db
-        .collection(PROFILE_HIGHLIGHTS)
-        .where('profileId', '==', venue.id)
-        .where('profileType', '==', 'venue')
-        .get()
-        .catch(() => null),
-      this.db
-        .collection(PROFILE_STATS)
-        .doc(`venue_${venue.id}`)
-        .get()
-        .catch(() => null),
-      this.db
-        .collection(VENUE_MENU)
-        .where('venueId', '==', venue.id)
-        .limit(1)
-        .get()
-        .catch(() => null),
-      this.events
-        .queryList({
-          venueId: venue.id,
-          limit: 96,
-          orderByField: 'startAt',
-          direction: 'asc',
-          minStartAt: new Date().toISOString().slice(0, 10),
-        })
-        .catch(() => []),
-      this.venues
-        .queryList({
-          cityKey: venue.cityKey || null,
-          areaKey: venue.areaKey || null,
-          limit: 24,
-          orderByField: 'followersCount',
-          direction: 'desc',
-        })
-        .catch(() => []),
-    ]);
-    const venueEvents = allEvents
-      .filter((event: any) => event.venueId === venue.id)
-      .sort((a: any, b: any) => String(a.startAt || '').localeCompare(String(b.startAt || '')));
-    const menuDoc = menuSnap && !menuSnap.empty ? serializeDoc(menuSnap.docs[0]) : null;
-    const similarVenues = allVenues
-      .filter(
-        (item: any) =>
-          item.id !== venue.id &&
-          (item.cityKey === venue.cityKey || item.areaKey === venue.areaKey),
-      )
-      .slice(0, 6);
-    const rawVenue = rawDoc?.exists ? serializeDoc(rawDoc) : {};
-    if (!isGuestPublicProfileEnabled({ ...rawVenue, ...venue })) return null;
-    return {
-      venue: projectGuestVenueDetail(rawVenue, venue, menuDoc as any),
-      stats: statsSnap?.exists
-        ? serializeDoc(statsSnap)
-        : { followersCount: venue.followersCount, upcomingEventsCount: venue.upcomingEventsCount },
-      highlights: highlightsSnap?.docs?.map(serializeDoc) || [],
-      upcomingEvents: venueEvents
-        .filter((event: any) => event.statusKey === 'upcoming')
-        .slice(0, 6),
-      pastEvents: venueEvents.filter((event: any) => event.statusKey === 'ended').slice(0, 20),
-      similarVenues,
-      menu: menuDoc,
-    };
+    try {
+      const venue = await this.venues.getBySlug(slug);
+      if (!venue) return null;
+      const [rawDoc, highlightsSnap, statsSnap, menuSnap, allEvents, allVenues] = await Promise.all(
+        [
+          this.db.collection('venues').doc(venue.id).get(),
+          this.db
+            .collection(PROFILE_HIGHLIGHTS)
+            .where('profileId', '==', venue.id)
+            .where('profileType', '==', 'venue')
+            .get(),
+          this.db.collection(PROFILE_STATS).doc(`venue_${venue.id}`).get(),
+          this.db.collection(VENUE_MENU).where('venueId', '==', venue.id).limit(1).get(),
+          this.events.queryList({
+            venueId: venue.id,
+            limit: 96,
+            orderByField: 'startAt',
+            direction: 'asc',
+            minStartAt: new Date().toISOString().slice(0, 10),
+          }),
+          this.venues.queryList({
+            cityKey: venue.cityKey || null,
+            areaKey: venue.areaKey || null,
+            limit: 24,
+            orderByField: 'followersCount',
+            direction: 'desc',
+          }),
+        ],
+      );
+      const venueEvents = allEvents
+        .filter((event: any) => event.venueId === venue.id)
+        .sort((a: any, b: any) => String(a.startAt || '').localeCompare(String(b.startAt || '')));
+      const menuDoc = menuSnap && !menuSnap.empty ? serializeDoc(menuSnap.docs[0]) : null;
+      const similarVenues = allVenues
+        .filter(
+          (item: any) =>
+            item.id !== venue.id &&
+            (item.cityKey === venue.cityKey || item.areaKey === venue.areaKey),
+        )
+        .slice(0, 6);
+      const rawVenue = rawDoc?.exists ? serializeDoc(rawDoc) : {};
+      if (!isGuestPublicProfileEnabled({ ...rawVenue, ...venue })) return null;
+      return {
+        venue: projectGuestVenueDetail(rawVenue, venue, menuDoc as any),
+        stats: statsSnap?.exists
+          ? serializeDoc(statsSnap)
+          : {
+              followersCount: venue.followersCount,
+              upcomingEventsCount: venue.upcomingEventsCount,
+            },
+        highlights: highlightsSnap?.docs?.map(serializeDoc) || [],
+        upcomingEvents: venueEvents
+          .filter((event: any) => event.statusKey === 'upcoming')
+          .slice(0, 6),
+        pastEvents: venueEvents.filter((event: any) => event.statusKey === 'ended').slice(0, 20),
+        similarVenues,
+        menu: menuDoc,
+      };
+    } catch (error: any) {
+      console.error(`[PublicDiscoveryService] getVenuePublicProfile failed for ${slug}:`, error);
+      throw error;
+    }
   }
 
   async search(query: string, limit = 6) {

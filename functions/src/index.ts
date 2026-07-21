@@ -22,7 +22,8 @@ import {
   cancelTransferInternal,
 } from './lib/transfers';
 import { expireStaleReservations } from './lib/bookingExpiry';
-import { syncEventToAlgolia, removeEventFromAlgolia } from './lib/algolia';
+// Algolia is decommissioned/disabled to prevent quota exhaustion (search is served by Meilisearch)
+// import { syncEventToAlgolia, removeEventFromAlgolia } from './lib/algolia';
 import { postChatMessageInternal } from './lib/chat';
 
 // Initialize Admin if not already
@@ -419,7 +420,8 @@ export const onEventUpdated = functions.firestore
       );
     }
 
-    // 2. Sync to Algolia
+    // 2. Sync to Algolia (Decommissioned/Disabled to prevent quota exhaustion)
+    /*
     if (!change.after.exists) {
       // Deleted
       await removeEventFromAlgolia(eventId);
@@ -427,6 +429,7 @@ export const onEventUpdated = functions.firestore
       // Created or Updated
       await syncEventToAlgolia(eventId, change.after.data());
     }
+    */
 
     return null;
   });

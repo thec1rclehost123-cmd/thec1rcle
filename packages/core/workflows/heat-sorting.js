@@ -13,7 +13,7 @@ export const recalculateHeatScores = inngest.createFunction(
     id: 'recalculate-heat-scores',
     name: 'Recalculate Heat Scores',
   },
-  { cron: '*/30 * * * *' }, // Every 30 minutes
+  { cron: '0 * * * *' }, // Every 1 hour
   async ({ step }) => {
     const db = getAdminDb();
 
