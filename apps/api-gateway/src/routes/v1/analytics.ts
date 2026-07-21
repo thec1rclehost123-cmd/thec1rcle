@@ -274,7 +274,14 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
           (s: number, o: any) => s + (Number(o.totalAmount) || 0),
           0,
         );
-        const ticketsSold = orders.reduce((s: number, o: any) => s + (o.tickets?.length || 0), 0);
+        const ticketsSold = orders.reduce(
+          (s: number, o: any) =>
+            s +
+            (Array.isArray(o.tickets)
+              ? o.tickets.reduce((sum: number, t: any) => sum + (t.quantity ?? t.qty ?? 1), 0)
+              : 0),
+          0,
+        );
         const totalCheckedIn = Number(overview.totalCheckedIn ?? 0);
         const capacity = Number(overview.capacity ?? 0);
         const views = Number(overview.views ?? 0);

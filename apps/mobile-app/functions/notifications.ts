@@ -219,7 +219,9 @@ export const onOrderConfirmed = onDocumentUpdated('orders/{orderId}', async (eve
   if (before.status !== 'confirmed' && after.status === 'confirmed') {
     const userId = after.userId;
     const eventTitle = after.eventTitle || 'Event';
-    const ticketCount = after.tickets?.length || 1;
+    const ticketCount = Array.isArray(after.tickets)
+      ? after.tickets.reduce((sum, t) => sum + (t.quantity ?? t.qty ?? 1), 0)
+      : 1;
 
     await sendPushNotification(userId, 'ticket_confirmed', {
       title: '🎟️ Tickets Confirmed!',
