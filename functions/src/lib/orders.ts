@@ -48,9 +48,15 @@ export async function createOrder(payload: any) {
       // Record promo redemption if applicable
       if (finalOrder.promoCodeId) {
         const { recordRedemption } = await import('./promos');
-        await recordRedemption(finalOrder.promoCodeId, orderId, finalOrder.userId, {
-          discountAmount: finalOrder.discountAmount || 0,
-        });
+        await recordRedemption(
+          finalOrder.promoCodeId,
+          orderId,
+          finalOrder.userId,
+          {
+            discountAmount: finalOrder.discountAmount || 0,
+          },
+          transaction,
+        );
       }
 
       // --- PUBLIC DISCOVERY SYNC ---
@@ -174,6 +180,20 @@ export async function confirmOrderPayment(
     };
 
     updatedOrder.qrCodes = generateOrderQRCodes(updatedOrder, event);
+
+    // Record promo redemption if applicable
+    if (updatedOrder.promoCodeId) {
+      const { recordRedemption } = await import('./promos');
+      await recordRedemption(
+        updatedOrder.promoCodeId,
+        orderId,
+        updatedOrder.userId,
+        {
+          discountAmount: updatedOrder.discountAmount || 0,
+        },
+        transaction,
+      );
+    }
 
     transaction.update(orderRef, updatedOrder);
 

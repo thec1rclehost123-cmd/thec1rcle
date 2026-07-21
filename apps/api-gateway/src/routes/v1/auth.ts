@@ -15,6 +15,7 @@ import {
   getDefaultTabVisibility,
   PROMOTER_COMMISSION_TIERS,
 } from '../../lib/rbac-permissions';
+import { encrypt, decrypt } from '../../lib/encryption';
 // @ts-ignore
 import { getGuestUnreadCount } from '@c1rcle/core/guest-wallet-profile-notification-service';
 
@@ -277,15 +278,23 @@ function getPasswordResetContinueUrl(explicit?: string, email?: string) {
 }
 
 function encodeState(payload: Record<string, any>) {
-  // base64url is encoding, not encryption. Only use for non-secret data
-  // like redirect URLs. Never put tokens or PII in the state payload.
-  return Buffer.from(JSON.stringify(payload)).toString('base64url');
+  // Encrypt the JSON state payload using AES-256 before base64url encoding
+  // to prevent tampering, eavesdropping, or sensitive parameter exposure in URLs.
+  const json = JSON.stringify(payload);
+  const encrypted = encrypt(json);
+  return Buffer.from(encrypted, 'utf8').toString('base64url');
 }
 
 function decodeState(value?: string) {
   if (!value) return {};
   try {
-    return JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+    const raw = Buffer.from(value, 'base64url').toString('utf8');
+    const decrypted = decrypt(raw);
+    if (decrypted) {
+      return JSON.parse(decrypted);
+    }
+    // Fallback: if value was not encrypted (legacy/active transition), attempt raw parse
+    return JSON.parse(raw);
   } catch {
     return {};
   }
@@ -937,10 +946,17 @@ export default async function authRoutes(fastify: FastifyInstance) {
   /**
    * POST /api/v1/auth/check-email
    * Check if a specific email exists in the Firebase Auth database.
+   * Rate-limited heavily (5 req/min) to prevent bulk email harvesting / enumeration attacks.
    */
   fastify.post(
     '/check-email',
     {
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: '1 minute',
+        },
+      },
       preHandler: [fastify.validate({ body: CheckEmailSchema })],
     },
     async (request: any, reply) => {
