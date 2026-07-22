@@ -11,6 +11,10 @@ vi.mock('@/lib/server/adminMiddleware', () => ({
   withAdminAuth: (handler: Function) => handler,
 }));
 
+vi.mock('@/lib/server/rateLimit', () => ({
+  rateLimit: vi.fn().mockResolvedValue(true),
+}));
+
 import { getIncident, updateIncident } from '@c1rcle/core/security-logger';
 
 const mockIncident = {

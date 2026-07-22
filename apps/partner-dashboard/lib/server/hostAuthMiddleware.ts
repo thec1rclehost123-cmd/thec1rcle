@@ -61,6 +61,10 @@ export interface HostAuthError {
   status: number;
 }
 
+export interface HostAccessOptions {
+  allowMissingSession?: boolean;
+}
+
 // ── Audit log writer ─────────────────────────────────────────────────────────
 
 export async function writeAuditLog(
@@ -98,6 +102,7 @@ export async function requireHostAccess(
   req: NextRequest,
   requiredPermission?: Permission | LegacyHostPermission,
   explicitHostId?: string,
+  _options: HostAccessOptions = {},
 ): Promise<HostAuthContext | HostAuthError> {
   const base = await requirePartnerAccess(req, { type: 'host', explicitPartnerId: explicitHostId });
   if ('error' in base) return base;

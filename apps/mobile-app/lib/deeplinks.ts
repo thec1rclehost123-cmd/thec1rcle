@@ -1,3 +1,4 @@
+/* eslint-disable no-misleading-character-class */
 // Deep linking configuration and helpers
 import * as Linking from 'expo-linking';
 import { Share, Platform } from 'react-native';

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAdminApp } from '../firebase/admin';
+import { getAdminApp } from '@/lib/firebase/admin';
 import { getAuth } from 'firebase-admin/auth';
 import { randomUUID, createHash } from 'node:crypto';
 

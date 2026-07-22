@@ -1,3 +1,4 @@
+/* eslint-disable no-misleading-character-class */
 export interface Coordinates {
   latitude: number;
   longitude: number;

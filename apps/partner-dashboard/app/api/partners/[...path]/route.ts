@@ -16,6 +16,17 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { GATEWAY_URL, proxyToGateway } from '@/lib/server/apiGateway';
+import { requireVenueAccess } from '@/lib/rbac/staffProfileEnforcer';
+import { requireHostAccess } from '@/lib/server/hostAuthMiddleware';
+import {
+  getHostSettings,
+  getLoginSessions,
+  writeLoginSession,
+} from '@/lib/server/hostSettingsStore';
+import {
+  resolveVenuePartnerRouteGuard,
+  validateVenuePartnerRouteGuard,
+} from '@/lib/server/partnerRouteGuards';
 
 const FORWARDED_HEADERS = ['authorization', 'content-type', 'x-request-id', 'x-forwarded-for'];
 
@@ -80,8 +91,66 @@ async function partnerProxy(req: NextRequest, segments: string[]): Promise<NextR
 
 type RouteContext = { params: Promise<{ path: string[] }> };
 
+function authErrorResponse(req: NextRequest, status: number, message: string) {
+  return errorResponse(req, status, message, status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED');
+}
+
+async function enforceVenueGuard(req: NextRequest, segments: string[]) {
+  const guard = resolveVenuePartnerRouteGuard(segments, req.method, new URL(req.url).searchParams);
+  if (!guard) return null;
+
+  const auth = await requireVenueAccess(req, guard.requiredAction);
+  if ('error' in auth) return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+
+  const guardError = validateVenuePartnerRouteGuard(auth, guard);
+  if (guardError) return authErrorResponse(req, guardError.status, guardError.message);
+
+  return null;
+}
+
+async function handleHostSettings(req: NextRequest) {
+  const bodyText = req.method === 'GET' || req.method === 'HEAD' ? '' : await req.text();
+  let body: Record<string, any> = {};
+
+  if (bodyText) {
+    try {
+      body = JSON.parse(bodyText);
+    } catch {
+      return errorResponse(req, 400, 'Invalid JSON body', 'BAD_REQUEST');
+    }
+  }
+
+  const allowMissingSession = req.method === 'POST' && body.action === 'WRITE_SESSION';
+  const auth = await requireHostAccess(req, undefined, undefined, { allowMissingSession });
+  if ('error' in auth) return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+
+  if (req.method === 'GET') {
+    const settings = await getHostSettings(auth.hostId);
+    const includeSessions = new URL(req.url).searchParams.get('include') === 'sessions';
+    const sessions = includeSessions ? await getLoginSessions(auth.hostId, auth.uid) : undefined;
+    return NextResponse.json({ settings, ...(sessions ? { sessions } : {}) });
+  }
+
+  if (req.method === 'POST' && body.action === 'WRITE_SESSION') {
+    const session = await writeLoginSession(auth.hostId, auth.uid, body.sessionData);
+    return NextResponse.json({ success: true, session });
+  }
+
+  return errorResponse(req, 405, 'Method not allowed', 'METHOD_NOT_ALLOWED');
+}
+
 async function handler(req: NextRequest, ctx: RouteContext): Promise<NextResponse> {
   const { path } = await ctx.params;
+  const venueGuardResponse = await enforceVenueGuard(req, path);
+  if (venueGuardResponse) return venueGuardResponse;
+
+  if (path[0] === 'hosts') {
+    if (path[1] === 'settings') return handleHostSettings(req);
+
+    const auth = await requireHostAccess(req);
+    if ('error' in auth) return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   return partnerProxy(req, path);
 }
 

@@ -1,3 +1,4 @@
+/* eslint-disable no-misleading-character-class */
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,

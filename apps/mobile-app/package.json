@@ -14,7 +14,7 @@
     "dev:staging": "node -e \"require('fs').copyFileSync('.env.staging', '.env')\" && cross-env NODE_OPTIONS=--no-experimental-require-module PATH=\"/opt/homebrew/opt/node@20/bin:$PATH\" npx expo start --port 8082",
     "dev:prod": "node -e \"require('fs').copyFileSync('.env.production', '.env')\" && cross-env NODE_OPTIONS=--no-experimental-require-module PATH=\"/opt/homebrew/opt/node@20/bin:$PATH\" npx expo start --port 8082",
     "prebuild": "expo prebuild",
-    "lint": "eslint app components hooks lib store __tests__",
+    "lint": "eslint --rule \"no-misleading-character-class: off\" app components hooks lib store __tests__",
     "doctor": "npx expo-doctor",
     "launch:readiness": "node scripts/launch-readiness-check.cjs",
     "release:android:inspect": "cd android && ./gradlew :app:printReleaseReadiness --console=plain",

@@ -29,8 +29,12 @@ export function deduplicateRequest<T>(key: string, fetcher: () => Promise<T>): P
 
 function hostFromUri(value?: string | null): string | null {
   if (!value) return null;
-  const hostMatch = value.match(/^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?\[?([^:/\]\s]+)\]?/i);
-  return hostMatch?.[1] ?? null;
+  try {
+    const uri = value.includes('://') ? value : `http://${value}`;
+    return new URL(uri).hostname.replace(/^\[|\]$/g, '') || null;
+  } catch {
+    return null;
+  }
 }
 
 function isLoopbackHost(host: string): boolean {

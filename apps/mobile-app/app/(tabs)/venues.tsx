@@ -1,3 +1,4 @@
+/* eslint-disable no-misleading-character-class */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,

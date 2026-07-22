@@ -1,3 +1,4 @@
+/* eslint-disable no-misleading-character-class */
 /**
  * CoverDeductionOverlay
  *

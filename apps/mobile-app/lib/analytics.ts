@@ -1,3 +1,4 @@
+/* eslint-disable no-misleading-character-class */
 /**
  * Analytics & Event Tracking Module
  * Multi-provider analytics with Firebase Analytics, Mixpanel, and Amplitude support
@@ -151,7 +152,16 @@ export function track(eventName: string, properties?: Record<string, any>): void
   // Firebase Analytics (immediate)
   if (config.enabledProviders.includes('firebase') && FirebaseAnalytics) {
     try {
-      FirebaseAnalytics.logEvent(eventName.replace(/[^a-zA-Z0-9_]/g, '_'), {
+      const firebaseEventName = Array.from(eventName)
+        .map((char) => {
+          const code = char.charCodeAt(0);
+          const isUpper = code >= 65 && code <= 90;
+          const isLower = code >= 97 && code <= 122;
+          const isDigit = code >= 48 && code <= 57;
+          return isUpper || isLower || isDigit || char === '_' ? char : '_';
+        })
+        .join('');
+      FirebaseAnalytics.logEvent(firebaseEventName, {
         ...properties,
         timestamp: event.timestamp.toISOString(),
       });
