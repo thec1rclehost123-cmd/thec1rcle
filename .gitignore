@@ -104,3 +104,6 @@ sentry.properties
 .npmrc.local
 scratch/
 
+# ── Intern/Custom Files ────────────────────────────────────────────────────────
+/ANIL_*
+/KESHVI_*
