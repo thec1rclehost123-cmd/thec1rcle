@@ -137,16 +137,6 @@ export default fp(async (fastify: FastifyInstance) => {
       const uid = req.user?.uid;
       return workspaceId ? `ws:${workspaceId}` : uid || req.ip;
     },
-    onExceeding: (req: FastifyRequest) => {
-      fastify.log.warn(
-        {
-          url: req.url,
-          ip: req.ip,
-          uid: (req as any).user?.uid || 'anon',
-        },
-        'SECURITY: Rate limit approaching',
-      );
-    },
     errorResponseBuilder: function (req, context) {
       fastify.log.warn(
         {

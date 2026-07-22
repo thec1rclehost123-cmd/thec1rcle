@@ -59,6 +59,7 @@ import kycRoutes from './routes/v1/kyc';
 import adminRoutes from './routes/v1/admin';
 import socialRoutes from './routes/v1/social';
 import socialLikesRoutes from './routes/v1/social-likes';
+import spotifyRoutes from './routes/v1/spotify';
 import chatRoutes from './routes/v1/chats';
 import cronRoutes from './routes/v1/cron';
 import guestProfileRoutes from './routes/v1/guest-profiles';
@@ -74,6 +75,7 @@ import partnersVenueRoutes from './routes/v1/partners/venues';
 import partnersPromoterRoutes from './routes/v1/partners/promoters';
 import partnersFinanceRoutes from './routes/v1/partners/finance';
 import { buildErrorResponse } from './lib/api-contracts';
+import { parseRawJsonBody } from './lib/raw-json-body';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -290,6 +292,22 @@ async function main() {
   await server.register(validatePlugin);
   await server.register(cacheControlPlugin);
   await server.register(inngestPlugin);
+
+  // Register JSON body parser that preserves rawBody for webhook signature verification
+  server.addContentTypeParser(
+    'application/json',
+    { parseAs: 'buffer' },
+    (_req: any, body, done) => {
+      try {
+        const { rawBody, parsedBody } = parseRawJsonBody(body as Buffer);
+        _req.rawBody = rawBody;
+        done(null, parsedBody);
+      } catch (err: any) {
+        done(err, undefined);
+      }
+    },
+  );
+
   await server.register(seoRoutes);
   await server.register(openApiRoutes);
 
@@ -344,6 +362,7 @@ async function main() {
   await server.register(doorRoutes, { prefix: '/api/v1' });
   await server.register(socialRoutes, { prefix: '/api/v1' });
   await server.register(socialLikesRoutes, { prefix: '/api/v1' });
+  await server.register(spotifyRoutes, { prefix: '/api/v1' });
   await server.register(chatRoutes, { prefix: '/api/v1' });
   await server.register(cronRoutes, { prefix: '/api/v1' });
   await server.register(guestProfileRoutes, { prefix: '/api/v1' });

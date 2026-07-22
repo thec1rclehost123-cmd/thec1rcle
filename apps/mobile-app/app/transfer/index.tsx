@@ -21,7 +21,10 @@ import * as Haptics from 'expo-haptics';
 import { colors, typography } from '@/lib/design/theme';
 
 export default function TransferScreen() {
-  const { orderId, ticketName } = useLocalSearchParams<{ orderId?: string; ticketName?: string }>();
+  const { ticketId, ticketName } = useLocalSearchParams<{
+    ticketId?: string;
+    ticketName?: string;
+  }>();
   const { user } = useAuthStore();
   const { fetchUserOrders } = useTicketsStore();
   const openPaywall = useSubscriptionStore((state) => state.openPaywall);
@@ -35,7 +38,7 @@ export default function TransferScreen() {
   const handleInitiateTransfer = async () => {
     Keyboard.dismiss();
 
-    if (!orderId || !user?.uid || !recipientEmail.trim()) {
+    if (!ticketId || !user?.uid || !recipientEmail.trim()) {
       Alert.alert('Error', 'Please enter recipient email');
       return;
     }
@@ -44,7 +47,7 @@ export default function TransferScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const result = await initiateTransfer(
-      orderId,
+      ticketId,
       user.uid,
       { tierName: ticketName || 'Ticket', quantity: 1 },
       recipientEmail.trim(),

@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { ChatKeyboardAvoidingView } from '@/components/ui/ChatKeyboardAvoidingView';
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -491,7 +492,7 @@ export default function ChatRoomScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ChatKeyboardAvoidingView>
         {!loading && (
           <SafeAreaView style={styles.composerDock} edges={['bottom']}>
           {error && <Text style={styles.errorText}>{error}</Text>}
@@ -523,7 +524,7 @@ export default function ChatRoomScreen() {
           </View>
           </SafeAreaView>
         )}
-      </KeyboardAvoidingView>
+      </ChatKeyboardAvoidingView>
 
       <AttendeesSheet
         visible={attendeesOpen}

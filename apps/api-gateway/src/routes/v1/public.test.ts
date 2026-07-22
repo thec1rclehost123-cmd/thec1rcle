@@ -174,12 +174,15 @@ describe('public discovery routes GP-2 contracts', () => {
 
     const response = await server.inject({
       method: 'GET',
-      url: '/public/search?q=after&type=hosts&limit=10',
+      url: '/public/search?q=after&type=hosts&limit=10&city=Pune',
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ events: [{ id: 'event_1', title: 'after' }] });
-    expect(publicDiscoveryService.search).toHaveBeenCalledWith('after', 10);
+    expect(publicDiscoveryService.search).toHaveBeenCalledWith('after', 10, undefined, {
+      type: 'hosts',
+      cityKey: 'pune-in',
+    });
 
     await server.close();
   });

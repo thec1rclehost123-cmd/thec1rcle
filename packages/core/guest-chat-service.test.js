@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  countApprovedEventMedia,
   ensureEventChatMembership,
   getEventAttendees,
   getChatMessages,
+  hasActiveEventEntitlement,
   listUserChats,
   reportChatMessage,
   sendChatMessage,
@@ -124,6 +126,19 @@ function createDb(seed = {}) {
 }
 
 describe('guest chat service', () => {
+  it('counts only approved event media', async () => {
+    const db = createDb({
+      eventMedia: {
+        approved_1: { eventId: 'event_1', isApproved: true },
+        approved_2: { eventId: 'event_1', isApproved: true },
+        pending: { eventId: 'event_1', isApproved: false },
+        other_event: { eventId: 'event_2', isApproved: true },
+      },
+    });
+
+    await expect(countApprovedEventMedia(db, 'event_1')).resolves.toBe(2);
+  });
+
   it('creates an event chat membership when a ticket is fulfilled', async () => {
     const db = createDb({
       events: {
@@ -152,6 +167,21 @@ describe('guest chat service', () => {
       displayName: 'Aayush',
       source: 'ticket',
     });
+  });
+
+  it('recognizes an active transferred assignment as event-chat access', async () => {
+    const db = createDb({
+      ticket_assignments: {
+        transferred_1: {
+          redeemerId: 'recipient_1',
+          eventId: 'event_1',
+          status: 'active',
+        },
+      },
+    });
+
+    await expect(hasActiveEventEntitlement(db, 'recipient_1', 'event_1')).resolves.toBe(true);
+    await expect(hasActiveEventEntitlement(db, 'outsider_1', 'event_1')).resolves.toBe(false);
   });
 
   it('lists active event chats and fetches messages 50 at a time', async () => {

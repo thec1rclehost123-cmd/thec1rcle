@@ -58,7 +58,7 @@ export default async function promoRoutes(fastify: FastifyInstance) {
       try {
         return await getEventPromoCodes(eventId);
       } catch (error: any) {
-        reply.status(500).send({ error: 'Internal server error' });
+        return reply.status(500).send({ error: 'Internal server error' });
       }
     },
   );
@@ -77,7 +77,7 @@ export default async function promoRoutes(fastify: FastifyInstance) {
       try {
         return await getPromoCodeById(id);
       } catch (error: any) {
-        reply.status(500).send({ error: 'Internal server error' });
+        return reply.status(500).send({ error: 'Internal server error' });
       }
     },
   );
@@ -103,7 +103,7 @@ export default async function promoRoutes(fastify: FastifyInstance) {
       try {
         return await upsertPromoCode(eventId, codeData, request.user);
       } catch (error: any) {
-        reply.status(400).send({ error: 'Request failed' });
+        return reply.status(400).send({ error: 'Request failed' });
       }
     },
   );
@@ -123,7 +123,7 @@ export default async function promoRoutes(fastify: FastifyInstance) {
       try {
         return await validatePromoCode(eventId, code, userId, items);
       } catch (error: any) {
-        reply.status(400).send({ error: 'Request failed' });
+        return reply.status(400).send({ error: 'Request failed' });
       }
     },
   );

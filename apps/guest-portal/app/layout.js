@@ -45,7 +45,7 @@ export const metadata = {
     description: 'Discover Life Offline. The future of Indian nightlife.',
     images: [
       {
-        url: '/og-image.jpg',
+        url: '/logo.jpg',
         width: 1200,
         height: 630,
         alt: 'THE.C1RCLE',
@@ -60,7 +60,7 @@ export const metadata = {
     },
     description: 'Discover Life Offline.',
     creator: '@thec1rcle_in',
-    images: ['/og-image.jpg'],
+    images: ['/logo.jpg'],
   },
   metadataBase: new URL('https://thec1rcle.com'),
 };

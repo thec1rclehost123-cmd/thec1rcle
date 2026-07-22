@@ -115,15 +115,19 @@ export async function getCachedFeaturedEvents(): Promise<{
   return getCachedData<any[]>(CACHE_KEYS.featuredEvents, EVENTS_TTL);
 }
 
-export async function cacheUserOrders(orders: any[]): Promise<void> {
-  await cacheData(CACHE_KEYS.userOrders, orders, EVENTS_TTL);
+function getUserOrdersCacheKey(userId: string): string {
+  return `${CACHE_KEYS.userOrders}:${encodeURIComponent(userId)}`;
 }
 
-export async function getCachedUserOrders(): Promise<{
+export async function cacheUserOrders(userId: string, orders: any[]): Promise<void> {
+  await cacheData(getUserOrdersCacheKey(userId), orders, EVENTS_TTL);
+}
+
+export async function getCachedUserOrders(userId: string): Promise<{
   data: any[] | null;
   isStale: boolean;
 }> {
-  return getCachedData<any[]>(CACHE_KEYS.userOrders, EVENTS_TTL);
+  return getCachedData<any[]>(getUserOrdersCacheKey(userId), EVENTS_TTL);
 }
 
 export async function hasOfflineData(): Promise<boolean> {

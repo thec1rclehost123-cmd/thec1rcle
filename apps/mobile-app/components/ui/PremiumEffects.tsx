@@ -10,7 +10,7 @@ import Animated, {
   useAnimatedStyle,
   withRepeat,
   withTiming,
-  withSpring,
+
   withSequence,
   withDelay,
   interpolate,

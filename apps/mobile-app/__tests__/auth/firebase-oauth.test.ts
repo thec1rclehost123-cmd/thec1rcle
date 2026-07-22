@@ -1,21 +1,24 @@
 /* global jest, describe, beforeEach, it, expect */
 
-const mockAuth = { currentUser: null };
 const mockGoogleCredential = { providerId: 'google.com' };
+const mockNativeAuthInstance = {
+  currentUser: null,
+  signInWithCredential: jest.fn(),
+  signInWithEmailAndPassword: jest.fn(),
+  fetchSignInMethodsForEmail: jest.fn(),
+};
 const mockGoogleSignin = {
   configure: jest.fn(),
   hasPlayServices: jest.fn(async () => true),
   signIn: jest.fn(),
+  getTokens: jest.fn(async () => ({
+    idToken: 'google-id-token',
+    accessToken: 'google-access-token',
+  })),
 };
 
 jest.mock('react-native', () => ({
   NativeModules: { RNGoogleSignin: {} },
-}));
-
-jest.mock('firebase/app', () => ({
-  getApp: jest.fn(() => ({})),
-  getApps: jest.fn(() => [{}]),
-  initializeApp: jest.fn(() => ({})),
 }));
 
 jest.mock('../../lib/firebase/config', () => ({
@@ -27,29 +30,15 @@ jest.mock('../../lib/firebase/config', () => ({
   },
 }));
 
-jest.mock('firebase/auth', () => ({
-  getAuth: jest.fn(() => mockAuth),
-  signInWithEmailAndPassword: jest.fn(),
-  createUserWithEmailAndPassword: jest.fn(),
-  signOut: jest.fn(),
-  sendPasswordResetEmail: jest.fn(),
-  onAuthStateChanged: jest.fn(),
-  signInWithCredential: jest.fn(),
-  linkWithCredential: jest.fn(),
-  fetchSignInMethodsForEmail: jest.fn(),
-  GoogleAuthProvider: {
+jest.mock('@react-native-firebase/auth', () => {
+  const auth = jest.fn(() => mockNativeAuthInstance) as any;
+  auth.GoogleAuthProvider = {
     credential: jest.fn(() => mockGoogleCredential),
-  },
-  PhoneAuthProvider: {
-    credential: jest.fn(),
-  },
-  OAuthProvider: jest.fn().mockImplementation((providerId) => ({
-    credential: jest.fn(({ idToken }) => ({ providerId, idToken })),
-  })),
-  EmailAuthProvider: {
-    EMAIL_PASSWORD_SIGN_IN_METHOD: 'password',
-  },
-}));
+  };
+  auth.AppleAuthProvider = { credential: jest.fn() };
+  auth.PhoneAuthProvider = { credential: jest.fn() };
+  return { __esModule: true, default: auth };
+});
 
 jest.mock('@react-native-google-signin/google-signin', () => ({
   GoogleSignin: mockGoogleSignin,
@@ -61,13 +50,6 @@ import {
   loginWithEmail,
   loginWithGoogle,
 } from '../../lib/firebase/client';
-import {
-  fetchSignInMethodsForEmail,
-  linkWithCredential,
-  signInWithCredential,
-  signInWithEmailAndPassword,
-} from 'firebase/auth';
-
 describe('Firebase OAuth helpers', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -81,11 +63,11 @@ describe('Firebase OAuth helpers', () => {
   });
 
   it('stores and links a Google credential when the email already has a password account', async () => {
-    (signInWithCredential as jest.Mock).mockRejectedValueOnce({
+    mockNativeAuthInstance.signInWithCredential.mockRejectedValueOnce({
       code: 'auth/account-exists-with-different-credential',
       customData: { email: 'person@example.com' },
     });
-    (fetchSignInMethodsForEmail as jest.Mock).mockResolvedValueOnce(['password']);
+    mockNativeAuthInstance.fetchSignInMethodsForEmail.mockResolvedValueOnce(['password']);
 
     await expect(loginWithGoogle()).rejects.toMatchObject({
       code: 'auth/link-with-password-required',
@@ -99,13 +81,15 @@ describe('Firebase OAuth helpers', () => {
       providerName: 'Google',
     });
 
-    const passwordUser = { email: 'person@example.com' };
-    (signInWithEmailAndPassword as jest.Mock).mockResolvedValueOnce({ user: passwordUser });
-    (linkWithCredential as jest.Mock).mockResolvedValueOnce({});
+    const passwordUser = {
+      email: 'person@example.com',
+      linkWithCredential: jest.fn().mockResolvedValueOnce({}),
+    };
+    mockNativeAuthInstance.signInWithEmailAndPassword.mockResolvedValueOnce({ user: passwordUser });
 
     await loginWithEmail('person@example.com', 'correct-password');
 
-    expect(linkWithCredential).toHaveBeenCalledWith(passwordUser, mockGoogleCredential);
+    expect(passwordUser.linkWithCredential).toHaveBeenCalledWith(mockGoogleCredential);
     expect(getPendingProviderLink()).toBeNull();
   });
 });

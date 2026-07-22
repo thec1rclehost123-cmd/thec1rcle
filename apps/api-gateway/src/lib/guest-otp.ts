@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
 import type { Firestore } from 'firebase-admin/firestore';
 
 const OTP_EXPIRY_MINUTES = 10;
@@ -88,13 +88,6 @@ async function sendSms(recipient: string) {
 export async function sendGuestOtp(db: Firestore, type: 'email' | 'phone', recipient: string) {
   validateOtpConfig();
 
-  if (type === 'phone') {
-    await sendSms(recipient);
-    return { message: 'If valid, a secret has been dispatched.' };
-  }
-
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
   const docRef = db.collection('otps').doc(`auth_${recipient}`);
   const existing = await docRef.get();
 
@@ -108,6 +101,22 @@ export async function sendGuestOtp(db: Firestore, type: 'email' | 'phone', recip
       throw new Error(`Please wait ${OTP_COOLDOWN_SECONDS}s before requesting another code.`);
     }
   }
+
+  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+  if (type === 'phone') {
+    // Store a server-side tracking record for SMS OTP rate limiting
+    await docRef.set({
+      type: 'auth_sms',
+      expiresAt,
+      lastSent: new Date(),
+      attempts: 0,
+    });
+    await sendSms(recipient);
+    return { message: 'If valid, a secret has been dispatched.' };
+  }
+
+  const code = randomInt(100000, 1000000).toString();
 
   await docRef.set({
     codeHash: hashOtp(code),
@@ -136,17 +145,38 @@ export async function verifyGuestOtp(
       throw new Error('SMS provider not configured');
     }
 
+    // Check server-side tracking record before delegating to MSG91
+    const docRef = db.collection('otps').doc(`auth_${recipient}`);
+    const doc = await docRef.get();
+    const data = doc.data() || {};
+
+    const expiresAt =
+      typeof data.expiresAt?.toDate === 'function'
+        ? data.expiresAt.toDate()
+        : new Date(data.expiresAt);
+    if (new Date() > expiresAt) {
+      throw new Error('Authorization code expired.');
+    }
+
+    if ((data.attempts || 0) >= MAX_OTP_ATTEMPTS) {
+      throw new Error('Too many attempts. Please request a new code.');
+    }
+
     const response = await fetch(
       `https://api.msg91.com/api/v5/otp/verify?otp=${code}&mobile=${cleanPhone}&authkey=${authKey}`,
       {
         method: 'GET',
       },
     );
-    const data: any = await response.json().catch(() => ({}));
-    if (!response.ok || data.type === 'error' || data.message === 'OTP not match') {
-      throw new Error(data.message || 'Invalid security code.');
+    const result: any = await response.json().catch(() => ({}));
+    if (!response.ok || result.type === 'error' || result.message === 'OTP not match') {
+      await docRef.update({ attempts: (data.attempts || 0) + 1 });
+      throw new Error(result.message || 'Invalid security code.');
     }
-    return { success: data.type === 'success' };
+
+    // Clean up on success
+    await docRef.delete().catch(() => {});
+    return { success: true };
   }
 
   const docRef = db.collection('otps').doc(`auth_${recipient}`);
@@ -170,8 +200,11 @@ export async function verifyGuestOtp(
   const storedHash = data.codeHash || data.code;
   const inputHash = hashOtp(code);
 
-  if (inputHash !== storedHash) {
-    console.warn({ recipient, inputHash, storedHash }, 'OTP Hash Mismatch');
+  const inputBuffer = Buffer.from(inputHash);
+  const storedBuffer = Buffer.from(String(storedHash || ''));
+  const matches =
+    inputBuffer.length === storedBuffer.length && timingSafeEqual(inputBuffer, storedBuffer);
+  if (!matches) {
     await docRef.update({ attempts: (data.attempts || 0) + 1 });
     throw new Error('Invalid authorization code.');
   }

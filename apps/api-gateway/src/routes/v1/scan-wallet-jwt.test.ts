@@ -47,6 +47,18 @@ function signTicketJwt(payload: Record<string, unknown>) {
   return `${header}.${body}.${signature}`;
 }
 
+function signWalletJwt(payload: Record<string, unknown>) {
+  const header = base64Url({ alg: 'HS256', typ: 'JWT', kid: 'wallet-v1' });
+  const body = base64Url(payload);
+  const signature = createHmac('sha256', TEST_QR_SECRET)
+    .update(`${header}.${body}`)
+    .digest('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+  return `${header}.${body}.${signature}`;
+}
+
 function snapshot(id: string, ref: any, data: any) {
   return {
     id,
@@ -167,6 +179,41 @@ describe('scanner wallet ticket QR route', () => {
     vi.clearAllMocks();
   });
 
+  it('accepts a raw ticket document id and activates the pending cover wallet atomically', async () => {
+    const { server, db } = await buildServer({
+      cover_wallets: {
+        wallet_1: {
+          id: 'wallet_1',
+          orderId: 'ord_1',
+          eventId: 'event_1',
+          venueId: 'venue_1',
+          userId: 'user_1',
+          state: 'PENDING',
+        },
+      },
+    });
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/scan',
+      headers: { authorization: 'Bearer scanner-token' },
+      payload: { eventId: 'event_1', qrData: 'TKT-ORD-1-GEN-1' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ success: true, result: 'valid' });
+    expect(db.data.ticket_scans['ticket_TKT-ORD-1-GEN-1']).toMatchObject({
+      qrMode: 'raw_id',
+      ticketDocumentId: 'TKT-ORD-1-GEN-1',
+    });
+    expect(db.data.cover_wallets.wallet_1).toMatchObject({
+      state: 'ACTIVE',
+      scanId: 'ticket_TKT-ORD-1-GEN-1',
+    });
+
+    await server.close();
+  });
+
   it('accepts a signed wallet ticket JWT QR once and rejects reuse', async () => {
     const { server, db } = await buildServer();
     const now = Math.floor(Date.now() / 1000);
@@ -209,6 +256,70 @@ describe('scanner wallet ticket QR route', () => {
     });
     expect(second.statusCode).toBe(400);
     expect(second.json()).toMatchObject({ result: 'already_scanned' });
+
+    await server.close();
+  });
+
+  it('loads an active wallet from a short-lived payment QR JWT', async () => {
+    const { server } = await buildServer({
+      cover_wallets: {
+        wallet_1: {
+          id: 'wallet_1',
+          orderId: 'ord_1',
+          eventId: 'event_1',
+          venueId: 'venue_1',
+          userId: 'user_1',
+          state: 'ACTIVE',
+          currentBalancePaise: 60000,
+          openingBalancePaise: 100000,
+          totalDebitedPaise: 40000,
+          guestFirstName: 'Guest',
+          rules: {
+            allowedPresetItems: [
+              { id: 'beer', name: 'Beer', amountPaise: 40000, isAvailable: true, sortOrder: 1 },
+            ],
+            minChargeAmountPaise: 1000,
+            maxChargeAmountPaise: 100000,
+            showBalanceToGuest: true,
+          },
+        },
+      },
+    });
+    const now = Math.floor(Date.now() / 1000);
+    const qrData = signWalletJwt({
+      iss: 'the-c1rcle',
+      aud: 'c1rcle-scanner',
+      typ: 'wallet',
+      walletId: 'wallet_1',
+      userId: 'user_1',
+      iat: now,
+      nbf: now,
+      exp: now + 60,
+    });
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/scan/wallet-qr',
+      headers: { authorization: 'Bearer scanner-token' },
+      payload: { qrData, eventId: 'event_1', venueId: 'venue_1' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      success: true,
+      wallet: {
+        id: 'wallet_1',
+        eventId: 'event_1',
+        venueId: 'venue_1',
+        currentBalancePaise: 60000,
+        paymentQrJwt: qrData,
+        rules: {
+          allowedPresetItems: [
+            { id: 'beer', name: 'Beer', amountPaise: 40000, isAvailable: true, sortOrder: 1 },
+          ],
+        },
+      },
+    });
 
     await server.close();
   });

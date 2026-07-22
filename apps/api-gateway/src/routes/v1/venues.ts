@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 // @ts-ignore
 import { getAdminStorage } from '@c1rcle/core/admin';
 
@@ -81,7 +82,7 @@ function normalizeSlotRecord(doc: any): any {
   };
 }
 
-function isVenueBlock(slot: Record<string, any>) {
+function isBlockedSlot(slot: Record<string, any>) {
   return (
     String(slot.source || '').toLowerCase() === 'venue_block' ||
     String(slot.status || '').toLowerCase() === 'blocked'
@@ -843,7 +844,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
 
       const requests = snap.docs
         .map((doc: any) => normalizeSlotRecord(doc))
-        .filter((slot) => !isVenueBlock(slot));
+        .filter((slot) => !isBlockedSlot(slot));
       requests.sort((a: any, b: any) => {
         const dateA = new Date(a.createdAt || 0).getTime();
         const dateB = new Date(b.createdAt || 0).getTime();
@@ -1351,7 +1352,8 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     },
     async (request: any, reply) => {
       try {
-        const { sort = 'Popular', limit = 12 } = request.query as any;
+        const { sort = 'Popular', limit = 12, cursor } = request.query as any;
+        const pageSize = Math.min(Number(limit) || 12, 100);
         let q: any = fastify.db.collection('venues');
 
         // Apply sorting logic
@@ -1361,18 +1363,27 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           q = q.orderBy('createdAt', 'desc');
         }
 
-        q = q.limit(Number(limit));
+        if (cursor) {
+          const cursorDoc = await fastify.db.collection('venues').doc(cursor).get();
+          if (cursorDoc.exists) q = q.startAfter(cursorDoc);
+        }
+
+        q = q.limit(pageSize + 1);
 
         const snapshot = await q.get();
-        const venues = snapshot.docs.map((d: any) => ({
+        const docs = snapshot.docs.slice(0, pageSize);
+        const hasMore = snapshot.docs.length > pageSize;
+        const venues = docs.map((d: any) => ({
           id: d.id,
           ...d.data(),
         }));
 
-        return { venues };
+        return buildSuccessResponse({ venues, hasMore, nextCursor: hasMore ? docs[docs.length - 1].id : null });
       } catch (error: any) {
         fastify.log.error(`Error in GET /venues: ${error.message}`);
-        return reply.status(500).send({ error: 'Internal Server Error' });
+        return reply.status(500).send(
+          buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal Server Error', requestId: request.id }),
+        );
       }
     },
   );
@@ -1407,43 +1418,76 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       }
 
       if (!venue) {
-        return reply.status(404).send({ error: 'Venue not found' });
+        return reply.status(404).send(
+          buildErrorResponse({ code: 'NOT_FOUND', message: 'Venue not found', requestId: request.id }),
+        );
       }
 
       const now = new Date().toISOString();
-      const [highlightsSnap, gallerySnap, menuSnap, facilitiesSnap, eventsSnap] = await Promise.all(
-        [
+      const subFetches: Promise<any>[] = [];
+
+      if (venue.highlights !== false) {
+        subFetches.push(
           fastify.db
             .collection('venue_highlights')
             .where('venueId', '==', venueId)
             .where('isActive', '==', true)
             .get()
             .catch(() => ({ docs: [] as any[] })),
+        );
+      } else {
+        subFetches.push(Promise.resolve({ docs: [] as any[] }));
+      }
+
+      if (venue.gallery !== false) {
+        subFetches.push(
           fastify.db
             .collection('venue_gallery')
             .where('venueId', '==', venueId)
             .limit(50)
             .get()
             .catch(() => ({ docs: [] as any[] })),
+        );
+      } else {
+        subFetches.push(Promise.resolve({ docs: [] as any[] }));
+      }
+
+      if (venue.menu !== false) {
+        subFetches.push(
           fastify.db
             .collection('venue_menu')
             .where('venueId', '==', venueId)
             .get()
             .catch(() => ({ docs: [] as any[] })),
+        );
+      } else {
+        subFetches.push(Promise.resolve({ docs: [] as any[] }));
+      }
+
+      if (venue.facilities !== false) {
+        subFetches.push(
           fastify.db
             .collection('venue_facilities')
             .where('venueId', '==', venueId)
             .where('isEnabled', '==', true)
             .get()
             .catch(() => ({ docs: [] as any[] })),
-          fastify.db
-            .collection('events')
-            .where('venueId', '==', venueId)
-            .where('startDate', '>=', now)
-            .get()
-            .catch(() => ({ docs: [] as any[] })),
-        ],
+        );
+      } else {
+        subFetches.push(Promise.resolve({ docs: [] as any[] }));
+      }
+
+      subFetches.push(
+        fastify.db
+          .collection('events')
+          .where('venueId', '==', venueId)
+          .where('startDate', '>=', now)
+          .where('visibility', '==', 'public')
+          .get()
+          .catch(() => ({ docs: [] as any[] })),
       );
+
+      const [highlightsSnap, gallerySnap, menuSnap, facilitiesSnap, eventsSnap] = await Promise.all(subFetches);
 
       const highlights = highlightsSnap.docs.map((item: any) => ({ id: item.id, ...item.data() }));
       highlights.sort((a: any, b: any) => Number(a.order || 0) - Number(b.order || 0));
@@ -1462,17 +1506,19 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         .sort((a: any, b: any) => a.startDate.localeCompare(b.startDate))
         .slice(0, 10);
 
-      return {
+      return buildSuccessResponse({
         venue,
         highlights,
         gallery: gallery.slice(0, 9),
         menu,
         facilities,
         upcomingEvents,
-      };
+      });
     } catch (error: any) {
       fastify.log.error(`Error in GET /venues/:id: ${error.message}`);
-      return reply.status(500).send({ error: 'Internal Server Error' });
+      return reply.status(500).send(
+        buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal Server Error', requestId: request.id }),
+      );
     }
   });
 
@@ -1623,7 +1669,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           const slotDate = slot.requestedDate || slot.date;
           return (!startDate || slotDate >= startDate) && (!endDate || slotDate <= endDate);
         });
-      const blocks = slots.filter((slot: any) => isVenueBlock(slot));
+      const blocks = slots.filter((slot: any) => isBlockedSlot(slot));
 
       const dates: any[] = [];
       let cur = new Date(startDate);
@@ -1633,7 +1679,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         const ds = cur.toISOString().split('T')[0];
         const dayEvents = events.filter((e: any) => e.startDate.startsWith(ds));
         const daySlots = slots.filter(
-          (s: any) => (s.requestedDate || s.date) === ds && !isVenueBlock(s),
+          (s: any) => (s.requestedDate || s.date) === ds && !isBlockedSlot(s),
         );
         const block = blocks.find((b: any) => b.date === ds);
         const confirmedSlots = daySlots.filter((slot: any) =>

@@ -104,7 +104,7 @@ export const useCartStore = create<CartState>()(
           set({
             items: [item],
             promo: null,
-            reservationExpiry: Date.now() + 10 * 60 * 1000,
+            reservationExpiry: null,
             pendingReservation: null,
             pendingPaymentOrderId: null,
           });
@@ -123,12 +123,16 @@ export const useCartStore = create<CartState>()(
           updatedItems[existingIndex].quantity += item.quantity;
           set({
             items: updatedItems,
-            reservationExpiry: Date.now() + 10 * 60 * 1000,
+            reservationExpiry: null,
+            pendingReservation: null,
+            pendingPaymentOrderId: null,
           });
         } else {
           set({
             items: [...items, item],
-            reservationExpiry: Date.now() + 10 * 60 * 1000,
+            reservationExpiry: null,
+            pendingReservation: null,
+            pendingPaymentOrderId: null,
           });
         }
       },
@@ -139,7 +143,7 @@ export const useCartStore = create<CartState>()(
         set({
           items: nextItems,
           promo: nextItems.length > 0 ? get().promo : null,
-          reservationExpiry: nextItems.length > 0 ? get().reservationExpiry : null,
+          reservationExpiry: null,
           pendingReservation: null,
           pendingPaymentOrderId: null,
         });
@@ -158,6 +162,7 @@ export const useCartStore = create<CartState>()(
         set({
           items: nextItems,
           promo: nextItems.length > 0 ? get().promo : null,
+          reservationExpiry: null,
           pendingReservation: null,
           pendingPaymentOrderId: null,
         });
@@ -192,6 +197,7 @@ export const useCartStore = create<CartState>()(
                 discountPercent,
                 label: result.label,
               },
+              reservationExpiry: null,
               pendingReservation: null,
               pendingPaymentOrderId: null,
             });
@@ -210,6 +216,7 @@ export const useCartStore = create<CartState>()(
       clearPromoCode: () => {
         set({
           promo: null,
+          reservationExpiry: null,
           pendingReservation: null,
           pendingPaymentOrderId: null,
         });

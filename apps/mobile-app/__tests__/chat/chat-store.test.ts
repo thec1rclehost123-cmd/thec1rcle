@@ -7,6 +7,7 @@ import { apiFetch } from '../../lib/api';
 
 jest.mock('../../lib/api', () => ({
   apiFetch: jest.fn(),
+  deduplicateRequest: jest.fn((_key: string, request: () => Promise<unknown>) => request()),
 }));
 
 jest.mock('../../lib/social/groupChat', () => ({
@@ -19,16 +20,27 @@ jest.mock('../../lib/social/privateDM', () => ({
 
 const mockApiFetch = apiFetch as jest.Mock;
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('chatStore', () => {
   beforeEach(() => {
+    useChatStore.getState().clearChats();
     jest.clearAllMocks();
     useChatStore.setState({
+      ownerUserId: null,
       eventChats: [],
       privateChats: [],
       newMatches: [],
       totalUnread: 0,
       loading: false,
       error: null,
+      _unsubscribe: null,
     });
   });
 
@@ -119,6 +131,63 @@ describe('chatStore', () => {
     expect(state.privateChats).toHaveLength(1);
     expect(state.newMatches).toEqual([]); // Graceful degradation
     expect(state.error).toBeNull(); // Matches failure shouldn't set global error
+  });
+
+  it('rejects User A responses after switching to User B', async () => {
+    const userAChats = deferred<any>();
+    const userAMatches = deferred<any>();
+    mockApiFetch
+      .mockReturnValueOnce(userAChats.promise)
+      .mockReturnValueOnce(userAMatches.promise)
+      .mockResolvedValueOnce({
+        eventChats: [],
+        privateChats: [{ id: 'dm_b', participants: ['user-b', 'user-c'] }],
+        totalUnread: 1,
+      })
+      .mockResolvedValueOnce({ matches: [{ id: 'match_b', name: 'User C', isNew: true }] });
+
+    const userAFetch = useChatStore.getState().fetchAll('user-a');
+    const userBFetch = useChatStore.getState().fetchAll('user-b');
+    await userBFetch;
+
+    userAChats.resolve({
+      eventChats: [{ id: 'event_a', eventId: 'event-a' }],
+      privateChats: [{ id: 'dm_a', participants: ['user-a', 'user-d'] }],
+      totalUnread: 99,
+    });
+    userAMatches.resolve({ matches: [{ id: 'match_a', name: 'User D', isNew: true }] });
+    await userAFetch;
+
+    expect(useChatStore.getState()).toMatchObject({
+      ownerUserId: 'user-b',
+      privateChats: [expect.objectContaining({ id: 'dm_b' })],
+      newMatches: [expect.objectContaining({ id: 'match_b' })],
+      totalUnread: 1,
+      loading: false,
+    });
+  });
+
+  it('clears account-owned chat data and subscriptions on logout', () => {
+    const unsubscribe = jest.fn();
+    useChatStore.setState({
+      ownerUserId: 'user-a',
+      privateChats: [{ id: 'dm_a' } as any],
+      totalUnread: 4,
+      _unsubscribe: unsubscribe,
+    });
+
+    useChatStore.getState().clearChats();
+
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(useChatStore.getState()).toMatchObject({
+      ownerUserId: null,
+      eventChats: [],
+      privateChats: [],
+      newMatches: [],
+      totalUnread: 0,
+      loading: false,
+      error: null,
+    });
   });
 
   it('subscribes to updates for event chats', () => {

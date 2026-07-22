@@ -1,4 +1,4 @@
-import { Firestore } from 'firebase-admin/firestore';
+import { Firestore, Transaction } from 'firebase-admin/firestore';
 import { IEventRepository, Event } from '../../../domain/repositories/event-repository.js';
 import { encodeGeohash, getGeohashRange, getNeighbors } from '../../utils/geohash.js';
 
@@ -9,8 +9,9 @@ function hasFiniteCoordinates(coords: any): coords is { latitude: number; longit
 export class FirebaseEventRepository implements IEventRepository {
   constructor(private db: Firestore) {}
 
-  async getById(id: string, workspaceId: string): Promise<Event | null> {
-    const doc = await this.db.collection('events').doc(id).get();
+  async getById(id: string, workspaceId: string, transaction?: Transaction): Promise<Event | null> {
+    const ref = this.db.collection('events').doc(id);
+    const doc = transaction ? await transaction.get(ref) : await ref.get();
     if (!doc.exists) return null;
     const data = doc.data() as Event;
 

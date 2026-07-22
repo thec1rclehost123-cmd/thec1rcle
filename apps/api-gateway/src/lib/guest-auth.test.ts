@@ -167,7 +167,7 @@ describe('guest-auth contracts', () => {
     expect((result.safeUpdates as any).genderLastChangedAt).toBe('2026-04-20T00:00:00.000Z');
   });
 
-  it('normalizes avatar and phone fields during safe guest profile updates', () => {
+  it('normalizes avatar fields and rejects phone aliases from generic profile updates', () => {
     const result = buildGuestProfileUpdates(
       {
         photoURL: 'https://cdn.example/new.jpg',
@@ -181,8 +181,6 @@ describe('guest-auth contracts', () => {
     expect(result.error).toBeNull();
     expect(result.safeUpdates).toEqual({
       photoURL: 'https://cdn.example/new.jpg',
-      phoneNumber: '+919999999999',
-      phone: '+919999999999',
       avatar: 'https://cdn.example/new.jpg',
       updatedAt: '2026-04-20T00:00:00.000Z',
     });

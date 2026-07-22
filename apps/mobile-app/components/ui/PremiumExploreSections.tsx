@@ -17,12 +17,14 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSpring,
+
 } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { colors, radii, spacing, typography } from '@/lib/design/theme';
 import type { Event } from '@/store/eventsStore';
 import { useVenuesStore } from '@/store/venuesStore';
+import { useProfileStore } from '@/store/profileStore';
+import { useAuth } from '@/hooks/useAuth';
 import { formatEventDate } from '@/lib/utils/date';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
@@ -176,14 +178,18 @@ export function ScenesWorthIt({ events }: { events: Event[] }) {
 }
 
 // ── 4. Top Venues ──
-export function TopVenues() {
+export function TopVenues({ city }: { city?: string }) {
   const { venues, fetchVenues } = useVenuesStore();
+  const { user, initialized } = useAuth();
+  const profile = useProfileStore((state) => state.profile);
+  const profileCity = profile?.discoveryProfile?.cityName || profile?.city || '';
+  const selectedCity = city || profileCity || undefined;
 
   React.useEffect(() => {
-    if (venues.length === 0) {
-      fetchVenues();
-    }
-  }, []);
+    if (!initialized) return;
+    if (user && !selectedCity) return;
+    void fetchVenues(selectedCity ? { city: selectedCity } : undefined);
+  }, [selectedCity, initialized, user?.uid, fetchVenues]);
 
   if (!venues.length) return null;
 
@@ -255,11 +261,11 @@ export function TopVenues() {
 }
 
 // ── 5. Editor's Picks ──
-export function EditorsPicks({ events }: { events: Event[] }) {
+export function EditorsPicks({ events, title = 'Handpicked Curations' }: { events: Event[]; title?: string }) {
   if (!events.length) return null;
   return (
     <View style={styles.section}>
-      <SectionHeader title="Handpicked Curations" />
+      <SectionHeader title={title} />
       <HorizontalEventRail events={events} />
     </View>
   );
@@ -544,10 +550,10 @@ export function PremiumEventCard({
         <View style={{ flex: 1, padding: 1.2 }}>
           <AnimatedPressable
             onPressIn={() => {
-              scale.value = withSpring(0.96, { damping: 15, stiffness: 300 });
+              scale.value = withTiming(0.96, { duration: 150 });
             }}
             onPressOut={() => {
-              scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+              scale.value = withTiming(1, { duration: 150 });
             }}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

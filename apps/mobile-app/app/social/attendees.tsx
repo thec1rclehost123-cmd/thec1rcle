@@ -24,7 +24,7 @@ function AttendeeCard({
   index: number;
 }) {
   return (
-    <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
+    <Animated.View entering={FadeInDown.delay(index * 50)}>
       <Pressable
         onPress={onViewProfile}
         className="flex-row items-center bg-midnight-100 rounded-bubble p-4 mb-3 border border-white/10 active:bg-surface"

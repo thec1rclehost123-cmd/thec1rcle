@@ -92,6 +92,7 @@ function buildDbMock() {
               id,
               data: () => ({
                 eventId: 'event_1',
+                customerId: 'user_1',
                 status: 'active',
                 expiresAt: '2099-01-01T21:00:00.000Z',
                 items: [{ tierId: 'tier_1', quantity: 2 }],
@@ -194,6 +195,7 @@ async function buildServer() {
       message: 'Order cancelled. A full refund has been initiated.',
     })),
     cancelCheckout: vi.fn(async () => ({ success: true })),
+    releaseReservation: vi.fn(async () => ({ success: true })),
     recordPaymentFailure: vi.fn(async () => undefined),
   };
   const orderRepo = {
@@ -224,6 +226,7 @@ async function buildServer() {
   server.decorate('checkoutService', checkoutService as any);
   server.decorate('orderRepo', orderRepo as any);
   server.decorate('broadcast', vi.fn() as any);
+  server.decorate('writeAuditLog', vi.fn(async () => undefined) as any);
   server.addHook('onRequest', async (request: any) => {
     if (request.headers.authorization) {
       request.user = {
@@ -433,6 +436,28 @@ describe('GP-4 gateway checkout/payment routes', () => {
     await server.close();
   });
 
+  it('POST /api/v1/checkout/intent exposes canonical cart drift as a retryable 409', async () => {
+    const { server, checkoutService } = await buildServer();
+    checkoutService.createCheckoutIntent.mockRejectedValueOnce(
+      Object.assign(new Error('internal drift details'), { code: 'STALE_CART' }),
+    );
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/intent',
+      headers: { authorization: 'Bearer token' },
+      payload: { eventId: 'event_1', tierId: 'tier_1', quantity: 2 },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      success: false,
+      code: 'STALE_CART',
+      error: 'Your cart changed. Review the latest price and availability before paying.',
+    });
+    await server.close();
+  });
+
   it('POST /api/v1/checkout/initiate returns the legacy payment-initiation contract without requiring x-workspace-id', async () => {
     const { server, checkoutService } = await buildServer();
 
@@ -453,7 +478,13 @@ describe('GP-4 gateway checkout/payment routes', () => {
       requiresPayment: true,
       order: { id: 'ord_1', totalAmount: 1499 },
       pricing: { grandTotal: 1499 },
-      razorpay: { orderId: 'order_rzp_1', amount: 1499, currency: 'INR', key: 'rzp_test_key' },
+      razorpay: {
+        orderId: 'order_rzp_1',
+        amount: 1499,
+        amountPaise: 149900,
+        currency: 'INR',
+        key: 'rzp_test_key',
+      },
     });
     expect(checkoutService.initiateCheckout).toHaveBeenCalledWith(
       expect.objectContaining({ reservationId: 'res_1', promoCode: 'NIGHT', userId: 'user_1' }),
@@ -465,6 +496,45 @@ describe('GP-4 gateway checkout/payment routes', () => {
       expect.any(Object),
     );
 
+    await server.close();
+  });
+
+  it('POST /api/v1/checkout/initiate never creates a provider order after stale-cart rejection', async () => {
+    const { server, checkoutService } = await buildServer();
+    checkoutService.initiateCheckout.mockRejectedValueOnce(
+      Object.assign(new Error('canonical price changed'), { code: 'STALE_CART' }),
+    );
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/initiate',
+      headers: { authorization: 'Bearer test-token' },
+      payload: { reservationId: 'res_1' },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ success: false, code: 'STALE_CART' });
+    expect(checkoutService.preparePayment).not.toHaveBeenCalled();
+    await server.close();
+  });
+
+  it('POST /api/v1/payments/order preserves stale-cart rejection on the deprecated wrapper', async () => {
+    const { server, checkoutService } = await buildServer();
+    checkoutService.preparePayment.mockRejectedValueOnce(
+      Object.assign(new Error('canonical event changed'), { code: 'STALE_CART' }),
+    );
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/payments/order',
+      headers: { authorization: 'Bearer test-token' },
+      payload: { orderId: 'ord_1' },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      error: expect.objectContaining({ code: 'STALE_CART' }),
+    });
     await server.close();
   });
 
@@ -989,6 +1059,23 @@ describe('GP-4 gateway checkout/payment routes', () => {
         refundPayment: expect.any(Function),
       }),
     );
+
+    await server.close();
+  });
+
+  it('POST /api/v1/checkout/cancel releases a reservation owned through customerId', async () => {
+    const { server, checkoutService } = await buildServer();
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/cancel',
+      headers: { authorization: 'Bearer test-token' },
+      payload: { reservationId: 'res_1' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ success: true, message: 'Reservation released' });
+    expect(checkoutService.releaseReservation).toHaveBeenCalledWith('res_1');
 
     await server.close();
   });

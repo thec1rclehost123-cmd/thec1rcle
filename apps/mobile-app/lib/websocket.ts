@@ -25,6 +25,7 @@ class WebSocketManager {
   private authFailureCallback: (() => void) | null = null;
   private pingInterval: ReturnType<typeof setInterval> | null = null;
   private connectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private authenticated = false;
 
   constructor(config?: WebSocketManagerConfig) {
     this.authFailureCallback = config?.onAuthFailure ?? null;
@@ -54,6 +55,7 @@ class WebSocketManager {
     this.connectTimeout = null;
     this.ws?.close(1000, 'app_background');
     this.ws = null;
+    this.authenticated = false;
     this.subscriptions.clear();
   }
 
@@ -67,7 +69,7 @@ class WebSocketManager {
   subscribe(topic: string, handler: MessageHandler) {
     if (!this.subscriptions.has(topic)) {
       this.subscriptions.set(topic, new Set());
-      if (this.ws?.readyState === WebSocket.OPEN) {
+      if (this.ws?.readyState === WebSocket.OPEN && this.authenticated) {
         this.ws.send(JSON.stringify({ type: 'SUBSCRIBE', topic }));
       }
     }
@@ -106,6 +108,7 @@ class WebSocketManager {
 
     const ws = new WebSocket(url);
     this.ws = ws;
+    this.authenticated = false;
 
     this.connectTimeout = setTimeout(() => {
       if (ws.readyState !== WebSocket.OPEN) {
@@ -121,9 +124,6 @@ class WebSocketManager {
       if (this.token) {
         ws.send(JSON.stringify({ type: 'AUTH', token: this.token }));
       }
-      for (const topic of this.subscriptions.keys()) {
-        ws.send(JSON.stringify({ type: 'SUBSCRIBE', topic }));
-      }
     };
 
     ws.onmessage = (event) => {
@@ -134,6 +134,17 @@ class WebSocketManager {
         return;
       }
       if (msg.type === 'welcome') return;
+      if (msg.type === 'AUTH_SUCCESS') {
+        this.authenticated = true;
+        for (const topic of this.subscriptions.keys()) {
+          ws.send(JSON.stringify({ type: 'SUBSCRIBE', topic }));
+        }
+        return;
+      }
+      if (msg.type === 'SUBSCRIBE_DENIED') {
+        if (__DEV__) console.warn('[WS] Subscription denied', msg.payload?.topic);
+        return;
+      }
 
       const topics = new Set<string>();
       if (typeof msg.payload?.eventId === 'string') {
@@ -161,6 +172,7 @@ class WebSocketManager {
       if (this.connectTimeout) clearTimeout(this.connectTimeout);
       this.connectTimeout = null;
       this.ws = null;
+      this.authenticated = false;
       if (!this.enabled) return;
       if (event.code === 4001 || event.code === 4003) {
         this.authFailureCallback?.();

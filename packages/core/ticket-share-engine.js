@@ -1,7 +1,17 @@
 import { getAdminDb } from '@c1rcle/core/admin';
-import { createHmac, randomBytes } from 'node:crypto';
-import { transferEntitlement } from '@c1rcle/core/entitlement-engine';
-import { deductInventory } from '@c1rcle/core/inventory-engine';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
+import {
+  applyPreparedEntitlementRevocationWithReplacement,
+  applyPreparedEntitlementTransfer,
+  ENTITLEMENT_STATES,
+  prepareEntitlementTransfer,
+  transferEntitlement,
+} from '@c1rcle/core/entitlement-engine';
+import {
+  applyPreparedInventoryDeduction,
+  deductInventory,
+  prepareInventoryDeduction,
+} from '@c1rcle/core/inventory-engine';
 import { getTicketSecret } from './secret-registry.js';
 import { getUserSubscriptionContext, PremiumRequiredError } from './subscription-service.js';
 import { createNotification } from './guest-notification-engine.js';
@@ -126,29 +136,6 @@ const TRANSFERS_COLLECTION = 'transfers';
 
 async function assertCanCreateTransfer(db, senderId, ticketId) {
   const context = await getUserSubscriptionContext(db, senderId);
-  const limit = context.limits.ticketTransfers;
-  if (limit === null || context.subscription.isPremium) return context;
-
-  const transferSnapshot = await db
-    .collection(TRANSFERS_COLLECTION)
-    .where('ticketId', '==', ticketId)
-    .where('senderId', '==', senderId)
-    .where('status', '==', 'accepted')
-    .limit(limit)
-    .get();
-
-  if (transferSnapshot.size >= limit) {
-    throw new PremiumRequiredError(
-      'Free members can transfer a ticket once. Premium unlocks unlimited transfers.',
-      {
-        feature: 'ticketTransfers',
-        ticketId,
-        tier: context.subscription.tier,
-        limit,
-      },
-    );
-  }
-
   return context;
 }
 
@@ -157,6 +144,24 @@ async function assertCanCreateTransfer(db, senderId, ticketId) {
  */
 function generateToken(length = 16) {
   return randomBytes(length).toString('hex');
+}
+
+function toDateValue(value) {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (typeof value._seconds === 'number') return new Date(value._seconds * 1000);
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function directTicketDocumentId(orderId, tierId, slotIndex) {
+  const safe = (value) =>
+    String(value || 'GEN')
+      .replace(/[^a-zA-Z0-9_-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 80);
+  return `TKT-${safe(orderId)}-${safe(tierId)}-${Number(slotIndex)}`.toUpperCase();
 }
 
 /**
@@ -422,186 +427,188 @@ export async function createShareBundle(
     throw new Error('Firebase not configured');
   }
 
-  console.log(
-    `[TicketShareStore] Creating share bundle. orderId=${orderId}, userId=${userId}, tierId=${tierId}`,
-  );
-
   const db = getAdminDb();
+  const requestedQuantity = Math.floor(Number(quantity));
+  if (!Number.isInteger(requestedQuantity) || requestedQuantity < 1) {
+    throw new Error('Quantity must be a positive integer');
+  }
 
-  // SECURITY: Read order INSIDE transaction to prevent TOCTOU race conditions
-  let order;
-  let actualTierId;
-  await db.runTransaction(async (tx) => {
+  const transactionResult = await db.runTransaction(async (tx) => {
     const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
     const orderDoc = await tx.get(orderRef);
+    if (!orderDoc.exists) throw new Error('Order not found');
 
-    if (!orderDoc.exists) {
-      throw new Error('Order not found');
+    const order = { id: orderDoc.id, ...orderDoc.data() };
+    if (order.userId !== userId) throw new Error('Unauthorized');
+    if (order.status !== 'confirmed') throw new Error('Order must be confirmed before sharing');
+    if (!order.eventId) throw new Error('Order is missing its event reference');
+    if (eventId && eventId !== order.eventId) {
+      throw new Error('Order does not belong to the requested event');
     }
 
-    order = { id: orderDoc.id, ...orderDoc.data() };
-
-    if (order.userId !== userId) {
-      throw new Error('Unauthorized');
-    }
-
-    if (order.status !== 'confirmed') {
-      throw new Error('Order must be confirmed before sharing');
-    }
-
-    actualTierId = tierId || order.tickets[0]?.ticketId;
+    const actualTierId = tierId || order.tickets?.[0]?.ticketId || order.tickets?.[0]?.tierId;
     const sourceTicket = order.tickets?.find(
-      (t) => t.ticketId === actualTierId || t.tierId === actualTierId || t.id === actualTierId,
+      (ticket) =>
+        ticket.ticketId === actualTierId ||
+        ticket.tierId === actualTierId ||
+        ticket.id === actualTierId,
     );
-    const purchasedQuantity = sourceTicket?.quantity || 0;
+    if (!sourceTicket) throw new Error('Ticket tier was not purchased in this order');
 
-    // SECURITY: Do not trust client quantity — cap at purchased amount
-    const clampedQuantity = Math.min(quantity, purchasedQuantity);
-    if (clampedQuantity < 1) {
-      throw new Error('No purchasable tickets found for this tier');
-    }
-    if (clampedQuantity !== quantity) {
-      console.warn(
-        `[TicketShareStore] Quantity clamped from ${quantity} to ${purchasedQuantity} for order ${orderId}`,
-      );
-    }
-    quantity = clampedQuantity;
-  });
+    const purchasedQuantity = Math.max(0, Math.floor(Number(sourceTicket.quantity) || 0));
+    const bundleQuantity = Math.min(requestedQuantity, purchasedQuantity);
+    if (bundleQuantity < 1) throw new Error('No purchasable tickets found for this tier');
 
-  if (!order) {
-    throw new Error('Order not found');
-  }
+    const canonicalEventId = order.eventId;
+    const bundleKey = createHash('sha256')
+      .update(`${orderId}:${actualTierId}`)
+      .digest('hex')
+      .slice(0, 40);
+    const bundleRef = db.collection(SHARE_BUNDLES_COLLECTION).doc(`share_${bundleKey}`);
+    const allBundlesQuery = db
+      .collection(SHARE_BUNDLES_COLLECTION)
+      .where('orderId', '==', orderId);
+    const entitlementsQuery = db
+      .collection('entitlements')
+      .where('orderId', '==', orderId)
+      .where('metadata.tierId', '==', actualTierId);
 
-  // Check if bundle already exists for this order+tier
-  // Use a transaction to prevent concurrent duplicate creation (TOCTOU race)
-  const existing = await db.runTransaction(async (tx) => {
-    const existingSnapshot = await tx.get(
-      db
-        .collection(SHARE_BUNDLES_COLLECTION)
-        .where('orderId', '==', orderId)
-        .where('tierId', '==', actualTierId)
-        .limit(1),
-    );
+    const [bundleDoc, allBundlesSnapshot, eventDoc, userDoc, entsSnapshot] = await Promise.all([
+      tx.get(bundleRef),
+      tx.get(allBundlesQuery),
+      tx.get(db.collection('events').doc(canonicalEventId)),
+      tx.get(db.collection('users').doc(userId)),
+      tx.get(entitlementsQuery),
+    ]);
 
-    if (!existingSnapshot.empty) {
-      const bundleData = existingSnapshot.docs[0].data();
-      if (bundleData.status !== 'cancelled') {
-        return { id: existingSnapshot.docs[0].id, ...bundleData };
-      }
-    }
-    return null;
-  });
-
-  if (existing) return existing;
-
-  const token = generateToken();
-  const now = new Date();
-  const event = await getEvent(eventId);
-  let expiresAt = event?.startDate
-    ? new Date(event.startDate)
-    : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-  if (customExpiresAt) {
-    const candidate = new Date(customExpiresAt);
-    if (!isNaN(candidate.getTime())) {
-      expiresAt = candidate;
-    }
-  }
-
-  // actualTierId is already set inside the transaction block above
-  const tier = event?.tickets?.find((t) => t.id === actualTierId);
-  const buyerGender = await getUserGender(userId);
-
-  // Check if ANY bundle in this order already has an owner_locked slot
-  const allBundlesSnapshot = await db
-    .collection(SHARE_BUNDLES_COLLECTION)
-    .where('orderId', '==', orderId)
-    .get();
-
-  const hasExistingOwnerSlot = allBundlesSnapshot.docs.some((doc) => {
-    const d = doc.data();
-    return d.slots?.some((s) => s.slotType === 'owner_locked');
-  });
-
-  // Fetch entitlements for this order and tier to link them to slots
-  const entsSnapshot = await db
-    .collection('entitlements')
-    .where('orderId', '==', orderId)
-    .where('metadata.tierId', '==', actualTierId)
-    .get();
-  const orderEnts = entsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-  orderEnts.sort((a, b) => (a.metadata.index || 0) - (b.metadata.index || 0));
-
-  const slots = initializeSlots(quantity, userId, tier, buyerGender, hasExistingOwnerSlot);
-
-  // Link Entitlement IDs to slots
-  slots.forEach((slot) => {
-    if (tier?.isCouple) {
-      // For couple tickets, both slots in a pair share the same entitlement
-      const pairIndex = Math.ceil(slot.slotIndex / 2);
-      const ent = orderEnts[pairIndex - 1];
-      if (ent) slot.entitlementId = ent.id;
-    } else {
-      const ent = orderEnts[slot.slotIndex - 1];
-      if (ent) slot.entitlementId = ent.id;
-    }
-  });
-
-  const effectiveSlotsCount = slots.length;
-  const hasOwnerClaimed = slots.some(
-    (s) => s.slotType === 'owner_locked' && s.claimStatus === 'claimed',
-  );
-  const inventoryMode = getBundleInventoryMode(order);
-
-  // Default to 'individual' mode for Per-Ticket Identity (Refinement 155)
-  const isSharedQrMode = false;
-  const groupTicketId = `GROUP-${orderId}-${actualTierId}`;
-  const groupQrPayload = isSharedQrMode ? signTicketPayload(groupTicketId) : null;
-
-  const bundle = {
-    orderId,
-    eventId,
-    tierId: actualTierId,
-    userId,
-    mode: isSharedQrMode ? 'shared_qr' : 'individual',
-    totalSlots: effectiveSlotsCount,
-    remainingSlots: hasOwnerClaimed ? effectiveSlotsCount - 1 : effectiveSlotsCount,
-    scanCreditsRemaining: isSharedQrMode ? effectiveSlotsCount : null,
-    groupQrPayload,
-    groupTicketId,
-    slots,
-    genderRequirement: tier?.genderRequirement || 'any',
-    isCouple: !!tier?.isCouple,
-    inventoryMode,
-    token,
-    status: 'active',
-    createdAt: now.toISOString(),
-    expiresAt: expiresAt.toISOString(),
-  };
-
-  // HANDLE DEFERRED INVENTORY FOR OWNER SLOT
-  if (shouldReduceInventoryOnBundleCreation(inventoryMode, hasOwnerClaimed) && tier) {
-    await db.runTransaction(async (transaction) => {
-      await deductInventory(transaction, db, eventId, actualTierId, 1);
+    const existingBundle = allBundlesSnapshot.docs.find((doc) => {
+      const data = doc.data();
+      return data.tierId === actualTierId && data.status !== 'cancelled';
     });
+    if (existingBundle) {
+      return { created: false, bundle: { id: existingBundle.id, ...existingBundle.data() } };
+    }
+    if (bundleDoc.exists && bundleDoc.data().status !== 'cancelled') {
+      return { created: false, bundle: { id: bundleDoc.id, ...bundleDoc.data() } };
+    }
+    if (!eventDoc.exists) throw new Error('Event not found');
+
+    const event = { id: eventDoc.id, ...eventDoc.data() };
+    const eventTiers = event.ticketCatalog?.tiers || event.tickets || [];
+    const tier = eventTiers.find((candidate) => candidate.id === actualTierId);
+    if (!tier) throw new Error('Ticket tier no longer exists on this event');
+
+    const now = new Date();
+    const eventExpiryValue = event.endDate || event.endAt || event.startDate || event.startAt;
+    const eventExpiry = toDateValue(eventExpiryValue);
+    const canonicalExpiry =
+      eventExpiry && Number.isFinite(eventExpiry.getTime())
+        ? eventExpiry
+        : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    if (canonicalExpiry.getTime() <= now.getTime()) {
+      throw new Error('Cannot share tickets for an event that has ended');
+    }
+
+    let expiresAt = canonicalExpiry;
+    if (customExpiresAt) {
+      const requestedExpiry = new Date(customExpiresAt);
+      if (!Number.isFinite(requestedExpiry.getTime()) || requestedExpiry.getTime() <= now.getTime()) {
+        throw new Error('Share expiry must be a valid future date');
+      }
+      expiresAt = new Date(Math.min(requestedExpiry.getTime(), canonicalExpiry.getTime()));
+    }
+
+    const buyerGenderValue = userDoc.exists ? userDoc.data().gender : null;
+    const buyerGender = buyerGenderValue === 'male' || buyerGenderValue === 'female' ? buyerGenderValue : 'any';
+    const hasExistingOwnerSlot = allBundlesSnapshot.docs.some(
+      (doc) =>
+        doc.data().status !== 'cancelled' &&
+        doc.data().slots?.some((slot) => slot.slotType === 'owner_locked'),
+    );
+    const orderEnts = entsSnapshot.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
+      .filter(
+        (entitlement) =>
+          entitlement.ownerUserId === userId &&
+          (entitlement.state === ENTITLEMENT_STATES.ISSUED ||
+            entitlement.state === ENTITLEMENT_STATES.ACTIVE),
+      );
+    orderEnts.sort((left, right) => (left.metadata?.index || 0) - (right.metadata?.index || 0));
+    const orderEntitlementsByIndex = new Map(
+      orderEnts.map((entitlement) => [Number(entitlement.metadata?.index || 0), entitlement]),
+    );
+
+    const slots = initializeSlots(
+      bundleQuantity,
+      userId,
+      tier,
+      buyerGender,
+      hasExistingOwnerSlot,
+    );
+    slots.forEach((slot) => {
+      const entitlementIndex = tier.isCouple ? Math.ceil(slot.slotIndex / 2) : slot.slotIndex;
+      const entitlement = orderEntitlementsByIndex.get(entitlementIndex);
+      if (entitlement) slot.entitlementId = entitlement.id;
+    });
+    if (orderEnts.length > 0 && slots.some((slot) => !slot.entitlementId)) {
+      throw new Error('One or more purchased ticket entitlements are unavailable for sharing');
+    }
+
+    const effectiveSlotsCount = slots.length;
+    const hasOwnerClaimed = slots.some(
+      (slot) => slot.slotType === 'owner_locked' && slot.claimStatus === 'claimed',
+    );
+    const inventoryMode = getBundleInventoryMode(order);
+    const inventoryDeduction = shouldReduceInventoryOnBundleCreation(
+      inventoryMode,
+      hasOwnerClaimed,
+    )
+      ? await prepareInventoryDeduction(tx, db, canonicalEventId, actualTierId, 1)
+      : null;
+
+    const bundle = {
+      orderId,
+      eventId: canonicalEventId,
+      tierId: actualTierId,
+      userId,
+      mode: 'individual',
+      totalSlots: effectiveSlotsCount,
+      remainingSlots: hasOwnerClaimed ? effectiveSlotsCount - 1 : effectiveSlotsCount,
+      scanCreditsRemaining: null,
+      groupQrPayload: null,
+      groupTicketId: `GROUP-${orderId}-${actualTierId}`,
+      slots,
+      genderRequirement: tier.genderRequirement || 'any',
+      isCouple: !!tier.isCouple,
+      inventoryMode,
+      token: generateToken(),
+      status: 'active',
+      createdAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    };
+
+    if (inventoryDeduction) applyPreparedInventoryDeduction(tx, inventoryDeduction);
+    tx.set(bundleRef, bundle);
+    return { created: true, bundle: { id: bundleRef.id, ...bundle } };
+  });
+
+  if (transactionResult.created) {
+    const bundle = transactionResult.bundle;
+    await logAuditEvent(
+      'share_created',
+      {
+        bundleId: bundle.id,
+        orderId,
+        userId,
+        eventId: bundle.eventId,
+        tierId: bundle.tierId,
+        slots: bundle.totalSlots,
+      },
+      db,
+    );
   }
 
-  const docRef = await db.collection(SHARE_BUNDLES_COLLECTION).add(bundle);
-
-  await logAuditEvent(
-    'share_created',
-    {
-      bundleId: docRef.id,
-      orderId,
-      userId,
-      eventId,
-      tierId: actualTierId,
-      slots: effectiveSlotsCount,
-    },
-    db,
-  );
-
-  return { id: docRef.id, ...bundle };
+  return transactionResult.bundle;
 }
 
 /**
@@ -629,11 +636,15 @@ export async function claimTicketSlot(token, redeemerId) {
 
   const db = getAdminDb();
 
-  // Fetch user gender BEFORE the transaction to avoid TOCTOU race
-  const userGender = await getUserGender(redeemerId);
-
-  let bundleOwnerId = null;
-  let claimBundleId = null;
+  // Resolve user policy inputs before the transaction so retries do not perform
+  // untracked reads against a changing profile.
+  const [userGender, userBlocked] = await Promise.all([
+    getUserGender(redeemerId),
+    isUserBlocked(redeemerId, db),
+  ]);
+  if (userBlocked) {
+    throw new Error('Your account has been restricted from claiming tickets.');
+  }
 
   const transactionResult = await db.runTransaction(async (transaction) => {
     const bundleSnapshot = await transaction.get(
@@ -647,9 +658,6 @@ export async function claimTicketSlot(token, redeemerId) {
     const bundleDoc = bundleSnapshot.docs[0];
     const bundle = bundleDoc.data();
     const bundleId = bundleDoc.id;
-    bundleOwnerId = bundle.userId;
-    claimBundleId = bundleId;
-
     if (bundle.status !== 'active' || bundle.remainingSlots <= 0) {
       throw new Error('All tickets have been claimed');
     }
@@ -660,10 +668,6 @@ export async function claimTicketSlot(token, redeemerId) {
 
     if (bundle.userId === redeemerId) {
       throw new Error('You are the owner of this bundle');
-    }
-
-    if (await isUserBlocked(redeemerId, db)) {
-      throw new Error('Your account has been restricted from claiming tickets.');
     }
 
     // Block claim if the ticket is gender-restricted and the user hasn't set their gender
@@ -685,12 +689,20 @@ export async function claimTicketSlot(token, redeemerId) {
     );
 
     if (!existingClaimSnapshot.empty) {
+      const existingClaim = {
+        id: existingClaimSnapshot.docs[0].id,
+        ...existingClaimSnapshot.docs[0].data(),
+      };
+      if (
+        existingClaim.isRevoked ||
+        existingClaim.status === 'cancelled' ||
+        existingClaim.status === 'voided'
+      ) {
+        throw new Error('Your previous claim from this link was revoked by the ticket owner.');
+      }
       return {
         alreadyClaimed: true,
-        assignment: {
-          id: existingClaimSnapshot.docs[0].id,
-          ...existingClaimSnapshot.docs[0].data(),
-        },
+        assignment: existingClaim,
       };
     }
 
@@ -701,7 +713,7 @@ export async function claimTicketSlot(token, redeemerId) {
       (s) =>
         s.slotType === 'shareable' &&
         s.claimStatus === 'unclaimed' &&
-        (s.requiredGender === 'any' || s.requiredGender === userGender),
+        (!s.requiredGender || s.requiredGender === 'any' || s.requiredGender === userGender),
     );
 
     if (eligibleSlots.length === 0) {
@@ -734,6 +746,7 @@ export async function claimTicketSlot(token, redeemerId) {
         ? bundle.groupQrPayload
         : signTicketPayload(assignmentId, redeemerId);
 
+    const claimedAt = new Date().toISOString();
     const assignment = {
       bundleId,
       orderId: bundle.orderId,
@@ -742,13 +755,16 @@ export async function claimTicketSlot(token, redeemerId) {
       slotIndex: slotToAssign.slotIndex,
       requiredGender: slotToAssign.requiredGender || 'any',
       couplePairId: slotToAssign.couplePairId || null,
+      entitlementId: slotToAssign.entitlementId || null,
       redeemerId,
       originalPurchaserId: bundle.userId,
       assignmentId,
       qrPayload,
       isSharedQr: bundle.mode === 'shared_qr',
       status: 'active',
-      claimedAt: new Date().toISOString(),
+      claimedAt,
+      createdAt: claimedAt,
+      updatedAt: claimedAt,
     };
 
     const updatedSlots = slots.map((s) =>
@@ -763,42 +779,49 @@ export async function claimTicketSlot(token, redeemerId) {
         : s,
     );
 
-    transaction.update(bundleDoc.ref, {
-      remainingSlots: bundle.remainingSlots - 1,
-      slots: updatedSlots,
-      status: bundle.remainingSlots - 1 === 0 ? 'exhausted' : 'active',
-    });
-
-    // RSVP inventory is claim-based; paid/free checkout inventory is already committed.
-    if (shouldReduceInventoryOnBundleClaim(bundle.inventoryMode)) {
-      await deductInventory(transaction, db, bundle.eventId, bundle.tierId, 1);
+    // Build the complete transaction read set before any write. This is required
+    // by Firestore and keeps claim capacity and entitlement ownership atomic.
+    const inventoryDeduction = shouldReduceInventoryOnBundleClaim(bundle.inventoryMode)
+      ? await prepareInventoryDeduction(transaction, db, bundle.eventId, bundle.tierId, 1)
+      : null;
+    const entitlementTransfer =
+      slotToAssign.entitlementId && !bundle.isCouple
+        ? await prepareEntitlementTransfer(slotToAssign.entitlementId, transaction)
+        : null;
+    const directTicketRef = db
+      .collection('tickets')
+      .doc(directTicketDocumentId(bundle.orderId, bundle.tierId, slotToAssign.slotIndex));
+    const directTicketDoc = await transaction.get(directTicketRef);
+    if (directTicketDoc.exists) {
+      const directTicket = directTicketDoc.data();
+      if (
+        directTicket.userId !== bundle.userId ||
+        directTicket.orderId !== bundle.orderId ||
+        directTicket.tierId !== bundle.tierId ||
+        Number(directTicket.slotIndex) !== Number(slotToAssign.slotIndex) ||
+        directTicket.status !== 'active'
+      ) {
+        throw new Error('The selected ticket slot is no longer available for sharing');
+      }
+      assignment.originalTicketId = directTicketDoc.id;
     }
 
-    const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(assignmentId);
-    transaction.set(assignmentRef, assignment);
-
-    await logAuditEvent(
-      'claim_succeeded',
-      {
-        bundleId,
-        redeemerId,
-        assignmentId,
-        slotIndex: slotToAssign.slotIndex,
-      },
-      db,
-    );
-
-    // ENTITLEMENT ENGINE INTEGRATION
-    // Pass userGender so it is bound to the entitlement at claim time — prevents post-claim
-    // profile gender changes from causing door rejections.
-    if (slotToAssign.entitlementId && !bundle.isCouple) {
-      await transferEntitlement(
-        slotToAssign.entitlementId,
+    if (inventoryDeduction) {
+      applyPreparedInventoryDeduction(transaction, inventoryDeduction);
+    }
+    if (entitlementTransfer) {
+      const transferredEntitlement = applyPreparedEntitlementTransfer(
+        entitlementTransfer,
         redeemerId,
         bundle.userId,
         transaction,
         userGender,
       );
+      assignment.entitlementId = transferredEntitlement.id;
+      const claimedSlot = updatedSlots.find(
+        (slot) => slot.slotIndex === slotToAssign.slotIndex,
+      );
+      if (claimedSlot) claimedSlot.entitlementId = transferredEntitlement.id;
     } else if (slotToAssign.entitlementId && bundle.isCouple) {
       transaction.update(db.collection('entitlements').doc(slotToAssign.entitlementId), {
         'metadata.couplePartnerId': redeemerId,
@@ -807,20 +830,58 @@ export async function claimTicketSlot(token, redeemerId) {
       });
     }
 
-    return { alreadyClaimed: false, assignment };
+    transaction.update(bundleDoc.ref, {
+      remainingSlots: bundle.remainingSlots - 1,
+      slots: updatedSlots,
+      status: bundle.remainingSlots - 1 === 0 ? 'exhausted' : 'active',
+    });
+    const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(assignmentId);
+    transaction.set(assignmentRef, assignment);
+    if (directTicketDoc.exists) {
+      transaction.update(directTicketRef, {
+        status: 'shared',
+        sharedAssignmentId: assignmentId,
+        sharedToUserId: redeemerId,
+        sharedAt: assignment.claimedAt,
+        updatedAt: assignment.claimedAt,
+      });
+    }
+
+    return {
+      alreadyClaimed: false,
+      assignment,
+      bundleOwnerId: bundle.userId,
+      claimBundleId: bundleId,
+    };
   });
 
-  if (!transactionResult.alreadyClaimed && bundleOwnerId) {
+  if (!transactionResult.alreadyClaimed) {
+    await logAuditEvent(
+      'claim_succeeded',
+      {
+        bundleId: transactionResult.claimBundleId,
+        redeemerId,
+        assignmentId: transactionResult.assignment.assignmentId,
+        slotIndex: transactionResult.assignment.slotIndex,
+      },
+      db,
+    );
+  }
+
+  if (!transactionResult.alreadyClaimed && transactionResult.bundleOwnerId) {
     createNotification({
-      userId: bundleOwnerId,
+      userId: transactionResult.bundleOwnerId,
       type: 'ticket_claimed',
       title: 'Ticket Claimed',
       body: 'Someone claimed a ticket from your share link',
-      data: { bundleId: claimBundleId, redeemerId },
+      data: { bundleId: transactionResult.claimBundleId, redeemerId },
     }).catch(() => {});
   }
 
-  return transactionResult;
+  return {
+    alreadyClaimed: transactionResult.alreadyClaimed,
+    assignment: transactionResult.assignment,
+  };
 }
 
 /**
@@ -1408,7 +1469,19 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
   if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
   const db = getAdminDb();
 
-  const isClaimRecord = ticketId.startsWith('CLAIM-');
+  const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(ticketId);
+  const directTicketRef = db.collection('tickets').doc(ticketId);
+  const [assignmentCandidate, directTicketCandidate] = await Promise.all([
+    assignmentRef.get(),
+    directTicketRef.get(),
+  ]);
+  const isAssignmentRecord = assignmentCandidate.exists;
+  if (
+    !isAssignmentRecord &&
+    (ticketId.startsWith('CLAIM-') || ticketId.startsWith('TRANS-'))
+  ) {
+    throw new Error('Ticket assignment not found');
+  }
   let orderId = null;
 
   let eventId;
@@ -1420,17 +1493,13 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
   let ticketType = 'Ticket';
 
   // 1. Ownership and State Check
-  if (isClaimRecord) {
-    const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(ticketId);
-    const assignmentDoc = await assignmentRef.get();
-    if (!assignmentDoc.exists) throw new Error('Ticket assignment not found');
-
-    const data = assignmentDoc.data();
+  if (isAssignmentRecord) {
+    const data = assignmentCandidate.data();
     if (data.redeemerId !== senderId)
       throw new Error('Unauthorized: You do not own this claimed ticket');
     if (data.status === 'used')
       throw new Error('Ticket has already been scanned and cannot be transferred');
-    if (data.status === 'voided' || data.status === 'cancelled')
+    if (data.status !== 'active')
       throw new Error('This ticket is no longer valid');
 
     eventId = data.eventId;
@@ -1438,16 +1507,17 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
     entitlementId = data.entitlementId || null;
     orderId = data.orderId || null;
     tierId = data.tierId || null;
-    slotIndex = data.slotIndex || null;
+    slotIndex = data.slotIndex ?? null;
     requiredGender = data.requiredGender || 'any';
     ticketType = data.ticketType || 'Transferred Ticket';
   }
 
   let event = null;
 
-  if (!isClaimRecord) {
-    const parsedTicket = parseDirectTicketId(ticketId);
-    orderId = parsedTicket.orderId;
+  if (!isAssignmentRecord) {
+    const directTicket = directTicketCandidate.exists ? directTicketCandidate.data() : null;
+    const parsedTicket = directTicket ? null : parseDirectTicketId(ticketId);
+    orderId = directTicket ? directTicket.orderId : parsedTicket.orderId;
 
     // Direct order ticket
     const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
@@ -1461,7 +1531,23 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
     eventId = order.eventId;
     currentOwnerId = order.userId;
     event = await getEvent(eventId);
-    const directMetadata = deriveDirectTransferMetadata(ticketId, order, event);
+    if (directTicket) {
+      if (directTicket.userId !== senderId) {
+        throw new Error('Unauthorized: You do not own this ticket');
+      }
+      if (directTicket.status !== 'active') {
+        throw new Error('This ticket is no longer transferable');
+      }
+    }
+    const directMetadata = directTicket
+      ? {
+          orderId: directTicket.orderId,
+          tierId: directTicket.tierId,
+          slotIndex: directTicket.slotIndex,
+          ticketType: directTicket.tierName || directTicket.ticketType || 'Ticket',
+          requiredGender: inferGenderRequirement(directTicket),
+        }
+      : deriveDirectTransferMetadata(ticketId, order, event);
     orderId = directMetadata.orderId;
     tierId = directMetadata.tierId;
     slotIndex = directMetadata.slotIndex;
@@ -1502,31 +1588,12 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
   }
 
   if (event) {
-    const start = new Date(event.startDate || event.startAt);
-    const hoursUntilEvent = (start - new Date()) / 36e5;
+    const start = toDateValue(event.startDate || event.startAt);
+    if (!start) throw new Error('Event start time is invalid');
+    const hoursUntilEvent = (start.getTime() - Date.now()) / 36e5;
     if (hoursUntilEvent < 2) {
       throw new Error(`Transfers are locked 2 hours before the event.`);
     }
-  }
-
-  // 3. Concurrency Check: Existing Pending Transfer
-  const existingPending = await db
-    .collection(TRANSFERS_COLLECTION)
-    .where('ticketId', '==', ticketId)
-    .where('senderId', '==', senderId)
-    .where('status', '==', 'pending')
-    .get();
-
-  if (!existingPending.empty) {
-    // If already exists, return the existing one or cancel it?
-    // Let's just return the existing one if it's not expired.
-    const existing = existingPending.docs[0];
-    const data = existing.data();
-    if (new Date(data.expiresAt) > new Date()) {
-      return { id: existing.id, ...data };
-    }
-    // If expired, we'll mark it as expired and continue to create a new one
-    await existing.ref.update({ status: 'expired', updatedAt: new Date().toISOString() });
   }
 
   await assertCanCreateTransfer(db, senderId, ticketId);
@@ -1539,6 +1606,8 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
 
   const transfer = {
     ticketId,
+    sourceKind: isAssignmentRecord ? 'assignment' : 'direct',
+    ticketDocumentId: directTicketCandidate.exists ? ticketId : null,
     orderId,
     tierId,
     slotIndex,
@@ -1557,12 +1626,53 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
     expiresAt: expiresAt.toISOString(),
   };
 
-  const docRef = await db.collection(TRANSFERS_COLLECTION).add(transfer);
+  const transferRef = db
+    .collection(TRANSFERS_COLLECTION)
+    .doc(`XFER-${randomBytes(12).toString('hex')}`);
+  const lockRef = db
+    .collection('ticket_transfer_locks')
+    .doc(createHash('sha256').update(`${senderId}:${ticketId}`).digest('hex'));
+  const creation = await db.runTransaction(async (transaction) => {
+    const lockDoc = await transaction.get(lockRef);
+    const activeTransferRef = lockDoc.exists && lockDoc.data().transferId
+      ? db.collection(TRANSFERS_COLLECTION).doc(lockDoc.data().transferId)
+      : null;
+    const activeTransferDoc = activeTransferRef
+      ? await transaction.get(activeTransferRef)
+      : null;
+
+    if (activeTransferDoc?.exists) {
+      const activeTransfer = activeTransferDoc.data();
+      if (
+        activeTransfer.status === 'pending' &&
+        new Date(activeTransfer.expiresAt).getTime() > Date.now()
+      ) {
+        return { created: false, id: activeTransferDoc.id, transfer: activeTransfer };
+      }
+    }
+
+    const now = new Date().toISOString();
+    if (activeTransferDoc?.exists && activeTransferDoc.data().status === 'pending') {
+      transaction.update(activeTransferDoc.ref, { status: 'expired', updatedAt: now });
+    }
+    transaction.set(transferRef, transfer);
+    transaction.set(lockRef, {
+      senderId,
+      ticketId,
+      transferId: transferRef.id,
+      updatedAt: now,
+    });
+    return { created: true, id: transferRef.id, transfer };
+  });
+
+  if (!creation.created) {
+    return { id: creation.id, ...creation.transfer };
+  }
 
   await logAuditEvent(
     'transfer_initiated',
     {
-      transferId: docRef.id,
+      transferId: creation.id,
       ticketId,
       senderId,
       recipientEmail: transfer.recipientEmail,
@@ -1584,39 +1694,49 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
         type: 'transfer_received',
         title: 'Ticket Transfer Received',
         body: `${transfer.senderName || 'Someone'} sent you a ticket`,
-        data: { transferId: docRef.id, ticketId, senderId },
+        data: { transferId: creation.id, ticketId, senderId },
       }).catch(() => {});
     }
   }
 
-  return { id: docRef.id, ...transfer };
+  return { id: creation.id, ...transfer };
 }
 
 /**
  * Accept a ticket transfer
  */
-export async function acceptTransfer(tokenOrId, recipientId) {
+export async function acceptTransfer(tokenOrId, recipientId, authenticatedEmail = null) {
   if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
   const db = getAdminDb();
 
-  // Fetch user gender BEFORE the transaction to avoid TOCTOU race
-  const recipientGender = await getUserGender(recipientId);
+  let transferRef = db.collection(TRANSFERS_COLLECTION).doc(tokenOrId);
+  let transferLookup = await transferRef.get();
+  if (!transferLookup.exists) {
+    const tokenQuery = await db
+      .collection(TRANSFERS_COLLECTION)
+      .where('token', '==', tokenOrId)
+      .limit(1)
+      .get();
+    if (tokenQuery.empty) throw new Error('Transfer link is invalid or has been revoked.');
+    transferRef = tokenQuery.docs[0].ref;
+    transferLookup = tokenQuery.docs[0];
+  }
+
+  const [recipientGender, recipientBlocked, recipientProfile] = await Promise.all([
+    getUserGender(recipientId),
+    isUserBlocked(recipientId, db),
+    db.collection('users').doc(recipientId).get(),
+  ]);
+  if (recipientBlocked) {
+    throw new Error('Your account is restricted from accepting ticket transfers.');
+  }
+  const recipientEmail = String(
+    authenticatedEmail || (recipientProfile.exists ? recipientProfile.data().email : '') || '',
+  ).toLowerCase();
 
   const transferResult = await db.runTransaction(async (transaction) => {
-    // Lookup by ID first, then by token
-    let transferRef = db.collection(TRANSFERS_COLLECTION).doc(tokenOrId);
-    let transferDoc = await transaction.get(transferRef);
-
-    if (!transferDoc.exists) {
-      const tokenQuery = await db
-        .collection(TRANSFERS_COLLECTION)
-        .where('token', '==', tokenOrId)
-        .limit(1)
-        .get();
-      if (tokenQuery.empty) throw new Error('Transfer link is invalid or has been revoked.');
-      transferRef = tokenQuery.docs[0].ref;
-      transferDoc = tokenQuery.docs[0];
-    }
+    const transferDoc = await transaction.get(transferRef);
+    if (!transferDoc.exists) throw new Error('Transfer link is invalid or has been revoked.');
 
     const transfer = transferDoc.data();
     const transferId = transferDoc.id;
@@ -1631,31 +1751,21 @@ export async function acceptTransfer(tokenOrId, recipientId) {
 
     if (new Date(transfer.expiresAt) < new Date()) {
       transaction.update(transferRef, { status: 'expired', updatedAt: new Date().toISOString() });
-      throw new Error(
-        'This transfer link has expired. Please ask the sender to generate a new one.',
-      );
+      return {
+        success: false,
+        terminalError: 'This transfer link has expired. Please ask the sender to generate a new one.',
+      };
     }
 
     if (transfer.senderId === recipientId) {
       throw new Error('You already own this ticket.');
     }
 
-    if (await isUserBlocked(recipientId, db)) {
-      throw new Error('Your account is restricted from accepting ticket transfers.');
-    }
-
     // SECURITY: Verify recipient email matches if transfer was email-bound
-    if (transfer.recipientEmail) {
-      const recipientProfile = await db.collection('users').doc(recipientId).get();
-      const recipientProfileEmail = recipientProfile.exists
-        ? (recipientProfile.data().email || '').toLowerCase()
-        : '';
-      const recipientAuthEmail = recipientProfileEmail;
-      if (recipientAuthEmail !== transfer.recipientEmail) {
-        throw new Error(
-          'This transfer was sent to a specific email address. Please sign in with the email address that received the transfer invitation.',
-        );
-      }
+    if (transfer.recipientEmail && recipientEmail !== transfer.recipientEmail) {
+      throw new Error(
+        'This transfer was sent to a specific email address. Please sign in with the email address that received the transfer invitation.',
+      );
     }
 
     const ticketId = transfer.ticketId;
@@ -1672,51 +1782,100 @@ export async function acceptTransfer(tokenOrId, recipientId) {
         );
       }
     }
-    const parts = ticketId.split('-');
+    const sourceKind =
+      transfer.sourceKind ||
+      (ticketId.startsWith('CLAIM-') || ticketId.startsWith('TRANS-')
+        ? 'assignment'
+        : 'direct');
+    let assignmentRef = null;
+    let assignmentData = null;
+    let directOrder = null;
+    let directOrderId = transfer.orderId || null;
+    let sourceTicketDocumentRef = null;
 
-    // 2. Ownership Verify (Verify sender still owns it)
-    if (ticketId.startsWith('CLAIM-')) {
+    // 2. Resolve and verify the complete ownership read set.
+    if (sourceKind === 'assignment') {
       const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(ticketId);
       const assignmentDoc = await transaction.get(assignmentRef);
-      if (!assignmentDoc.exists || assignmentDoc.data().redeemerId !== transfer.senderId) {
+      assignmentData = assignmentDoc.exists ? assignmentDoc.data() : null;
+      if (
+        !assignmentData ||
+        assignmentData.redeemerId !== transfer.senderId ||
+        assignmentData.status !== 'active'
+      ) {
         transaction.update(transferRef, {
           status: 'invalidated',
           updatedAt: new Date().toISOString(),
         });
-        throw new Error("This ticket is no longer in the sender's wallet.");
+        return { success: false, terminalError: "This ticket is no longer in the sender's wallet." };
       }
     } else {
-      const orderId = parts.slice(0, parts.length - 2).join('-');
-      const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
-      const orderDoc = await transaction.get(orderRef);
-      if (!orderDoc.exists || orderDoc.data().userId !== transfer.senderId) {
+      const parsedTicket = directOrderId ? null : parseDirectTicketId(ticketId);
+      directOrderId = directOrderId || parsedTicket.orderId;
+      const orderRef = db.collection(ORDERS_COLLECTION).doc(directOrderId);
+      const scanRef = db.collection('ticket_scans').doc(ticketId);
+      const directTicketRef = transfer.ticketDocumentId
+        ? db.collection('tickets').doc(transfer.ticketDocumentId)
+        : null;
+      sourceTicketDocumentRef = directTicketRef;
+      const activeAssignmentQuery = db
+        .collection(TICKET_ASSIGNMENTS_COLLECTION)
+        .where('originalTicketId', '==', ticketId)
+        .where('status', '==', 'active')
+        .limit(1);
+      const [orderDoc, scanDoc, activeAssignmentSnapshot, directTicketDoc] = await Promise.all([
+        transaction.get(orderRef),
+        transaction.get(scanRef),
+        transaction.get(activeAssignmentQuery),
+        directTicketRef ? transaction.get(directTicketRef) : Promise.resolve(null),
+      ]);
+      directOrder = orderDoc.exists ? orderDoc.data() : null;
+      const activeAssignment = activeAssignmentSnapshot.empty
+        ? null
+        : activeAssignmentSnapshot.docs[0].data();
+      if (
+        !directOrder ||
+        directOrder.userId !== transfer.senderId ||
+        directOrder.status !== 'confirmed' ||
+        scanDoc.exists ||
+        (directTicketRef &&
+          (!directTicketDoc?.exists ||
+            directTicketDoc.data().userId !== transfer.senderId ||
+            directTicketDoc.data().status !== 'active')) ||
+        (activeAssignment && activeAssignment.redeemerId !== transfer.senderId)
+      ) {
         transaction.update(transferRef, {
           status: 'invalidated',
           updatedAt: new Date().toISOString(),
         });
-        throw new Error('The sender no longer owns the order containing this ticket.');
+        return {
+          success: false,
+          terminalError: 'The sender no longer owns this ticket.',
+        };
       }
     }
 
-    // 3. Atomic Handoff
-    let requiredGender = 'any';
+    const entitlementTransfer = transfer.entitlementId
+      ? await prepareEntitlementTransfer(transfer.entitlementId, transaction)
+      : null;
+
+    // 3. Atomic Handoff — all transaction reads are complete above.
     const now = new Date().toISOString();
+    const transferredEntitlement = entitlementTransfer
+      ? applyPreparedEntitlementTransfer(
+          entitlementTransfer,
+          recipientId,
+          transfer.senderId,
+          transaction,
+        )
+      : null;
 
-    if (ticketId.startsWith('CLAIM-')) {
-      const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(ticketId);
-      const assignmentData = (await transaction.get(assignmentRef)).data();
-      requiredGender = assignmentData.requiredGender || transferGenderRequirement;
-
-      // Log old identity removal
-      await logAuditEvent(
-        'assignment_transferred_out',
-        { assignmentId: ticketId, formerOwner: transfer.senderId, newOwner: recipientId },
-        db,
-      );
-
-      // Update assignment
+    if (sourceKind === 'assignment') {
+      assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(ticketId);
       transaction.update(assignmentRef, {
         redeemerId: recipientId,
+        qrPayload: signTicketPayload(ticketId, recipientId),
+        entitlementId: transferredEntitlement?.id || assignmentData.entitlementId || null,
         previousOwnerId: transfer.senderId,
         updatedAt: now,
         transferSource: 'formal_transfer',
@@ -1729,9 +1888,9 @@ export async function acceptTransfer(tokenOrId, recipientId) {
 
       const assignment = {
         originalTicketId: ticketId,
-        orderId: transfer.orderId || parts.slice(0, parts.length - 2).join('-'),
-        tierId: transfer.tierId || parts[parts.length - 2],
-        slotIndex: transfer.slotIndex || Number(parts[parts.length - 1]),
+        orderId: directOrderId,
+        tierId: transfer.tierId ?? parseDirectTicketId(ticketId).tierId,
+        slotIndex: transfer.slotIndex ?? parseDirectTicketId(ticketId).slotIndex,
         redeemerId: recipientId,
         originalPurchaserId: transfer.senderId,
         senderId: transfer.senderId,
@@ -1740,7 +1899,7 @@ export async function acceptTransfer(tokenOrId, recipientId) {
         assignmentId,
         qrPayload,
         requiredGender: transferGenderRequirement,
-        entitlementId: transfer.entitlementId || null,
+        entitlementId: transferredEntitlement?.id || null,
         ticketType: transfer.ticketType || 'Transferred Pass',
         transferredAt: now,
         createdAt: now,
@@ -1749,19 +1908,17 @@ export async function acceptTransfer(tokenOrId, recipientId) {
       };
 
       transaction.set(db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(assignmentId), assignment);
+      if (sourceTicketDocumentRef) {
+        transaction.update(sourceTicketDocumentRef, {
+          status: 'transferred',
+          transferredTo: recipientId,
+          transferredAt: now,
+          updatedAt: now,
+        });
+      }
     }
 
-    // 4. Entitlement Engine
-    if (transfer.entitlementId) {
-      await transferEntitlement(
-        transfer.entitlementId,
-        recipientId,
-        transfer.senderId,
-        transaction,
-      );
-    }
-
-    // 5. Finalize Transfer Record
+    // 4. Finalize Transfer Record
     transaction.update(transferRef, {
       status: 'accepted',
       recipientId: recipientId,
@@ -1769,31 +1926,45 @@ export async function acceptTransfer(tokenOrId, recipientId) {
       updatedAt: now,
     });
 
-    await logAuditEvent(
-      'transfer_accepted',
-      {
-        transferId,
-        senderId: transfer.senderId,
-        recipientId,
-        ticketId,
-      },
-      db,
-    );
-
-    return { success: true, ticketId };
+    return {
+      success: true,
+      ticketId,
+      transferId,
+      senderId: transfer.senderId,
+      sourceKind,
+    };
   });
 
-  if (transferResult.success && transfer?.senderId) {
+  if (!transferResult.success) {
+    throw new Error(transferResult.terminalError || 'Transfer could not be accepted.');
+  }
+
+  await logAuditEvent(
+    'transfer_accepted',
+    {
+      transferId: transferResult.transferId,
+      senderId: transferResult.senderId,
+      recipientId,
+      ticketId: transferResult.ticketId,
+    },
+    db,
+  );
+
+  if (transferResult.senderId) {
     createNotification({
-      userId: transfer.senderId,
+      userId: transferResult.senderId,
       type: 'transfer_accepted',
       title: 'Transfer Accepted',
       body: 'Your ticket transfer has been accepted',
-      data: { transferId, ticketId: transfer.ticketId, recipientId },
+      data: {
+        transferId: transferResult.transferId,
+        ticketId: transferResult.ticketId,
+        recipientId,
+      },
     }).catch(() => {});
   }
 
-  return transferResult;
+  return { success: true, ticketId: transferResult.ticketId };
 }
 
 export async function getPendingTransfers(userId, email = null) {
@@ -2032,7 +2203,7 @@ export async function revokeClaimedTicket(bundleId, hostUserId, slotIndex) {
   if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
   const db = getAdminDb();
 
-  return await db.runTransaction(async (transaction) => {
+  const result = await db.runTransaction(async (transaction) => {
     const bundleRef = db.collection(SHARE_BUNDLES_COLLECTION).doc(bundleId);
     const doc = await transaction.get(bundleRef);
 
@@ -2053,36 +2224,30 @@ export async function revokeClaimedTicket(bundleId, hostUserId, slotIndex) {
 
     const claimedUserId = slots[slotIdx].currentOwnerUserId;
     const issuedTicketId = slots[slotIdx].issuedTicketId;
+    if (!claimedUserId) throw new Error('Claimed slot is missing its current owner');
 
-    // SECURITY: Transactionally verify assignment details before revoking
-    let assignmentVerified = false;
+    // Resolve one exact assignment before writing anything. If identity cannot
+    // be proven, fail closed and leave capacity unchanged.
+    let assignmentRef = null;
+    let assignment = null;
 
     // Path 1: Void by issuedTicketId (direct assignment reference)
     if (issuedTicketId) {
-      const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(issuedTicketId);
-      const assignmentDoc = await transaction.get(assignmentRef);
+      const directAssignmentRef = db
+        .collection(TICKET_ASSIGNMENTS_COLLECTION)
+        .doc(issuedTicketId);
+      const assignmentDoc = await transaction.get(directAssignmentRef);
       if (assignmentDoc.exists) {
-        const assignment = assignmentDoc.data();
-        // Verify bundleId and redeemerId match
-        if (assignment.bundleId === bundleId && assignment.redeemerId === claimedUserId) {
-          // SECURITY: Cannot revoke a ticket that has already been used
-          if (assignment.status === 'used') {
-            throw new Error('Cannot revoke a ticket that has already been scanned for entry');
-          }
-          assignmentVerified = true;
-          transaction.update(assignmentRef, {
-            status: 'cancelled',
-            isRevoked: true,
-            revokedAt: new Date().toISOString(),
-            cancelledBy: hostUserId,
-            voidReason: 'revoked_by_host',
-          });
+        const candidate = assignmentDoc.data();
+        if (candidate.bundleId === bundleId && candidate.redeemerId === claimedUserId) {
+          assignmentRef = directAssignmentRef;
+          assignment = candidate;
         }
       }
     }
 
     // Path 2: Fallback lookup by bundleId + redeemerId if path 1 didn't match
-    if (!assignmentVerified && claimedUserId) {
+    if (!assignment) {
       const altSnapshot = await transaction.get(
         db
           .collection(TICKET_ASSIGNMENTS_COLLECTION)
@@ -2091,31 +2256,92 @@ export async function revokeClaimedTicket(bundleId, hostUserId, slotIndex) {
           .where('status', '==', 'active')
           .limit(2),
       );
-      if (!altSnapshot.empty) {
-        for (const altDoc of altSnapshot.docs) {
-          const alt = altDoc.data();
-          // SECURITY: Cannot revoke a used ticket
-          if (alt.status === 'used') {
-            throw new Error('Cannot revoke a ticket that has already been scanned for entry');
-          }
-          assignmentVerified = true;
-          transaction.update(altDoc.ref, {
-            status: 'cancelled',
-            isRevoked: true,
-            revokedAt: new Date().toISOString(),
-            cancelledBy: hostUserId,
-            voidReason: 'revoked_by_host',
-          });
-        }
+      const matchingAssignments = altSnapshot.docs.filter(
+        (candidate) => candidate.data().slotIndex === slotIndex,
+      );
+      if (matchingAssignments.length === 1) {
+        assignmentRef = matchingAssignments[0].ref;
+        assignment = matchingAssignments[0].data();
+      } else if (matchingAssignments.length > 1) {
+        throw new Error('Multiple active assignments found for this ticket slot');
       }
     }
 
-    if (!assignmentVerified && claimedUserId) {
-      // Log warning but proceed — revoke the slot even if assignment is missing
-      console.warn(
-        `[TicketShare] Revoke: no matching active assignment found for bundle ${bundleId}, user ${claimedUserId}`,
-      );
+    if (!assignment || !assignmentRef) {
+      throw new Error('Cannot safely revoke: active ticket assignment could not be verified');
     }
+    if (assignment.status === 'used') {
+      throw new Error('Cannot revoke a ticket that has already been scanned for entry');
+    }
+    if (assignment.status !== 'active') {
+      throw new Error(`Cannot revoke a ticket in status: ${assignment.status}`);
+    }
+
+    const entitlementId = assignment.entitlementId || slots[slotIdx].entitlementId || null;
+    let preparedEntitlement = null;
+    if (entitlementId) {
+      const entitlementRef = db.collection('entitlements').doc(entitlementId);
+      const entitlementDoc = await transaction.get(entitlementRef);
+      if (!entitlementDoc.exists) {
+        throw new Error('Cannot safely revoke: linked entitlement was not found');
+      }
+      const entitlement = entitlementDoc.data();
+      if (entitlement.ownerUserId !== claimedUserId) {
+        throw new Error('Cannot safely revoke: entitlement owner does not match the ticket owner');
+      }
+      if (entitlement.state === ENTITLEMENT_STATES.CONSUMED) {
+        throw new Error('Cannot revoke a ticket that has already been scanned for entry');
+      }
+      if (
+        entitlement.state !== ENTITLEMENT_STATES.ISSUED &&
+        entitlement.state !== ENTITLEMENT_STATES.ACTIVE
+      ) {
+        throw new Error(`Cannot safely revoke entitlement in state: ${entitlement.state}`);
+      }
+      preparedEntitlement = { entitlementId, entRef: entitlementRef, entitlement };
+    }
+    const directTicketRef = db
+      .collection('tickets')
+      .doc(
+        assignment.originalTicketId ||
+          directTicketDocumentId(bundle.orderId, bundle.tierId, slotIndex),
+      );
+    const directTicketDoc = await transaction.get(directTicketRef);
+    if (
+      directTicketDoc.exists &&
+      (directTicketDoc.data().userId !== bundle.userId ||
+        directTicketDoc.data().orderId !== bundle.orderId ||
+        Number(directTicketDoc.data().slotIndex) !== Number(slotIndex))
+    ) {
+      throw new Error('Cannot safely revoke: source ticket ownership does not match the bundle');
+    }
+
+    const now = new Date().toISOString();
+    transaction.update(assignmentRef, {
+      status: 'cancelled',
+      isRevoked: true,
+      revokedAt: now,
+      cancelledBy: hostUserId,
+      voidReason: 'revoked_by_host',
+    });
+    if (directTicketDoc.exists) {
+      transaction.update(directTicketRef, {
+        status: 'active',
+        sharedAssignmentId: null,
+        sharedToUserId: null,
+        sharedAt: null,
+        updatedAt: now,
+      });
+    }
+    const replacementEntitlement = preparedEntitlement
+      ? applyPreparedEntitlementRevocationWithReplacement(
+          preparedEntitlement,
+          bundle.userId,
+          hostUserId,
+          'SHARE_REVOKED',
+          transaction,
+        )
+      : null;
 
     // Reset slot to unclaimed
     const updatedSlots = slots.map((s) =>
@@ -2126,6 +2352,7 @@ export async function revokeClaimedTicket(bundleId, hostUserId, slotIndex) {
             claimStatus: 'unclaimed',
             claimedAt: null,
             issuedTicketId: null,
+            entitlementId: replacementEntitlement?.id || s.entitlementId || null,
           }
         : s,
     );
@@ -2136,24 +2363,31 @@ export async function revokeClaimedTicket(bundleId, hostUserId, slotIndex) {
       status: 'active',
     });
 
-    await logAuditEvent(
-      'revoke_succeeded',
-      {
-        bundleId,
-        hostUserId,
-        revokedUserId: claimedUserId,
-        slotIndex,
-        assignmentId: issuedTicketId,
-      },
-      db,
-    );
-
     return {
       success: true,
       revokedUserId: claimedUserId,
       releasedSlot: slotIndex,
+      assignmentId: assignmentRef.id,
     };
   });
+
+  await logAuditEvent(
+    'revoke_succeeded',
+    {
+      bundleId,
+      hostUserId,
+      revokedUserId: result.revokedUserId,
+      slotIndex,
+      assignmentId: result.assignmentId,
+    },
+    db,
+  );
+
+  return {
+    success: true,
+    revokedUserId: result.revokedUserId,
+    releasedSlot: result.releasedSlot,
+  };
 }
 
 /**

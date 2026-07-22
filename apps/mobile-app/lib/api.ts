@@ -38,8 +38,9 @@ function isLoopbackHost(host: string): boolean {
 }
 
 // Fastify API Gateway base URL.
-// In development, derive the gateway host from Expo's dev server. Prefer a LAN host
-// when Expo exposes one; Android cannot reach a Mac through 127.0.0.1 unless adb reverse is set.
+// An explicit URL is authoritative. This lets physical Android development use
+// 127.0.0.1 safely with `adb reverse`, while EAS production builds use the URL
+// supplied by their build profile. Only derive a host when no URL was configured.
 function getApiBase(): string {
   const explicitBase = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_GATEWAY_URL;
   if (explicitBase) return explicitBase;
@@ -77,12 +78,18 @@ const API_PREFIX = '/api/v1';
 type AuthSyncResponse = {
   user?: any;
   profile?: any;
+  claims?: Record<string, any>;
+  requiresTokenRefresh?: boolean;
+  onboarding?: import('./firstRun').FirstRunSnapshot;
+  snapshot?: import('./firstRun').FirstRunSnapshot;
+  requirements?: { minimumAccountAge?: number; minimumTastes?: number };
   data?: {
     user?: any;
     profile?: any;
+    onboarding?: import('./firstRun').FirstRunSnapshot;
+    snapshot?: import('./firstRun').FirstRunSnapshot;
+    requirements?: { minimumAccountAge?: number; minimumTastes?: number };
   };
-  claims?: Record<string, any>;
-  requiresTokenRefresh?: boolean;
 };
 
 /**
@@ -111,23 +118,24 @@ async function apiFetch<T = any>(
 
   const appVersion = Constants.expoConfig?.version ?? 'unknown';
   const isFormData = fetchOptions.body instanceof FormData;
+  const hasBody = fetchOptions.body !== undefined && fetchOptions.body !== null;
   const headers: Record<string, string> = {
-    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(isFormData || !hasBody ? {} : { 'Content-Type': 'application/json' }),
     'X-App-Version': appVersion,
     ...(fetchOptions.headers as Record<string, string>),
   };
 
-    if (requireAuth) {
-      const auth = getFirebaseAuth();
-      const user = auth.currentUser;
-      if (!user) {
-        throw new Error('Authentication required. Please sign in.');
-      }
+  if (requireAuth) {
+    const auth = getFirebaseAuth();
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error('Authentication required. Please sign in.');
+    }
 
-      let token;
-      try {
-        token = await user.getIdToken(_retry);
-      } catch (error: any) {
+    let token;
+    try {
+      token = await user.getIdToken(_retry);
+    } catch (error: any) {
       const isDisabled =
         error.code === 'auth/user-disabled' ||
         error.code === 'auth/user-not-found' ||
@@ -153,13 +161,13 @@ async function apiFetch<T = any>(
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
-    console.log(`[API] Fetching ${url}...`);
+    if (__DEV__) console.log(`[API] Fetching ${url}...`);
     const response = await fetch(url, {
       ...fetchOptions,
       headers,
       signal: controller.signal,
     });
-    console.log(`[API] Fetch complete for ${url}. Status:`, response.status);
+    if (__DEV__) console.log(`[API] Fetch complete for ${url}. Status:`, response.status);
     clearTimeout(timeoutId);
 
     // Handle 429 Too Many Requests — rate limited
@@ -329,7 +337,10 @@ export interface InitiateCheckoutResponse {
   };
   razorpay?: {
     orderId: string;
+    /** Human-readable amount in rupees, retained for API compatibility. */
     amount: number;
+    /** Authoritative Razorpay SDK amount in paise. */
+    amountPaise?: number;
     currency: string;
     key?: string;
   };
@@ -388,6 +399,17 @@ export async function cancelOrder(orderId: string): Promise<{ success: boolean }
   return apiFetch(`${API_PREFIX}/checkout/cancel`, {
     method: 'POST',
     body: JSON.stringify({ orderId }),
+  });
+}
+
+/**
+ * Release an inventory reservation that has not become an order yet.
+ * Uses: POST /api/checkout/cancel
+ */
+export async function cancelReservation(reservationId: string): Promise<{ success: boolean }> {
+  return apiFetch(`${API_PREFIX}/checkout/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({ reservationId }),
   });
 }
 
@@ -475,12 +497,14 @@ export async function fetchEvents(params?: {
 }
 
 export async function fetchPublicVenues(params?: {
+  city?: string;
   area?: string;
   search?: string;
   tablesOnly?: boolean;
   limit?: number;
 }): Promise<{ venues: any[]; items: any[]; nextCursor?: string | null; hasMore?: boolean }> {
   const searchParams = new URLSearchParams();
+  if (params?.city) searchParams.set('city', params.city);
   if (params?.area) searchParams.set('area', params.area);
   if (params?.search) searchParams.set('search', params.search);
   if (params?.tablesOnly) searchParams.set('tablesOnly', 'true');

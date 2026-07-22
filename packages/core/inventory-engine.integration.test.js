@@ -184,6 +184,48 @@ describe('createReservation — concurrent race protection', () => {
     expect(result.reservationId).toBeDefined();
   });
 
+  it('reuses only an identical checkout snapshot and replaces a stale priced reservation', async () => {
+    const event = makeEvent('tier-a', 5, 0);
+    const snapshotA = {
+      version: 1,
+      eventId: event.id,
+      items: [{ tierId: 'tier-a', quantity: 1, unitPricePaise: 50_000 }],
+    };
+    const snapshotB = {
+      ...snapshotA,
+      items: [{ tierId: 'tier-a', quantity: 1, unitPricePaise: 60_000 }],
+    };
+
+    const first = await createReservation(
+      event,
+      'user-priced',
+      'dev-1',
+      makeItems('tier-a', 1),
+      { checkoutSnapshot: snapshotA },
+    );
+    const replay = await createReservation(
+      event,
+      'user-priced',
+      'dev-1',
+      makeItems('tier-a', 1),
+      { checkoutSnapshot: snapshotA },
+    );
+    const repriced = await createReservation(
+      event,
+      'user-priced',
+      'dev-1',
+      makeItems('tier-a', 1),
+      { checkoutSnapshot: snapshotB },
+    );
+
+    expect(replay.reservationId).toBe(first.reservationId);
+    expect(repriced.reservationId).not.toBe(first.reservationId);
+    expect(await redisMock.get(`res:data:${first.reservationId}`)).toBeNull();
+    expect(JSON.parse(await redisMock.get(`res:data:${repriced.reservationId}`))).toMatchObject({
+      checkoutSnapshot: snapshotB,
+    });
+  });
+
   it('throws InventoryUnavailableError when Redis is missing (fail-closed)', async () => {
     vi.doMock('./redis.js', () => ({ getRedisClient: () => null }));
     // Re-import with null redis to trigger the fail-closed path

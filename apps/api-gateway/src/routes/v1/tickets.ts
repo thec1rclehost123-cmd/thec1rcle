@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { createHmac } from 'crypto';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
+import { getQrSecret } from '../../lib/scannerSessions';
 // @ts-ignore
 import {
   getGuestWallet,
@@ -29,6 +31,7 @@ import {
   initiateGuestTransfer,
   previewGuestPairClaim,
   previewGuestShareBundle,
+  previewGuestTransfer,
   reclaimGuestShareSlot,
   revokeGuestShareSlot,
   transferGuestCoupleTicket,
@@ -44,12 +47,14 @@ const TransferBody = z
   .object({
     ticketId: z.string(),
     recipientEmail: z.string().email().optional().nullable(),
+    idempotencyKey: z.string().optional(),
   })
   .strict();
 
 const AcceptTransferBody = z
   .object({
     transferCode: z.string(),
+    idempotencyKey: z.string().optional(),
   })
   .strict();
 
@@ -60,6 +65,7 @@ const ShareBundleBody = z
     quantity: z.number().int().positive(),
     tierId: z.string().optional().nullable(),
     expiresAt: z.string().optional().nullable(),
+    idempotencyKey: z.string().optional(),
   })
   .strict();
 
@@ -104,12 +110,19 @@ const ClaimPreviewQuery = z
 const ClaimShareBody = z
   .object({
     token: z.string(),
+    idempotencyKey: z.string().optional(),
   })
   .strict();
 
 const TransferQuery = z
   .object({
     code: z.string(),
+  })
+  .strict();
+
+const DeleteTransferQuery = z
+  .object({
+    transferId: z.string().min(1),
   })
   .strict();
 
@@ -188,12 +201,22 @@ function requireUser(reply: any, request: any) {
 }
 
 function buildSharePreview(bundle: any) {
+  if (!bundle) return null;
   const event = bundle?.event || null;
+  const tier = Array.isArray(event?.tickets)
+    ? event.tickets.find(
+        (ticket: any) =>
+          ticket?.id === bundle.tierId ||
+          ticket?.ticketId === bundle.tierId ||
+          ticket?.tierId === bundle.tierId,
+      )
+    : null;
   return {
     id: bundle.id,
     orderId: bundle.orderId,
     eventId: bundle.eventId,
     tierId: bundle.tierId,
+    tierName: tier?.name || tier?.tierName || tier?.title || null,
     mode: bundle.mode,
     totalSlots: bundle.totalSlots,
     remainingSlots: bundle.remainingSlots,
@@ -211,7 +234,7 @@ function buildSharePreview(bundle: any) {
           .length >= 1
       : false,
     eventTitle: event?.title || null,
-    eventImage: event?.image || null,
+    eventImage: event?.image || event?.poster || event?.coverImage || event?.posterUrl || null,
     eventDate: event?.date || event?.startDate || null,
     eventLocation: event?.location || event?.venue || null,
     availableSlots: Array.isArray(bundle?.slots)
@@ -220,85 +243,130 @@ function buildSharePreview(bundle: any) {
   };
 }
 
+function base64Url(value: unknown): string {
+  return Buffer.from(typeof value === 'string' ? value : JSON.stringify(value))
+    .toString('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+}
+
+function signTicketJwt(payload: Record<string, unknown>): string {
+  const header = base64Url({ alg: 'HS256', typ: 'JWT', kid: 'ticket-v1' });
+  const body = base64Url(payload);
+  const secret = getQrSecret();
+  const signature = createHmac('sha256', secret)
+    .update(`${header}.${body}`)
+    .digest('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+  return `${header}.${body}.${signature}`;
+}
+
 export default async function ticketRoutes(fastify: FastifyInstance) {
-  fastify.get('/tickets', async (request: any, reply) => {
-    const userId = requireUser(reply, request);
-    if (!userId) return;
+  const requireVerifiedPhone =
+    (fastify as any).requireVerifiedPhone || (fastify as any).requireAuth;
+  fastify.get(
+    '/tickets',
+    {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone],
+    },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
 
-    try {
-      const wallet = await getGuestWallet(fastify.db, fastify.auth, userId);
-      // Keep top-level wallet fields for backward compat; add canonical data envelope
-      return { success: true, data: wallet, ...wallet };
-    } catch (error: any) {
-      fastify.log.error(
-        { requestId: request.id, userId, error: error.message },
-        'GET /tickets failed',
-      );
-      return reply.status(500).send(
-        buildErrorResponse({
-          code: 'INTERNAL_ERROR',
-          message: 'Internal server error',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+      try {
+        const wallet = await getGuestWallet(fastify.db, fastify.auth, userId);
+        return buildSuccessResponse(wallet);
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'GET /tickets failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
-  fastify.get('/tickets/me', async (request: any, reply) => {
-    const userId = requireUser(reply, request);
-    if (!userId) return;
+  fastify.get(
+    '/tickets/me',
+    {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone],
+    },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
 
-    try {
-      const { getUserTicketsFromCollection } = await import('@c1rcle/core/ticket-engine');
-      const data = await getUserTicketsFromCollection(userId);
-      return buildSuccessResponse(data);
-    } catch (error: any) {
-      fastify.log.error(
-        { requestId: request.id, userId, error: error.message },
-        'GET /tickets/me failed',
-      );
-      return reply.status(500).send(
-        buildErrorResponse({
-          code: 'INTERNAL_ERROR',
-          message: 'Internal server error',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+      try {
+        const { getUserTicketsFromCollection } = await import('@c1rcle/core/ticket-engine');
+        const data = await getUserTicketsFromCollection(userId);
+        return buildSuccessResponse(data);
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'GET /tickets/me failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
-  fastify.get('/tickets/my-wallet', async (request: any, reply) => {
-    const userId = requireUser(reply, request);
-    if (!userId) return;
+  fastify.get(
+    '/tickets/my-wallet',
+    {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone],
+    },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
 
-    try {
-      const wallet = await getUserTicketWallet({ db: fastify.db, userId });
-      return {
-        success: true,
-        data: wallet,
-        orders: wallet.orders,
-        tickets: wallet.tickets,
-        qrTtlSeconds: wallet.qrTtlSeconds,
-      };
-    } catch (error: any) {
-      fastify.log.error(
-        { requestId: request.id, userId, error: error.message },
-        'GET /tickets/my-wallet failed',
-      );
-      return reply.status(error.code === 'UNAUTHORIZED' ? 401 : 500).send(
-        buildErrorResponse({
-          code: error.code === 'UNAUTHORIZED' ? 'UNAUTHORIZED' : 'INTERNAL_ERROR',
-          message: error.code === 'UNAUTHORIZED' ? 'Unauthorized' : 'Internal server error',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+      try {
+        const cached = await fastify.cache.get('ticket-wallet:v2', userId);
+        if (cached) {
+          reply.header('x-c1rcle-cache', 'HIT');
+          return buildSuccessResponse(cached);
+        }
+        const wallet = await getUserTicketWallet({ db: fastify.db, userId });
+        await fastify.cache.set('ticket-wallet:v2', userId, wallet, 30);
+        reply.header('x-c1rcle-cache', 'MISS');
+        return buildSuccessResponse(wallet);
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'GET /tickets/my-wallet failed',
+        );
+        return reply.status(error.code === 'UNAUTHORIZED' ? 401 : 500).send(
+          buildErrorResponse({
+            code: error.code === 'UNAUTHORIZED' ? 'UNAUTHORIZED' : 'INTERNAL_ERROR',
+            message: error.code === 'UNAUTHORIZED' ? 'Unauthorized' : 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
   fastify.post(
     '/:id/transfer',
     {
-      preHandler: [fastify.validate({ params: GroupTransferParam })],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ params: GroupTransferParam })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -332,7 +400,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/claim',
     {
-      preHandler: [fastify.validate({ body: GroupClaimBody })],
+      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: GroupClaimBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -366,18 +435,40 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/transfer',
     {
-      preHandler: [fastify.validate({ body: TransferBody })],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: TransferBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
       if (!userId) return;
 
-      try {
-        const transfer = await initiateGuestTransfer(
+      const idempotencyKey =
+        (request.headers['x-idempotency-key'] as string) || request.body.idempotencyKey;
+
+      const work = async () => {
+        return await initiateGuestTransfer(
           userId,
           request.body.ticketId,
           request.body.recipientEmail ?? null,
         );
+      };
+
+      try {
+        let transfer;
+        if (idempotencyKey && fastify.idempotencyService?.executeOnce) {
+          const result = await fastify.idempotencyService.executeOnce(idempotencyKey, userId, work);
+          if (result.cached) return result.body;
+          transfer = result;
+        } else {
+          if (idempotencyKey) {
+            request.log.warn(
+              { idempotencyKey, route: request.routeOptions?.url },
+              'Idempotency key provided but idempotency service not configured',
+            );
+          }
+          transfer = await work();
+        }
+
         fastify.log.info(
           {
             requestId: request.id,
@@ -427,16 +518,42 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/tickets/transfer',
     {
-      preHandler: [fastify.validate({ body: AcceptTransferBody })],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: AcceptTransferBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
       if (!userId) return;
 
+      const idempotencyKey =
+        (request.headers['x-idempotency-key'] as string) || request.body.idempotencyKey;
+
+      const work = async () => {
+        return await acceptGuestTransfer(
+          userId,
+          request.body.transferCode,
+          request.user?.email || null,
+        );
+      };
+
       try {
-        const result = await acceptGuestTransfer(userId, request.body.transferCode);
+        let result;
+        if (idempotencyKey && fastify.idempotencyService?.executeOnce) {
+          const cached = await fastify.idempotencyService.executeOnce(idempotencyKey, userId, work);
+          if (cached.cached) return cached.body;
+          result = cached;
+        } else {
+          if (idempotencyKey) {
+            request.log.warn(
+              { idempotencyKey, route: request.routeOptions?.url },
+              'Idempotency key provided but idempotency service not configured',
+            );
+          }
+          result = await work();
+        }
+
         fastify.log.info(
-          { requestId: request.id, userId, transferCode: request.body.transferCode },
+          { requestId: request.id, userId },
           'Guest transfer accepted',
         );
         return buildSuccessResponse(result as Record<string, unknown>);
@@ -457,69 +574,97 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.delete('/tickets/transfer', async (request: any, reply) => {
-    const userId = requireUser(reply, request);
-    if (!userId) return;
-
-    const transferId = request.query?.transferId;
-    if (!transferId)
-      return reply.status(400).send(
-        buildErrorResponse({
-          code: 'BAD_REQUEST',
-          message: 'transferId query param is required',
-          requestId: request.id,
-        }),
-      );
-
-    try {
-      const result = await cancelGuestTransfer(userId, transferId);
-      fastify.log.info({ requestId: request.id, userId, transferId }, 'Guest transfer cancelled');
-      return { success: true, ...result };
-    } catch (error: any) {
-      const status = error.message?.includes('Unauthorized') ? 403 : 400;
-      return reply.status(status).send(
-        buildErrorResponse({
-          code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST',
-          message: error.message || 'Transfer failed',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
-
-  fastify.get('/tickets/transfer/pending', async (request: any, reply) => {
-    const userId = requireUser(reply, request);
-    if (!userId) return;
-
-    try {
-      const transfers = await getGuestPendingTransfers(userId, request.user?.email || null);
-      return { success: true, transfers };
-    } catch (error: any) {
-      fastify.log.error(
-        { requestId: request.id, userId, error: error.message },
-        'GET /tickets/transfer/pending failed',
-      );
-      return reply.status(500).send(
-        buildErrorResponse({
-          code: 'INTERNAL_ERROR',
-          message: 'Internal server error',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
-
-  fastify.post(
-    '/tickets/share',
+  fastify.delete(
+    '/tickets/transfer',
     {
-      preHandler: [fastify.validate({ body: ShareBundleBody })],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ querystring: DeleteTransferQuery })],
+    },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
+
+      const transferId = request.query.transferId;
+
+      try {
+        const result = await cancelGuestTransfer(userId, transferId);
+        fastify.log.info({ requestId: request.id, userId, transferId }, 'Guest transfer cancelled');
+        return { success: true, ...result };
+      } catch (error: any) {
+        const status = error.message?.includes('Unauthorized') ? 403 : 400;
+        return reply.status(status).send(
+          buildErrorResponse({
+            code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST',
+            message: error.message || 'Transfer failed',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/tickets/transfer/pending',
+    {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
       if (!userId) return;
 
       try {
-        const bundle = await createGuestShareBundle(userId, request.body);
+        const transfers = await getGuestPendingTransfers(userId, request.user?.email || null);
+        return { success: true, transfers };
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'GET /tickets/transfer/pending failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    '/tickets/share',
+    {
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: ShareBundleBody })],
+    },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
+
+      const idempotencyKey =
+        (request.headers['x-idempotency-key'] as string) || request.body.idempotencyKey;
+
+      const work = async () => {
+        return await createGuestShareBundle(userId, request.body);
+      };
+
+      try {
+        let bundle;
+        if (idempotencyKey && fastify.idempotencyService?.executeOnce) {
+          const result = await fastify.idempotencyService.executeOnce(idempotencyKey, userId, work);
+          if (result.cached) return result.body;
+          bundle = result;
+        } else {
+          if (idempotencyKey) {
+            request.log.warn(
+              { idempotencyKey, route: request.routeOptions?.url },
+              'Idempotency key provided but idempotency service not configured',
+            );
+          }
+          bundle = await work();
+        }
+
         fastify.log.info(
           { requestId: request.id, userId, bundleId: bundle.id, orderId: bundle.orderId },
           'Guest share bundle created',
@@ -541,7 +686,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/share',
     {
-      preHandler: [fastify.validate({ querystring: ShareBundleQuery })],
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ querystring: ShareBundleQuery })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -585,7 +731,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/tickets/share',
     {
-      preHandler: [fastify.validate({ body: ShareBundleDeleteBody })],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: ShareBundleDeleteBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -618,7 +765,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/share/revoke',
     {
-      preHandler: [fastify.validate({ body: ShareRevokeBody })],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: ShareRevokeBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -656,6 +804,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/claim',
     {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: ClaimPreviewQuery })],
     },
     async (request: any, reply) => {
@@ -692,16 +841,38 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/claim/share',
     {
-      preHandler: [fastify.validate({ body: ClaimShareBody })],
+      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: ClaimShareBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
       if (!userId) return;
 
+      const idempotencyKey =
+        (request.headers['x-idempotency-key'] as string) || request.body.idempotencyKey;
+
+      const work = async () => {
+        return await claimGuestShareBundle(userId, request.body.token);
+      };
+
       try {
-        const result = await claimGuestShareBundle(userId, request.body.token);
+        let result;
+        if (idempotencyKey && fastify.idempotencyService?.executeOnce) {
+          const cached = await fastify.idempotencyService.executeOnce(idempotencyKey, userId, work);
+          if (cached.cached) return cached.body;
+          result = cached;
+        } else {
+          if (idempotencyKey) {
+            request.log.warn(
+              { idempotencyKey, route: request.routeOptions?.url },
+              'Idempotency key provided but idempotency service not configured',
+            );
+          }
+          result = await work();
+        }
+
         fastify.log.info(
-          { requestId: request.id, userId, token: request.body.token },
+          { requestId: request.id, userId },
           'Guest share bundle claimed',
         );
         return { success: true, ...result };
@@ -721,6 +892,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/pair',
     {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: PairPreviewQuery })],
     },
     async (request: any, reply) => {
@@ -777,7 +949,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair',
     {
-      preHandler: [fastify.validate({ body: PairClaimBody })],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: PairClaimBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -786,7 +959,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       try {
         const result = await claimGuestPartnerSlot(userId, request.body.token);
         fastify.log.info(
-          { requestId: request.id, userId, token: request.body.token },
+          { requestId: request.id, userId },
           'Guest pair slot claimed',
         );
         return { success: true, ...result };
@@ -806,7 +979,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/tickets/pair',
     {
-      preHandler: [fastify.validate({ body: PairCancelBody })],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: PairCancelBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -835,7 +1009,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair/link',
     {
-      preHandler: [fastify.validate({ body: PairLinkBody })],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: PairLinkBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -863,7 +1038,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair/assign',
     {
-      preHandler: [fastify.validate({ body: PairAssignBody })],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: PairAssignBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -893,7 +1069,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair/transfer',
     {
-      preHandler: [fastify.validate({ body: PairTransferBody })],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: PairTransferBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -922,7 +1099,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/cover-wallet',
     {
-      preHandler: [fastify.validate({ querystring: CoverWalletQuery })],
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ querystring: CoverWalletQuery })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -958,7 +1136,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/cover-wallets',
     {
-      preHandler: [fastify.validate({ body: CoverWalletBatchBody })],
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: CoverWalletBatchBody })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -990,7 +1169,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/download',
     {
-      preHandler: [fastify.validate({ querystring: DownloadQuery })],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: [requireVerifiedPhone, fastify.validate({ querystring: DownloadQuery })],
     },
     async (request: any, reply) => {
       const userId = requireUser(reply, request);
@@ -1032,17 +1212,14 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/transfer',
     {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: TransferQuery })],
     },
     async (request: any, reply) => {
       try {
-        const snapshot = await fastify.db
-          .collection('transfers')
-          .where('token', '==', request.query.code)
-          .limit(1)
-          .get();
+        const transfer = await previewGuestTransfer(fastify.db, request.query.code);
 
-        if (snapshot.empty) {
+        if (!transfer) {
           return reply.status(404).send(
             buildErrorResponse({
               code: 'NOT_FOUND',
@@ -1052,35 +1229,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
           );
         }
 
-        const doc = snapshot.docs[0];
-        const transferData = doc.data() as any;
-
-        let event: any = null;
-        if (transferData.eventId) {
-          const eventDoc = await fastify.db.collection('events').doc(transferData.eventId).get();
-          if (eventDoc.exists) {
-            const eventData = eventDoc.data() as any;
-            event = {
-              title: eventData.title,
-              date: eventData.startDate || eventData.date,
-              venue: eventData.venue || eventData.location,
-              posterUrl: eventData.image || eventData.posterUrl,
-            };
-          }
-        }
-
-        // 🛡️ Privacy: Redact sensitive UID and Email from public preview
-        return {
-          success: true,
-          transfer: {
-            id: doc.id,
-            status: transferData.status,
-            createdAt: transferData.createdAt,
-            expiresAt: transferData.expiresAt,
-            ticketType: transferData.ticketType || 'Pass',
-            event,
-          },
-        };
+        return { success: true, transfer };
       } catch (error: any) {
         fastify.log.error({ requestId: request.id, error: error.message }, 'GET /transfer failed');
         return reply.status(500).send(
@@ -1097,6 +1246,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/:ticketId',
     {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: TicketIdParam })],
     },
     async (request: any, reply) => {
@@ -1143,6 +1293,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/:ticketId/refresh-qr',
     {
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: TicketIdParam })],
     },
     async (request: any, reply) => {
@@ -1174,16 +1325,28 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
           );
         }
 
-        const qrData = ticket.id || ticket.ticketId || ticketId;
+        const ticketIdValue = ticket.id || ticket.ticketId || ticketId;
+        const now = Math.floor(Date.now() / 1000);
+        const jwt = signTicketJwt({
+          iss: 'the-c1rcle',
+          aud: 'c1rcle-scanner',
+          typ: 'ticket',
+          ticketId: ticketIdValue,
+          bookingCode: ticket.bookingCode || null,
+          userId,
+          iat: now,
+          nbf: now,
+          exp: now + 120,
+        });
 
         fastify.log.info({ requestId: request.id, userId, ticketId }, 'QR code refreshed');
 
         return buildSuccessResponse({
-          qrData,
-          qrPayload: qrData,
+          qrData: jwt,
+          qrPayload: jwt,
           bookingCode: ticket.bookingCode || null,
-          qrMode: 'raw_id',
-          qrTtlSeconds: null,
+          qrMode: 'jwt',
+          qrTtlSeconds: 120,
         });
       } catch (error: any) {
         fastify.log.error(

@@ -6,7 +6,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  withTiming,
   FadeIn,
   FadeInDown,
   SlideInRight,
@@ -57,12 +57,12 @@ export function Card({
 
   const handlePressIn = () => {
     if (onPress) {
-      scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
+      scale.value = withTiming(0.98, { duration: 250 });
     }
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(1, { duration: 250 });
   };
 
   const handlePress = (e: any) => {
@@ -77,11 +77,11 @@ export function Card({
       case 'fade':
         return FadeIn.delay(animationDelay).duration(300);
       case 'fadeDown':
-        return FadeInDown.delay(animationDelay).springify().damping(15);
+        return FadeInDown.delay(animationDelay);
       case 'slideRight':
-        return SlideInRight.delay(animationDelay).springify().damping(15);
+        return SlideInRight.delay(animationDelay);
       default:
-        return FadeInDown.delay(animationDelay).springify();
+        return FadeInDown.delay(animationDelay);
     }
   };
 

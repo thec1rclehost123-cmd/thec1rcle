@@ -491,7 +491,7 @@ export default function ProfileViewScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 148 }}
       >
-        <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.profileHeader}>
+        <Animated.View entering={FadeInDown.delay(100)} style={styles.profileHeader}>
           <Image
             source={imageSource}
             style={styles.profileHeroImage}
@@ -547,7 +547,7 @@ export default function ProfileViewScreen() {
         <View style={styles.nightsContent}>
           {profile.hasDatingProfile && !viewerHasDating ? (
             <AnimatedPressable 
-              entering={FadeInDown.delay(120).springify()}
+              entering={FadeInDown.delay(120)}
               style={styles.upsellCard}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -566,7 +566,7 @@ export default function ProfileViewScreen() {
 
           {profile.upcomingEvent ? (
             <AnimatedPressable
-              entering={FadeInDown.delay(140).springify()}
+              entering={FadeInDown.delay(140)}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 if (profile.upcomingEvent?.eventId) {

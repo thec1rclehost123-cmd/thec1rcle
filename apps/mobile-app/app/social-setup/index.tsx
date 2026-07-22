@@ -90,7 +90,7 @@ export default function SocialSetupIndex() {
       </View>
 
       {/* Hero */}
-      <Animated.View entering={FadeInDown.delay(60).springify().damping(20)} style={styles.hero}>
+      <Animated.View entering={FadeInDown.delay(60)} style={styles.hero}>
         <View style={styles.heroIcon}>
           <Heart size={36} color={colors.iris} strokeWidth={1.5} fill="rgba(244,74,34,0.2)" />
         </View>
@@ -106,8 +106,8 @@ export default function SocialSetupIndex() {
           <Animated.View
             key={label}
             entering={FadeInDown.delay(120 + i * 55)
-              .springify()
-              .damping(18)}
+
+              }
             style={styles.perkRow}
           >
             <View style={[styles.perkIcon, { backgroundColor: bg }]}>
@@ -123,7 +123,7 @@ export default function SocialSetupIndex() {
 
       {/* Steps preview */}
       <Animated.View
-        entering={FadeInDown.delay(360).springify().damping(18)}
+        entering={FadeInDown.delay(360)}
         style={styles.stepsContainer}
       >
         <Text style={styles.stepsHeading}>Takes 2 minutes</Text>
@@ -143,7 +143,7 @@ export default function SocialSetupIndex() {
       </Animated.View>
 
       {/* CTA */}
-      <Animated.View entering={FadeInDown.delay(420).springify().damping(18)} style={styles.footer}>
+      <Animated.View entering={FadeInDown.delay(420)} style={styles.footer}>
         <Pressable style={styles.ctaBtn} onPress={handleStart}>
           <Text style={styles.ctaBtnText}>Get Started</Text>
           <ChevronRight size={18} color="#fff" strokeWidth={2.5} />

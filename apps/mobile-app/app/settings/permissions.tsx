@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Camera, MapPin, Users } from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, AppState } from 'react-native';
+import { Bell, Camera, MapPin } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
 import { useSettings } from '@/hooks/useSettings';
 import {
   DittoSettingsScreen,
@@ -14,41 +17,91 @@ import {
 import {
   checkLocationSystemPermission,
   checkNotificationSystemPermission,
+  requestLocationSystemPermission,
   showSettingsAlert,
 } from '@/lib/permissions';
+import { registerPushToken } from '@/lib/notifications';
+import { useAuthStore } from '@/store/authStore';
 
 export default function PermissionsSettingsScreen() {
   const { privacy, setPrivacySetting } = useSettings();
+  const userId = useAuthStore((state) => state.user?.uid);
   const [locationGranted, setLocationGranted] = useState(false);
   const [notificationGranted, setNotificationGranted] = useState(false);
+  const [cameraGranted, setCameraGranted] = useState(false);
 
-  useEffect(() => {
-    checkLocationSystemPermission().then(setLocationGranted);
-    checkNotificationSystemPermission().then(setNotificationGranted);
+  const refreshPermissionState = useCallback(async () => {
+    const [location, notification, camera] = await Promise.allSettled([
+      checkLocationSystemPermission(),
+      checkNotificationSystemPermission(),
+      ImagePicker.getCameraPermissionsAsync().then(({ status }) => status === 'granted'),
+    ]);
+    if (location.status === 'fulfilled') setLocationGranted(location.value);
+    if (notification.status === 'fulfilled') setNotificationGranted(notification.value);
+    if (camera.status === 'fulfilled') setCameraGranted(camera.value);
   }, []);
 
-  const handleLocationToggle = (val: boolean) => {
-    if (val && !locationGranted) {
+  useEffect(() => {
+    void refreshPermissionState();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshPermissionState();
+    });
+    return () => subscription.remove();
+  }, [refreshPermissionState]);
+
+  const handleLocationPress = async () => {
+    if (locationGranted) {
       showSettingsAlert(
         'Location Access',
-        'Location permission was denied. Open system settings to enable it.',
+        'Revoke location permission in system settings.',
       );
       return;
     }
-    setPrivacySetting('locationAccess', val);
+
+    const granted = await requestLocationSystemPermission();
+    setLocationGranted(granted);
+    if (!granted) {
+      showSettingsAlert(
+        'Location Access',
+        'Location permission is disabled. Open system settings to enable it.',
+      );
+    }
+  };
+
+  const handleNotificationPress = async () => {
+    if (!userId) {
+      Alert.alert('Sign in required', 'Sign in to register this device for push notifications.');
+      return;
+    }
+
+    const registered = await registerPushToken(userId, {
+      requestPermission: !notificationGranted,
+    });
+    const granted = await checkNotificationSystemPermission();
+    setNotificationGranted(granted);
+    if (!granted) {
+      showSettingsAlert(
+        'Push Notifications',
+        'Push notification permission is disabled. Open system settings to enable it.',
+      );
+    } else if (!registered) {
+      Alert.alert(
+        'Could not register notifications',
+        'Permission is enabled, but this device could not be registered. Check your connection and try again.',
+      );
+    }
   };
 
   return (
     <DittoSettingsScreen title="Permissions">
       <SettingsGroup>
-        <SettingsSwitchRow
+        <SettingsRow
           title="Contacts Syncing"
-          value={privacy.contactsSyncing}
-          onValueChange={(val) => setPrivacySetting('contactsSyncing', val)}
+          value="Not available"
         />
       </SettingsGroup>
       <HelperText>
-        Invite your contacts to events and see which of your friends is going to an event.
+        Contact access is not collected in this release. You can still invite friends with share links.
       </HelperText>
 
       <SettingsGroup>
@@ -60,19 +113,7 @@ export default function PermissionsSettingsScreen() {
           }
           title="Location Access"
           value={locationGranted ? 'Enabled' : 'Disabled'}
-          onPress={() => {
-            if (!locationGranted) {
-              showSettingsAlert(
-                'Location Access',
-                'Open system settings to enable location access for event discovery.',
-              );
-            } else {
-              showSettingsAlert(
-                'Location Access',
-                'Revoke location permission in system settings.',
-              );
-            }
-          }}
+          onPress={() => void handleLocationPress()}
         />
       </SettingsGroup>
       <HelperText>
@@ -87,7 +128,7 @@ export default function PermissionsSettingsScreen() {
             </TileIcon>
           }
           title="Camera Access"
-          value={undefined}
+          value={cameraGranted ? 'Enabled' : 'Disabled'}
           onPress={() =>
             showSettingsAlert('Camera Access', 'Open system settings to update camera permissions.')
           }
@@ -100,19 +141,12 @@ export default function PermissionsSettingsScreen() {
         <SettingsRow
           icon={
             <TileIcon>
-              <Users size={17} color="#fff" strokeWidth={2.4} />
+              <Bell size={17} color="#fff" strokeWidth={2.4} />
             </TileIcon>
           }
           title="Push Notifications"
           value={notificationGranted ? 'Enabled' : 'Disabled'}
-          onPress={() => {
-            if (!notificationGranted) {
-              showSettingsAlert(
-                'Push Notifications',
-                'Open system settings to enable push notifications.',
-              );
-            }
-          }}
+          onPress={handleNotificationPress}
         />
       </SettingsGroup>
       <HelperText>Receive event invites, reminders, and chat messages.</HelperText>
@@ -142,7 +176,7 @@ export default function PermissionsSettingsScreen() {
       <SettingsGroup>
         <SettingsRow
           title="Blocked Accounts"
-          onPress={() => {}}
+          onPress={() => router.push('/settings/blocked-accounts' as any)}
         />
       </SettingsGroup>
       <HelperText>Blocked accounts can't chat with you or invite you to events.</HelperText>

@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -11,12 +10,20 @@ import {
   TextInput,
   View,
   useWindowDimensions,
+  Dimensions,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import Animated, {
+  useSharedValue,
+  withTiming,
+  runOnJS,
+  useAnimatedStyle,
+} from 'react-native-reanimated';
 import {
   ArrowLeft,
   BadgeCheck,
@@ -26,6 +33,8 @@ import {
   Send,
   SlidersHorizontal,
   X,
+  Ruler,
+  UserCircle2,
 } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, spacing } from '@/lib/design/theme';
@@ -46,6 +55,12 @@ type ReplyTarget = {
   prompt: Prompt;
 } | null;
 
+function getPhotoUri(source: DatingProfile['photos'][number]['source']): string | null {
+  if (typeof source === 'string') return source;
+  if (typeof source === 'object' && source !== null && 'uri' in source) return source.uri;
+  return null;
+}
+
 function ReplySheet({
   target,
   value,
@@ -61,9 +76,12 @@ function ReplySheet({
 }) {
   return (
     <Modal visible={target !== null} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}
         style={styles.modalRoot}
+        enableOnAndroid={true}
+        extraScrollHeight={20}
+        bounces={false}
       >
         <Pressable style={styles.modalScrim} onPress={onClose} />
         <View style={styles.replySheet}>
@@ -95,7 +113,7 @@ function ReplySheet({
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </Modal>
   );
 }
@@ -148,8 +166,20 @@ export default function DatingScreen() {
   const { height: screenHeight } = useWindowDimensions();
   const { user } = useAuthStore();
   const { profile: currentUserProfile } = useProfileStore();
-  const { profiles, loading, prefetching, error, hasMore, fetchProfiles, likeUser, passUser, sendAskOut } =
-    useDatingStore();
+  const {
+    ownerUserId,
+    profilesOwnerUserId,
+    profiles,
+    loading,
+    prefetching,
+    error,
+    hasMore,
+    setOwnerUserId,
+    fetchProfiles,
+    likeUser,
+    passUser,
+    sendAskOut,
+  } = useDatingStore();
   const isPremium = useSubscriptionStore((state) => state.isPremium);
   const openPaywall = useSubscriptionStore((state) => state.openPaywall);
   const [likesSent, setLikesSent] = useState<string[]>([]);
@@ -163,6 +193,14 @@ export default function DatingScreen() {
   const [filterVerifiedOnly, setFilterVerifiedOnly] = useState(false);
   const [matchProfile, setMatchProfile] = useState<DatingProfile | null>(null);
 
+  const translateX = useSharedValue(0);
+  const opacity = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+    opacity: opacity.value,
+  }));
+
   const handleDismissMatch = useCallback(() => setMatchProfile(null), []);
 
   const VIBE_TAG_OPTIONS = [
@@ -173,20 +211,73 @@ export default function DatingScreen() {
   ];
   const HEIGHT_OPTIONS = [0, 150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200];
 
-  useEffect(() => {
-    if (!user?.uid) return;
-    void fetchProfiles(user.uid, { append: false });
-  }, [fetchProfiles, user?.uid]);
+  const currentUserId = user?.uid?.trim() || null;
+  const ownsCurrentDeck =
+    currentUserId !== null &&
+    ownerUserId === currentUserId &&
+    profilesOwnerUserId === currentUserId;
+  const scopedProfiles = useMemo(
+    () =>
+      ownsCurrentDeck
+        ? profiles.filter(
+            (candidate) =>
+              candidate.userId !== currentUserId && candidate.id !== currentUserId,
+          )
+        : [],
+    [currentUserId, ownsCurrentDeck, profiles],
+  );
+  const deckLoading = Boolean(currentUserId && (!ownsCurrentDeck || loading));
+  const deckPrefetching = ownsCurrentDeck && prefetching;
+  const deckError = ownsCurrentDeck ? error : null;
+  const initialFetchUserId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!user?.uid) return;
-    if (profiles.length === 0) return;
-    if (profiles.length > 3) return;
+    setOwnerUserId(currentUserId);
+    setLikesSent([]);
+    setReplyTarget(null);
+    setReplyText('');
+    translateX.value = 0;
+    opacity.value = 1;
+
+    if (!currentUserId) {
+      initialFetchUserId.current = null;
+      return;
+    }
+    if (initialFetchUserId.current === currentUserId) return;
+    initialFetchUserId.current = currentUserId;
+    void fetchProfiles(currentUserId, { append: false });
+  }, [currentUserId, fetchProfiles, opacity, setOwnerUserId, translateX]);
+
+  useEffect(() => {
+    if (!currentUserId || !ownsCurrentDeck) return;
+    if (scopedProfiles.length === 0) return;
+    if (scopedProfiles.length > 3) return;
     if (loading || prefetching || !hasMore) return;
-    void fetchProfiles(user.uid, { append: true });
-  }, [fetchProfiles, hasMore, loading, prefetching, profiles.length, user?.uid]);
+    void fetchProfiles(currentUserId, { append: true });
+  }, [
+    currentUserId,
+    fetchProfiles,
+    hasMore,
+    loading,
+    ownsCurrentDeck,
+    prefetching,
+    scopedProfiles.length,
+  ]);
 
-  const profile = profiles.length > 0 ? profiles[0] : null;
+  const profile = scopedProfiles.length > 0 ? scopedProfiles[0] : null;
+  const nextProfile = scopedProfiles.length > 1 ? scopedProfiles[1] : null;
+
+  useEffect(() => {
+    if (nextProfile && nextProfile.photos) {
+      nextProfile.photos.forEach(photo => {
+        const uri = getPhotoUri(photo.source);
+        if (uri) {
+          Image.prefetch(uri);
+        }
+      });
+    }
+  }, [nextProfile]);
+
   const alreadyLiked = profile ? likesSent.includes(profile.id) : false;
 
   const requireSocialProfile = () => {
@@ -197,32 +288,66 @@ export default function DatingScreen() {
     return true;
   };
 
+  const finalizePass = (userIdStr: string, profileIdStr: string) => {
+    void passUser(userIdStr, profileIdStr);
+    translateX.value = 0;
+    opacity.value = 1;
+  };
+
   const handlePass = () => {
     if (!profile) return;
+    if (!currentUserId || !ownsCurrentDeck || profile.userId === currentUserId) return;
     if (!requireSocialProfile()) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (user?.uid) {
-      void passUser(user.uid, profile.userId);
+    if (currentUserId) {
+      translateX.value = withTiming(-Dimensions.get('window').width, { duration: 300 }, () => {
+        runOnJS(finalizePass)(currentUserId, profile.userId);
+      });
+      opacity.value = withTiming(0, { duration: 300 });
     }
   };
 
-  const handleLike = async () => {
-    if (!profile) return;
-    if (!requireSocialProfile()) return;
-    const targetProfile = profile;
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (user?.uid) {
-      const result = await likeUser(user.uid, targetProfile);
-      if (result.paywalled) return;
-      if (result.isMatch) setMatchProfile(targetProfile);
+  const finalizeLike = async (userIdStr: string, targetProfile: DatingProfile) => {
+    const result = await likeUser(userIdStr, targetProfile);
+    translateX.value = 0;
+    opacity.value = 1;
+    if (result.paywalled) return;
+    if (result.isMatch) {
+      router.push({
+        pathname: '/dating/match' as any,
+        params: {
+          matchId: result.match?.conversationId || result.match?.id || 'new',
+          matchedUserId: targetProfile.userId,
+          matchedUserName: targetProfile.name,
+          matchedUserPhoto: targetProfile.photos?.[0]
+            ? getPhotoUri(targetProfile.photos[0].source) || targetProfile.photoURL || ''
+            : targetProfile.photoURL || '',
+          myPhoto: currentUserProfile?.photoURL || '',
+        }
+      });
     }
     setLikesSent((current) =>
       current.includes(targetProfile.id) ? current : [...current, targetProfile.id],
     );
   };
 
+  const handleLike = () => {
+    if (!profile) return;
+    if (!currentUserId || !ownsCurrentDeck || profile.userId === currentUserId) return;
+    if (!requireSocialProfile()) return;
+    const targetProfile = profile;
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (currentUserId) {
+      translateX.value = withTiming(Dimensions.get('window').width, { duration: 300 }, () => {
+        runOnJS(finalizeLike)(currentUserId, targetProfile);
+      });
+      opacity.value = withTiming(0, { duration: 300 });
+    }
+  };
+
   const handleOpenReply = (prompt: Prompt) => {
     if (!profile) return;
+    if (!currentUserId || !ownsCurrentDeck || profile.userId === currentUserId) return;
     if (!requireSocialProfile()) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setReplyTarget({ profile, prompt });
@@ -231,6 +356,7 @@ export default function DatingScreen() {
 
   const handleOpenPhotoReply = () => {
     if (!profile) return;
+    if (!currentUserId || !ownsCurrentDeck || profile.userId === currentUserId) return;
     if (!requireSocialProfile()) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const photoPrompt: Prompt = {
@@ -242,20 +368,54 @@ export default function DatingScreen() {
     setReplyText('');
   };
 
-  const handleSendReply = async () => {
-    if (!replyText.trim() || !replyTarget) return;
-    const target = replyTarget;
-    const message = replyText.trim();
-    if (user?.uid) {
-      const result = await sendAskOut(user.uid, target.profile, message);
-      if (result.paywalled) return;
+  const finalizeReply = async (userIdStr: string, target: NonNullable<ReplyTarget>, message: string) => {
+    const result = await sendAskOut(userIdStr, target.profile, message);
+    translateX.value = 0;
+    opacity.value = 1;
+    if (result.paywalled) return;
+    if (result.isMatch) {
+      router.push({
+        pathname: '/dating/match' as any,
+        params: {
+          matchId: result.match?.conversationId || result.match?.id || 'new',
+          matchedUserId: target.profile.userId,
+          matchedUserName: target.profile.name,
+          matchedUserPhoto: target.profile.photos?.[0]
+            ? getPhotoUri(target.profile.photos[0].source) || target.profile.photoURL || ''
+            : target.profile.photoURL || '',
+          myPhoto: currentUserProfile?.photoURL || '',
+        }
+      });
     }
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setLikesSent((current) =>
       current.includes(target.profile.id) ? current : [...current, target.profile.id],
     );
+  };
+
+  const handleSendReply = () => {
+    if (!replyText.trim() || !replyTarget) return;
+    const target = replyTarget;
+    if (
+      !currentUserId ||
+      !ownsCurrentDeck ||
+      target.profile.userId === currentUserId ||
+      !scopedProfiles.some((candidate) => candidate.userId === target.profile.userId)
+    ) {
+      setReplyTarget(null);
+      setReplyText('');
+      return;
+    }
+    const message = replyText.trim();
     setReplyText('');
     setReplyTarget(null);
+
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (currentUserId) {
+      translateX.value = withTiming(Dimensions.get('window').width, { duration: 300 }, () => {
+        runOnJS(finalizeReply)(currentUserId, target, message);
+      });
+      opacity.value = withTiming(0, { duration: 300 });
+    }
   };
 
   const handleAdvancedFilters = () => {
@@ -345,7 +505,8 @@ export default function DatingScreen() {
         </View>
 
         {profile ? (
-          <ScrollView
+          <Animated.ScrollView
+            style={animatedStyle}
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
@@ -374,18 +535,33 @@ export default function DatingScreen() {
                 </View>
                 <View style={styles.heroNameRow}>
                   <Text style={styles.heroName}>
-                    {profile.name}, {profile.age}
+                    {profile.name}{profile.age ? `, ${profile.age}` : ''}
                   </Text>
                   <PremiumBadgeDot visible={profile.isPremium === true} />
                   <BadgeCheck size={23} color="#3CA4FF" fill="#3CA4FF" />
                 </View>
-                <View style={styles.heroTags}>
-                  {profile.tags.slice(0, 3).map((tag) => (
-                    <View key={tag} style={styles.heroTag}>
-                      <Text style={styles.heroTagText}>{tag}</Text>
-                    </View>
-                  ))}
-                </View>
+                {profile.vitals && (
+                  <View style={styles.vitalsRow}>
+                    {profile.vitals.height && (
+                      <View style={styles.vitalPill}>
+                        <Ruler size={12} color={colors.goldLight} />
+                        <Text style={styles.vitalText}>{profile.vitals.height}</Text>
+                      </View>
+                    )}
+                    {profile.vitals.pronouns && (
+                      <View style={styles.vitalPill}>
+                        <UserCircle2 size={12} color={colors.goldLight} />
+                        <Text style={styles.vitalText}>{profile.vitals.pronouns}</Text>
+                      </View>
+                    )}
+                    {profile.vitals.lifestyle && (
+                      <View style={styles.vitalPill}>
+                        <UserCircle2 size={12} color={colors.goldLight} />
+                        <Text style={styles.vitalText}>{profile.vitals.lifestyle}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
               </View>
             </Pressable>
 
@@ -447,29 +623,29 @@ export default function DatingScreen() {
             <Pressable style={styles.nextProfileButton} onPress={handlePass}>
               <Text style={styles.nextProfileText}>Next Profile</Text>
             </Pressable>
-          </ScrollView>
+          </Animated.ScrollView>
         ) : (
           <View style={styles.emptyState}>
-            {loading || prefetching ? <ActivityIndicator color="#fff" /> : null}
+            {deckLoading || deckPrefetching ? <ActivityIndicator color="#fff" /> : null}
             <Text style={styles.emptyTitle}>
-              {loading || prefetching
+              {deckLoading || deckPrefetching
                 ? 'Finding nightlife profiles near your events'
-                : error
+                : deckError
                   ? "Couldn't load people"
                   : hasMore
                     ? 'Loading the next people'
                     : 'No nightlife profiles yet'}
             </Text>
-            {error ? (
+            {deckError ? (
               <>
                 <Text style={styles.emptyBody} numberOfLines={2}>
-                  {error}
+                  {deckError}
                 </Text>
                 <Pressable
                   style={styles.emptyRetryButton}
                   onPress={() => {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    if (user?.uid) void fetchProfiles(user.uid, { append: false });
+                    if (currentUserId) void fetchProfiles(currentUserId, { append: false });
                   }}
                 >
                   <Text style={styles.emptyRetryText}>Try Again</Text>
@@ -488,27 +664,7 @@ export default function DatingScreen() {
         onSend={handleSendReply}
       />
 
-      <Modal visible={matchProfile !== null} transparent animationType="fade" onRequestClose={handleDismissMatch}>
-        <View style={styles.modalRoot}>
-          <Pressable style={styles.modalScrim} onPress={handleDismissMatch} />
-          <View style={styles.matchModal}>
-            <Text style={styles.matchEmoji}>💫</Text>
-            <Text style={styles.matchTitle}>It's a Match!</Text>
-            <Text style={styles.matchSubtitle}>
-              You and {matchProfile?.name} liked each other
-            </Text>
-            <Pressable style={styles.matchChatButton} onPress={() => {
-              handleDismissMatch();
-              router.push('/(tabs)/inbox');
-            }}>
-              <Text style={styles.matchChatText}>Send a Message</Text>
-            </Pressable>
-            <Pressable style={styles.matchKeepButton} onPress={handleDismissMatch}>
-              <Text style={styles.matchKeepText}>Keep Exploring</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+
 
       <Modal
         visible={showFilters}
@@ -781,23 +937,26 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
     flexShrink: 1,
   },
-  heroTags: {
+  vitalsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
     marginTop: spacing.md,
   },
-  heroTag: {
+  vitalPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     borderRadius: radii.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
   },
-  heroTagText: {
+  vitalText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
   },
   actionBar: {
@@ -1145,53 +1304,76 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   matchModal: {
-    marginHorizontal: 40,
-    marginBottom: '30%',
-    borderRadius: 34,
+    flex: 1,
     padding: 40,
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    backgroundColor: '#000',
   },
-  matchEmoji: {
-    fontSize: 64,
-    marginBottom: 16,
+  matchAvatarsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 40,
+    height: 140,
+  },
+  matchAvatarGlow: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(246, 197, 91, 0.2)',
+    shadowColor: colors.goldMetallic,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 60,
+  },
+  matchAvatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 3,
+    borderColor: colors.goldMetallic,
+    backgroundColor: colors.midnight,
+  },
+  matchAvatarRight: {
+    marginLeft: -24,
   },
   matchTitle: {
-    color: '#fff',
-    fontSize: 28,
+    fontFamily: 'serif',
+    color: colors.goldMetallic,
+    fontSize: 42,
     fontWeight: '900',
     textAlign: 'center',
   },
   matchSubtitle: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 15,
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 16,
     textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 21,
+    marginTop: 16,
+    lineHeight: 24,
+    marginBottom: 40,
   },
   matchChatButton: {
-    marginTop: 28,
     width: '100%',
-    minHeight: 52,
-    borderRadius: 26,
+    minHeight: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.iris,
+    backgroundColor: '#fff',
   },
   matchChatText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#000',
+    fontSize: 18,
     fontWeight: '800',
   },
   matchKeepButton: {
-    marginTop: 12,
+    marginTop: 20,
     paddingVertical: 12,
   },
   matchKeepText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 16,
     fontWeight: '700',
   },
   emptyState: {

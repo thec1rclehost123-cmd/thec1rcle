@@ -35,7 +35,7 @@ export function GuestAuthPrompt({ onDismiss }: GuestAuthPromptProps) {
           style={guestStyles.secondaryBtn}
           onPress={() => {
             useAuthStore.getState().setGuestMode(false);
-            router.push('/(auth)/signup');
+            router.push('/(auth)/login');
           }}
         >
           <Text style={guestStyles.secondaryBtnText}>Sign Up</Text>

@@ -42,6 +42,10 @@ export const colors = {
   stone: '#A8AAAC',
   cream: '#FEF8E8',
   peach: '#F44A22',
+  white: '#FFFFFF',
+  gray300: '#525252',
+  gray400: '#666666',
+  gray500: '#808080',
 
   // Surface colors (glassmorphism)
   surface: 'rgba(255, 255, 255, 0.03)',
@@ -102,6 +106,13 @@ const fontFamilies = {
   system: 'System',
 };
 
+export const fonts = {
+  serif: fontFamilies.system,
+  sans: fontFamilies.system,
+  sansMedium: fontFamilies.system,
+  heading: fontFamilies.system,
+};
+
 export const typography = {
   fontFamily: {
     system: fontFamilies.system,
@@ -118,6 +129,9 @@ export const typography = {
     brandMedium: fontFamilies.system,
     brandBold: fontFamilies.system,
     brandBlack: fontFamilies.system,
+    serif: fontFamilies.system,
+    sans: fontFamilies.system,
+    sansMedium: fontFamilies.system,
   },
   fontSize: {
     xs: 10,

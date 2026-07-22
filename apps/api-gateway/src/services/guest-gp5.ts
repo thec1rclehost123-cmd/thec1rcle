@@ -76,8 +76,11 @@ export async function invalidateGuestWallet(users: Array<string | null | undefin
  *   CLAIM-* / TRANS-* → ticket_assignments collection, redeemerId field
  *   {orderId}-{tierId}-{idx} → orders collection, userId field
  */
-async function verifyTicketOwnershipDirect(userId: string, ticketId: string): Promise<true> {
-  const db: Firestore = getAdminDb();
+export async function verifyTicketOwnershipDirect(
+  userId: string,
+  ticketId: string,
+  db: Firestore = getAdminDb(),
+): Promise<true> {
 
   if (ticketId.startsWith('ENT-')) {
     const doc = await db.collection('entitlements').doc(ticketId).get();
@@ -95,7 +98,27 @@ async function verifyTicketOwnershipDirect(userId: string, ticketId: string): Pr
     return true;
   }
 
-  // Direct order ticket: {orderId}-{tierId}-{slotIndex}
+  // Current mobile wallets use the canonical tickets document ID (TKT-*).
+  // Treating it as a legacy {orderId}-{tierId}-{slot} string prepends "TKT-"
+  // to the parsed order ID and rejects the rightful owner before the transfer
+  // engine can perform its complete state checks.
+  if (ticketId.startsWith('TKT-')) {
+    const doc = await db.collection('tickets').doc(ticketId).get();
+    if (!doc.exists || doc.data()?.userId !== userId) {
+      throw new Error('Unauthorized: You do not own this ticket.');
+    }
+    return true;
+  }
+
+// Direct order ticket: {orderId}-{tierId}-{slotIndex} or just {orderId}
+  const orderDoc = await db.collection('orders').doc(ticketId).get();
+  if (orderDoc.exists) {
+    if (orderDoc.data()?.userId !== userId) {
+      throw new Error('Unauthorized: You do not own this ticket.');
+    }
+    return true;
+  }
+
   const parts = ticketId.split('-');
   if (parts.length >= 3) {
     const orderId = parts.slice(0, parts.length - 2).join('-');
@@ -252,12 +275,28 @@ export async function initiateGuestTransfer(
   ticketId: string,
   recipientEmail?: string | null,
 ) {
-  await verifyTicketOwnershipDirect(userId, ticketId);
+  const db: Firestore = getAdminDb();
+  let resolvedTicketId = ticketId;
+
+  // Auto-resolve bare orderId to the first available slot
+  const orderDoc = await db.collection('orders').doc(resolvedTicketId).get();
+  if (orderDoc.exists) {
+    const orderData = orderDoc.data();
+    const firstTicket = orderData?.tickets?.[0];
+    if (firstTicket) {
+      if (firstTicket.ticketId) {
+        resolvedTicketId = firstTicket.ticketId;
+      } else {
+        resolvedTicketId = `${resolvedTicketId}-${firstTicket.tierId || firstTicket.id || 't1'}-1`;
+      }
+    }
+  }
+
+  await verifyTicketOwnershipDirect(userId, resolvedTicketId);
 
   // If a recipient email is provided, check gender restriction before initiating
   if (recipientEmail) {
-    const db: Firestore = getAdminDb();
-    const ticketData = await resolveTicketGenderRequirement(ticketId, db);
+    const ticketData = await resolveTicketGenderRequirement(resolvedTicketId, db);
     if (ticketData.requiredGender && ticketData.requiredGender !== 'any') {
       const recipient = await findUserByEmail(recipientEmail);
       if (!recipient) {
@@ -290,7 +329,7 @@ export async function initiateGuestTransfer(
     }
   }
 
-  const result = await initiateTransfer(ticketId, userId, recipientEmail ?? null);
+  const result = await initiateTransfer(resolvedTicketId, userId, recipientEmail ?? null);
   await invalidateGuestWallet([userId]);
   return result;
 }
@@ -355,8 +394,12 @@ async function resolveTicketGenderRequirement(
   return { requiredGender: null };
 }
 
-export async function acceptGuestTransfer(userId: string, transferCode: string) {
-  const result = await acceptTransfer(transferCode, userId);
+export async function acceptGuestTransfer(
+  userId: string,
+  transferCode: string,
+  authenticatedEmail?: string | null,
+) {
+  const result = await acceptTransfer(transferCode, userId, authenticatedEmail ?? null);
   await invalidateGuestWallet([userId]);
   return result;
 }
@@ -668,4 +711,40 @@ export async function getGuestHomepageSelects() {
 
 export async function getGuestHomepageInterviews() {
   return getHomepageInterviews();
+}
+
+export async function previewGuestTransfer(db: Firestore, transferCode: string) {
+  const snapshot = await db
+    .collection('transfers')
+    .where('token', '==', transferCode)
+    .limit(1)
+    .get();
+
+  if (snapshot.empty) return null;
+
+  const doc = snapshot.docs[0];
+  const data = doc.data();
+
+  let event: any = null;
+  if (data.eventId) {
+    const eventDoc = await db.collection('events').doc(data.eventId).get();
+    const eventData = eventDoc.data();
+    if (eventData) {
+      event = {
+        title: eventData.title,
+        date: eventData.startDate || eventData.date,
+        venue: eventData.venue || eventData.location,
+        posterUrl: eventData.image || eventData.posterUrl,
+      };
+    }
+  }
+
+  return {
+    id: doc.id,
+    status: data.status,
+    createdAt: data.createdAt,
+    expiresAt: data.expiresAt,
+    ticketType: data.ticketType || 'Pass',
+    event,
+  };
 }

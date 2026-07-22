@@ -5,7 +5,6 @@ import {
   ActionSheetIOS,
   Dimensions,
   Image,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -14,6 +13,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { ChatKeyboardAvoidingView } from '@/components/ui/ChatKeyboardAvoidingView';
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
@@ -54,7 +54,7 @@ import {
   initiateDMRequest,
   reportMessage,
 } from '@/lib/social';
-import { DEMO_EVENT_CHATS } from '@/lib/demo';
+import { DEMO_EVENT_CHATS, DEMO_MODE } from '@/lib/demo';
 import { colors, radii, spacing, typography } from '@/lib/design/theme';
 import { useAuthStore } from '@/store/authStore';
 import { trackScreen } from '@/lib/analytics';
@@ -72,9 +72,9 @@ function PhaseBadge({ phase }: { phase: EventPhase }) {
   const info = getPhaseInfo(phase);
 
   return (
-    <View style={[styles.phaseBadge, { backgroundColor: `${info.color}24` }]}>
+    <View style={[styles.phaseBadge, { backgroundColor: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.2)', borderWidth: 1 }]}>
       <Text style={styles.phaseIcon}>{info.icon}</Text>
-      <Text style={[styles.phaseText, { color: info.color }]}>{info.label}</Text>
+      <Text style={[styles.phaseText, { color: '#FFFFFF' }]}>{info.label}</Text>
     </View>
   );
 }
@@ -101,11 +101,13 @@ export default function EventGroupChatScreen() {
   const [attendeeCount, setAttendeeCount] = useState(0);
   const [mediaCount, setMediaCount] = useState(0);
   const [typingStatus, setTypingStatus] = useState<TypingStatus>({ isTyping: false, users: [] });
+  const [replyMessageId, setReplyMessageId] = useState<string | null>(null);
   const [hiddenMessageIds, setHiddenMessageIds] = useState<Set<string>>(() => new Set());
   const [likedMessageIds, setLikedMessageIds] = useState<Set<string>>(() => new Set());
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [eventHostId, setEventHostId] = useState<string | null>(null);
   const [eventTitleSafe, setEventTitleSafe] = useState(eventTitle || '');
+  const [eventPoster, setEventPoster] = useState<string | null>(null);
 
   const { canSend, cooldownSeconds, checkRateLimit } = useChatRateLimit();
   const { uploading: imageUploading, pickAndUpload } = useChatImagePicker(
@@ -113,7 +115,9 @@ export default function EventGroupChatScreen() {
     `group/${eventId || 'unknown'}`,
   );
 
-  const demoEventChat = DEMO_EVENT_CHATS.find((chat) => chat.eventId === eventId);
+  const demoEventChat = DEMO_MODE
+    ? DEMO_EVENT_CHATS.find((chat) => chat.eventId === eventId)
+    : undefined;
   const phaseInfo = getPhaseInfo(phase);
   const isArchived = phase === 'expired';
   const canCompose = hasAccess && !isArchived;
@@ -130,6 +134,12 @@ export default function EventGroupChatScreen() {
     return filtered;
   }, [hiddenMessageIds, messages, tempMessages]);
   const reversedMessages = useMemo(() => [...visibleMessages].reverse(), [visibleMessages]);
+
+  const replyMessage = useMemo(() => {
+    if (!replyMessageId) return null;
+    return messages.find((m) => m.id === replyMessageId) || null;
+  }, [replyMessageId, messages]);
+
   const phaseColors: Record<string, string> = {
     'pre-event': '#8B5CF6',
     'during': '#F59E0B',
@@ -149,11 +159,10 @@ export default function EventGroupChatScreen() {
     mode: 'event',
     title: eventTitleSafe || eventTitle || demoEventChat?.eventTitle || 'Event group',
     subtitle: `${attendeeCount || demoEventChat?.participantCount || 0} people going`,
-    backgroundImage: demoEventChat?.eventCover,
-    heroImage: demoEventChat?.eventCover,
+    backgroundImage: eventPoster || demoEventChat?.eventCover,
+    heroImage: eventPoster || demoEventChat?.eventCover,
     avatarUrls: demoEventChat?.activeAvatars || [],
     accentColor: colors.iris,
-    moodColor,
   };
 
   const typingHandler = useMemo(() => {
@@ -198,6 +207,7 @@ export default function EventGroupChatScreen() {
               setEventTitleSafe(eventData.title || eventData.name || eventTitle || '');
             }
             setEventHostId(eventData.createdBy || eventData.hostId || null);
+            setEventPoster(eventData.posterUrl || eventData.coverImage || eventData.imageUrl || null);
           }
 
           setPhase(chatInfo.phase);
@@ -212,6 +222,7 @@ export default function EventGroupChatScreen() {
           }
 
           // Pre-populate messages if the parallel fetch succeeded
+          let initialMessages: GroupMessage[] = [];
           if (initialChatResponse?.messages) {
              const normalized = initialChatResponse.messages
                .map((m: any) => ({
@@ -232,7 +243,8 @@ export default function EventGroupChatScreen() {
              
              // Sort and limit
              const sorted = normalized.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-             setMessages(sorted.slice(-50));
+             initialMessages = sorted.slice(-50);
+             setMessages(initialMessages);
           }
 
           // Fetch side data asynchronously without blocking the UI
@@ -245,10 +257,18 @@ export default function EventGroupChatScreen() {
             setMediaCount(count);
           }).catch((err) => console.warn('Failed to load side data:', err));
 
+          let lastSeenMessageId = initialMessages.length > 0 ? initialMessages[initialMessages.length - 1].id : null;
           unsubscribeMessages = subscribeToGroupChat(eventId!, (newMessages) => {
             if (!active) return;
+            if (newMessages.length > 0) {
+              const latestMsg = newMessages[newMessages.length - 1];
+              if (lastSeenMessageId && latestMsg.id !== lastSeenMessageId && latestMsg.senderId !== user!.uid) {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              }
+              lastSeenMessageId = latestMsg.id;
+            }
             setMessages(newMessages);
-          });
+          }, 50, initialMessages);
           if (chatInfo.phase !== 'expired') {
             unsubscribeTyping = subscribeToGroupTyping(eventId!, user!.uid, (status) => {
               if (active) setTypingStatus(status);
@@ -284,8 +304,8 @@ export default function EventGroupChatScreen() {
     setInputText('');
     setSending(true);
     typingHandler.onBlur();
-    await setGroupTypingStatus(eventId, user.uid, user.displayName || 'Guest', false);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setGroupTypingStatus(eventId, user.uid, user.displayName || 'Guest', false).catch(console.error);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const tempMsg: GroupMessage = {
@@ -298,21 +318,27 @@ export default function EventGroupChatScreen() {
       type: 'text',
       createdAt: new Date().toISOString(),
       isDeleted: false,
+      replyTo: replyMessageId || undefined,
     };
     setTempMessages((current) => [...current, tempMsg]);
+    setReplyMessageId(null);
 
     const result = await sendGroupMessage(
       eventId,
       user.uid,
       user.displayName || 'Guest',
       messageContent,
+      user.photoURL || undefined,
+      undefined, // badge
+      replyMessageId || undefined,
     );
-
     setTempMessages((current) => current.filter((m) => m.id !== tempId));
 
     if (!result.success) {
       Alert.alert('Error', result.error || 'Failed to send message');
       setInputText(messageContent);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
 
     setSending(false);
@@ -541,10 +567,7 @@ export default function EventGroupChatScreen() {
 
   return (
     <BrightChatSurface theme={theme}>
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <ChatKeyboardAvoidingView style={{ flex: 1 }}>
         <SafeAreaView style={styles.conversation} edges={['top']}>
           <BrightChatHeader
             theme={theme}
@@ -577,32 +600,7 @@ export default function EventGroupChatScreen() {
 
         <SafeAreaView edges={['bottom']}>
           <BrightComposerDock error={isArchived ? archivedNotice : null}>
-            <BrightToolButton
-              onPress={async () => {
-                if (!canCompose || !user?.uid || !eventId) return;
-                if (!checkRateLimit()) return;
-                const url = await pickAndUpload();
-                if (url) {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  const result = await sendGroupImageMessage(
-                    eventId,
-                    user.uid,
-                    user.displayName || 'Guest',
-                    url,
-                  );
-                  if (!result.success) {
-                    Alert.alert('Error', result.error || 'Failed to send image');
-                  }
-                }
-              }}
-              disabled={imageUploading || !canSend || !canCompose}
-            >
-              {imageUploading ? (
-                <ActivityIndicator size="small" color={colors.iris} />
-              ) : (
-                <ImagePlus size={19} color={colors.iris} />
-              )}
-            </BrightToolButton>
+
             <BrightTextInput
               value={inputText}
               onChangeText={handleTextChange}
@@ -621,7 +619,7 @@ export default function EventGroupChatScreen() {
             />
           </BrightComposerDock>
         </SafeAreaView>
-      </KeyboardAvoidingView>
+      </ChatKeyboardAvoidingView>
 
       <Modal
         visible={detailsModalVisible}

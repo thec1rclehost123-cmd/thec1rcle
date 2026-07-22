@@ -38,7 +38,7 @@ function RequestCard({
       : '';
 
   return (
-    <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
+    <Animated.View entering={FadeInDown.delay(index * 50)}>
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           {/* Avatar */}

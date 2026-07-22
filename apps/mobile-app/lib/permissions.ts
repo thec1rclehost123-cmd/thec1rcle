@@ -101,6 +101,20 @@ export async function checkLocationSystemPermission(): Promise<boolean> {
   return status === 'granted';
 }
 
+// Only call after an explicit user action. If Android/iOS no longer permits an
+// in-app prompt, the caller can direct the user to system settings.
+export async function requestLocationSystemPermission(): Promise<boolean> {
+  try {
+    const existing = await Location.getForegroundPermissionsAsync();
+    if (existing.status === 'granted') return true;
+    if (existing.canAskAgain === false) return false;
+    const requested = await Location.requestForegroundPermissionsAsync();
+    return requested.status === 'granted';
+  } catch {
+    return false;
+  }
+}
+
 export async function checkNotificationSystemPermission(): Promise<boolean> {
   const { status } = await Notifications.getPermissionsAsync();
   return status === 'granted';

@@ -109,7 +109,7 @@ async function handler(req) {
   }
 
   try {
-    let results = await adminStore.listCollection(collection, {
+    const { items, hasMore, nextCursor } = await adminStore.listCollection(collection, {
       status,
       limit,
       adminRole,
@@ -117,13 +117,15 @@ async function handler(req) {
       cursor,
     });
 
+    let results = items;
+
     // Specialized Mapping for Events
     if (collection === 'events') {
       const { mapEventForClient } = await import('@c1rcle/core/events');
-      results = results.map((r) => mapEventForClient(r, r.id));
+      results = items.map((r) => mapEventForClient(r, r.id));
     }
 
-    return NextResponse.json({ data: results, results });
+    return NextResponse.json({ data: results, results, hasMore, nextCursor });
   } catch (error) {
     console.error(`[SECURITY] List API Error [${collection}]:`, error.message);
     return NextResponse.json({ error: 'Generic data error' }, { status: error.statusCode || 500 });

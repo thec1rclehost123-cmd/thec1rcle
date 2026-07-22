@@ -16,7 +16,7 @@ import NetInfo from '@react-native-community/netinfo';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+
   withTiming,
 } from 'react-native-reanimated';
 
@@ -40,12 +40,12 @@ export function OfflineBanner({ message = 'No internet connection' }: OfflineBan
   const show = (s: 'offline' | 'back') => {
     setStatus(s);
     setVisible(true);
-    translateY.value = withSpring(0, { damping: 18, stiffness: 220 });
+    translateY.value = withTiming(0, { duration: 250 });
     opacity.value = withTiming(1, { duration: 200 });
   };
 
   const hide = () => {
-    translateY.value = withSpring(-80, { damping: 18, stiffness: 220 });
+    translateY.value = withTiming(-80, { duration: 250 });
     opacity.value = withTiming(0, { duration: 250 });
     setTimeout(() => setVisible(false), 300);
   };

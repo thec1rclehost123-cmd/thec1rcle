@@ -50,3 +50,7 @@ export function register() {
     }
   }
 }
+
+// Capture failures raised by Server Components, middleware and the proxy layer.
+// Next.js invokes this hook outside the normal React error boundary path.
+export const onRequestError = Sentry.captureRequestError;

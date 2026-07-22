@@ -1,0 +1,21 @@
+THE C1RCLE release prerequisite preflight
+Timestamp (UTC): 2026-07-18T17:19:09Z
+
+iOS toolchain:
+  xcode-select -p -> /Library/Developer/CommandLineTools
+  xcodebuild -version -> failed because the selected developer directory is Command Line Tools, not full Xcode
+  Result: distribution-signed iOS/TestFlight archive is BLOCKED on this Mac until supported full Xcode is installed and selected.
+
+Mobile production profile source review:
+  - EXPO_PUBLIC_APP_ENV is production.
+  - API origin is configured as https://api.thec1rcle.com, which currently does not resolve.
+  - Razorpay public key uses a test-mode prefix in the production build profile.
+  - Sentry DSN is a placeholder.
+  - Google web client ID is a placeholder.
+  - Expo updates are enabled with app-version runtime policy; OTA governance and signed-release proof remain open.
+
+Result:
+  Phase 5 is BLOCKED. No production AAB or TestFlight archive should be credited from this source state.
+
+Secret-handling note:
+  Credential values are intentionally omitted from this evidence. Approved restricted live credentials must be injected through the correct protected secret store only after Phase 2 integrity closes; production must fail closed if they are absent.

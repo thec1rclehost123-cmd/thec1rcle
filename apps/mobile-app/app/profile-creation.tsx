@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +17,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -27,6 +27,16 @@ import { DatingVitals, ProfileAnthem, useProfileStore } from '@/store/profileSto
 import AnthemPlayer from '@/components/ui/AnthemPlayer';
 import { uploadUserPhoto } from '@/lib/firebase/userProfile';
 import { colors, gradients, shadows } from '@/lib/design/theme';
+import {
+  NIGHTLIFE_HEIGHT_OPTIONS,
+  NIGHTLIFE_LIFESTYLE_OPTIONS,
+  NIGHTLIFE_PRONOUN_OPTIONS,
+  NIGHTLIFE_VIBE_OPTIONS,
+  isActiveNightlifeProfileEditor,
+  pauseActiveNightlifeProfile,
+} from '@/lib/nightlifeProfile';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const MAX_PHOTOS = 6;
 const MAX_PROMPTS = 3;
@@ -38,7 +48,7 @@ type PhotoDraft = {
   local?: boolean;
 };
 
-type VitalKey = 'height' | 'gender' | 'location';
+type VitalKey = 'height' | 'pronouns' | 'lifestyle';
 
 type PromptDraft = {
   id: string;
@@ -68,22 +78,18 @@ const NIGHTLIFE_PROMPTS = [
   'My signature drink is',
 ];
 
-const VIBE_TAGS = [
-  'House', 'Techno', 'Hip-Hop', 'Afrobeats', 'Open Format',
-  'Rooftops', 'Cocktail Bars', 'Dancing', 'Friends First',
-  'Meet Someone', 'Afterparty', 'Low-Key',
-];
+const VIBE_TAGS = NIGHTLIFE_VIBE_OPTIONS;
 
 const VITAL_OPTIONS: Record<VitalKey, string[]> = {
-  height: ['5\'0"', '5\'2"', '5\'4"', '5\'6"', '5\'8"', '5\'10"', '6\'0"', '6\'2"', '6\'4"'],
-  gender: ['Woman', 'Man', 'Non-binary', 'Prefer not to say'],
-  location: ['Pune', 'Mumbai', 'Bengaluru', 'Goa', 'Delhi', 'Tonight nearby'],
+  height: NIGHTLIFE_HEIGHT_OPTIONS,
+  pronouns: [...NIGHTLIFE_PRONOUN_OPTIONS],
+  lifestyle: [...NIGHTLIFE_LIFESTYLE_OPTIONS],
 };
 
 const VITAL_LABELS: Record<VitalKey, { title: string; icon: keyof typeof Ionicons.glyphMap }> = {
   height: { title: 'Height', icon: 'resize-outline' },
-  gender: { title: 'Gender', icon: 'person-outline' },
-  location: { title: 'Location', icon: 'location-outline' },
+  pronouns: { title: 'Pronouns', icon: 'person-outline' },
+  lifestyle: { title: 'Lifestyle', icon: 'wine-outline' },
 };
 
 function buildInitialPhotos(photos?: string[]): PhotoDraft[] {
@@ -96,8 +102,8 @@ function buildInitialPhotos(photos?: string[]): PhotoDraft[] {
 function cleanVitals(vitals: DatingVitals): DatingVitals {
   return {
     height: vitals.height?.trim() || undefined,
-    gender: vitals.gender?.trim() || undefined,
-    location: vitals.location?.trim() || undefined,
+    pronouns: vitals.pronouns?.trim() || undefined,
+    lifestyle: vitals.lifestyle?.trim() || undefined,
   };
 }
 
@@ -115,7 +121,10 @@ function SheetFrame({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalRoot}>
         <Pressable style={styles.modalScrim} onPress={onClose} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetKeyboard}>
+        <KeyboardAvoidingView
+          style={styles.sheetKeyboard}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 18) }]}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
@@ -133,8 +142,10 @@ function SheetFrame({
 }
 
 export default function ProfileCreationScreen() {
+  const { mode } = useLocalSearchParams<{ mode?: string | string[] }>();
   const { user } = useAuthStore();
   const profile = useProfileStore((state) => state.profile);
+  const loadedProfileUserId = useProfileStore((state) => state._loadedUserId);
   const loadProfile = useProfileStore((state) => state.loadProfile);
   const updateProfile = useProfileStore((state) => state.updateProfile);
   const [hydrated, setHydrated] = useState(false);
@@ -143,7 +154,7 @@ export default function ProfileCreationScreen() {
     buildInitialPhotos(profile?.datingPhotos?.length ? profile.datingPhotos : profile?.photos),
   );
   const [vitals, setVitals] = useState<DatingVitals>(() => profile?.datingVitals ?? {});
-  const [vibeTags, setVibeTags] = useState<string[]>(() => profile?.vibeTags ?? []);
+  const [vibeTags, setVibeTags] = useState<string[]>(() => profile?.nightlifeVibeTags ?? []);
   const [anthem, setAnthem] = useState<ProfileAnthem | null>(() => profile?.anthem ?? null);
   const [prompts, setPrompts] = useState<PromptDraft[]>(() => []);
   const [activeVital, setActiveVital] = useState<VitalKey | null>(null);
@@ -154,34 +165,56 @@ export default function ProfileCreationScreen() {
   const [anthemLoading, setAnthemLoading] = useState(false);
   const [anthemError, setAnthemError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [pausing, setPausing] = useState(false);
+  const pauseInFlightRef = useRef(false);
   const [promptModalIndex, setPromptModalIndex] = useState<number | null>(null);
   const [editingAnswer, setEditingAnswer] = useState('');
+  const editorOwnerUserId = useRef<string | null>(user?.uid ?? null);
 
   const activeVitalConfig = activeVital ? VITAL_LABELS[activeVital] : null;
   const activeVitalValue = activeVital ? vitals[activeVital] : undefined;
   const selectedVitals = useMemo(() => cleanVitals(vitals), [vitals]);
   const displayName = profile?.displayName || user?.displayName || 'You';
+  const isActiveEditor = isActiveNightlifeProfileEditor({
+    routeMode: mode,
+    datingActive: profile?.datingActive,
+  });
 
   useEffect(() => {
-    if (!user?.uid || profile) return;
+    const nextUserId = user?.uid ?? null;
+    if (editorOwnerUserId.current === nextUserId) return;
+    editorOwnerUserId.current = nextUserId;
+    setHydrated(false);
+    setPhotoDrafts([]);
+    setVitals({});
+    setVibeTags([]);
+    setAnthem(null);
+    setPrompts([]);
+    setActiveVital(null);
+    setAnthemModalVisible(false);
+    setPromptModalIndex(null);
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid || loadedProfileUserId === user.uid) return;
     void loadProfile(user.uid);
-  }, [loadProfile, profile, user?.uid]);
+  }, [loadProfile, loadedProfileUserId, user?.uid]);
 
   useEffect(() => {
-    if (!profile || hydrated) return;
+    if (!profile || loadedProfileUserId !== user?.uid || hydrated) return;
     setPhotoDrafts(buildInitialPhotos(profile.datingPhotos?.length ? profile.datingPhotos : profile.photos));
     setVitals(profile.datingVitals ?? {});
-    setVibeTags(profile.vibeTags ?? []);
+    setVibeTags(profile.nightlifeVibeTags ?? []);
     setAnthem(profile.anthem ?? null);
     if (Array.isArray(profile.prompts)) {
       setPrompts(profile.prompts.map((p: any, i: number) => ({
-        id: String(p.id || `prompt-${i}`),
+        id: String(p.promptId || p.id || `prompt-${i}`),
         question: p.title || p.question || NIGHTLIFE_PROMPTS[i % NIGHTLIFE_PROMPTS.length],
         answer: p.answer || p.response || '',
       })));
     }
     setHydrated(true);
-  }, [hydrated, profile]);
+  }, [hydrated, loadedProfileUserId, profile, user?.uid]);
 
   useEffect(() => {
     if (!anthemModalVisible) return;
@@ -351,36 +384,68 @@ export default function ProfileCreationScreen() {
       Alert.alert('Sign in required', 'Please sign in again to publish your profile.');
       return;
     }
+    const publishingUserId = user.uid;
+    const filledPhotos = photoDrafts.filter((photo) => photo?.uri);
+    const nextVitals = cleanVitals(vitals);
+    const filledPrompts = prompts.filter((prompt) => prompt.answer.trim());
+    const missing: string[] = [];
+    if (filledPhotos.length < 1) missing.push('one photo');
+    if (!nextVitals.height) missing.push('height');
+    if (!nextVitals.pronouns) missing.push('pronouns');
+    if (!nextVitals.lifestyle) missing.push('lifestyle');
+    if (vibeTags.length < 1) missing.push('one vibe');
+    if (filledPrompts.length < 1) missing.push('one prompt answer');
+    if (missing.length > 0) {
+      Alert.alert('Finish your profile', `Please add ${missing.join(', ')} before publishing.`);
+      return;
+    }
+
     setPublishing(true);
     try {
-      const filledPhotos = photoDrafts.filter((photo) => photo?.uri);
-      const uploadedPhotos = await Promise.all(filledPhotos.map(uploadDraftPhoto));
-      const nextVitals = cleanVitals(vitals);
-      const ok = await updateProfile(user.uid, {
+      const uploadedPhotos = await Promise.all(
+        filledPhotos.map(async (draft, index) => {
+          const uploadedUri = await uploadDraftPhoto(draft, index);
+          if (draft.local && useAuthStore.getState().user?.uid === publishingUserId) {
+            setPhotoAtIndex(index, { uri: uploadedUri, local: false });
+          }
+          return uploadedUri;
+        }),
+      );
+      if (useAuthStore.getState().user?.uid !== publishingUserId) {
+        throw new Error('Your signed-in account changed. Reopen the profile editor and try again.');
+      }
+      const ok = await updateProfile(publishingUserId, {
         datingPhotos: uploadedPhotos,
-        photos: uploadedPhotos,
         datingVitals: nextVitals,
-        vibeTags,
+        nightlifeVibeTags: vibeTags,
         anthem: anthem ?? null,
-        prompts: prompts.filter((p) => p.answer.trim()).map((p, i) => ({
-          id: p.id,
-          title: p.question,
-          answer: p.answer,
+        prompts: filledPrompts.map((p) => ({
+          promptId: p.id,
+          question: p.question,
+          answer: p.answer.trim(),
+          type: 'text' as const,
         })),
         datingActive: true,
-        profileComplete: true,
         socialSetupComplete: true,
-        city: nextVitals.location || profile?.city,
       });
       if (!ok) {
-        Alert.alert('Could not publish profile', 'Please try again.');
+        const message = useProfileStore.getState().error;
+        Alert.alert(
+          'Could not publish profile',
+          message || 'Your profile could not be saved. Please review it and try again.',
+        );
         return;
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/profile');
     } catch (error) {
       console.error('[ProfileCreation] Publish error:', error);
-      Alert.alert('Could not publish profile', 'Please check your connection and try again.');
+      Alert.alert(
+        'Could not publish profile',
+        error instanceof Error && error.message
+          ? error.message
+          : 'Please check your connection and try again.',
+      );
     } finally {
       setPublishing(false);
     }
@@ -400,10 +465,10 @@ export default function ProfileCreationScreen() {
     const originalPhotos = buildInitialPhotos(profile?.datingPhotos?.length ? profile.datingPhotos : profile?.photos);
     const photosChanged = JSON.stringify(photoDrafts) !== JSON.stringify(originalPhotos);
     const vitalsChanged = JSON.stringify(vitals) !== JSON.stringify(profile?.datingVitals ?? {});
-    const tagsChanged = JSON.stringify(vibeTags) !== JSON.stringify(profile?.vibeTags ?? []);
+    const tagsChanged = JSON.stringify(vibeTags) !== JSON.stringify(profile?.nightlifeVibeTags ?? []);
     const anthemChanged = JSON.stringify(anthem) !== JSON.stringify(profile?.anthem ?? null);
     const promptsChanged = JSON.stringify(prompts) !== JSON.stringify(
-      profile?.prompts?.map((p: any) => ({ id: p.id, question: p.title || p.question, answer: p.answer || p.response })) ?? [],
+      profile?.prompts?.map((p: any) => ({ id: p.promptId || p.id, question: p.title || p.question, answer: p.answer || p.response })) ?? [],
     );
 
     if (photosChanged || vitalsChanged || tagsChanged || anthemChanged || promptsChanged) {
@@ -414,6 +479,47 @@ export default function ProfileCreationScreen() {
     } else {
       router.back();
     }
+  };
+
+  const confirmPauseProfile = async () => {
+    if (!user?.uid || pauseInFlightRef.current) return;
+
+    pauseInFlightRef.current = true;
+    setPausing(true);
+    try {
+      const result = await pauseActiveNightlifeProfile({
+        userId: user.uid,
+        updateProfile,
+        getStoreError: () => useProfileStore.getState().error,
+      });
+      if (!result.ok) {
+        Alert.alert('Could not pause profile', result.error);
+        return;
+      }
+
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/profile');
+    } finally {
+      pauseInFlightRef.current = false;
+      setPausing(false);
+    }
+  };
+
+  const handlePauseProfile = () => {
+    if (!isActiveEditor || publishing || pausing) return;
+
+    Alert.alert(
+      'Pause Nightlife Profile?',
+      'You will be hidden from Nightlife discovery. Your saved photos, answers, and preferences stay intact so you can turn the profile back on later.',
+      [
+        { text: 'Keep Active', style: 'cancel' },
+        {
+          text: 'Pause Profile',
+          style: 'destructive',
+          onPress: () => void confirmPauseProfile(),
+        },
+      ],
+    );
   };
 
   const photoCount = photoDrafts.filter((p) => p?.uri).length;
@@ -440,12 +546,16 @@ export default function ProfileCreationScreen() {
           <Text style={styles.headerButtonText}>Cancel</Text>
         </Pressable>
         <Text style={styles.headerTitle}>Nightlife Profile</Text>
-        <Pressable onPress={handlePublish} style={styles.headerButton} disabled={publishing}>
+        <Pressable
+          onPress={handlePublish}
+          style={styles.headerButton}
+          disabled={publishing || pausing}
+        >
           {publishing ? (
             <ActivityIndicator color="#000" size="small" />
           ) : (
             <Text style={[styles.headerButtonText, styles.headerButtonTextDone]}>
-              {profile?.datingActive ? 'Save' : 'Done'}
+              {isActiveEditor ? 'Save' : 'Done'}
             </Text>
           )}
         </Pressable>
@@ -457,7 +567,7 @@ export default function ProfileCreationScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {/* Hero Photo — tappable */}
-        <Pressable onPress={() => handlePickPhoto(0)} style={styles.heroSection}>
+        <AnimatedPressable entering={FadeInDown.delay(100).duration(400)} onPress={() => handlePickPhoto(0)} style={styles.heroSection}>
           {photoDrafts[0]?.uri ? (
             <Image source={{ uri: photoDrafts[0].uri }} style={styles.heroImage} contentFit="cover" />
           ) : (
@@ -474,9 +584,9 @@ export default function ProfileCreationScreen() {
               <Text style={styles.heroEditBadgeText}>Tap to change</Text>
             </View>
           </View>
-        </Pressable>
+        </AnimatedPressable>
 
-        <View style={styles.detailsContainer}>
+        <Animated.View entering={FadeInDown.delay(200).duration(400)} style={styles.detailsContainer}>
           {/* Vitals — tappable */}
           <View style={styles.vitalsRow}>
             {(Object.keys(VITAL_LABELS) as VitalKey[]).map((key) => (
@@ -601,16 +711,53 @@ export default function ProfileCreationScreen() {
           )}
 
           {/* Save */}
-          <Pressable onPress={handlePublish} style={styles.publishButton} disabled={publishing}>
+          <Pressable
+            onPress={handlePublish}
+            style={[styles.publishButton, (publishing || pausing) && styles.disabledButton]}
+            disabled={publishing || pausing}
+          >
             {publishing ? (
               <ActivityIndicator color="#FFF" size="small" />
             ) : (
               <Text style={styles.publishButtonText}>
-                {profile?.datingActive ? 'Save Profile' : 'Publish Profile'}
+                {isActiveEditor ? 'Save Profile' : 'Publish Profile'}
               </Text>
             )}
           </Pressable>
-        </View>
+
+          {isActiveEditor || pausing ? (
+            <View style={styles.visibilitySection}>
+              <View style={styles.visibilityCopy}>
+                <Text style={styles.visibilityTitle}>Profile visibility</Text>
+                <Text style={styles.visibilityDescription}>
+                  Pause to leave Nightlife discovery without deleting your profile.
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Pause Nightlife Profile"
+                accessibilityHint="Hides your profile from Nightlife discovery without deleting its details"
+                disabled={publishing || pausing}
+                onPress={handlePauseProfile}
+                style={[
+                  styles.pauseButton,
+                  (publishing || pausing) && styles.disabledButton,
+                ]}
+              >
+                <View style={styles.pauseButtonContent}>
+                  {pausing ? (
+                    <ActivityIndicator color="#C52C2C" size="small" />
+                  ) : (
+                    <Ionicons name="pause-circle-outline" size={20} color="#C52C2C" />
+                  )}
+                  <Text style={styles.pauseButtonText}>
+                    {pausing ? 'Pausing…' : 'Pause Nightlife Profile'}
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+          ) : null}
+        </Animated.View>
       </ScrollView>
 
       {/* Vitals Sheet */}
@@ -875,11 +1022,27 @@ const styles = StyleSheet.create({
   },
   publishButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   disabledButton: { opacity: 0.5 },
+  visibilitySection: {
+    marginTop: 8, paddingTop: 20, borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#D9D9D9', gap: 14,
+  },
+  visibilityCopy: { gap: 5 },
+  visibilityTitle: { color: '#111', fontSize: 15, fontWeight: '700' },
+  visibilityDescription: { color: '#666', fontSize: 13, lineHeight: 19 },
+  pauseButton: {
+    minHeight: 50, borderRadius: 12, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', borderWidth: 1, borderColor: '#E3A1A1',
+    backgroundColor: '#FFF5F5', paddingHorizontal: 16,
+  },
+  pauseButtonContent: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  pauseButtonText: { color: '#C52C2C', fontSize: 15, fontWeight: '700' },
 
   // Modal / Sheet shared
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
   modalScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.64)' },
-  sheetKeyboard: { justifyContent: 'flex-end' },
+  sheetKeyboard: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     maxHeight: '82%', borderTopLeftRadius: 26, borderTopRightRadius: 26,
     paddingHorizontal: 18, paddingTop: 10, backgroundColor: '#111111',

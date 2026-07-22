@@ -13,6 +13,7 @@ import {
 import { syncHostStats } from '@c1rcle/core/workflows/host-analytics';
 import { recalculateHeatScores } from '@c1rcle/core/workflows/heat-sorting';
 import { maintenanceWarmup } from '@c1rcle/core/workflows/maintenance';
+import { extractPosterDominantColor } from '@c1rcle/core/workflows/poster-dominant-color';
 
 /**
  * PRODUCTION INNGEST SERVE ENDPOINT
@@ -42,5 +43,8 @@ export const { GET, POST, PUT } = serve({
 
     // Maintenance
     maintenanceWarmup,
+
+    // Image Processing
+    extractPosterDominantColor,
   ],
 });

@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
+
   withTiming,
 } from 'react-native-reanimated';
 import { useScannerStore } from '@/store/scannerStore';
@@ -63,7 +63,7 @@ export default function ScanScreen() {
 
   const showResultOverlay = (result: ScanResultData) => {
     setScanResult(result);
-    resultScale.value = withSpring(1, { damping: 15 });
+    resultScale.value = withTiming(1, { duration: 250 });
     resultOpacity.value = withTiming(1, { duration: 200 });
 
     if (result.type === 'valid') {
@@ -79,7 +79,7 @@ export default function ScanScreen() {
 
   const dismissResult = () => {
     if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-    resultScale.value = withSpring(0);
+    resultScale.value = (0);
     resultOpacity.value = withTiming(0, { duration: 200 });
     setTimeout(() => {
       setScanResult(null);

@@ -30,6 +30,49 @@ const GuestNotificationsPatchBody = z
   .strict();
 
 export default async function guestNotificationRoutes(fastify: FastifyInstance) {
+  fastify.delete(
+    '/guest-notifications/:id',
+    {
+      preHandler: [fastify.validate({ params: GuestNotificationIdParam })],
+    },
+    async (request: any, reply) => {
+      const userId = request.user?.uid;
+      if (!userId)
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized',
+            requestId: request.id,
+          }),
+        );
+
+      try {
+        const result = await markGuestNotificationRead(fastify.db, userId, request.params.id);
+        if (!result)
+          return reply.status(404).send(
+            buildErrorResponse({
+              code: 'NOT_FOUND',
+              message: 'Notification not found',
+              requestId: request.id,
+            }),
+          );
+        return { success: true };
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, notificationId: request.params.id, error: error.message },
+          'DELETE /guest-notifications/:id failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
   fastify.get(
     '/guest-notifications',
     {

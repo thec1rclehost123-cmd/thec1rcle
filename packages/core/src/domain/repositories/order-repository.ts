@@ -23,6 +23,7 @@ export interface Order {
   totalAmount: number;
   status: 'payment_pending' | 'confirmed' | 'cancelled';
   reservationId?: string;
+  checkoutSnapshot?: any;
   promoterCode?: string | null;
   promoterId?: string | null;
   source?: 'link' | 'promo_code' | 'manual' | null;
@@ -49,6 +50,7 @@ export interface Reservation {
   deviceId?: string | null;
   queueId?: string | null;
   items: any[];
+  checkoutSnapshot?: any;
   status: 'active' | 'expired' | 'converted' | 'released';
   createdAt: string;
   expiresAt: string;

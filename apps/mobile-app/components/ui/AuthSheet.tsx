@@ -22,7 +22,7 @@ export default function AuthSheet({ visible, onDismiss }: AuthSheetProps) {
   const handleSignUp = () => {
     useAuthStore.getState().setGuestMode(false);
     onDismiss();
-    router.push('/(auth)/signup');
+    router.push('/(auth)/login');
   };
 
   return (

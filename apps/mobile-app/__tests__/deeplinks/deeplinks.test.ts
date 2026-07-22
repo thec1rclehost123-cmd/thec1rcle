@@ -23,11 +23,24 @@ jest.mock('../../store/authStore', () => ({
   useAuthStore: { getState: jest.fn() },
 }));
 
+jest.mock('../../store/profileStore', () => ({
+  useProfileStore: { getState: jest.fn(() => ({ profile: {} })) },
+}));
+
+jest.mock('../../store/firstRunStore', () => ({
+  useFirstRunStore: { getState: jest.fn(() => ({ snapshot: {} })) },
+}));
+
+jest.mock('../../lib/firstRun', () => ({
+  resolveFirstRunStage: jest.fn(() => 'complete'),
+}));
+
 import * as Linking from 'expo-linking';
 import * as Clipboard from 'expo-clipboard';
 import { Share } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
+import { resolveFirstRunStage } from '../../lib/firstRun';
 
 import {
   buildDeepLink,
@@ -152,6 +165,32 @@ describe('deeplinks', () => {
       expect(result).toEqual({ type: 'safety', params: {} });
     });
 
+    it('parses a custom-scheme host link using Expo Linking hostname semantics', () => {
+      (Linking.parse as jest.Mock).mockReturnValueOnce({
+        hostname: 'host',
+        path: 'demo-host-03',
+        queryParams: {},
+      });
+
+      expect(parseDeepLink('c1rcle://host/demo-host-03')).toEqual({
+        type: 'host',
+        params: { id: 'demo-host-03', hostId: 'demo-host-03' },
+      });
+    });
+
+    it('parses a universal venue link with the app path prefix', () => {
+      (Linking.parse as jest.Mock).mockReturnValueOnce({
+        hostname: 'thec1rcle.com',
+        path: 'app/venue/demo-venue-01',
+        queryParams: {},
+      });
+
+      expect(parseDeepLink('https://thec1rcle.com/app/venue/demo-venue-01')).toEqual({
+        type: 'venue',
+        params: { id: 'demo-venue-01', venueId: 'demo-venue-01' },
+      });
+    });
+
     it('returns null type for unknown links', () => {
       (Linking.parse as jest.Mock).mockReturnValueOnce({
         path: '',
@@ -203,6 +242,91 @@ describe('deeplinks', () => {
 
       handleDeepLink('c1rcle://safety');
       expect(router.push).toHaveBeenCalledWith('/safety');
+    });
+
+    it('routes custom-scheme host links to the Expo Router host screen', () => {
+      (useAuthStore.getState as jest.Mock).mockReturnValueOnce({ user: { uid: 'u1' } });
+      (Linking.parse as jest.Mock).mockReturnValueOnce({
+        hostname: 'host',
+        path: 'demo-host-03',
+        queryParams: {},
+      });
+
+      handleDeepLink('c1rcle://host/demo-host-03');
+
+      expect(router.push).toHaveBeenCalledWith({
+        pathname: '/host/[id]',
+        params: { id: 'demo-host-03' },
+      });
+    });
+
+    it('routes custom-scheme venue links to the Expo Router venue screen', () => {
+      (useAuthStore.getState as jest.Mock).mockReturnValueOnce({ user: { uid: 'u1' } });
+      (Linking.parse as jest.Mock).mockReturnValueOnce({
+        hostname: 'venue',
+        path: 'demo-venue-01',
+        queryParams: {},
+      });
+
+      handleDeepLink('c1rcle://venue/demo-venue-01');
+
+      expect(router.push).toHaveBeenCalledWith({
+        pathname: '/venue/[id]',
+        params: { id: 'demo-venue-01' },
+      });
+    });
+
+    it('does not manually push a host route already handled by native Expo Router', () => {
+      (useAuthStore.getState as jest.Mock).mockReturnValueOnce({ user: { uid: 'u1' } });
+      (Linking.parse as jest.Mock).mockReturnValueOnce({
+        hostname: 'host',
+        path: 'demo-host-03',
+        queryParams: {},
+      });
+
+      handleDeepLink('c1rcle://host/demo-host-03', {
+        nativeFileRouteAlreadyHandled: true,
+      });
+
+      expect(router.push).not.toHaveBeenCalled();
+    });
+
+    it('does not manually push a venue route already handled by native Expo Router', () => {
+      (useAuthStore.getState as jest.Mock).mockReturnValueOnce({ user: { uid: 'u1' } });
+      (Linking.parse as jest.Mock).mockReturnValueOnce({
+        hostname: 'venue',
+        path: 'demo-venue-01',
+        queryParams: {},
+      });
+
+      handleDeepLink('c1rcle://venue/demo-venue-01', {
+        nativeFileRouteAlreadyHandled: true,
+      });
+
+      expect(router.push).not.toHaveBeenCalled();
+    });
+
+    it('keeps auth gating for a native file route owned by Expo Router', () => {
+      (useAuthStore.getState as jest.Mock).mockReturnValueOnce({ user: null });
+
+      handleDeepLink('c1rcle://host/demo-host-03', {
+        nativeFileRouteAlreadyHandled: true,
+      });
+
+      expect(router.replace).toHaveBeenCalledWith('/(auth)/login');
+      expect(router.push).not.toHaveBeenCalled();
+    });
+
+    it('keeps first-run gating for a native file route owned by Expo Router', () => {
+      (useAuthStore.getState as jest.Mock).mockReturnValueOnce({ user: { uid: 'u1' } });
+      (resolveFirstRunStage as jest.Mock).mockReturnValueOnce('account');
+
+      handleDeepLink('c1rcle://venue/demo-venue-01', {
+        nativeFileRouteAlreadyHandled: true,
+      });
+
+      expect(router.replace).toHaveBeenCalledWith('/');
+      expect(router.push).not.toHaveBeenCalled();
     });
   });
 

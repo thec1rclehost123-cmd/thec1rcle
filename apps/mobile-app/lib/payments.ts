@@ -7,11 +7,19 @@
  * All pricing, order creation, and payment verification happens server-side.
  */
 
-import { Alert } from 'react-native';
+import { Alert, DeviceEventEmitter, NativeModules, TurboModuleRegistry } from 'react-native';
 import { useCartStore } from '@/store/cartStore';
 import { useTicketsStore } from '@/store/ticketsStore';
 import { useSubscriptionStore, type PremiumFeature } from '@/store/subscriptionStore';
-import { reserveTickets, initiateCheckout, verifyPayment } from './api';
+import {
+  cancelOrder,
+  cancelReservation,
+  getOrder,
+  reserveTickets,
+  initiateCheckout,
+  verifyPayment,
+} from './api';
+import { formatPaiseInr } from './money';
 import { getFirebaseAuth } from './firebase';
 
 // Razorpay key for the frontend SDK (public key only — secret stays on server)
@@ -56,6 +64,7 @@ export interface CheckoutResult {
   error?: string;
   requiresPayment?: boolean;
   premiumRequired?: boolean;
+  cancelled?: boolean;
 }
 
 function premiumFeatureFromError(error: any): PremiumFeature {
@@ -116,6 +125,49 @@ function refreshPostCheckoutState(): void {
     });
 }
 
+function isConfirmedOrder(order: any): boolean {
+  return ['confirmed', 'paid', 'completed'].includes(
+    String(order?.normalizedStatus || order?.status || '').toLowerCase(),
+  );
+}
+
+async function recoverConfirmedCheckout(orderId: string): Promise<boolean> {
+  try {
+    const order = await getOrder(orderId, { includeEvent: false });
+    if (!isConfirmedOrder(order)) return false;
+
+    useCartStore.getState().clearCart();
+    refreshPostCheckoutState();
+    return true;
+  } catch (error) {
+    if (__DEV__) console.warn('[Checkout] Confirmed-order recovery failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Cleanup for an abandoned checkout. Local recovery state is cleared only
+ * after the backend confirms cancellation, so a failed network request never
+ * hides inventory that is still reserved server-side.
+ */
+export async function discardPendingCheckout(): Promise<void> {
+  const cart = useCartStore.getState();
+  const orderId = cart.pendingPaymentOrderId;
+  const reservationId = cart.pendingReservation?.reservationId;
+
+  if (orderId) {
+    if (await recoverConfirmedCheckout(orderId)) return;
+
+    const result = await cancelOrder(orderId);
+    if (!result?.success) throw new Error('The pending order could not be cancelled.');
+  } else if (reservationId) {
+    const result = await cancelReservation(reservationId);
+    if (!result?.success) throw new Error('The ticket reservation could not be released.');
+  }
+
+  useCartStore.getState().clearPendingReservation();
+}
+
 // ─── Main Checkout Flow ──────────────────────────────────────────
 
 /**
@@ -145,8 +197,19 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
     // ── Step 1: Reserve Inventory ──
     onStatusChange?.('reserving');
 
-    const cartState = useCartStore.getState();
-    const existingReservation = cartState.pendingReservation;
+    let cartState = useCartStore.getState();
+    let existingReservation = cartState.pendingReservation;
+
+    // A previous Razorpay attempt or expired hold must be cancelled before a
+    // new reservation is made, otherwise its inventory can remain unavailable.
+    if (
+      cartState.pendingPaymentOrderId ||
+      (existingReservation && new Date(existingReservation.expiresAt).getTime() <= Date.now())
+    ) {
+      await discardPendingCheckout();
+      cartState = useCartStore.getState();
+      existingReservation = cartState.pendingReservation;
+    }
     const canReuseReservation =
       Boolean(existingReservation) &&
       matchesReservationSelection(existingReservation, params) &&
@@ -244,10 +307,16 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
     // PERSIST FOR RECOVERY: Survives app kill mid-payment
     useCartStore.getState().setPendingPaymentOrderId(checkout.order.id);
 
+    const razorpayAmountPaise =
+      checkout.razorpay!.amountPaise ?? Math.round(Number(checkout.razorpay!.amount || 0) * 100);
+    if (!Number.isSafeInteger(razorpayAmountPaise) || razorpayAmountPaise <= 0) {
+      throw new Error('The payment amount is invalid. Please restart checkout.');
+    }
+
     const paymentResult = await openNativeRazorpay({
       key: checkout.razorpay!.key || RAZORPAY_KEY,
       razorpayOrderId: checkout.razorpay!.orderId,
-      amount: checkout.razorpay!.amount,
+      amount: razorpayAmountPaise,
       currency: checkout.razorpay!.currency || 'INR',
       eventTitle: params.eventTitle,
       prefill: {
@@ -258,11 +327,13 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
     });
 
     if (!paymentResult.success) {
-      onStatusChange?.('cancelled');
+      await discardPendingCheckout();
+      onStatusChange?.(paymentResult.cancelled ? 'cancelled' : 'failed');
       return {
         success: false,
         orderId: checkout.order.id,
         requiresPayment: true,
+        cancelled: Boolean(paymentResult.cancelled),
         error: paymentResult.error || 'Payment was cancelled',
       };
     }
@@ -270,21 +341,42 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
     // ── Step 5: Verify payment signature with backend ──
     onStatusChange?.('verifying');
 
-    const verification = await verifyPayment(
-      {
-        orderId: checkout.order.id,
-        razorpay_order_id: paymentResult.razorpay_order_id!,
-        razorpay_payment_id: paymentResult.razorpay_payment_id!,
-        razorpay_signature: paymentResult.razorpay_signature!,
-      },
-      {
-        headers: {
-          'x-idempotency-key': buildVerifyIdempotencyKey(paymentResult.razorpay_payment_id!),
+    let verification;
+    try {
+      verification = await verifyPayment(
+        {
+          orderId: checkout.order.id,
+          razorpay_order_id: paymentResult.razorpay_order_id!,
+          razorpay_payment_id: paymentResult.razorpay_payment_id!,
+          razorpay_signature: paymentResult.razorpay_signature!,
         },
-      },
-    );
+        {
+          headers: {
+            'x-idempotency-key': buildVerifyIdempotencyKey(paymentResult.razorpay_payment_id!),
+          },
+        },
+      );
+    } catch (error) {
+      if (await recoverConfirmedCheckout(checkout.order.id)) {
+        onStatusChange?.('confirmed');
+        return {
+          success: true,
+          orderId: checkout.order.id,
+          requiresPayment: true,
+        };
+      }
+      throw error;
+    }
 
     if (!verification.success) {
+      if (await recoverConfirmedCheckout(checkout.order.id)) {
+        onStatusChange?.('confirmed');
+        return {
+          success: true,
+          orderId: checkout.order.id,
+          requiresPayment: true,
+        };
+      }
       throw new Error(verification.error || 'Payment verification failed');
     }
 
@@ -301,6 +393,13 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
       requiresPayment: true,
     };
   } catch (error: any) {
+    if (
+      String(error?.message || '')
+        .toLowerCase()
+        .includes('expired')
+    ) {
+      await discardPendingCheckout();
+    }
     onStatusChange?.('failed');
     if (__DEV__) console.error('[Checkout] Error:', error);
     if (error.code === 'PREMIUM_REQUIRED') {
@@ -348,6 +447,7 @@ interface RazorpayResult {
   razorpay_payment_id?: string;
   razorpay_signature?: string;
   error?: string;
+  cancelled?: boolean;
 }
 
 /**
@@ -357,8 +457,7 @@ interface RazorpayResult {
  */
 async function openNativeRazorpay(options: RazorpayOptions): Promise<RazorpayResult> {
   try {
-    // Attempt to use the native Razorpay SDK
-    const RazorpayCheckout = await importRazorpaySDK();
+    const RazorpayCheckout = getRazorpaySDK();
 
     if (RazorpayCheckout) {
       const rzpOptions = {
@@ -394,10 +493,15 @@ async function openNativeRazorpay(options: RazorpayOptions): Promise<RazorpayRes
     // Razorpay SDK throws on user cancellation
     if (
       error.code === 'PAYMENT_CANCELLED' ||
-      error.description?.includes('cancelled') ||
-      error.message?.includes('cancelled')
+      error.code === 0 ||
+      String(error.description || '')
+        .toLowerCase()
+        .includes('cancelled') ||
+      String(error.message || '')
+        .toLowerCase()
+        .includes('cancelled')
     ) {
-      return { success: false, error: 'Payment cancelled by user' };
+      return { success: false, cancelled: true, error: 'Payment cancelled by user' };
     }
 
     return {
@@ -408,17 +512,53 @@ async function openNativeRazorpay(options: RazorpayOptions): Promise<RazorpayRes
 }
 
 /**
- * Dynamically import react-native-razorpay.
- * Returns null if not installed (e.g. in Expo Go).
+ * Resolve the native module directly. react-native-razorpay 3.0.0's JS wrapper
+ * requires a RazorpayEventEmitter TurboModule that its Android package does not
+ * register, while the linked native checkout correctly emits DeviceEventEmitter
+ * events. Keeping this adapter app-owned avoids silently falling back to a fake
+ * payment on bridgeless React Native builds.
  */
-async function importRazorpaySDK(): Promise<any | null> {
+function getRazorpaySDK(): any | null {
   if (razorpayCheckoutForTests) return razorpayCheckoutForTests;
 
   try {
-    const mod = await import('react-native-razorpay');
-    return mod.default || mod;
-  } catch {
-    if (__DEV__) console.warn('[Payments] react-native-razorpay not available');
+    const nativeModule =
+      TurboModuleRegistry.get<any>('RNRazorpayCheckout') ?? NativeModules.RNRazorpayCheckout;
+    if (!nativeModule?.open) return null;
+
+    return {
+      open(options: Record<string, unknown>) {
+        return new Promise((resolve, reject) => {
+          let successSubscription: { remove: () => void } | null = null;
+          let errorSubscription: { remove: () => void } | null = null;
+          const cleanup = () => {
+            successSubscription?.remove();
+            errorSubscription?.remove();
+          };
+
+          successSubscription = DeviceEventEmitter.addListener(
+            'Razorpay::PAYMENT_SUCCESS',
+            (response) => {
+              cleanup();
+              resolve(response);
+            },
+          );
+          errorSubscription = DeviceEventEmitter.addListener('Razorpay::PAYMENT_ERROR', (error) => {
+            cleanup();
+            reject(error);
+          });
+
+          try {
+            nativeModule.open(options);
+          } catch (error) {
+            cleanup();
+            reject(error);
+          }
+        });
+      },
+    };
+  } catch (error) {
+    if (__DEV__) console.warn('[Payments] Native Razorpay module unavailable:', error);
     return null;
   }
 }
@@ -431,7 +571,7 @@ function devPaymentFallback(options: RazorpayOptions): Promise<RazorpayResult> {
   return new Promise((resolve) => {
     Alert.alert(
       '🔧 DEV MODE — Payment Simulation',
-      `Amount: ₹${(options.amount / 100).toFixed(0)}\nOrder: ${options.razorpayOrderId}\n\nThis is a DEVELOPMENT simulation. In production, the native Razorpay SDK opens here.`,
+      `Amount: ${formatPaiseInr(options.amount)}\nOrder: ${options.razorpayOrderId}\n\nThis is a DEVELOPMENT simulation. In production, the native Razorpay SDK opens here.`,
       [
         {
           text: 'Cancel',

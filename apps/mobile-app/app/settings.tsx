@@ -3,7 +3,7 @@
  * Ditto-style settings hub. Detail rows open dedicated settings pages.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Alert, View, Text, ScrollView, Pressable, StyleSheet, Linking, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,6 +34,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
 import { getFirebaseAuth } from '@/lib/firebase';
 import { startSpotifyOAuth, disconnectSpotify } from '@/lib/spotify-auth';
+import { getBuildIdentity } from '@/lib/buildIdentity';
 
 type IconTone =
   | 'account'
@@ -50,6 +51,9 @@ type IconTone =
   | 'spotify';
 
 const PRIVACY_POLICY_URL = 'https://thec1rcle.com/privacy';
+const TERMS_URL = 'https://thec1rcle.com/terms';
+const REFUND_POLICY_URL = 'https://thec1rcle.com/refund';
+const ACCOUNT_DELETION_URL = 'https://thec1rcle.com/account-deletion';
 
 const font = {
   regular: typography.fontFamily.body,
@@ -83,7 +87,7 @@ function SettingIcon({ tone, children }: { tone: IconTone; children: any }) {
 
 function Group({ children, delay = 0 }: { children: any; delay?: number }) {
   return (
-    <Animated.View entering={FadeInDown.delay(delay).springify()} style={styles.group}>
+    <Animated.View entering={FadeInDown.delay(delay)} style={styles.group}>
       {children}
     </Animated.View>
   );
@@ -162,6 +166,7 @@ export default function SettingsScreen() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const insets = useSafeAreaInsets();
   const profile = useProfileStore((state) => state.profile);
+  const buildIdentity = useMemo(getBuildIdentity, []);
   const displayName =
     user?.displayName || user?.phoneNumber || user?.email?.split('@')[0] || 'Your account';
   const isPrioritySupport = profile?.supportQueue === 'priority' || profile?.isPremium === true;
@@ -173,6 +178,12 @@ export default function SettingsScreen() {
     trackScreen('Settings');
   }, []);
 
+  useEffect(() => {
+    if (buildIdentity.status === 'mismatch') {
+      console.error('[ReleaseIdentity] Production binary identity mismatch', buildIdentity.issues);
+    }
+  }, [buildIdentity.issues, buildIdentity.status]);
+
   const openLink = (url: string) => {
     Linking.openURL(url).catch(() => {});
   };
@@ -181,7 +192,8 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoggingOut(true);
     try {
-      await signOut();
+      const result = await signOut();
+      if (!result.success) throw new Error(result.error || 'Logout failed');
       router.replace('/(auth)/login');
     } catch {
       setIsLoggingOut(false);
@@ -314,7 +326,13 @@ export default function SettingsScreen() {
               </SettingIcon>
             }
             title="Nightlife Profile"
-            onPress={() => router.push('/profile-creation')}
+            onPress={() =>
+              router.push(
+                (profile?.datingActive
+                  ? '/profile-creation?mode=edit'
+                  : '/(nightlife-onboarding)/intro') as any,
+              )
+            }
           />
           <Divider />
           <SettingsRow
@@ -427,14 +445,40 @@ export default function SettingsScreen() {
 
         <SectionLabel title="Build Info" delay={360} />
         <Group delay={380}>
-          <SettingsRow title="App Version" value="1.0.0" />
+          <SettingsRow title="App Version" value={buildIdentity.appVersion} />
           <Divider />
-          <SettingsRow title="Build Version" value="2117" />
+          <SettingsRow title="Build Version" value={buildIdentity.buildVersion} />
+          <Divider />
+          <SettingsRow title="Runtime" value={buildIdentity.runtimeLabel} />
+          {buildIdentity.status === 'mismatch' ? (
+            <>
+              <Divider />
+              <SettingsRow
+                title="Release Identity"
+                subtitle={buildIdentity.issues.join(' ')}
+                value={buildIdentity.statusLabel}
+                danger
+              />
+            </>
+          ) : null}
           <Divider />
           <SettingsRow
-            title="Legal"
-            value="Privacy Policy"
+            title="Privacy Policy"
             onPress={() => openLink(PRIVACY_POLICY_URL)}
+            external
+          />
+          <Divider />
+          <SettingsRow title="Terms of Service" onPress={() => openLink(TERMS_URL)} external />
+          <Divider />
+          <SettingsRow
+            title="Refund & Cancellation Policy"
+            onPress={() => openLink(REFUND_POLICY_URL)}
+            external
+          />
+          <Divider />
+          <SettingsRow
+            title="Account Deletion"
+            onPress={() => openLink(ACCOUNT_DELETION_URL)}
             external
           />
         </Group>

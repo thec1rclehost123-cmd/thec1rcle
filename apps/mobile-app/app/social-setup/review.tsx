@@ -134,11 +134,11 @@ export default function SocialSetupReview() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.Text entering={FadeInDown.delay(60).springify().damping(18)} style={styles.title}>
+        <Animated.Text entering={FadeInDown.delay(60)} style={styles.title}>
           Looking good!
         </Animated.Text>
         <Animated.Text
-          entering={FadeInDown.delay(100).springify().damping(18)}
+          entering={FadeInDown.delay(100)}
           style={styles.subtitle}
         >
           Here's how your profile will appear to others.
@@ -146,7 +146,7 @@ export default function SocialSetupReview() {
 
         {/* Profile card preview */}
         <Animated.View
-          entering={FadeInDown.delay(160).springify().damping(16)}
+          entering={FadeInDown.delay(160)}
           style={styles.previewCard}
         >
           {/* Photo */}
@@ -182,7 +182,7 @@ export default function SocialSetupReview() {
 
         {/* Visibility toggle */}
         <Animated.View
-          entering={FadeInDown.delay(220).springify().damping(18)}
+          entering={FadeInDown.delay(220)}
           style={styles.visibilityRow}
         >
           <View style={styles.visibilityLeft}>
@@ -215,7 +215,7 @@ export default function SocialSetupReview() {
 
         {/* Verification nudge */}
         <Animated.View
-          entering={FadeInDown.delay(280).springify().damping(18)}
+          entering={FadeInDown.delay(280)}
           style={styles.verifyNudge}
         >
           <ShieldCheck size={18} color={colors.iris} strokeWidth={1.8} />
@@ -226,7 +226,7 @@ export default function SocialSetupReview() {
       </ScrollView>
 
       {/* Footer */}
-      <Animated.View entering={FadeInDown.delay(320).springify().damping(18)} style={styles.footer}>
+      <Animated.View entering={FadeInDown.delay(320)} style={styles.footer}>
         <Pressable
           style={[styles.goLiveBtn, saving && styles.goLiveBtnDisabled]}
           onPress={handleGoLive}

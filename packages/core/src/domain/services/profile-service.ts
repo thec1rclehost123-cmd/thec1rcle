@@ -14,30 +14,8 @@ export class ProfileService {
 
     const data = { ...profile };
 
-    // 🛡️ Phase 6: Ghost Profile Pattern
+    // Hide sensitive contact info for public responses
     if (type === 'user') {
-      const isSelf = viewerId === id;
-      let isMatch = false;
-
-      if (viewerId && !isSelf && matchingService) {
-        isMatch = await matchingService.checkMutualMatch(viewerId, id);
-      }
-
-      if (!isSelf && !isMatch) {
-        // Redact PII for strangers
-        return {
-          id: profile.id,
-          displayName: 'Ghost Attendee',
-          photoURL: undefined,
-          avatar: undefined,
-          bio: 'Identity hidden until mutual match.',
-          interests: profile.interests || [],
-          reputation: profile.reputation || 0,
-          isAnonymous: true,
-        };
-      }
-
-      // For owner or matched user, we only hide sensitive contact info by default
       delete data.email;
       delete data.phone;
     }

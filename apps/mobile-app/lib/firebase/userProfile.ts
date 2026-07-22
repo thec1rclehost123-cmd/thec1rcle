@@ -58,6 +58,14 @@ export async function prepareSquareJpeg(
   return uri;
 }
 
+export async function uploadImage(localUri: string, path: string): Promise<string> {
+  const response = await fetch(localUri);
+  const blob = await response.blob();
+  const storageRef = ref(getStore(), path);
+  await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
+  return getDownloadURL(storageRef);
+}
+
 export async function uploadUserPhoto(
   userId: string,
   localUri: string,
@@ -65,11 +73,20 @@ export async function uploadUserPhoto(
   dimensions?: { width?: number; height?: number },
 ): Promise<string> {
   const squareUri = await prepareSquareJpeg(localUri, dimensions?.width, dimensions?.height);
-  const response = await fetch(squareUri);
-  const blob = await response.blob();
-  const storageRef = ref(getStore(), `users/${userId}/photos/${id}.jpg`);
-  await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
-  return getDownloadURL(storageRef);
+  const formData = new FormData();
+  formData.append('file', {
+    uri: squareUri,
+    name: `${id}.jpg`,
+    type: 'image/jpeg',
+  } as any);
+
+  const response = await apiFetch<{ data?: { url?: string }; url?: string }>(
+    '/api/v1/social/upload',
+    { method: 'POST', body: formData },
+  );
+  const uploadedUrl = response.data?.url ?? response.url;
+  if (!uploadedUrl?.startsWith('https://')) throw new Error('Upload returned an invalid photo URL');
+  return uploadedUrl;
 }
 
 export async function saveBasicUserProfile(

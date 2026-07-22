@@ -92,7 +92,8 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         loading: false,
       });
     } catch (error: any) {
-      console.warn('Unable to fetch notifications; showing an empty notification center.', error);
+      if (__DEV__)
+        console.warn('Unable to fetch notifications; showing an empty notification center.', error);
       set({ notifications: [], unreadCount: 0, error: null, loading: false });
     }
   },
@@ -139,7 +140,7 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
 
     const intervalId = setInterval(() => {
       void get().fetchNotifications(userId);
-    }, 15000);
+    }, 60000);
 
     const unsubscribe = () => clearInterval(intervalId);
 

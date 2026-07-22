@@ -16,6 +16,8 @@ import { formatTimeAgo } from '@/lib/social';
 type ReceivedLike = {
   id: string;
   profile?: {
+    id?: string;
+    userId?: string;
     displayName?: string;
     photoURL?: string | null;
   };
@@ -169,16 +171,41 @@ function MatchCard({ match }: { match: Match }) {
 export default function MatchesScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
-  const { matches, matchesLoading, fetchMatches } = useDatingStore();
+  const {
+    ownerUserId,
+    matchesOwnerUserId,
+    matches,
+    matchesLoading,
+    fetchMatches,
+  } = useDatingStore();
+  const currentUserId = user?.uid?.trim() || null;
+  const ownsCurrentMatches =
+    currentUserId !== null &&
+    ownerUserId === currentUserId &&
+    matchesOwnerUserId === currentUserId;
+  const scopedMatches = ownsCurrentMatches
+    ? matches.filter((match) => match.otherUserId !== currentUserId)
+    : [];
   const openPaywall = useSubscriptionStore((state) => state.openPaywall);
   const [likesSummary, setLikesSummary] = useState<LikesSummary | null>(null);
+  const [likesOwnerUserId, setLikesOwnerUserId] = useState<string | null>(null);
+  const scopedLikesSummary =
+    currentUserId && likesOwnerUserId === currentUserId ? likesSummary : null;
   const fetchMatchesRef = useRef(fetchMatches);
   fetchMatchesRef.current = fetchMatches;
   const renderMatch = useCallback(({ item }: { item: Match }) => <MatchCard match={item} />, []);
 
   const handleAcceptLike = useCallback(
     async (like: ReceivedLike) => {
-      if (!like.id || !user?.uid) return;
+      const targetUserId = like.profile?.userId || like.profile?.id;
+      if (
+        !like.id ||
+        !currentUserId ||
+        likesOwnerUserId !== currentUserId ||
+        targetUserId === currentUserId
+      ) {
+        return;
+      }
       try {
         await apiFetch(`/api/v1/social/likes/${encodeURIComponent(like.id)}/respond`, {
           method: 'POST',
@@ -194,7 +221,7 @@ export default function MatchesScreen() {
               }
             : current,
         );
-        void fetchMatches(user.uid);
+        void fetchMatches(currentUserId);
       } catch (error: any) {
         if (error.code === 'PREMIUM_REQUIRED') {
           openPaywall('whoLikedMe', error.message);
@@ -203,19 +230,21 @@ export default function MatchesScreen() {
         }
       }
     },
-    [fetchMatches, openPaywall, user?.uid],
+    [currentUserId, fetchMatches, likesOwnerUserId, openPaywall],
   );
 
   useEffect(() => {
-    if (user?.uid) {
-      fetchMatchesRef.current(user.uid).catch((e: any) => {
+    if (currentUserId) {
+      fetchMatchesRef.current(currentUserId).catch((e: any) => {
         console.error('[MatchesScreen] fetchMatches failed:', e);
       });
     }
-  }, [user?.uid]);
+  }, [currentUserId]);
 
   useEffect(() => {
-    if (!user?.uid) return;
+    setLikesSummary(null);
+    setLikesOwnerUserId(null);
+    if (!currentUserId) return;
     let active = true;
     apiFetch<{ data?: LikesSummary; likes?: ReceivedLike[]; total?: number }>(
       '/api/v1/social/likes/received',
@@ -223,6 +252,7 @@ export default function MatchesScreen() {
       .then((response: any) => {
         if (!active) return;
         setLikesSummary(response.data || response);
+        setLikesOwnerUserId(currentUserId);
       })
       .catch(() => {
         if (active) setLikesSummary(null);
@@ -230,7 +260,7 @@ export default function MatchesScreen() {
     return () => {
       active = false;
     };
-  }, [user?.uid]);
+  }, [currentUserId]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -243,7 +273,7 @@ export default function MatchesScreen() {
         <View style={{ width: 38 }} />
       </View>
 
-      {matchesLoading ? (
+      {currentUserId && (!ownsCurrentMatches || matchesLoading) ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.iris} size="large" />
         </View>
@@ -251,16 +281,16 @@ export default function MatchesScreen() {
         <FlatList
           bounces={false}
           overScrollMode="never"
-          data={matches}
+          data={scopedMatches}
           keyExtractor={(item) => item.id}
           renderItem={renderMatch}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <>
-              <WhoLikedMeCard summary={likesSummary} onAcceptLike={handleAcceptLike} />
+              <WhoLikedMeCard summary={scopedLikesSummary} onAcceptLike={handleAcceptLike} />
               <Text style={styles.matchCount}>
-                {matches.length} {matches.length === 1 ? 'match' : 'matches'}
+                {scopedMatches.length} {scopedMatches.length === 1 ? 'match' : 'matches'}
               </Text>
             </>
           }

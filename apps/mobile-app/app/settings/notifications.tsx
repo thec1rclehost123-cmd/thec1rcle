@@ -16,6 +16,8 @@ import {
   checkNotificationSystemPermission,
   showSettingsAlert,
 } from '@/lib/permissions';
+import { registerPushToken } from '@/lib/notifications';
+import { useAuthStore } from '@/store/authStore';
 
 const font = {
   regular: typography.fontFamily.body,
@@ -25,6 +27,7 @@ const font = {
 
 export default function NotificationSettingsScreen() {
   const { notifications, setNotificationSetting } = useSettings();
+  const userId = useAuthStore((state) => state.user?.uid);
   const [systemGranted, setSystemGranted] = useState(true);
 
   useEffect(() => {
@@ -38,6 +41,27 @@ export default function NotificationSettingsScreen() {
 
   const toggleNotification = (key: keyof typeof notifications) => {
     setNotificationSetting(key, !notifications[key]);
+  };
+
+  const enablePushNotifications = async () => {
+    Haptics.selectionAsync();
+    if (!userId) return;
+
+    const registered = await registerPushToken(userId, { requestPermission: true });
+    const granted = await checkNotificationSystemPermission();
+    setSystemGranted(granted);
+
+    if (granted) {
+      if (!notifications.allowAlerts) setNotificationSetting('allowAlerts', true);
+      return;
+    }
+
+    if (!registered) {
+      showSettingsAlert(
+        'Push Notifications',
+        'Push notification permission is disabled. Open system settings to enable it.',
+      );
+    }
   };
 
   const channelValue = (enabled: boolean, channels = 'Email, SMS, Push') =>
@@ -56,13 +80,7 @@ export default function NotificationSettingsScreen() {
             <Text style={styles.heroActionEnabled}>Notifications Enabled</Text>
           ) : (
             <Pressable
-              onPress={() => {
-                Haptics.selectionAsync();
-                showSettingsAlert(
-                  'Push Notifications',
-                  'Push notification permission was denied. Open system settings to enable it.',
-                );
-              }}
+              onPress={enablePushNotifications}
             >
               <Text style={styles.heroActionDisabled}>Enable in Settings →</Text>
             </Pressable>

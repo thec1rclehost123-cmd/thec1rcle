@@ -11,13 +11,14 @@ import { FastifyInstance } from 'fastify';
 export default fp(async (fastify: FastifyInstance) => {
   const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
+  let redis: Redis | null = null;
   try {
-    const redis = new Redis(redisUrl, {
+    redis = new Redis(redisUrl, {
       maxRetriesPerRequest: 1,
       connectTimeout: 2000,
-      lazyConnect: true, // ⚡ Optimization: Don't connect immediately
+      lazyConnect: false,
       retryStrategy: (times) => {
-        return null; // Stop retrying immediately in dev
+        return Math.min(times * 250, 5000);
       },
     });
 
@@ -26,28 +27,23 @@ export default fp(async (fastify: FastifyInstance) => {
       fastify.log.warn(`Redis unavailable: ${err.message}. Using mock fallback.`);
     });
 
-    // Decorate with a proxy that avoids crashing if redis is called while disconnected
-    const redisProxy = new Proxy(redis, {
-      get(target, prop) {
-        const val = target[prop as keyof Redis];
-        if (redis.status !== 'ready' && typeof val === 'function') {
-          // Return a no-op function that logs a warning
-          return (...args: any[]) => {
-            fastify.log.debug(`Redis [${String(prop)}] skipped - client not ready`);
-            return Promise.resolve(null);
-          };
-        }
-        return val;
-      },
+    redis.on('ready', () => {
+      fastify.log.info('Redis connection ready');
     });
 
-    fastify.decorate('redis', redisProxy as any);
+    // Cache callers already check `status`, while security-sensitive callers
+    // receive a real Redis error instead of a false successful no-op if the
+    // dependency is unavailable. The client reconnects in the background.
+    fastify.decorate('redis', redis);
 
     fastify.addHook('onClose', async () => {
-      if (redis.status !== 'end') await redis.quit();
+      if (!redis || redis.status === 'end') return;
+      if (redis.status === 'ready') await redis.quit();
+      else redis.disconnect();
     });
   } catch (err) {
     fastify.log.error(`Critical Redis Plugin Error: ${err}`);
+    redis?.disconnect();
     // Fallback to a bare-bones mock if even the constructor fails
     fastify.decorate('redis', {
       get: () => Promise.resolve(null),

@@ -410,12 +410,38 @@ describe('PublicDiscoveryService', () => {
     expect(result.events.map((item: any) => item.id)).toEqual(['event_1']);
     expect(result.hosts.map((item: any) => item.id)).toEqual(['host_1']);
     expect(result.venues.map((item: any) => item.id)).toEqual(['venue_1']);
-    expect(service.events.querySearchPrefix).toHaveBeenCalledWith('after', 36);
-    expect(service.hosts.querySearchPrefix).toHaveBeenCalledWith('after', 36);
-    expect(service.venues.querySearchPrefix).toHaveBeenCalledWith('after', 36);
+    expect(service.events.querySearchPrefix).toHaveBeenCalledWith('after', 12);
+    expect(service.hosts.querySearchPrefix).toHaveBeenCalledWith('after', 12);
+    expect(service.venues.querySearchPrefix).toHaveBeenCalledWith('after', 12);
     expect(service.events.listAll).not.toHaveBeenCalled();
     expect(service.hosts.listAll).not.toHaveBeenCalled();
     expect(service.venues.listAll).not.toHaveBeenCalled();
+  });
+
+  it('search queries only the requested group and filters it to the canonical city', async () => {
+    const service = buildService();
+    service.events = { querySearchPrefix: vi.fn(async () => []) };
+    service.hosts = { querySearchPrefix: vi.fn(async () => []) };
+    service.venues = {
+      querySearchPrefix: vi.fn(async () => [
+        { id: 'venue_pune', visibility: 'public', searchText: 'nowl', cityKey: 'pune-in' },
+        { id: 'venue_goa', visibility: 'public', searchText: 'nowl', cityKey: 'goa-in' },
+      ]),
+    };
+
+    const result = await service.search('NOWL', 24, undefined, {
+      type: 'venues',
+      cityKey: 'Pune',
+    });
+
+    expect(result).toMatchObject({
+      events: [],
+      hosts: [],
+      venues: [{ id: 'venue_pune' }],
+    });
+    expect(service.events.querySearchPrefix).not.toHaveBeenCalled();
+    expect(service.hosts.querySearchPrefix).not.toHaveBeenCalled();
+    expect(service.venues.querySearchPrefix).toHaveBeenCalledWith('nowl', 48);
   });
 
   it('search stays bounded and returns empty groups when prefix queries fail', async () => {

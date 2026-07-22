@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   Alert,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -15,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import type { OrderTicket } from '@/store/ticketsStore';
 
@@ -98,10 +98,12 @@ export function ActionSheet({
 
   return (
     <Modal visible={isVisible} transparent animationType="none" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}
         style={styles.modalContainer}
+        enableOnAndroid={true}
+        extraScrollHeight={20}
+        bounces={false}
       >
         <Animated.View
           entering={FadeIn.duration(200)}
@@ -136,7 +138,7 @@ export function ActionSheet({
 
           <View style={styles.content}>{children}</View>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </Modal>
   );
 }
@@ -417,7 +419,6 @@ export function TransferSheetContent({
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
-    justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.72)',
   },
   sheet: {

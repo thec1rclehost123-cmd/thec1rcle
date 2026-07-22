@@ -4,10 +4,16 @@ import { Share, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
+import * as SecureStore from 'expo-secure-store';
+import { useProfileStore } from '@/store/profileStore';
+import { useFirstRunStore } from '@/store/firstRunStore';
+import { resolveFirstRunStage } from '@/lib/firstRun';
 
 // App scheme for deep links
 const APP_SCHEME = 'c1rcle';
 const WEB_DOMAIN = 'thec1rcle.com';
+const PENDING_DEEP_LINK_KEY = 'c1rcle_pending_deep_link';
+const PENDING_APP_ROUTE_KEY = 'c1rcle_pending_app_route';
 
 // Deep link types
 export type DeepLinkType =
@@ -17,9 +23,25 @@ export type DeepLinkType =
   | 'invite'
   | 'ticket'
   | 'chat'
+  | 'host'
+  | 'venue'
   | 'safety'
   | 'claim'
   | 'going';
+
+const DEEP_LINK_TYPES = new Set<DeepLinkType>([
+  'event',
+  'transfer',
+  'profile',
+  'invite',
+  'ticket',
+  'chat',
+  'host',
+  'venue',
+  'safety',
+  'claim',
+  'going',
+]);
 
 // Build deep link URL
 export function buildDeepLink(type: DeepLinkType, params: Record<string, string>): string {
@@ -131,6 +153,31 @@ function sanitizeParam(value: string): string {
   return value.replace(SANITIZE_RE, '').slice(0, MAX_PARAM_LENGTH);
 }
 
+function isDeepLinkType(value: string | null | undefined): value is DeepLinkType {
+  return Boolean(value && DEEP_LINK_TYPES.has(value.toLowerCase() as DeepLinkType));
+}
+
+function applyPathIdentifier(
+  type: DeepLinkType,
+  identifier: string | undefined,
+  params: Record<string, string>,
+) {
+  if (!identifier) return;
+  const sanitized = sanitizeParam(identifier);
+  if (!sanitized) return;
+
+  params.id = sanitized;
+  if (type === 'event') params.eventId = sanitized;
+  if (type === 'ticket') params.orderId = sanitized;
+  if (type === 'chat') params.eventId = sanitized;
+  if (type === 'claim') params.token = sanitized;
+  if (type === 'going') params.orderId = sanitized;
+  if (type === 'transfer') params.code = sanitized;
+  if (type === 'profile') params.userId = sanitized;
+  if (type === 'host') params.hostId = sanitized;
+  if (type === 'venue') params.venueId = sanitized;
+}
+
 // Parse deep link URL
 export function parseDeepLink(url: string): {
   type: DeepLinkType | null;
@@ -139,25 +186,21 @@ export function parseDeepLink(url: string): {
   try {
     const parsed = Linking.parse(url);
 
-    // Extract type and potential ID from path
-    // Pattern: scheme://type/id or scheme://type?id=xxx
+    // With a double-slashed custom scheme, Expo parses the route type as the
+    // hostname: c1rcle://host/123 -> { hostname: 'host', path: '123' }.
+    // Web app links keep it in the path, optionally behind the /app prefix.
     const pathParts = (parsed.path || '').split('/').filter(Boolean);
-    const type = pathParts[0] as DeepLinkType | undefined;
+    if (pathParts[0]?.toLowerCase() === 'app') pathParts.shift();
+
+    const hostname = parsed.hostname?.toLowerCase();
+    const pathType = pathParts[0]?.toLowerCase();
+    const type = isDeepLinkType(hostname) ? hostname : isDeepLinkType(pathType) ? pathType : null;
+    const pathIdentifier = isDeepLinkType(hostname) ? pathParts[0] : pathParts[1];
 
     // Extract query params and path params
     const params: Record<string, string> = {};
 
-    // If we have an ID in the path (e.g. event/123), add it to params
-    if (pathParts.length > 1) {
-      const sanitized = sanitizeParam(pathParts[1]);
-      params.id = sanitized;
-      if (type === 'event') params.eventId = sanitized;
-      if (type === 'ticket') params.orderId = sanitized;
-      if (type === 'chat') params.eventId = sanitized;
-      if (type === 'claim') params.token = sanitized;
-      if (type === 'going') params.orderId = sanitized;
-      if (type === 'transfer') params.code = sanitized;
-    }
+    if (type) applyPathIdentifier(type, pathIdentifier, params);
 
     if (parsed.queryParams) {
       Object.entries(parsed.queryParams).forEach(([key, value]) => {
@@ -168,7 +211,7 @@ export function parseDeepLink(url: string): {
     }
 
     return {
-      type: type || null,
+      type,
       params,
     };
   } catch (error) {
@@ -177,15 +220,36 @@ export function parseDeepLink(url: string): {
   }
 }
 
+type HandleDeepLinkOptions = {
+  /**
+   * Expo Router already owns native URLs that directly match file routes. The
+   * manual subscriber still runs for auth gating and non-file route rewrites,
+   * but must not push a second host/venue screen.
+   */
+  nativeFileRouteAlreadyHandled?: boolean;
+};
+
 // Handle incoming deep link using expo-router
-export function handleDeepLink(url: string): void {
+export function handleDeepLink(url: string, options: HandleDeepLinkOptions = {}): void {
   const user = useAuthStore.getState().user;
+  const profile = useProfileStore.getState().profile;
+  const snapshot = useFirstRunStore.getState().snapshot;
   if (!user) {
+    void SecureStore.setItemAsync(PENDING_DEEP_LINK_KEY, url);
     router.replace('/(auth)/login');
+    return;
+  }
+  if (resolveFirstRunStage(user, profile, snapshot) !== 'complete') {
+    void SecureStore.setItemAsync(PENDING_DEEP_LINK_KEY, url);
+    router.replace('/');
     return;
   }
 
   const { type, params } = parseDeepLink(url);
+
+  if (options.nativeFileRouteAlreadyHandled && (type === 'host' || type === 'venue')) {
+    return;
+  }
 
   switch (type) {
     case 'event':
@@ -221,6 +285,20 @@ export function handleDeepLink(url: string): void {
         router.push(`/social/group/${params.eventId || params.id}`);
       }
       break;
+    case 'host': {
+      const hostId = params.hostId || params.id;
+      if (hostId) {
+        router.push({ pathname: '/host/[id]', params: { id: hostId } });
+      }
+      break;
+    }
+    case 'venue': {
+      const venueId = params.venueId || params.id;
+      if (venueId) {
+        router.push({ pathname: '/venue/[id]', params: { id: venueId } });
+      }
+      break;
+    }
     case 'going':
       if (params.orderId || params.id) {
         router.push(`/going/${params.orderId || params.id}`);
@@ -237,6 +315,40 @@ export function handleDeepLink(url: string): void {
     default:
       if (__DEV__) console.log('Unknown deep link type:', type);
   }
+}
+
+/** Gate trusted in-app destinations behind authentication and first-run setup. */
+export function handleProtectedRoute(route: string): void {
+  const user = useAuthStore.getState().user;
+  const profile = useProfileStore.getState().profile;
+  const snapshot = useFirstRunStore.getState().snapshot;
+
+  if (!user) {
+    void SecureStore.setItemAsync(PENDING_APP_ROUTE_KEY, route);
+    router.replace('/(auth)/login');
+    return;
+  }
+  if (resolveFirstRunStage(user, profile, snapshot) !== 'complete') {
+    void SecureStore.setItemAsync(PENDING_APP_ROUTE_KEY, route);
+    router.replace('/');
+    return;
+  }
+  router.push(route as any);
+}
+
+export async function resumePendingDeepLink(): Promise<boolean> {
+  const url = await SecureStore.getItemAsync(PENDING_DEEP_LINK_KEY);
+  if (url) {
+    await SecureStore.deleteItemAsync(PENDING_DEEP_LINK_KEY);
+    handleDeepLink(url);
+    return true;
+  }
+
+  const route = await SecureStore.getItemAsync(PENDING_APP_ROUTE_KEY);
+  if (!route) return false;
+  await SecureStore.deleteItemAsync(PENDING_APP_ROUTE_KEY);
+  handleProtectedRoute(route);
+  return true;
 }
 
 // Subscribe to incoming links

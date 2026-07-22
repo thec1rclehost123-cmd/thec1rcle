@@ -11,6 +11,12 @@ export function ensureEventChatMembership(
   },
 ): Promise<any>;
 
+export function hasActiveEventEntitlement(
+  db: any,
+  userId: string,
+  eventId: string,
+): Promise<boolean>;
+
 export function listUserChats(
   db: any,
   userId: string,
@@ -23,6 +29,8 @@ export function getChatMessages(
   chatId: string,
   options?: { limit?: number; before?: string | null },
 ): Promise<any>;
+
+export function countApprovedEventMedia(db: any, eventId: string): Promise<number>;
 
 export function sendChatMessage(
   db: any,

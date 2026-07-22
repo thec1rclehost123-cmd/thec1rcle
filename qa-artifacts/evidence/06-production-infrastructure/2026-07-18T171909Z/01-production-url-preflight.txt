@@ -1,0 +1,39 @@
+THE C1RCLE production URL preflight
+Timestamp (UTC): 2026-07-18T17:19:09Z
+Checkout: /Users/aayushdivase/Desktop/thec1rcle/thec1rcle.nosync
+Branch: feature/razorpay-and-fullstack-integration
+Commit: 26b52c2b3ab5a8eeb4484e1028e666ec2b6e42c1
+
+Commands used:
+  dig +short api.thec1rcle.com
+  curl -sS -o /dev/null -w '<label> %{http_code} %{time_total} %{url_effective}' --max-time 15 <url>
+
+Observed results:
+  api.thec1rcle.com DNS: no answer
+  https://api.thec1rcle.com/: HTTP 000, curl error 6 (host not resolved)
+  https://api.thec1rcle.com/health: HTTP 000, curl error 6 (host not resolved)
+  https://thec1rcle.com/privacy: HTTP 404
+  https://thec1rcle.com/terms: HTTP 404
+  https://thec1rcle.com/refund: HTTP 404
+  https://thec1rcle.com/account-deletion: HTTP 404
+  https://thec1rcle.com/.well-known/assetlinks.json: HTTP 404
+  https://thec1rcle.com/.well-known/apple-app-site-association: HTTP 404
+
+Verdict:
+  Phase 6 remains BLOCKED. Production API, policy URLs, and association files have no passing external evidence.
+
+Source remediation performed after this preflight:
+  - Corrected inconsistent support email domains in the guest-portal privacy source.
+  - Replaced the obsolete/typoed Terms source with a current prelaunch draft.
+  - Added Refund and Cancellation and Account Deletion page sources.
+  - Added footer links for the new public pages.
+  - Guest portal TypeScript check passed.
+  - Guest portal production build passed with the supported Webpack fallback and statically generated `/privacy`, `/terms`, `/refund`, and `/account-deletion`.
+  - The default Turbopack build could not use the corrupted local Darwin ARM64 SWC native binary; this is a local dependency/runtime defect, not a page compile failure.
+  - Local browser rendering passed at desktop and 390 x 844 mobile viewports for all four routes: correct H1/title, one main landmark, no horizontal overflow, readable paragraph color, correct support mailto, and working policy links.
+  - Browser review found and corrected two source defects before the final build: nested main landmarks and unsupported Tailwind text-opacity classes that made policy body copy unreadable.
+  - Added the current Sentry-required Next.js request-error hook, client initialization/router transition capture and App Router global error boundary. The final TypeScript and Webpack production build passes without the prior missing-hook/global-handler warnings.
+  - Production Sentry DSN, source-map upload, PII scrubbing verification, alert routing and a captured/symbolicated test error remain unproven.
+
+Important qualification:
+  Source presence does not close the production gate. Legal approval, deployment to the verified domain, HTTP 200 checks, rendered review, and signed-build link verification remain required.

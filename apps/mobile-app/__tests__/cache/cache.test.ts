@@ -116,10 +116,23 @@ describe('cache', () => {
     });
 
     it('cacheUserOrders / getCachedUserOrders round-trips', async () => {
-      await cacheUserOrders([{ id: 'ord_1' }]);
+      await cacheUserOrders('user_1', [{ id: 'ord_1' }]);
 
-      const { data } = await getCachedUserOrders();
+      const { data } = await getCachedUserOrders('user_1');
       expect(data).toEqual([{ id: 'ord_1' }]);
+    });
+
+    it('isolates cached orders between users', async () => {
+      await cacheUserOrders('user_1', [{ id: 'ord_user_1' }]);
+      await cacheUserOrders('user_2', [{ id: 'ord_user_2' }]);
+
+      await expect(getCachedUserOrders('user_1')).resolves.toMatchObject({
+        data: [{ id: 'ord_user_1' }],
+      });
+      await expect(getCachedUserOrders('user_2')).resolves.toMatchObject({
+        data: [{ id: 'ord_user_2' }],
+      });
+      await expect(getCachedUserOrders('signed_out')).resolves.toMatchObject({ data: null });
     });
   });
 

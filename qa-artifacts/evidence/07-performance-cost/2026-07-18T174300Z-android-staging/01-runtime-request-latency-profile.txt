@@ -1,0 +1,42 @@
+THE C1RCLE Android staging runtime request and latency profile
+Source: qa-artifacts/evidence/04-phase1-resume/2026-07-18T171826Z-sm-g980f/22-api-runtime.log
+Device: Samsung SM-G980F, Android 13, Expo development client
+Environment: local gateway with c1rcle-staging Firestore and Redis
+Observation window: 2026-07-18 17:21–17:38 UTC
+
+Important scope:
+  This log spans repeated reload, force-stop, profile, settings and permission QA actions. Counts are not a single cold-start journey and must not be converted into per-user cost. The sample is development/staging evidence, not production-load p95/p99 evidence.
+
+Incoming request counts in the observation window:
+  /api/v1/auth/sync: 6
+  /api/v1/public/venues?limit=100: 5
+  /api/v1/guest-notifications: 6
+  /api/v1/users/me: 6
+  /api/v1/users/me/subscription: 6
+  /ws/updates: 10
+  /api/v1/recommendations?limit=10&contract=v2: 5
+  /api/v1/events?city=pune&limit=24&sort=soonest: 6
+  /api/v1/tickets/my-wallet: 3
+  /api/v1/users/me/settings: 6
+  /api/v1/auth/me: 8
+  /api/v1/users/me/device-token: 1
+
+Slow-route samples captured by the gateway:
+  /api/v1/auth/sync: n=6, min 1326.05 ms, mean 3202.40 ms, max 4361.68 ms
+  /api/v1/public/venues: n=4, min 598.32 ms, mean 634.92 ms, max 700.51 ms
+  /api/v1/users/me: n=6, min 502.33 ms, mean 1319.19 ms, max 1554.18 ms
+  /api/v1/guest-notifications: n=6, min 513.24 ms, mean 1369.49 ms, max 1715.30 ms
+  /api/v1/users/me/subscription: n=6, min 930.63 ms, mean 2517.37 ms, max 3213.77 ms
+  /api/v1/events: n=6, min 1009.44 ms, mean 2325.00 ms, max 2954.83 ms
+  /api/v1/recommendations: n=3 slow samples, min 3716.64 ms, mean 4614.33 ms, max 5469.70 ms
+  /api/v1/tickets/my-wallet: n=3, min 754.51 ms, mean 1326.87 ms, max 1624.88 ms
+  /api/v1/users/me/settings: n=3 slow samples, min 1602.34 ms, mean 2137.47 ms, max 3137.76 ms
+  /api/v1/users/me/device-token: n=1, 1862.01 ms
+
+Interpretation:
+  - Request single-flight prevents duplicate requests inside a single guarded call, but repeated lifecycle/bootstrap work still produces expensive route groups across reloads and account/session changes.
+  - Auth sync, subscription, events and recommendations are far above a launch-quality interactive budget in this staging sample.
+  - The gateway log does not record Firestore document-read/write counts, Redis command/byte counts, Storage egress, SMS sends, or log-ingestion bytes per request. A credible per-user cost model is therefore impossible from this evidence alone.
+
+Remaining gate:
+  Add operation/byte instrumentation, isolate one canonical journey at a time, establish production-like p50/p95/p99 and operation ceilings, load-test cache/provider failure, calculate per-user cost, and prove billing/SMS/log anomaly alerts. Phase 4 remains BLOCKED.

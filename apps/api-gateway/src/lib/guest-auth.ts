@@ -4,8 +4,6 @@ const GUEST_PROFILE_UPDATE_FIELDS = new Set([
   'displayName',
   'photoURL',
   'avatar',
-  'phone',
-  'phoneNumber',
   'city',
   'instagram',
   'age',
@@ -13,7 +11,6 @@ const GUEST_PROFILE_UPDATE_FIELDS = new Set([
   'bio',
   'handle',
   'username',
-  'onboardingComplete',
   'attendedEvents',
   'savedEvents',
   'role',
@@ -203,10 +200,6 @@ export function buildGuestProfileUpdates(
     if (GUEST_PROFILE_UPDATE_FIELDS.has(field)) {
       safeUpdates[field] = value;
     }
-  }
-
-  if (safeUpdates.phoneNumber !== undefined && safeUpdates.phone === undefined) {
-    safeUpdates.phone = safeUpdates.phoneNumber;
   }
 
   if (safeUpdates.photoURL !== undefined && safeUpdates.avatar === undefined) {

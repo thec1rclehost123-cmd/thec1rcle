@@ -15,7 +15,7 @@ import Animated, {
   SlideOutRight,
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  withTiming,
   Layout,
 } from 'react-native-reanimated';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -54,11 +54,11 @@ function NotificationItem({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.98, { duration: 250 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(1, { duration: 250 });
   };
 
   const handlePress = () => {
@@ -77,9 +77,9 @@ function NotificationItem({
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 50).springify()}
-      exiting={SlideOutRight.springify()}
-      layout={Layout.springify()}
+      entering={FadeInDown.delay(index * 50)}
+      exiting={SlideOutRight}
+      layout={Layout}
     >
       <View>
         <Swipeable renderRightActions={renderRightActions}>

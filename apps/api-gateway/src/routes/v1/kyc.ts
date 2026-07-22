@@ -1,7 +1,21 @@
 import { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
-import { buildErrorResponse } from '../../lib/api-contracts';
+import { z } from 'zod';
+import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 import { validateAadhaar } from '../../utils/aadhaar';
+
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+]);
+
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+const AadhaarVerifySchema = z.object({
+  aadhaarId: z.string().min(12).max(12).regex(/^\d{12}$/),
+});
 
 export default async function kycRoutes(fastify: FastifyInstance) {
   /**
@@ -28,15 +42,21 @@ export default async function kycRoutes(fastify: FastifyInstance) {
           );
         }
 
-        const bucket = fastify.storage.bucket();
+        // Validate file type
+        if (!ALLOWED_MIME_TYPES.has(data.mimetype)) {
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'INVALID_FILE_TYPE',
+              message: 'Only JPEG, PNG, WebP images and PDF documents are allowed.',
+              requestId: request.id,
+            }),
+          );
+        }
 
-        // Read the stepId and fieldName sent from the frontend FormData
-        // so we can name the file descriptively instead of random IDs.
+        const bucket = fastify.storage.bucket();
         const uploadFields = (data as any).fields || {};
-        const stepId = String(uploadFields.stepId?.value || '').replace(/[^a-z0-9_-]/g, '');
         const fieldName = String(uploadFields.fieldName?.value || '').replace(/[^a-z0-9_-]/g, '');
 
-        // Build a human-readable label from the field name
         const FIELD_LABELS: Record<string, string> = {
           doc_front: 'id_front',
           doc_back: 'id_back',
@@ -49,7 +69,6 @@ export default async function kycRoutes(fastify: FastifyInstance) {
         };
         const docLabel = FIELD_LABELS[fieldName] || fieldName || 'document';
 
-        // Look up the user's display name for the filename
         let userName = userId.substring(0, 8);
         try {
           const userSnap = await fastify.db.collection('users').doc(userId).get();
@@ -68,9 +87,12 @@ export default async function kycRoutes(fastify: FastifyInstance) {
           /* fallback to userId prefix */
         }
 
-        const ext = (data.filename || '').includes('.') ? data.filename.split('.').pop() : 'jpg';
-        const fileName = `kyc/${userId}/${userName}_${docLabel}.${ext}`;
+        const ext = (data.filename || '').includes('.') ? String(data.filename.split('.').pop()).replace(/[^a-zA-Z0-9]/g, '') : 'jpg';
+        const fileName = `kyc/${userId}/${userName}_${docLabel}_${randomUUID().slice(0, 8)}.${ext}`;
         const file = bucket.file(fileName);
+
+        // Track total size during streaming to enforce size limit
+        let totalBytes = 0;
 
         const stream = file.createWriteStream({
           metadata: {
@@ -80,11 +102,18 @@ export default async function kycRoutes(fastify: FastifyInstance) {
               originalName: data.filename,
             },
           },
-          public: true,
+          resumable: false,
         });
 
         await new Promise((resolve, reject) => {
           data.file
+            .on('data', (chunk: Buffer) => {
+              totalBytes += chunk.length;
+              if (totalBytes > MAX_FILE_SIZE_BYTES) {
+                stream.destroy(new Error('File exceeds maximum allowed size of 10 MB'));
+                data.file.destroy();
+              }
+            })
             .pipe(stream)
             .on('finish', resolve)
             .on('error', (err: any) => {
@@ -93,20 +122,32 @@ export default async function kycRoutes(fastify: FastifyInstance) {
             });
         });
 
-        // Fallback to appspot if firebasestorage.app fails (optional, but good for older projects)
-        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+        // Generate signed URL valid for 1 hour instead of making the file public
+        const [signedUrl] = await file.getSignedUrl({
+          action: 'read',
+          expires: Date.now() + 60 * 60 * 1000,
+        });
 
         return {
           success: true,
-          url: publicUrl,
+          url: signedUrl,
           fileName,
         };
       } catch (error: any) {
+        if (error.message?.includes('exceeds maximum allowed size')) {
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'FILE_TOO_LARGE',
+              message: 'File exceeds maximum allowed size of 10 MB.',
+              requestId: request.id,
+            }),
+          );
+        }
         fastify.log.error(`Error in POST /kyc/upload: ${error.message}`);
         return reply.status(500).send(
           buildErrorResponse({
             code: 'KYC_UPLOAD_FAILED',
-            message: error.message || 'Failed to upload document.',
+            message: 'Failed to upload document.',
             requestId: request.id,
           }),
         );
@@ -121,21 +162,10 @@ export default async function kycRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/verify-aadhaar',
     {
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireAuth, fastify.validate({ body: AadhaarVerifySchema })],
     },
     async (request: any, reply) => {
       const { aadhaarId } = request.body as { aadhaarId: string };
-
-      if (!aadhaarId) {
-        return reply.status(400).send(
-          buildErrorResponse({
-            code: 'BAD_REQUEST',
-            message: 'Aadhaar ID is required',
-            requestId: request.id,
-          }),
-        );
-      }
-
       const isValid = validateAadhaar(aadhaarId);
 
       if (!isValid) {
@@ -148,12 +178,11 @@ export default async function kycRoutes(fastify: FastifyInstance) {
         );
       }
 
-      // Mock success response for structural validation
-      return {
-        success: true,
-        message: 'Aadhaar number verified successfully.',
+      return buildSuccessResponse({
+        aadhaarId: aadhaarId.replace(/^(\d{4})\d{4}(\d{4})$/, '$1XXXX$2'),
+        verified: true,
         verifiedAt: new Date().toISOString(),
-      };
+      });
     },
   );
 }

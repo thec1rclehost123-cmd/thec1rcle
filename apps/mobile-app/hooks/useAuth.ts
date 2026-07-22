@@ -10,11 +10,25 @@ import {
   loginWithGoogle as firebaseLoginWithGoogle,
   loginWithPhoneVerificationCode,
   sendPhoneVerificationCode,
+  sendPhoneLinkVerificationCode,
   sendVerificationEmail,
   getPendingProviderLink,
   linkWithPhoneVerificationCode,
   linkEmailToUser,
+  sendVerificationLinkToCurrentUser,
 } from '@/lib/firebase';
+import { revokePushToken } from '@/lib/notifications';
+
+export async function performSignOut(userId?: string | null): Promise<void> {
+  if (userId) {
+    try {
+      await revokePushToken(userId);
+    } catch {
+      // Token revocation is best-effort and must never block Firebase sign-out.
+    }
+  }
+  await logout();
+}
 
 async function completeServerHandshake(user: Awaited<ReturnType<typeof loginWithEmail>>['user']) {
   try {
@@ -91,7 +105,7 @@ export function useAuth() {
     } catch (err: any) {
       const message = getActionErrorMessage(err);
       setError(message);
-      return { success: false, error: message };
+      return { success: false, error: message, code: err?.code };
     } finally {
       setAuthLoading(false);
     }
@@ -100,7 +114,7 @@ export function useAuth() {
   const signOut = useCallback(async () => {
     setAuthLoading(true);
     try {
-      await logout();
+      await performSignOut(user?.uid);
       return { success: true };
     } catch (err: any) {
       setError(err.message);
@@ -108,7 +122,7 @@ export function useAuth() {
     } finally {
       setAuthLoading(false);
     }
-  }, []);
+  }, [user?.uid]);
 
   const sendResetEmail = useCallback(async (email: string) => {
     setAuthLoading(true);
@@ -185,12 +199,16 @@ export function useAuth() {
     }
   }, []);
 
-  const sendPhoneCode = useCallback(async (phoneNumber: string) => {
+  const sendPhoneCode = useCallback(async (phoneNumber: string, mode: 'sign_in' | 'link' = 'sign_in') => {
     setAuthLoading(true);
     setError(null);
     try {
+      if (mode === 'link') {
+        const confirmation = await sendPhoneLinkVerificationCode(phoneNumber);
+        return { success: true, verificationId: confirmation.verificationId, expectedUid: confirmation.expectedUid };
+      }
       const confirmation = await sendPhoneVerificationCode(phoneNumber);
-      return { success: true, verificationId: confirmation.verificationId };
+      return { success: true, verificationId: confirmation.verificationId, expectedUid: undefined };
     } catch (err: any) {
       const message = getActionErrorMessage(err);
       setError(message);
@@ -216,17 +234,17 @@ export function useAuth() {
     }
   }, []);
 
-  const linkPhoneCode = useCallback(async (verificationId: string, code: string) => {
+  const linkPhoneCode = useCallback(async (verificationId: string, code: string, expectedUid: string) => {
     setAuthLoading(true);
     setError(null);
     try {
-      const result = await linkWithPhoneVerificationCode(verificationId, code);
-      // We don't need a full server handshake for linking, but we could sync if necessary.
+      const result = await linkWithPhoneVerificationCode(verificationId, code, expectedUid);
+      await completeServerHandshake(result.user);
       return { success: true };
     } catch (err: any) {
       const message = getActionErrorMessage(err);
       setError(message);
-      return { success: false, error: message };
+      return { success: false, error: message, code: err?.code };
     } finally {
       setAuthLoading(false);
     }
@@ -237,6 +255,10 @@ export function useAuth() {
     setError(null);
     try {
       await linkEmailToUser(email);
+      // Send magic link to verify the newly added email
+      const redirectUrl =
+        process.env.EXPO_PUBLIC_AUTH_ACTION_URL || 'https://thec1rcle.com/app/email-verified';
+      await sendVerificationLinkToCurrentUser(redirectUrl);
       return { success: true };
     } catch (err: any) {
       const message = getActionErrorMessage(err);
@@ -294,6 +316,8 @@ function getErrorMessage(code?: string): string | null {
       return 'Network error. Please check your connection';
     case 'auth/account-exists-with-different-credential':
       return 'An account with this email already exists. Try a different login method.';
+    case 'auth/credential-already-in-use':
+      return 'This phone number already belongs to another THE C1RCLE account.';
     case 'auth/link-with-password-required':
       return 'Enter your password to link this sign-in method and continue.';
     case 'auth/invalid-phone-number':

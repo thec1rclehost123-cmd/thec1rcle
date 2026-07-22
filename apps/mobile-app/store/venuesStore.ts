@@ -47,9 +47,11 @@ interface VenuesState {
   loading: boolean;
   error: string | null;
   fetchVenues: (filters?: {
+    city?: string;
     area?: string;
     search?: string;
     tablesOnly?: boolean;
+    force?: boolean;
   }) => Promise<void>;
   setFollowedVenueIds: (venueIds: string[]) => void;
   toggleVenueFollow: (
@@ -59,6 +61,27 @@ interface VenuesState {
   ) => Promise<boolean>;
 }
 
+let venueRequestGeneration = 0;
+let venueRequestKey: string | null = null;
+let venueRequestPromise: Promise<void> | null = null;
+let lastSuccessfulVenueRequestKey: string | null = null;
+let lastSuccessfulVenueRequestAt = 0;
+const VENUE_DISCOVERY_CACHE_MS = 2 * 60 * 1000;
+
+function buildVenueRequestKey(filters: {
+  city?: string;
+  area?: string;
+  search?: string;
+  tablesOnly?: boolean;
+}) {
+  return JSON.stringify({
+    city: filters.city || null,
+    area: filters.area || null,
+    search: filters.search || null,
+    tablesOnly: filters.tablesOnly === true,
+  });
+}
+
 export const useVenuesStore = create<VenuesState>((set, get) => ({
   venues: [],
   followedVenueIds: new Set(),
@@ -66,16 +89,44 @@ export const useVenuesStore = create<VenuesState>((set, get) => ({
   loading: false,
   error: null,
 
-  fetchVenues: async (filters = {}) => {
-    if (get().loading) return;
-    set({ loading: true, error: null });
-    try {
-      const response = await fetchPublicVenues({ ...filters, limit: 100 });
-      const venues = (response.venues || response.items || []) as Venue[];
-      set({ venues, loading: false });
-    } catch (e: any) {
-      set({ error: e?.message || 'Failed to fetch venues', loading: false });
+  fetchVenues: (filters = {}) => {
+    const { force = false, ...requestFilters } = filters;
+    const requestKey = buildVenueRequestKey(requestFilters);
+    if (venueRequestKey === requestKey && venueRequestPromise) return venueRequestPromise;
+    if (
+      !force &&
+      lastSuccessfulVenueRequestKey === requestKey &&
+      Date.now() - lastSuccessfulVenueRequestAt < VENUE_DISCOVERY_CACHE_MS &&
+      get().venues.length > 0
+    ) {
+      return Promise.resolve();
     }
+
+    const requestGeneration = ++venueRequestGeneration;
+    let request!: Promise<void>;
+    request = (async () => {
+      set({ loading: true, error: null });
+      try {
+        const response = await fetchPublicVenues({ ...requestFilters, limit: 100 });
+        if (requestGeneration !== venueRequestGeneration) return;
+        const venues = (response.venues || response.items || []) as Venue[];
+        lastSuccessfulVenueRequestKey = requestKey;
+        lastSuccessfulVenueRequestAt = Date.now();
+        set({ venues, loading: false });
+      } catch (e: any) {
+        if (requestGeneration !== venueRequestGeneration) return;
+        set({ error: e?.message || 'Failed to fetch venues', loading: false });
+      } finally {
+        if (venueRequestPromise === request) {
+          venueRequestKey = null;
+          venueRequestPromise = null;
+        }
+      }
+    })();
+
+    venueRequestKey = requestKey;
+    venueRequestPromise = request;
+    return request;
   },
 
   setFollowedVenueIds: (venueIds) => {

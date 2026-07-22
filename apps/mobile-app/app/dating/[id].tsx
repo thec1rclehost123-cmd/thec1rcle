@@ -5,11 +5,11 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  KeyboardAvoidingView,
   Platform,
   Modal,
   TextInput,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
@@ -79,9 +79,12 @@ function ReplySheet({
 }) {
   return (
     <Modal visible={target !== null} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}
         style={styles.modalRoot}
+        enableOnAndroid={true}
+        extraScrollHeight={20}
+        bounces={false}
       >
         <Pressable style={styles.modalScrim} onPress={onClose} />
         <View style={styles.replySheet}>
@@ -112,7 +115,7 @@ function ReplySheet({
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </Modal>
   );
 }
@@ -121,15 +124,23 @@ export default function DatingProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
-  const sendAskOut = useDatingStore((state) => state.sendAskOut);
+  const currentUserId = user?.uid?.trim() || null;
+  const { ownerUserId, profilesOwnerUserId, profiles, sendAskOut } = useDatingStore();
   const [replyTarget, setReplyTarget] = useState<ReplyTarget>(null);
   const [replyText, setReplyText] = useState('');
-  const storeProfile = useDatingStore((state) =>
-    state.profiles.find(
+  const storeProfile =
+    currentUserId &&
+    ownerUserId === currentUserId &&
+    profilesOwnerUserId === currentUserId
+      ? profiles.find(
       (candidate) =>
-        candidate.id === id || candidate.userId === id || candidate.profileRouteId === id,
-    ),
-  ) as DatingProfile | undefined;
+            candidate.userId !== currentUserId &&
+            candidate.id !== currentUserId &&
+            (candidate.id === id ||
+              candidate.userId === id ||
+              candidate.profileRouteId === id),
+        )
+      : undefined;
 
   const profile = storeProfile || null;
 
@@ -148,12 +159,14 @@ export default function DatingProfileScreen() {
   }
 
   const handleOpenReply = (prompt: Prompt) => {
+    if (!currentUserId || profile.userId === currentUserId) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setReplyTarget({ profile, prompt });
     setReplyText('');
   };
 
   const handleOpenPhotoReply = () => {
+    if (!currentUserId || profile.userId === currentUserId) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const photoPrompt: Prompt = {
       id: `photo-${Date.now()}`,
@@ -167,9 +180,20 @@ export default function DatingProfileScreen() {
   const handleSendReply = async () => {
     if (!replyText.trim() || !replyTarget) return;
     const target = replyTarget;
+    if (
+      !currentUserId ||
+      ownerUserId !== currentUserId ||
+      profilesOwnerUserId !== currentUserId ||
+      target.profile.userId === currentUserId ||
+      !profiles.some((candidate) => candidate.userId === target.profile.userId)
+    ) {
+      setReplyTarget(null);
+      setReplyText('');
+      return;
+    }
     const message = replyText.trim();
-    if (user?.uid && target.profile.userId) {
-      const result = await sendAskOut(user.uid, target.profile as any, message);
+    if (target.profile.userId) {
+      const result = await sendAskOut(currentUserId, target.profile as any, message);
       if (result.paywalled) return;
     }
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -214,7 +238,7 @@ export default function DatingProfileScreen() {
           <View style={styles.heroInfo}>
             <View style={styles.heroNameRow}>
               <Text style={styles.heroName}>
-                {profile.name}, {profile.age}
+                {profile.name}{profile.age ? `, ${profile.age}` : ''}
               </Text>
               <PremiumBadgeDot visible={(profile as any).isPremium === true} />
             </View>

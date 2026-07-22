@@ -8,14 +8,13 @@
 
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import {
   debitWallet,
   reverseTransaction,
   topUpWallet,
   freezeWallet,
   unfreezeWallet,
-  checkAndIncrementVelocity,
   generateReconciliation,
 } from '@c1rcle/core/cover-charge-engine';
 import { validateScannerSession } from '../../lib/scannerSessions';
@@ -28,6 +27,7 @@ import { getQrSecret } from '../../lib/scannerSessions';
 const DebitBody = z
   .object({
     walletId: z.string().min(1),
+    paymentQrJwt: z.string().min(1),
     presetItemId: z.string().optional(),
     customAmountPaise: z.number().int().positive().optional(),
     quantity: z.number().int().min(1).max(10).optional().default(1),
@@ -124,13 +124,109 @@ function signJwt(payload: Record<string, unknown>, secret: string): string {
   return `${header}.${body}.${signature}`;
 }
 
+function base64UrlToBuffer(value: string): Buffer {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = (4 - (normalized.length % 4)) % 4;
+  return Buffer.from(`${normalized}${'='.repeat(padding)}`, 'base64');
+}
+
+function decodeJwtPart(value: string): any {
+  return JSON.parse(base64UrlToBuffer(value).toString('utf8'));
+}
+
+function buildWalletQrError(message: string, result = 'invalid') {
+  const error = new Error(message);
+  (error as any).result = result;
+  return error;
+}
+
+function verifyWalletPaymentJwt(qrData: string) {
+  const parts = qrData.split('.');
+  if (parts.length !== 3) {
+    throw buildWalletQrError('Invalid wallet QR');
+  }
+
+  let header: any;
+  let claims: any;
+  try {
+    header = decodeJwtPart(parts[0]);
+    claims = decodeJwtPart(parts[1]);
+  } catch {
+    throw buildWalletQrError('Invalid wallet QR');
+  }
+
+  if (header?.alg !== 'HS256') {
+    throw buildWalletQrError('Invalid wallet QR');
+  }
+
+  const expected = createHmac('sha256', getQrSecret())
+    .update(`${parts[0]}.${parts[1]}`)
+    .digest();
+  const actual = base64UrlToBuffer(parts[2]);
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+    throw buildWalletQrError('Invalid wallet QR');
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (
+    claims?.iss !== 'the-c1rcle' ||
+    claims?.aud !== 'c1rcle-scanner' ||
+    claims?.typ !== 'wallet'
+  ) {
+    throw buildWalletQrError('Invalid wallet QR');
+  }
+  if (Number(claims.nbf || 0) > now + 30) {
+    throw buildWalletQrError('Wallet QR is not valid yet');
+  }
+  if (Number(claims.exp || 0) <= now) {
+    throw buildWalletQrError('Wallet QR has expired', 'expired');
+  }
+  if (!claims.walletId || !claims.userId) {
+    throw buildWalletQrError('Invalid wallet QR');
+  }
+
+  return claims;
+}
+
+function isChargeRole(role: unknown, admin?: boolean): boolean {
+  return admin === true || ['admin', 'staff', 'manager', 'host', 'super'].includes(String(role || ''));
+}
+
+async function requireEventManagementAccess(
+  fastify: FastifyInstance,
+  request: any,
+  eventId: string,
+): Promise<{ allowed: true; event: any } | { allowed: false; status: number; error: string }> {
+  if (!request.user?.uid) {
+    return { allowed: false, status: 401, error: 'Authentication required' };
+  }
+
+  const eventDoc = await fastify.db.collection('events').doc(eventId).get();
+  if (!eventDoc.exists) {
+    return { allowed: false, status: 404, error: 'Event not found' };
+  }
+
+  const event = eventDoc.data() || {};
+  const partnerId = event.venueId || event.hostId || event.partnerId;
+  if (!partnerId) {
+    return { allowed: false, status: 403, error: 'Event is missing partner context' };
+  }
+
+  try {
+    await (fastify as any).verifyPartnerAccess(request, partnerId);
+    return { allowed: true, event };
+  } catch {
+    return { allowed: false, status: 403, error: 'Forbidden' };
+  }
+}
+
 // =============================================================================
 // Scanner session token validation (C3 — scanner is a no-Firebase-auth route)
 // =============================================================================
 
 async function validateScannerToken(fastify: FastifyInstance, request: any): Promise<boolean> {
   const authHeader = (request.headers.authorization as string) || '';
-  const token = authHeader.replace('Bearer ', '').trim();
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
   // Also support X-Scanner-Code header for scanner-app compat
   const scannerCode = (request.headers['x-scanner-code'] as string) || '';
@@ -140,7 +236,8 @@ async function validateScannerToken(fastify: FastifyInstance, request: any): Pro
   // Try Firebase ID token first (staff also logged in as guest user)
   if (token) {
     try {
-      await (fastify as any).firebase.auth().verifyIdToken(token);
+      const decoded = await (fastify as any).firebase.auth().verifyIdToken(token);
+      request.user = { ...(request.user || {}), ...decoded };
       return true;
     } catch {}
   }
@@ -151,6 +248,7 @@ async function validateScannerToken(fastify: FastifyInstance, request: any): Pro
     if (session.authorized) {
       request.scannerCodeId = session.codeDoc.id;
       request.scannerCodeData = session.codeData;
+      request.scannerSessionId = session.sessionId;
       return true;
     }
   }
@@ -207,6 +305,27 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
 
       const doc = snap.docs[0];
       const w = doc.data() as any;
+      const role = request.user?.role || (request.user?.admin ? 'admin' : null);
+      if (request.user?.uid && !isChargeRole(role, request.user?.admin)) {
+        return reply.status(403).send({ error: 'Charge permission required' });
+      }
+      if (request.scannerCodeData?.type && request.scannerCodeData.type !== 'charge') {
+        return reply.status(403).send({ error: 'Charge scanner code required' });
+      }
+      if (
+        request.scannerCodeData?.eventId &&
+        w.eventId &&
+        request.scannerCodeData.eventId !== w.eventId
+      ) {
+        return reply.status(403).send({ error: 'Scanner is not authorized for this event' });
+      }
+      if (
+        request.scannerCodeData?.venueId &&
+        w.venueId &&
+        request.scannerCodeData.venueId !== w.venueId
+      ) {
+        return reply.status(403).send({ error: 'Scanner is not authorized for this venue' });
+      }
       return {
         wallet: {
           id: doc.id,
@@ -314,12 +433,37 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
           .send({ success: false, code: 'UNAUTHENTICATED', message: 'Authentication required' });
       }
 
+      let paymentClaims: any;
+      try {
+        paymentClaims = verifyWalletPaymentJwt(body.paymentQrJwt);
+      } catch (error: any) {
+        return reply.status(400).send({
+          success: false,
+          code: error.result === 'expired' ? 'PAYMENT_QR_EXPIRED' : 'INVALID_PAYMENT_QR',
+          message: error.message || 'Invalid wallet QR',
+        });
+      }
+      if (paymentClaims.walletId !== body.walletId) {
+        return reply.status(403).send({
+          success: false,
+          code: 'PAYMENT_QR_WALLET_MISMATCH',
+          message: 'Payment QR does not match this wallet',
+        });
+      }
+
       // SECURITY: Derive operatorRole from auth context, not client body
       let operatorRole: string;
       const authenticatedUid = request.user?.uid;
       if (authenticatedUid) {
-        // Firebase user — role from token claims
-        operatorRole = request.user?.role || 'staff';
+        const role = request.user?.role || (request.user?.admin ? 'admin' : null);
+        if (!isChargeRole(role, request.user?.admin)) {
+          return reply.status(403).send({
+            success: false,
+            code: 'INSUFFICIENT_ROLE',
+            message: 'Charge permission required',
+          });
+        }
+        operatorRole = String(role || 'staff');
         if (authenticatedUid !== body.operatorId) {
           return reply.status(403).send({
             success: false,
@@ -328,11 +472,9 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
           });
         }
       } else {
-        // Scanner session — role is door_staff
-        operatorRole = 'door_staff';
+        operatorRole = 'charge_staff';
       }
 
-      // Read the wallet to enforce venueId/eventId matching
       const walletDoc = await fastify.db.collection('cover_wallets').doc(body.walletId).get();
       if (!walletDoc.exists) {
         return reply
@@ -340,29 +482,35 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
           .send({ success: false, code: 'WALLET_NOT_FOUND', message: 'Wallet not found' });
       }
       const walletData = walletDoc.data() as any;
-      const codeVenueId = request.scannerCodeData?.venueId || null;
-      const codeEventId = request.scannerCodeData?.eventId || null;
-      if (codeVenueId && walletData.venueId && codeVenueId !== walletData.venueId) {
+      if (paymentClaims.userId !== walletData.userId) {
         return reply.status(403).send({
           success: false,
-          code: 'VENUE_MISMATCH',
-          message: "Scanner is not authorized for this wallet's venue",
+          code: 'PAYMENT_QR_USER_MISMATCH',
+          message: 'Payment QR does not belong to this wallet',
         });
       }
-      if (codeEventId && walletData.eventId && codeEventId !== walletData.eventId) {
+      if (authenticatedUid) {
+        const access = await requireEventManagementAccess(fastify, request, walletData.eventId);
+        if (!access.allowed) {
+          return reply
+            .status(access.status)
+            .send({ success: false, code: 'FORBIDDEN', message: access.error });
+        }
+      }
+
+      if (request.scannerCodeId && body.eventCodeId && request.scannerCodeId !== body.eventCodeId) {
         return reply.status(403).send({
           success: false,
-          code: 'EVENT_MISMATCH',
-          message: "Scanner is not authorized for this wallet's event",
+          code: 'EVENT_CODE_MISMATCH',
+          message: 'eventCodeId must match the authenticated scanner code',
         });
       }
 
-      // Verify the event_code is of type 'charge' (or use scanner code from request)
-      const codeDataFromRequest = request.scannerCodeData || null;
-      let codeData: any = codeDataFromRequest;
+      const eventCodeId = request.scannerCodeId || body.eventCodeId;
+      let codeData: any = request.scannerCodeData || null;
 
-      if (!codeData && body.eventCodeId) {
-        const codeSnap = await fastify.db.collection('event_codes').doc(body.eventCodeId).get();
+      if (!codeData && eventCodeId) {
+        const codeSnap = await fastify.db.collection('event_codes').doc(eventCodeId).get();
         if (!codeSnap.exists) {
           return reply
             .status(403)
@@ -391,11 +539,48 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
           message: 'Event charge code has expired',
         });
       }
+      if (codeData.type !== 'charge') {
+        return reply.status(403).send({
+          success: false,
+          code: 'CHARGE_CODE_REQUIRED',
+          message: 'A charge scanner code is required to debit cover wallets',
+        });
+      }
+      if (codeData.eventId && walletData.eventId && codeData.eventId !== walletData.eventId) {
+        return reply.status(403).send({
+          success: false,
+          code: 'EVENT_MISMATCH',
+          message: "Scanner is not authorized for this wallet's event",
+        });
+      }
+      if (codeData.venueId && walletData.venueId && codeData.venueId !== walletData.venueId) {
+        return reply.status(403).send({
+          success: false,
+          code: 'VENUE_MISMATCH',
+          message: "Scanner is not authorized for this wallet's venue",
+        });
+      }
 
       const scannerSessionId =
         body.scannerSessionId || request.scannerSessionId || request.scannerCodeId || body.deviceId;
+      const maxPerMinute = Number(walletData.rules?.maxDebitsPerMinutePerDevice || 3);
+      const velocityKey = `cwv:${scannerSessionId}:${body.walletId}:${Math.floor(Date.now() / 60000)}`;
+      let velocityReserved = false;
 
       try {
+        const velCount = await fastify.redis.incr(velocityKey);
+        velocityReserved = true;
+        if (velCount === 1) {
+          await fastify.redis.expire(velocityKey, 90);
+        }
+        if (velCount > maxPerMinute) {
+          return reply.status(429).send({
+            success: false,
+            code: 'VELOCITY_LIMIT_REACHED',
+            message: 'Too many wallet charges from this scanner. Wait a minute and try again.',
+          });
+        }
+
         const result = await debitWallet({
           walletId: body.walletId,
           presetItemId: body.presetItemId,
@@ -406,11 +591,14 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
           operatorName: body.operatorName || '',
           operatorRole,
           deviceId: body.deviceId,
-          eventCodeId: body.eventCodeId,
+          eventCodeId,
           scannerSessionId,
         });
 
         if (!result.success) {
+          if (velocityReserved) {
+            await fastify.redis.decr(velocityKey).catch(() => undefined);
+          }
           const statusCode =
             result.code === 'WALLET_NOT_FOUND'
               ? 404
@@ -426,16 +614,11 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
           return reply.status(statusCode).send(result);
         }
 
-        // SECURITY: Only increment velocity counter on successful debit
-        // This prevents DoS via failed spam burning velocity slots
-        const velocityKey = `cwv:${scannerSessionId}:${body.walletId}:${Math.floor(Date.now() / 60000)}`;
-        const velCount = await fastify.redis.incr(velocityKey);
-        if (velCount === 1) {
-          await fastify.redis.expire(velocityKey, 90);
-        }
-
         return result;
       } catch (err: any) {
+        if (velocityReserved) {
+          await fastify.redis.decr(velocityKey).catch(() => undefined);
+        }
         fastify.log.error(`[CoverCharge] debit error: ${err.message}`);
         return reply
           .status(500)
@@ -702,6 +885,13 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
       ) {
         return reply.status(403).send({ error: 'Forbidden' });
       }
+      if (wallet.state !== 'ACTIVE') {
+        return reply.status(409).send({
+          error:
+            wallet.state === 'PENDING' ? 'Wallet is not yet activated' : 'Wallet is not active',
+          state: wallet.state,
+        });
+      }
 
       const now = Math.floor(Date.now() / 1000);
       const qrSecret = getQrSecret();
@@ -712,6 +902,8 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
           typ: 'wallet',
           walletId,
           userId: wallet.userId,
+          eventId: wallet.eventId,
+          venueId: wallet.venueId,
           iat: now,
           nbf: now,
           exp: now + 60,

@@ -1,10 +1,12 @@
 import { create } from 'zustand';
+import { AppState } from 'react-native';
 import { apiFetch, deduplicateRequest } from '@/lib/api';
 import { subscribeToGroupChat } from '@/lib/social/groupChat';
 import type { GroupMessage } from '@/lib/social';
 import { subscribeToDirectMessages } from '@/lib/social/privateDM';
 import { checkEventEntitlement } from '@/lib/social/entitlements';
 import type { EventChat, DirectChat } from '@/lib/chat';
+import { wsManager } from '@/lib/websocket';
 
 interface NewMatch {
   id: string;
@@ -15,6 +17,7 @@ interface NewMatch {
 }
 
 interface ChatState {
+  ownerUserId: string | null;
   eventChats: EventChat[];
   privateChats: DirectChat[];
   newMatches: NewMatch[];
@@ -25,11 +28,33 @@ interface ChatState {
 
   fetchAll: (userId: string) => Promise<void>;
   subscribeToUpdates: (userId: string) => () => void;
+  clearChats: () => void;
   clearNewMatches: () => void;
   decrementUnread: (count: number) => void;
 }
 
-export const useChatStore = create<ChatState>((set, get) => ({
+export const useChatStore = create<ChatState>((set, get) => {
+  let requestGeneration = 0;
+  let pendingFetch: { userId: string; promise: Promise<void> } | null = null;
+
+  function resetForUser(userId: string | null) {
+    requestGeneration += 1;
+    pendingFetch = null;
+    get()._unsubscribe?.();
+    set({
+      ownerUserId: userId,
+      eventChats: [],
+      privateChats: [],
+      newMatches: [],
+      totalUnread: 0,
+      loading: false,
+      error: null,
+      _unsubscribe: null,
+    });
+  }
+
+  return {
+  ownerUserId: null,
   eventChats: [],
   privateChats: [],
   newMatches: [],
@@ -39,16 +64,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
   _unsubscribe: null,
 
   fetchAll: async (userId: string) => {
-    if (get().loading) return;
+    if (!userId) return;
+    if (get().ownerUserId !== userId) resetForUser(userId);
+    if (pendingFetch?.userId === userId) return pendingFetch.promise;
+
+    const generation = requestGeneration;
     set({ loading: true, error: null });
-    try {
-      const [chatsResponse, matchesResponse] = await Promise.all([
+    const promise = (async () => {
+      try {
+        const [chatsResponse, matchesResponse] = await Promise.all([
         deduplicateRequest<{
           chats: EventChat[];
           eventChats: EventChat[];
           privateChats: DirectChat[];
           totalUnread: number;
-        }>('chatStore:my-chats', () =>
+        }>(`chatStore:my-chats:${userId}`, () =>
           apiFetch<{
             chats: EventChat[];
             eventChats: EventChat[];
@@ -56,24 +86,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
             totalUnread: number;
           }>('/api/v1/social/my-chats', { requireAuth: true }),
         ),
-        deduplicateRequest<{ matches: NewMatch[] }>('chatStore:matches', () =>
+        deduplicateRequest<{ matches: NewMatch[] }>(`chatStore:matches:${userId}`, () =>
           apiFetch<{ matches: NewMatch[] }>('/api/v1/social/matches', {
             requireAuth: true,
           }).catch(() => ({ matches: [] })),
         ),
-      ]);
+        ]);
 
-      const allEventChats = chatsResponse.eventChats || chatsResponse.chats || [];
+        if (generation !== requestGeneration || get().ownerUserId !== userId) return;
 
-      set({
-        eventChats: allEventChats,
-        privateChats: chatsResponse.privateChats || [],
-        totalUnread: chatsResponse.totalUnread || 0,
-        newMatches: matchesResponse.matches || [],
-        loading: false,
-      });
-    } catch (e: any) {
-      set({ loading: false, error: e.message || 'Failed to load chats' });
+        const allEventChats = chatsResponse.eventChats || chatsResponse.chats || [];
+
+        set({
+          eventChats: allEventChats,
+          privateChats: chatsResponse.privateChats || [],
+          totalUnread: chatsResponse.totalUnread || 0,
+          newMatches: matchesResponse.matches || [],
+          loading: false,
+        });
+      } catch (e: any) {
+        if (generation !== requestGeneration || get().ownerUserId !== userId) return;
+        set({ loading: false, error: e.message || 'Failed to load chats' });
+      }
+    })();
+    pendingFetch = { userId, promise };
+    try {
+      await promise;
+    } finally {
+      if (pendingFetch?.promise === promise) pendingFetch = null;
     }
   },
 
@@ -86,6 +126,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   subscribeToUpdates: (userId: string) => {
+    if (!userId) return () => undefined;
+    if (get().ownerUserId !== userId) resetForUser(userId);
     get()._unsubscribe?.();
 
     const subscriptions = new Map<string, () => void>();
@@ -112,6 +154,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const unsub = subscribeToGroupChat(
           chat.eventId,
           (messages: GroupMessage[]) => {
+            if (get().ownerUserId !== userId) return;
             const updated = messages[messages.length - 1];
             if (updated) {
               set((state) => ({
@@ -132,6 +175,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
           },
           1,
+          chat.lastMessage
+            ? [
+                {
+                  id: `preview:${chat.id}`,
+                  eventId: chat.eventId,
+                  senderId: chat.lastMessage.senderId || '',
+                  senderName: chat.lastMessage.senderName || 'Attendee',
+                  content: chat.lastMessage.content || '',
+                  type: 'text',
+                  createdAt: chat.lastMessage.createdAt || new Date().toISOString(),
+                },
+              ]
+            : [],
+          false,
         );
         subscriptions.set(key, unsub);
       }
@@ -142,6 +199,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const unsub = subscribeToDirectMessages(
           chat.id,
           (messages) => {
+            if (get().ownerUserId !== userId) return;
             const updated = messages[messages.length - 1];
             if (updated) {
               set((state) => ({
@@ -157,6 +215,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
           },
           1,
+          chat.lastMessage
+            ? [
+                {
+                  id: `preview:${chat.id}`,
+                  conversationId: chat.id,
+                  senderId: '',
+                  content: chat.lastMessage,
+                  type: 'text',
+                  createdAt: chat.lastMessageTime || new Date().toISOString(),
+                },
+              ]
+            : [],
+          false,
         );
         subscriptions.set(key, unsub);
       }
@@ -184,14 +255,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     });
 
+    // One bounded fallback refresh replaces one polling timer per conversation.
+    // The authenticated websocket remains authoritative while connected.
+    const inboxFallbackTimer = setInterval(() => {
+      if (!wsManager.isConnected && AppState.currentState === 'active') {
+        void get().fetchAll(userId);
+      }
+    }, 120_000);
+
     const unsubscribe = () => {
       for (const unsub of subscriptions.values()) unsub();
       subscriptions.clear();
       unsubStore();
+      clearInterval(inboxFallbackTimer);
     };
 
     set({ _unsubscribe: unsubscribe });
 
     return unsubscribe;
   },
-}));
+
+  clearChats: () => resetForUser(null),
+};
+});

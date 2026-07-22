@@ -1,0 +1,163 @@
+{
+  "schemaVersion": "active-inventory-cross-ledger/1",
+  "mode": "read-only",
+  "projectId": "c1rcle-staging",
+  "observedAt": "2026-07-19T11:02:00.000Z",
+  "sourceInventoryAudit": {
+    "evidence": "96-inventory-v2-lifecycle-audit-staging.json",
+    "checksumSha256": "723b4483afe732618067fb7dc414b784670c1a311b788ad22ae60b9f0ebc2e12"
+  },
+  "scope": {
+    "saleableFailingTiers": 2,
+    "collectionsRead": [
+      "cart_reservations",
+      "entitlements",
+      "events",
+      "ledger_entries",
+      "orders",
+      "payments",
+      "refund_effects_outbox",
+      "refund_provider_outbox",
+      "refund_requests",
+      "refunds",
+      "share_bundles",
+      "ticket_assignments",
+      "tickets"
+    ],
+    "providerTruthFetched": false,
+    "piiRetained": false,
+    "writesPerformed": 0
+  },
+  "seedProvenance": {
+    "source": "apps/mobile-app/lib/demo/index.ts",
+    "lastSeededAt": "2026-07-18T09:55:06.372Z",
+    "behavior": "The staging seeder preserves existing dynamic remaining and sold mirrors. It does not create an immutable pre-order baseline or reconcile mismatched mirrors.",
+    "limitation": "Fixture source values cannot be treated as authoritative historical sales because every observed order predates the last seed and the seed preserved existing state."
+  },
+  "tiers": [
+    {
+      "eventId": "demo-event-02",
+      "tierId": "t2",
+      "persisted": {
+        "capacity": 30,
+        "remaining": 10,
+        "inventorySoldQuantity": 17,
+        "legacySoldQuantity": 18,
+        "allocatedQuantity": 0,
+        "runtimeRemainingBeforeRedis": 13,
+        "inventoryInvariantDelta": 3
+      },
+      "fixtureSource": {
+        "remaining": 12,
+        "derivedSoldQuantity": 18
+      },
+      "applicationLedger": {
+        "orders": {
+          "confirmedUnits": 1,
+          "cancelledUnits": 1,
+          "paymentPendingUnits": 0
+        },
+        "payments": {
+          "verifiedOrders": 1,
+          "initiatedOrders": 1,
+          "failedOrders": 0
+        },
+        "tickets": {
+          "activeUnits": 1,
+          "transferredUnits": 0,
+          "voidUnits": 0
+        },
+        "entitlements": {
+          "issuedUnits": 1,
+          "revokedUnits": 0
+        },
+        "assignments": {
+          "activeUnits": 0
+        },
+        "cartReservations": {
+          "convertedUnits": 1,
+          "releasedUnits": 2,
+          "activeUnits": 0
+        },
+        "shares": 0,
+        "refunds": 0,
+        "ledgerEntries": 0
+      },
+      "findings": [
+        "P0_RUNTIME_REMAINING_EXCEEDS_PERSISTED_REMAINING_BY_3",
+        "SOLD_MIRRORS_DISAGREE_BY_1",
+        "CONFIRMED_ORDER_PAYMENT_TICKET_ENTITLEMENT_PARITY_PASSES",
+        "CANCELLED_INITIATED_ORDER_HAS_NO_TICKET_OR_ENTITLEMENT",
+        "NO_IMMUTABLE_BASELINE_OR_FINANCE_LEDGER"
+      ],
+      "repairDecision": "blocked_no_authoritative_baseline"
+    },
+    {
+      "eventId": "demo-event-05",
+      "tierId": "t1",
+      "persisted": {
+        "capacity": 2000,
+        "remaining": 454,
+        "inventorySoldQuantity": 1543,
+        "legacySoldQuantity": 1544,
+        "allocatedQuantity": 0,
+        "runtimeRemainingBeforeRedis": 457,
+        "inventoryInvariantDelta": 3
+      },
+      "fixtureSource": {
+        "remaining": 456,
+        "derivedSoldQuantity": 1544
+      },
+      "applicationLedger": {
+        "orders": {
+          "confirmedUnits": 4,
+          "cancelledUnits": 1,
+          "paymentPendingUnits": 1
+        },
+        "payments": {
+          "verifiedOrders": 4,
+          "initiatedOrders": 1,
+          "failedOrders": 1
+        },
+        "tickets": {
+          "activeUnits": 3,
+          "transferredUnits": 1,
+          "voidUnits": 0
+        },
+        "entitlements": {
+          "issuedUnits": 4,
+          "revokedUnits": 1
+        },
+        "assignments": {
+          "activeUnits": 1
+        },
+        "cartReservations": {
+          "convertedUnits": 5,
+          "releasedUnits": 1,
+          "activeUnits": 0
+        },
+        "shares": 0,
+        "refunds": 0,
+        "ledgerEntries": 0
+      },
+      "findings": [
+        "P0_RUNTIME_REMAINING_EXCEEDS_PERSISTED_REMAINING_BY_3",
+        "SOLD_MIRRORS_DISAGREE_BY_1",
+        "FOUR_CONFIRMED_ORDERS_HAVE_VERIFIED_PAYMENT_AND_TICKET_OWNERSHIP",
+        "TRANSFER_PRESERVES_ONE_LIVE_ENTITLEMENT_VIA_REVOKE_AND_REISSUE",
+        "STALE_PAYMENT_PENDING_ORDER_HAS_CONVERTED_RESERVATION_BUT_NO_TICKET",
+        "NO_IMMUTABLE_BASELINE_OR_FINANCE_LEDGER"
+      ],
+      "repairDecision": "blocked_no_authoritative_baseline_and_provider_truth"
+    }
+  ],
+  "proposedRepairs": [],
+  "requiredBeforeRepair": [
+    "Fetch provider truth for every order, especially ORD-MR4A01JE-QP89X.",
+    "Obtain or approve the authoritative pre-sale fixture baseline and its timestamp.",
+    "Reconcile every confirmed/cancelled/pending order to payment, ticket, entitlement and reservation state.",
+    "Generate deterministic report-only before/after mutations with rollback values.",
+    "Back up affected event, order, payment, ticket, entitlement and reservation documents and prove restore."
+  ],
+  "conclusion": "The two saleable tiers are confirmed unsafe, but the historical sold total cannot be reconstructed safely from the current application ledger alone. No automatic repair is authorized."
+}

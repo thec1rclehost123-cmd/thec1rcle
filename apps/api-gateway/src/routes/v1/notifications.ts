@@ -21,7 +21,7 @@ const ActionBody = z
     notificationId: z.string(),
     notificationType: z.string(),
     action: z.string(),
-    venueId: z.string().optional(),
+    venueId: z.string(),
   })
   .strict();
 
@@ -101,20 +101,13 @@ export default async function notificationsRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/action',
     {
-      preHandler: [fastify.requireAuth, fastify.validate({ body: ActionBody })],
+      preHandler: [
+        fastify.requirePartnerAccess((req) => (req.body as any).venueId),
+        fastify.validate({ body: ActionBody }),
+      ],
     },
     async (request: any, reply) => {
-      const { notificationId, notificationType, action, venueId } = request.body as any;
-      if (!notificationId || !notificationType || !action)
-        return reply.status(400).send({ error: 'Missing required fields' });
-
-      if (venueId) {
-        try {
-          await fastify.verifyPartnerAccess(request, venueId);
-        } catch {
-          return reply.status(403).send({ error: 'Forbidden: Insufficient access to this venue' });
-        }
-      }
+      const { notificationId, notificationType, action } = request.body as any;
 
       try {
         const newStatus = await fastify.notificationService.performAction(

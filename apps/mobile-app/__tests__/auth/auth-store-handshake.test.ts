@@ -1,6 +1,7 @@
 /* global jest, describe, beforeEach, it, expect */
 
 let mockAuthCallback: ((user: any) => void) | null = null;
+let mockCurrentUser: any = null;
 const mockUnsubscribe = jest.fn();
 const mockAppStateRemove = jest.fn();
 const mockProfileState = {
@@ -21,6 +22,7 @@ const mockSubscriptionState = {
   fetchRevenueCatSubscription: jest.fn(),
   clearSubscription: jest.fn(),
 };
+const mockChatState = { clearChats: jest.fn() };
 
 jest.mock('react-native', () => ({
   AppState: {
@@ -30,9 +32,13 @@ jest.mock('react-native', () => ({
 
 jest.mock('../../lib/firebase', () => ({
   subscribeToAuthState: jest.fn((callback) => {
-    mockAuthCallback = callback;
+    mockAuthCallback = (user) => {
+      mockCurrentUser = user;
+      callback(user);
+    };
     return mockUnsubscribe;
   }),
+  getFirebaseAuth: jest.fn(() => ({ currentUser: mockCurrentUser })),
 }));
 
 jest.mock('../../lib/api', () => ({
@@ -66,10 +72,19 @@ jest.mock('../../store/subscriptionStore', () => ({
   useSubscriptionStore: { getState: () => mockSubscriptionState },
 }));
 
-import { initAuthListener, useAuthStore } from '../../store/authStore';
+jest.mock('../../store/chatStore', () => ({
+  useChatStore: { getState: () => mockChatState },
+}));
+
+import {
+  completeAuthSessionAfterSignIn,
+  initAuthListener,
+  useAuthStore,
+} from '../../store/authStore';
 import { syncAuthSession } from '../../lib/api';
 import { refreshPushToken } from '../../lib/notifications';
 import { wsManager } from '../../lib/websocket';
+import { useFirstRunStore } from '../../store/firstRunStore';
 
 const flushPromises = async () => {
   await Promise.resolve();
@@ -81,6 +96,7 @@ describe('authStore server handshake', () => {
     jest.useRealTimers();
     jest.clearAllMocks();
     mockAuthCallback = null;
+    mockCurrentUser = null;
     useAuthStore.setState({
       user: null,
       loading: true,
@@ -91,15 +107,31 @@ describe('authStore server handshake', () => {
       profileSetupJustCompleted: false,
       onboardingJustCompleted: false,
     });
+    useFirstRunStore.setState({ snapshot: null, loading: false, hydrated: false, error: null });
   });
 
   it('does not expose the Firebase user until auth sync succeeds', async () => {
     const user = {
       uid: 'user_1',
+      phoneNumber: '+919876543210',
+      providerData: [{ providerId: 'phone' }],
       getIdToken: jest.fn(async () => 'firebase-token'),
     };
     (syncAuthSession as jest.Mock).mockResolvedValueOnce({
       profile: { uid: 'user_1', role: 'guest' },
+      onboarding: { version: 2, currentStage: 'complete', completed: true },
+      snapshot: {
+        version: 2,
+        currentStage: 'complete',
+        completed: true,
+        displayName: 'Aayush',
+        dateOfBirth: '2000-01-01',
+        cityId: 'pune',
+        cityName: 'Pune',
+        vibeTags: ['clubs', 'live_music', 'lounges'],
+        intents: ['discover'],
+      },
+      requirements: { minimumAccountAge: 18 },
       claims: { role: 'guest' },
       requiresTokenRefresh: true,
     });
@@ -131,9 +163,54 @@ describe('authStore server handshake', () => {
       authSyncInProgress: false,
       authSyncError: null,
     });
+    expect(useFirstRunStore.getState().snapshot).toMatchObject({
+      currentStage: 'complete',
+      displayName: 'Aayush',
+      dateOfBirth: '2000-01-01',
+      cityId: 'pune',
+      cityName: 'Pune',
+      vibeTags: ['clubs', 'live_music', 'lounges'],
+      intents: ['discover'],
+      minimumAccountAge: 18,
+    });
     expect(refreshPushToken).toHaveBeenCalledWith('user_1');
     await flushPromises();
     expect(wsManager.start).toHaveBeenCalledWith('firebase-token');
+
+    cleanup();
+  });
+
+  it('shares one auth sync between the listener and explicit sign-in completion', async () => {
+    const user = {
+      uid: 'user_single_flight',
+      getIdToken: jest.fn(async () => 'single-flight-token'),
+    };
+    let resolveSync!: (value: any) => void;
+    const pendingSync = new Promise((resolve) => {
+      resolveSync = resolve;
+    });
+    (syncAuthSession as jest.Mock).mockReturnValueOnce(pendingSync);
+
+    const cleanup = initAuthListener();
+    mockAuthCallback?.(user);
+    const explicitCompletion = completeAuthSessionAfterSignIn(user as any);
+
+    expect(syncAuthSession).toHaveBeenCalledTimes(1);
+
+    resolveSync({
+      profile: { uid: user.uid, role: 'guest' },
+      onboarding: { version: 2, currentStage: 'complete', completed: true },
+      requiresTokenRefresh: false,
+    });
+    await explicitCompletion;
+    await flushPromises();
+
+    expect(syncAuthSession).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState()).toMatchObject({
+      user,
+      serverSynced: true,
+      authSyncInProgress: false,
+    });
 
     cleanup();
   });

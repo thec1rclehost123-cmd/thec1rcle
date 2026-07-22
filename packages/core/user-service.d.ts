@@ -9,6 +9,11 @@ export function registerDeviceToken(
   userId: string,
   payload?: Record<string, any>,
 ): Promise<any>;
+export function revokeDeviceToken(
+  db: any,
+  userId: string,
+  payload?: Record<string, any>,
+): Promise<{ success: true; revoked: boolean; alreadyRevoked: boolean }>;
 export function listUserFollows(
   db: any,
   userId: string,

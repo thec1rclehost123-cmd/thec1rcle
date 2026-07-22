@@ -26,7 +26,7 @@ import { useTicketsStore, Order, OrderTicket } from '@/store/ticketsStore';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
 import { useCartStore } from '@/store/cartStore';
-import { apiFetch, createShareBundle } from '@/lib/api';
+import { apiFetch, createShareBundle, deduplicateRequest } from '@/lib/api';
 import { cacheUserOrders, getCachedUserOrders } from '@/lib/cache';
 import { resolveEventAccentColor, TICKET_ACCENT } from '@/hooks/useEventAccent';
 import { shareEventLink } from '@/lib/deeplinks';
@@ -41,8 +41,10 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSpring,
   runOnJS,
+  interpolate,
+  Extrapolation,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { colors, radii, gradients, typography } from '@/lib/design/theme';
@@ -153,19 +155,23 @@ function ActionRow({
   label,
   onPress,
   danger,
+  disabled,
 }: {
   icon: React.ComponentType<any>;
   label: string;
   onPress: () => void;
   danger?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
+      disabled={disabled}
+      accessibilityState={{ disabled: Boolean(disabled) }}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
       }}
-      style={ms.actionRow}
+      style={[ms.actionRow, disabled && { opacity: 0.42 }]}
     >
       <Text style={[ms.actionRowText, danger && { color: colors.error }]} numberOfLines={1}>
         {label}
@@ -175,6 +181,28 @@ function ActionRow({
       </View>
     </Pressable>
   );
+}
+
+const DEFAULT_EVENT_DURATION_MS = 12 * 60 * 60 * 1000;
+
+function getOrderEventStartMs(order: Order): number | null {
+  const start = safeDate(order.eventStartDate || order.eventDate);
+  const value = start?.getTime();
+  return value != null && Number.isFinite(value) ? value : null;
+}
+
+function isOrderEventEnded(order: Order, nowMs = Date.now()): boolean {
+  const rawEnd =
+    (order as any).eventEndDate ||
+    (order as any).eventEndAt ||
+    (order as any).endDate ||
+    (order as any).endAt;
+  const end = safeDate(rawEnd);
+  const endMs = end?.getTime();
+  if (endMs != null && Number.isFinite(endMs)) return endMs < nowMs;
+
+  const startMs = getOrderEventStartMs(order);
+  return startMs != null ? startMs + DEFAULT_EVENT_DURATION_MS < nowMs : false;
 }
 
 function hexWithAlpha(color: string | undefined, alpha: string, fallback: string) {
@@ -241,6 +269,7 @@ type TicketDisplaySlot = OrderTicket & {
   ticketNumber: number;
   totalInTier: number;
   qrData: string;
+  transferTicketId: string;
   bookingLabel: string;
   isUsed?: boolean;
   claimName: string;
@@ -293,7 +322,7 @@ function resolveTicketClaimPerson({
         tone: 'claimed' as const,
       };
     }
-    if (qr.isClaimed) {
+    if (qr.isClaimed || ticket.isClaimed) {
       return {
         name: currentUserName,
         photo: currentUserPhoto,
@@ -347,6 +376,14 @@ function buildTicketDisplaySlots(
     Array.from({ length: totalInTier }).forEach((_, slotIndex) => {
       const qr = order.qrCodes?.[globalIndex];
       const claim = resolveTicketClaimPerson({ ticket, order, qr, profile, user });
+      const assignmentTicketId =
+        ticket.ticketId?.startsWith('CLAIM-') || ticket.ticketId?.startsWith('TRANS-')
+          ? ticket.ticketId
+          : null;
+      const transferTicketId =
+        qr?.ticketId ||
+        assignmentTicketId ||
+        `${order.id}-${ticket.tierId || ticket.ticketId || ticketIndex}-${slotIndex + 1}`;
       const fallbackQrData =
         qr?.qrCode ||
         qr?.ticketId ||
@@ -366,6 +403,7 @@ function buildTicketDisplaySlots(
         ticketNumber: globalIndex + 1,
         totalInTier,
         qrData: fallbackQrData,
+        transferTicketId,
         bookingLabel: `#${bookingLabel}`,
         isUsed: qr?.isUsed,
         claimName: claim.name,
@@ -404,6 +442,7 @@ function buildTicketDisplaySlots(
       ticketNumber: 1,
       totalInTier: 1,
       qrData: resolveWalletQrData(order),
+      transferTicketId: order.qrCodes?.[0]?.ticketId || '',
       bookingLabel: formatBookingCode(order),
       claimName: claim.name,
       claimPhoto: claim.photo,
@@ -629,17 +668,25 @@ function QRModal({
 
   if (!order) return null;
 
+  const nowMs = Date.now();
+  const eventStartMs = getOrderEventStartMs(order);
+  const eventEnded = isOrderEventEnded(order, nowMs);
+  const sharingClosed = eventEnded || (eventStartMs != null && eventStartMs <= nowMs);
+  const transferClosed =
+    eventEnded || (eventStartMs != null && eventStartMs - nowMs < 2 * 60 * 60 * 1000);
+
   const handleCloseSheet = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onClose();
   };
 
   const handleFlip = () => {
+    if (eventEnded) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const next = flipProgress.value < 0.5;
-    flipProgress.value = withSpring(
+    flipProgress.value = withTiming(
       next ? 1 : 0,
-      { damping: 20, stiffness: 90, mass: 0.8 },
+      { duration: 400 },
       (finished) => {
         if (finished) runOnJS(setShowQR)(next);
       },
@@ -647,8 +694,20 @@ function QRModal({
   };
 
   const handleTransfer = () => {
+    if (transferClosed) return;
+    if (!activeTicketSlot?.transferTicketId) {
+      Alert.alert('Transfer unavailable', 'This ticket is missing its individual ticket reference.');
+      return;
+    }
+    if (activeTicketSlot.isUsed) {
+      Alert.alert('Transfer unavailable', 'A scanned ticket cannot be transferred.');
+      return;
+    }
     onClose();
-    router.push({ pathname: '/transfer', params: { orderId: order.id, ticketName: ticketType } });
+    router.push({
+      pathname: '/transfer',
+      params: { ticketId: activeTicketSlot.transferTicketId, ticketName: ticketType },
+    });
   };
 
   const handleAddToWallet = async () => {
@@ -673,6 +732,7 @@ function QRModal({
     quantity = 1,
   ) => {
     if (!order || !tierId) return;
+    if (sharingClosed) return;
 
     try {
       const response = await createShareBundle({
@@ -823,9 +883,6 @@ function QRModal({
                             />
                           )}
 
-                          <View style={ms.posterBookingBadge}>
-                            <Text style={ms.posterBookingText}>{item.bookingLabel}</Text>
-                          </View>
 
                           <View style={ms.ticketSlotBadge}>
                             <Text style={ms.ticketSlotBadgeText}>
@@ -856,12 +913,36 @@ function QRModal({
                                 colors={['rgba(255,255,255,0.6)', 'rgba(255,255,255,0.15)']}
                                 style={StyleSheet.absoluteFill}
                               />
-                              <QRCode
-                                value={item.qrData}
-                                size={miniQrSize}
-                                color="#161616"
-                                backgroundColor="transparent"
-                              />
+                              {eventEnded ? (
+                                <View
+                                  style={{
+                                    width: miniQrSize,
+                                    height: miniQrSize,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
+                                  }}
+                                >
+                                  <Clock size={34} color="#5A5A5F" strokeWidth={1.8} />
+                                  <Text
+                                    style={{
+                                      color: '#343438',
+                                      fontSize: 12,
+                                      fontWeight: '900',
+                                      letterSpacing: 0.8,
+                                    }}
+                                  >
+                                    EVENT ENDED
+                                  </Text>
+                                </View>
+                              ) : (
+                                <QRCode
+                                  value={item.qrData}
+                                  size={miniQrSize}
+                                  color="#161616"
+                                  backgroundColor="transparent"
+                                />
+                              )}
                             </View>
                           </View>
                         </Animated.View>
@@ -895,47 +976,64 @@ function QRModal({
                           <Text style={ms.fullQrId}>{item.bookingLabel}</Text>
                         </Animated.View>
                       </View>
-
-                      <View style={ms.ticketHolderRow}>
-                        <View style={ms.ticketHolderAvatar}>
-                          {item.claimPhoto ? (
-                            <Image
-                              source={{ uri: item.claimPhoto }}
-                              style={ms.ticketHolderAvatarImage}
-                              contentFit="cover"
-                            />
-                          ) : (
-                            <Text style={ms.ticketHolderAvatarText}>{item.claimInitials}</Text>
-                          )}
-                        </View>
-                        <Text style={ms.ticketHolderName} numberOfLines={1}>
-                          {item.claimName}
-                        </Text>
-                        <View
-                          style={[
-                            ms.ticketStatusPill,
-                            item.statusTone === 'available' && ms.ticketStatusPillAvailable,
-                            item.statusTone === 'used' && ms.ticketStatusPillUsed,
-                          ]}
-                        >
-                          <Text style={ms.ticketStatusPillText}>
-                            {item.statusTone === 'available'
-                              ? 'NOT CLAIMED'
-                              : item.statusTone === 'used'
-                                ? 'USED'
-                                : 'CLAIMED'}
-                          </Text>
-                        </View>
-                      </View>
                     </View>
                   )}
                 />
 
                 {/* Show QR Code toggle */}
-                <Pressable onPress={handleFlip} style={ms.showQrBtn}>
-                  <ScanLine size={25} color="#fff" strokeWidth={2.1} />
-                  <Text style={ms.showQrText}>{showQR ? 'Show Poster' : 'Show QR Code'}</Text>
+                <Pressable
+                  disabled={eventEnded}
+                  accessibilityState={{ disabled: eventEnded }}
+                  onPress={handleFlip}
+                  style={[ms.showQrBtn, eventEnded && { opacity: 0.5 }]}
+                >
+                  {eventEnded ? (
+                    <Clock size={25} color="#fff" strokeWidth={2.1} />
+                  ) : (
+                    <ScanLine size={25} color="#fff" strokeWidth={2.1} />
+                  )}
+                  <Text style={ms.showQrText}>
+                    {eventEnded ? 'Event Ended' : showQR ? 'Show Poster' : 'Show QR Code'}
+                  </Text>
                 </Pressable>
+
+                {/* Claim Status Line */}
+                <View style={ms.ticketHolderRow}>
+                  <View style={ms.ticketHolderAvatar}>
+                    {ticketSlots[activeTicketIndex]?.claimPhoto ? (
+                      <Image
+                        source={{ uri: ticketSlots[activeTicketIndex].claimPhoto }}
+                        style={ms.ticketHolderAvatarImage}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <Text style={ms.ticketHolderAvatarText}>{ticketSlots[activeTicketIndex]?.claimInitials}</Text>
+                    )}
+                  </View>
+                  <View style={{ marginLeft: 8, marginRight: 6, flex: 1, maxWidth: 172 }}>
+                    <Text style={[ms.ticketHolderName, { marginLeft: 0, marginRight: 0 }]} numberOfLines={1}>
+                      {ticketSlots[activeTicketIndex]?.claimName}
+                    </Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '600', marginTop: 1 }}>
+                      {ticketSlots[activeTicketIndex]?.bookingLabel}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      ms.ticketStatusPill,
+                      ticketSlots[activeTicketIndex]?.statusTone === 'available' && ms.ticketStatusPillAvailable,
+                      ticketSlots[activeTicketIndex]?.statusTone === 'used' && ms.ticketStatusPillUsed,
+                    ]}
+                  >
+                    <Text style={ms.ticketStatusPillText}>
+                      {ticketSlots[activeTicketIndex]?.statusTone === 'available'
+                        ? 'NOT CLAIMED'
+                        : ticketSlots[activeTicketIndex]?.statusTone === 'used'
+                          ? 'USED'
+                          : 'CLAIMED'}
+                    </Text>
+                  </View>
+                </View>
 
                 {/* ─── Action Rows ─── */}
                 <View style={ms.actionGroup}>
@@ -957,13 +1055,15 @@ function QRModal({
                   <View style={ms.actionRowDivider} />
                   <ActionRow
                     icon={Share2}
-                    label="Share Claim Link"
+                    label={sharingClosed ? 'Sharing Closed' : 'Share Claim Link'}
+                    disabled={sharingClosed}
                     onPress={() => setActiveSheet('share')}
                   />
                   <View style={ms.actionRowDivider} />
                   <ActionRow
                     icon={ArrowRightCircle}
-                    label="Transfer Tickets"
+                    label={transferClosed ? 'Transfers Closed' : 'Transfer Tickets'}
+                    disabled={transferClosed}
                     onPress={handleTransfer}
                   />
                   <View style={ms.actionRowDivider} />
@@ -1001,7 +1101,7 @@ function QRModal({
                   <View style={ms.actionRowDivider} />
                   <ActionRow
                     icon={CreditCard}
-                    label="Add to Apple Wallet"
+                    label={Platform.OS === 'ios' ? 'Add to Apple Wallet' : 'Add to Google Wallet'}
                     onPress={handleAddToWallet}
                   />
                   <View style={ms.actionRowDivider} />
@@ -1322,7 +1422,7 @@ const ms = StyleSheet.create({
   ticketSlotBadge: {
     position: 'absolute',
     bottom: 24,
-    right: 24,
+    alignSelf: 'center',
     backgroundColor: 'rgba(0,0,0,0.58)',
     borderRadius: 16,
     paddingHorizontal: 12,
@@ -1964,10 +2064,10 @@ function TicketCard({
     <AnimatedPressable
       entering={FadeInDown.delay(index * 70).duration(220)}
       onPressIn={() => {
-        scale.value = withSpring(0.96, { damping: 18, stiffness: 520, mass: 0.65 });
+        scale.value = withTiming(0.96, { duration: 250 });
       }}
       onPressOut={() => {
-        scale.value = withSpring(1, { damping: 18, stiffness: 520, mass: 0.65 });
+        scale.value = withTiming(1, { duration: 250 });
       }}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -2094,13 +2194,15 @@ function SegmentedHeader({
   onTabChange,
   upcomingCount,
   pastCount,
+  scrollX,
 }: {
   activeTab: TicketTab;
   onTabChange: (tab: TicketTab) => void;
   upcomingCount: number;
   pastCount: number;
+  scrollX: SharedValue<number>;
 }) {
-  const slideAnim = useSharedValue(activeTab === 'upcoming' ? 0 : 1);
+  const { width: windowWidth } = useWindowDimensions();
   const { user } = useAuthStore();
   const profile = useProfileStore((state) => state.profile);
   const avatarPhoto = resolveCurrentUserPhoto(profile, user);
@@ -2111,18 +2213,21 @@ function SegmentedHeader({
     .slice(0, 2)
     .toUpperCase();
 
-  useEffect(() => {
-    slideAnim.value = withTiming(activeTab === 'upcoming' ? 0 : 1, { duration: 250 });
-  }, [activeTab, slideAnim]);
-
   const handleTabPress = (tab: TicketTab) => {
     onTabChange(tab);
-    slideAnim.value = withTiming(tab === 'upcoming' ? 0 : 1, { duration: 250 });
   };
 
-  const animatedBgStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: slideAnim.value * TICKET_FILTER_THUMB_WIDTH }],
-  }));
+  const animatedBgStyle = useAnimatedStyle(() => {
+    const translateX = interpolate(
+      scrollX.value,
+      [0, windowWidth],
+      [0, TICKET_FILTER_THUMB_WIDTH],
+      Extrapolation.CLAMP
+    );
+    return {
+      transform: [{ translateX }],
+    };
+  });
 
   return (
     <View style={styles.headerRow}>
@@ -2197,7 +2302,12 @@ function getOrderGroupLabel(order: Order): string {
 
 export default function TicketsScreen() {
   const { orders: storeOrders, loading: storeLoading, error, fetchUserOrders } = useTicketsStore();
-  const { user } = useAuthStore();
+  const {
+    user,
+    loading: authLoading,
+    initialized: authInitialized,
+    authSyncFailed,
+  } = useAuthStore();
   const stats = (user as any)?.stats ?? {};
   const kpiActiveLinks = stats.activeLinks ?? 0;
   const kpiClicks = stats.totalClicks ?? 0;
@@ -2215,14 +2325,18 @@ export default function TicketsScreen() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
   const [cachedOrders, setCachedOrders] = useState<Order[]>([]);
+  const [storeOrdersUserId, setStoreOrdersUserId] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [globalWalletData, setGlobalWalletData] = useState<any>(null);
   const [globalWalletTxns, setGlobalWalletTxns] = useState<any[]>([]);
 
-  const fetchWallet = async () => {
-    if (!user?.uid) return;
+  const fetchWallet = async (requestedUserId: string) => {
     try {
-      const data = await apiFetch('/api/v1/cover-charge/me');
+      const data = await deduplicateRequest<any>(
+        `tickets:cover-charge-wallet:${requestedUserId}`,
+        () => apiFetch('/api/v1/cover-charge/me'),
+      );
+      if (useAuthStore.getState().user?.uid !== requestedUserId) return;
       if (data.wallet) {
         setGlobalWalletData(data.wallet);
         setGlobalWalletTxns(data.transactions || []);
@@ -2231,10 +2345,14 @@ export default function TicketsScreen() {
         setGlobalWalletTxns([]);
       }
     } catch {
+      if (useAuthStore.getState().user?.uid !== requestedUserId) return;
       setGlobalWalletData(null);
+      setGlobalWalletTxns([]);
     }
   };
   const loadCountRef = useRef(0);
+  const scrollX = useSharedValue(0);
+  const { width: windowWidth } = useWindowDimensions();
 
   useEffect(() => {
     activeTabRef.current = activeTab;
@@ -2243,18 +2361,15 @@ export default function TicketsScreen() {
   const changeTicketTab = useCallback((tab: TicketTab) => {
     if (activeTabRef.current === tab) return;
     activeTabRef.current = tab;
-    void Haptics.selectionAsync();
     setActiveTab(tab);
+    void Haptics.selectionAsync();
   }, []);
 
-  const handleWalletSwipe = useCallback(
-    (direction: 'next' | 'previous') => {
-      changeTicketTab(direction === 'next' ? 'past' : 'upcoming');
-    },
-    [changeTicketTab],
-  );
+  useEffect(() => {
+    scrollX.value = withTiming(activeTab === 'upcoming' ? 0 : windowWidth, { duration: 180 });
+  }, [activeTab, scrollX, windowWidth]);
 
-  const walletSwipeGesture = useMemo(
+  const ticketTabSwipeGesture = useMemo(
     () =>
       Gesture.Pan()
         .activeOffsetX([-24, 24])
@@ -2263,39 +2378,62 @@ export default function TicketsScreen() {
           const shouldSwitch =
             Math.abs(event.translationX) >= TICKET_TAB_SWIPE_DISTANCE ||
             Math.abs(event.velocityX) >= TICKET_TAB_SWIPE_VELOCITY;
-
           if (!shouldSwitch) return;
-
-          runOnJS(handleWalletSwipe)(event.translationX < 0 ? 'next' : 'previous');
+          runOnJS(changeTicketTab)(event.translationX < 0 ? 'past' : 'upcoming');
         }),
-    [handleWalletSwipe],
+    [changeTicketTab],
   );
 
   useEffect(() => {
     trackScreen('Tickets');
-    loadData();
+    loadCountRef.current += 1;
+    setCachedOrders([]);
+    setStoreOrdersUserId(null);
+    setIsOffline(false);
+    setGlobalWalletData(null);
+    setGlobalWalletTxns([]);
+    setSelectedOrder(null);
+    setShowQRModal(false);
+    if (user?.uid) void loadData(user.uid);
   }, [user?.uid]);
 
-  const loadData = async () => {
-    fetchWallet();
-    if (!user?.uid) return;
+  const loadData = async (requestedUserId = user?.uid) => {
+    if (!requestedUserId || requestedUserId !== useAuthStore.getState().user?.uid) return;
+    void fetchWallet(requestedUserId);
 
     const loadId = ++loadCountRef.current;
 
-    const cached = await getCachedUserOrders();
+    const cached = await getCachedUserOrders(requestedUserId);
+    if (
+      loadId !== loadCountRef.current ||
+      useAuthStore.getState().user?.uid !== requestedUserId
+    ) {
+      return;
+    }
     if (cached.data && cached.data.length > 0) {
       setCachedOrders(cached.data);
     }
 
     try {
       await fetchUserOrders();
-      if (loadId !== loadCountRef.current) return;
+      if (
+        loadId !== loadCountRef.current ||
+        useAuthStore.getState().user?.uid !== requestedUserId
+      ) {
+        return;
+      }
       const store = useTicketsStore.getState();
       if (store.error) {
         setIsOffline(true);
       } else {
-        await cacheUserOrders(store.orders);
-        if (loadId !== loadCountRef.current) return;
+        setStoreOrdersUserId(requestedUserId);
+        await cacheUserOrders(requestedUserId, store.orders);
+        if (
+          loadId !== loadCountRef.current ||
+          useAuthStore.getState().user?.uid !== requestedUserId
+        ) {
+          return;
+        }
         setIsOffline(false);
       }
     } catch (err) {
@@ -2308,35 +2446,31 @@ export default function TicketsScreen() {
     loadData();
   };
 
-  const orders = storeOrders;
+  const orders = storeOrdersUserId === user?.uid ? storeOrders : [];
   const loading = storeLoading;
-  const displayOrders = (loading || isOffline) && orders.length === 0 ? cachedOrders : orders;
+  const displayOrders = user?.uid
+    ? (loading || isOffline) && orders.length === 0
+      ? cachedOrders
+      : orders
+    : [];
   const nowMs = Date.now();
 
-  const upcomingOrders = displayOrders.filter((o) => {
-    if (!o.eventDate) return true;
-    return (safeDate(o.eventDate)?.getTime() ?? 0) >= nowMs;
-  });
-  const pastOrders = displayOrders.filter((o) => {
-    if (!o.eventDate) return false;
-    return (safeDate(o.eventDate)?.getTime() ?? 0) < nowMs;
-  });
+  const upcomingOrders = displayOrders.filter((order) => !isOrderEventEnded(order, nowMs));
+  const pastOrders = displayOrders.filter((order) => isOrderEventEnded(order, nowMs));
   const displayedOrders = activeTab === 'upcoming' ? upcomingOrders : pastOrders;
   const walletIsEmpty = upcomingOrders.length === 0 && pastOrders.length === 0;
   const showPendingReservationBanner =
     Boolean(pendingReservation) && Boolean(pendingPaymentOrderId);
   const pendingReservationExpired =
     showPendingReservationBanner && new Date(pendingReservation!.expiresAt).getTime() <= Date.now();
-  const groupedDisplayedOrders = useMemo(() => {
+  const getFlattened = useCallback((ordersList: Order[], isUpcoming: boolean) => {
     const groups = new Map<string, Order[]>();
-
-    displayedOrders.forEach((order) => {
+    ordersList.forEach((order) => {
       const label = getOrderGroupLabel(order);
       const current = groups.get(label) || [];
       current.push(order);
       groups.set(label, current);
     });
-
     return [...groups.entries()].map(([label, groupedOrders]) => ({
       label,
       orders: groupedOrders.sort((left, right) => {
@@ -2344,25 +2478,24 @@ export default function TicketsScreen() {
           safeDate(left.eventDate || left.eventStartDate || left.createdAt)?.getTime() ?? 0;
         const rightTime =
           safeDate(right.eventDate || right.eventStartDate || right.createdAt)?.getTime() ?? 0;
-        return activeTab === 'upcoming' ? leftTime - rightTime : rightTime - leftTime;
+        return isUpcoming ? leftTime - rightTime : rightTime - leftTime;
       }),
-    }));
-  }, [activeTab, displayedOrders]);
+    })).flatMap((g) => g.orders);
+  }, []);
 
-  const flattenedOrders = useMemo(() => {
-    return groupedDisplayedOrders.flatMap((g) => g.orders);
-  }, [groupedDisplayedOrders]);
+  const upcomingFlattened = useMemo(() => getFlattened(upcomingOrders, true), [getFlattened, upcomingOrders]);
+  const pastFlattened = useMemo(() => getFlattened(pastOrders, false), [getFlattened, pastOrders]);
 
   // If opened via deep link, auto-open the order sheet.
   useEffect(() => {
-    if (!orderId) return;
+    if (!user?.uid || !orderId) return;
     const linkedOrder = displayedOrders.find((o) => o.id === orderId);
     if (linkedOrder) {
       setSelectedOrder(linkedOrder);
       setShowQRModal(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId, orders, cachedOrders]);
+  }, [orderId, orders, cachedOrders, user?.uid]);
 
   useEffect(() => {
     if (!selectedOrder) return;
@@ -2378,13 +2511,50 @@ export default function TicketsScreen() {
     }
   }, [displayOrders, selectedOrder]);
 
-  useEffect(() => {
-    if (!showQRModal || !user?.uid) return;
-    const refreshTimer = setInterval(() => {
-      void fetchUserOrders();
-    }, 45_000);
-    return () => clearInterval(refreshTimer);
-  }, [fetchUserOrders, showQRModal, user?.uid]);
+  const authPending = authLoading || !authInitialized;
+  if (authPending || !user?.uid) {
+    const sessionUnavailable = !authPending && authSyncFailed;
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyEmoji}>{authPending ? '🎟️' : '🔒'}</Text>
+          <Text style={styles.emptyTitle}>
+            {authPending
+              ? 'Loading your wallet…'
+              : sessionUnavailable
+                ? 'We could not verify your session.'
+                : 'Sign in to view your tickets'}
+          </Text>
+          <Text style={styles.emptyText}>
+            {authPending
+              ? 'Your tickets will appear as soon as your session is ready.'
+              : sessionUnavailable
+                ? 'Sign in again to securely reload your ticket wallet.'
+                : 'Your purchased, shared, and claimed tickets are kept private to your account.'}
+          </Text>
+          {!authPending ? (
+            <Pressable
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({
+                  pathname: '/(auth)/login',
+                  params: { returnTo: '/(tabs)/tickets' },
+                });
+              }}
+              style={styles.emptyButton}
+            >
+              <LinearGradient
+                colors={gradients.primary as [string, string]}
+                style={styles.emptyButtonGradient}
+              >
+                <Text style={styles.emptyButtonText}>Sign In</Text>
+              </LinearGradient>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -2400,125 +2570,113 @@ export default function TicketsScreen() {
         />
       ) : null}
 
-      <GestureDetector gesture={walletSwipeGesture}>
-        <AnimatedFlatList
-          key={activeTab}
-          entering={FadeIn.duration(400)}
-          exiting={FadeOut.duration(300)}
-          data={flattenedOrders}
-          keyExtractor={(item: any) => item.id}
-          renderItem={({ item, index }: any) => (
-            <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
-              <TicketCard
-                order={item}
-                onShowQR={() => {
-                  setSelectedOrder(item);
-                  setShowQRModal(true);
-                }}
-                index={index}
-              />
+      <View style={styles.header}>
+        <SegmentedHeader
+          activeTab={activeTab}
+          onTabChange={changeTicketTab}
+          upcomingCount={upcomingOrders.length}
+          pastCount={pastOrders.length}
+          scrollX={scrollX}
+        />
+
+        {showPendingReservationBanner && pendingReservation ? (
+          <View style={styles.pendingReservationCard}>
+            <View style={styles.pendingReservationCopy}>
+              <Text style={styles.pendingReservationEyebrow}>
+                {pendingReservationExpired ? 'Reservation Expired' : 'Incomplete Payment'}
+              </Text>
+              <Text style={styles.pendingReservationTitle}>
+                {pendingReservationExpired
+                  ? 'Your ticket reservation has expired. You can still try to complete payment.'
+                  : pendingReservation.eventTitle || 'Your reserved tickets are waiting'}
+              </Text>
             </View>
-          )}
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-          overScrollMode="never"
-          contentContainerStyle={[
-            { paddingBottom: 120 },
-            displayedOrders.length === 0 && { flexGrow: 1 },
-          ]}
-          refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.iris} />
-          }
-          ListHeaderComponent={
-            <>
-              <View style={styles.header}>
-                <SegmentedHeader
-                  activeTab={activeTab}
-                  onTabChange={changeTicketTab}
-                  upcomingCount={upcomingOrders.length}
-                  pastCount={pastOrders.length}
-                />
+            <View style={styles.pendingReservationActions}>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  clearPendingReservation();
+                }}
+              >
+                <Text style={styles.pendingReservationDismiss}>Dismiss</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push('/checkout');
+                }}
+                style={styles.pendingReservationButton}
+              >
+                <Text style={styles.pendingReservationButtonText}>Resume</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+      </View>
 
-                {showPendingReservationBanner && pendingReservation ? (
-                  <View style={styles.pendingReservationCard}>
-                    <View style={styles.pendingReservationCopy}>
-                      <Text style={styles.pendingReservationEyebrow}>
-                        {pendingReservationExpired ? 'Reservation Expired' : 'Incomplete Payment'}
-                      </Text>
-                      <Text style={styles.pendingReservationTitle}>
-                        {pendingReservationExpired
-                          ? 'Your ticket reservation has expired. You can still try to complete payment.'
-                          : pendingReservation.eventTitle || 'Your reserved tickets are waiting'}
-                      </Text>
-                    </View>
-                    <View style={styles.pendingReservationActions}>
-                      <Pressable
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          clearPendingReservation();
-                        }}
-                      >
-                        <Text style={styles.pendingReservationDismiss}>Dismiss</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                          router.push('/checkout');
-                        }}
-                        style={styles.pendingReservationButton}
-                      >
-                        <Text style={styles.pendingReservationButtonText}>Resume</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                ) : null}
+      {error && !loading && displayOrders.length > 0 && (
+        <View style={styles.walletSyncBanner}>
+          <Text style={styles.walletSyncText} numberOfLines={2}>
+            Wallet sync failed. Showing saved tickets.
+          </Text>
+          <Pressable onPress={onRefresh} style={styles.walletSyncRetry}>
+            <Text style={styles.walletSyncRetryText}>Retry</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {loading && displayOrders.length === 0 && <SkeletonList count={3} />}
+
+      {error && !loading && displayOrders.length === 0 && !isOffline && (
+        <ErrorState
+          message="Failed to load your tickets. Please try again."
+          onRetry={onRefresh}
+        />
+      )}
+
+      {isOffline && displayOrders.length === 0 && !loading && (
+        <NetworkError onRetry={onRefresh} />
+      )}
+
+      <GestureDetector gesture={ticketTabSwipeGesture}>
+        <View style={{ flex: 1 }}>
+          {activeTab === 'upcoming' ? (
+          <FlatList
+            data={upcomingFlattened}
+            keyExtractor={(item: any) => item.id}
+            renderItem={({ item, index }: any) => (
+              <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
+                <TicketCard
+                  order={item}
+                  onShowQR={() => {
+                    setSelectedOrder(item);
+                    setShowQRModal(true);
+                  }}
+                  index={index}
+                />
               </View>
-
-              {error && !loading && displayOrders.length > 0 && (
-                <View style={styles.walletSyncBanner}>
-                  <Text style={styles.walletSyncText} numberOfLines={2}>
-                    Wallet sync failed. Showing saved tickets.
+            )}
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            overScrollMode="never"
+            contentContainerStyle={[
+              { paddingBottom: 120 },
+              upcomingFlattened.length === 0 && { flexGrow: 1 },
+            ]}
+            refreshControl={
+              <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.iris} />
+            }
+            ListEmptyComponent={
+              !loading && upcomingFlattened.length === 0 && !error ? (
+                <Animated.View entering={FadeIn.delay(200)} style={styles.emptyContainer}>
+                  <Text style={styles.emptyEmoji}>🎟️</Text>
+                  <Text style={styles.emptyTitle}>
+                    {walletIsEmpty ? 'Your wallet is empty.' : 'No Upcoming Tickets'}
                   </Text>
-                  <Pressable onPress={onRefresh} style={styles.walletSyncRetry}>
-                    <Text style={styles.walletSyncRetryText}>Retry</Text>
-                  </Pressable>
-                </View>
-              )}
-
-              {loading && displayOrders.length === 0 && <SkeletonList count={3} />}
-
-              {error && !loading && displayOrders.length === 0 && !isOffline && (
-                <ErrorState
-                  message="Failed to load your tickets. Please try again."
-                  onRetry={onRefresh}
-                />
-              )}
-
-              {isOffline && displayOrders.length === 0 && !loading && (
-                <NetworkError onRetry={onRefresh} />
-              )}
-            </>
-          }
-          ListEmptyComponent={
-            !loading && displayedOrders.length === 0 && !error ? (
-              <Animated.View entering={FadeIn.delay(200)} style={styles.emptyContainer}>
-                <Text style={styles.emptyEmoji}>🎟️</Text>
-                <Text style={styles.emptyTitle}>
-                  {walletIsEmpty
-                    ? 'Your wallet is empty.'
-                    : activeTab === 'upcoming'
-                      ? 'No Upcoming Tickets'
-                      : 'No Past Tickets'}
-                </Text>
-                <Text style={styles.emptyText}>
-                  {walletIsEmpty
-                    ? 'Find your next party and grab a ticket.'
-                    : activeTab === 'upcoming'
-                      ? 'Your purchased tickets will appear here'
-                      : 'Your attended events will appear here'}
-                </Text>
-                {(walletIsEmpty || activeTab === 'upcoming') && (
+                  <Text style={styles.emptyText}>
+                    {walletIsEmpty ? 'Find your next party and grab a ticket.' : 'Your purchased tickets will appear here'}
+                  </Text>
                   <Pressable
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -2533,11 +2691,69 @@ export default function TicketsScreen() {
                       <Text style={styles.emptyButtonText}>Explore Events</Text>
                     </LinearGradient>
                   </Pressable>
-                )}
-              </Animated.View>
-            ) : null
-          }
-        />
+                </Animated.View>
+              ) : null
+            }
+          />
+          ) : (
+          <FlatList
+            data={pastFlattened}
+            keyExtractor={(item: any) => item.id}
+            renderItem={({ item, index }: any) => (
+              <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
+                <TicketCard
+                  order={item}
+                  onShowQR={() => {
+                    setSelectedOrder(item);
+                    setShowQRModal(true);
+                  }}
+                  index={index}
+                />
+              </View>
+            )}
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            overScrollMode="never"
+            contentContainerStyle={[
+              { paddingBottom: 120 },
+              pastFlattened.length === 0 && { flexGrow: 1 },
+            ]}
+            refreshControl={
+              <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.iris} />
+            }
+            ListEmptyComponent={
+              !loading && pastFlattened.length === 0 && !error ? (
+                <Animated.View entering={FadeIn.delay(200)} style={styles.emptyContainer}>
+                  <Text style={styles.emptyEmoji}>🎟️</Text>
+                  <Text style={styles.emptyTitle}>
+                    {walletIsEmpty ? 'Your wallet is empty.' : 'No Past Tickets'}
+                  </Text>
+                  <Text style={styles.emptyText}>
+                    {walletIsEmpty ? 'Find your next party and grab a ticket.' : 'Your attended events will appear here'}
+                  </Text>
+                  {walletIsEmpty && (
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push('/(tabs)/explore');
+                      }}
+                      style={styles.emptyButton}
+                    >
+                      <LinearGradient
+                        colors={gradients.primary as [string, string]}
+                        style={styles.emptyButtonGradient}
+                      >
+                        <Text style={styles.emptyButtonText}>Explore Events</Text>
+                      </LinearGradient>
+                    </Pressable>
+                  )}
+                </Animated.View>
+              ) : null
+            }
+          />
+          )}
+        </View>
       </GestureDetector>
     </View>
   );

@@ -172,6 +172,11 @@ declare module '@c1rcle/core/order-engine' {
   export function isPaymentPendingOrderStatus(status: string): boolean;
   export function buildOrderPayload(params: any): any;
   export function executeOrderCreation(transaction: any, params: any): Promise<any>;
+  export function cancelOrder(orderId: string): Promise<any>;
+  export function cleanupStaleOrders(
+    userId?: string | null,
+    batchSize?: number,
+  ): Promise<{ cleaned: number; hasMore: boolean }>;
 }
 
 declare module '@c1rcle/core/finance-engine' {
@@ -230,6 +235,11 @@ declare module '@c1rcle/core/waitlist-engine' {
 }
 
 declare module '@c1rcle/core/guest-chat-service' {
+  export function hasActiveEventEntitlement(
+    db: any,
+    userId: string,
+    eventId: string,
+  ): Promise<boolean>;
   export function ensureEventChatMembership(
     db: any,
     payload: {
@@ -253,6 +263,7 @@ declare module '@c1rcle/core/guest-chat-service' {
     chatId: string,
     options?: { limit?: number; before?: string | null },
   ): Promise<any>;
+  export function countApprovedEventMedia(db: any, eventId: string): Promise<number>;
   export function sendChatMessage(
     db: any,
     userId: string,

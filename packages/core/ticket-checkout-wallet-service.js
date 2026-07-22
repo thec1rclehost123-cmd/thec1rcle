@@ -268,7 +268,13 @@ function buildTicketDocuments(order, issuedAt) {
 
 function buildOrderQrCodes(ticketDocs) {
   return ticketDocs.map((ticket, index) => {
-    const qrValue = ticket.id;
+    const rawQrValue = ticket.qrPayload || ticket.qrData || ticket.id;
+    const qrValue =
+      typeof rawQrValue === 'string'
+        ? rawQrValue
+        : typeof rawQrValue?.token === 'string'
+          ? rawQrValue.token
+          : ticket.id;
     return {
       ticketId: ticket.id,
       tierId: ticket.tierId,
@@ -281,6 +287,10 @@ function buildOrderQrCodes(ticketDocs) {
       qrPayload: qrValue,
       qrExpiresAt: null,
       isUsed: ticket.status === 'used',
+      // Wallet rows are queried by their current userId, so this QR belongs to
+      // the authenticated wallet owner. Share/transfer flows move ownership;
+      // an absent flag must not make the buyer's valid QR look unclaimed.
+      isClaimed: true,
     };
   });
 }
@@ -571,17 +581,33 @@ function mapOrderForWallet(order, tickets, event) {
   const bookingCodes = orderBookingCodes.length ? orderBookingCodes : ticketBookingCodes;
   const bookingCode =
     order.bookingCode || bookingCodes[0]?.bookingCode || tickets[0]?.bookingCode || null;
-  const ticketGroups = normalizeOrderTickets(order).map((ticket) => ({
-    ticketId: ticket.ticketId || ticket.tierId || ticket.id,
-    tierId: ticket.tierId || ticket.ticketId || ticket.id,
-    tierName: ticket.tierName || ticket.name || 'General Entry',
-    quantity: Number(ticket.quantity || 1),
-    price: Number(ticket.price || 0),
-    subtotal: Number(ticket.total ?? ticket.subtotal ?? 0),
-    entryType: ticket.entryType || 'general',
-    requiredGender: ticket.requiredGender || ticket.genderRequirement || undefined,
-    isClaimed: true,
-  }));
+  // Derive quantities from the ticket rows the authenticated user currently
+  // owns. The order snapshot is purchase history and becomes stale after a
+  // share or transfer; using it here can expose a QR that no longer belongs to
+  // the buyer or can overstate the recipient's ticket count.
+  const ticketGroupsByTier = new Map();
+  tickets.forEach((ticket) => {
+    const tierId = ticket.tierId || ticket.ticketId || ticket.id;
+    const existing = ticketGroupsByTier.get(tierId);
+    if (existing) {
+      existing.quantity += 1;
+      existing.subtotal += Number(ticket.price || 0);
+      return;
+    }
+    ticketGroupsByTier.set(tierId, {
+      ticketId: ticket.id,
+      tierId,
+      tierName: ticket.tierName || ticket.ticketType || 'General Entry',
+      quantity: 1,
+      price: Number(ticket.price || 0),
+      subtotal: Number(ticket.price || 0),
+      entryType: ticket.entryType || 'general',
+      requiredGender: ticket.requiredGender || undefined,
+      receivedFrom: ticket.receivedFrom || undefined,
+      isClaimed: true,
+    });
+  });
+  const ticketGroups = [...ticketGroupsByTier.values()];
 
   return {
     id: order.id,
@@ -590,13 +616,16 @@ function mapOrderForWallet(order, tickets, event) {
     userName: order.userName || undefined,
     eventId: order.eventId,
     eventTitle: order.eventTitle || order.eventName || event?.title || undefined,
+    // The event document is canonical when an event is rescheduled. Order
+    // snapshots remain useful for audit history, but must not make a valid
+    // upcoming ticket appear in the past.
     eventDate:
-      normalizeDate(order.eventDate || order.eventStartDate || order.startDate) ||
       event?.date ||
+      normalizeDate(order.eventDate || order.eventStartDate || order.startDate) ||
       undefined,
     eventStartDate:
-      normalizeDate(order.eventStartDate || order.eventDate || order.startDate) ||
       event?.date ||
+      normalizeDate(order.eventStartDate || order.eventDate || order.startDate) ||
       undefined,
     eventTime: order.eventTime || event?.time || undefined,
     eventCoverImage:
@@ -675,10 +704,58 @@ async function fetchOrderDocsBulk(db, orderIds) {
 export async function getUserTicketWallet({ db = getAdminDb(), userId }) {
   if (!userId) throw codedError('Unauthorized', 'UNAUTHORIZED');
 
-  const ticketsSnap = await db.collection('tickets').where('userId', '==', userId).limit(20).get();
-  const tickets = ticketsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  // An unordered limit can permanently hide a just-purchased ticket once a
+  // user has enough historical wallet rows. Keep the working set bounded but
+  // deterministic, with the newest purchases first.
+  let ticketDocs;
+  let assignmentDocs;
+  try {
+    const [ticketsSnap, assignmentsSnap] = await Promise.all([
+      db
+        .collection('tickets')
+        .where('userId', '==', userId)
+        .orderBy('createdAt', 'desc')
+        .limit(50)
+        .get(),
+      db
+        .collection('ticket_assignments')
+        .where('redeemerId', '==', userId)
+        .orderBy('createdAt', 'desc')
+        .limit(50)
+        .get(),
+    ]);
+    ticketDocs = ticketsSnap.docs;
+    assignmentDocs = assignmentsSnap.docs;
+  } catch (error) {
+    // Keep wallet reads available while a newly deployed composite index is
+    // still building. Once the index is ready, the bounded query above is used.
+    if (error?.code !== 9 && error?.code !== 'FAILED_PRECONDITION') throw error;
+    const [fallbackSnap, assignmentFallbackSnap] = await Promise.all([
+      db.collection('tickets').where('userId', '==', userId).get(),
+      db.collection('ticket_assignments').where('redeemerId', '==', userId).get(),
+    ]);
+    ticketDocs = fallbackSnap.docs
+      .sort((left, right) =>
+        String(right.data()?.createdAt || '').localeCompare(String(left.data()?.createdAt || '')),
+      )
+      .slice(0, 50);
+    assignmentDocs = assignmentFallbackSnap.docs
+      .sort((left, right) =>
+        String(right.data()?.createdAt || '').localeCompare(String(left.data()?.createdAt || '')),
+      )
+      .slice(0, 50);
+  }
+  let tickets = ticketDocs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter((ticket) => !ticket.status || ticket.status === 'active' || ticket.status === 'used');
+  const assignments = assignmentDocs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter(
+      (assignment) =>
+        assignment.status === 'active' || assignment.status === 'used' || !assignment.status,
+    );
 
-  if (!tickets.length) {
+  if (!tickets.length && !assignments.length) {
     return {
       orders: [],
       tickets: [],
@@ -686,7 +763,11 @@ export async function getUserTicketWallet({ db = getAdminDb(), userId }) {
     };
   }
 
-  const orderIds = [...new Set(tickets.map((ticket) => ticket.orderId).filter(Boolean))];
+  const orderIds = [
+    ...new Set(
+      [...tickets, ...assignments].map((ticket) => ticket.orderId).filter(Boolean),
+    ),
+  ];
   const orderMap = await fetchOrderDocsBulk(db, orderIds);
 
   const orders = [];
@@ -697,8 +778,24 @@ export async function getUserTicketWallet({ db = getAdminDb(), userId }) {
     }
   });
 
-  const eventIds = [...new Set(orders.map((order) => order.eventId).filter(Boolean))];
-  const eventDocs = await fetchDocsInChunks(db, 'events', eventIds);
+  const assignmentOrderIds = new Set(assignments.map((assignment) => assignment.orderId));
+  const assignmentOrders = [...assignmentOrderIds]
+    .map((orderId) => orderMap.get(orderId))
+    .filter((order) => order && order.status === 'confirmed');
+
+  const eventIds = [
+    ...new Set(
+      [...orders, ...assignmentOrders].map((order) => order.eventId).filter(Boolean),
+    ),
+  ];
+  const [eventDocs, sourceTicketDocs] = await Promise.all([
+    fetchDocsInChunks(db, 'events', eventIds),
+    fetchDocsInChunks(
+      db,
+      'tickets',
+      assignments.map((assignment) => assignment.originalTicketId),
+    ),
+  ]);
   const eventMap = new Map();
   eventDocs.forEach((doc) => {
     const event = eventFromDoc(doc);
@@ -709,6 +806,52 @@ export async function getUserTicketWallet({ db = getAdminDb(), userId }) {
   const walletOrders = orders.map((order) => {
     const orderTickets = tickets.filter((ticket) => ticket.orderId === order.id);
     return mapOrderForWallet(order, orderTickets, eventMap.get(order.eventId));
+  });
+
+  const sourceTicketsById = new Map(
+    sourceTicketDocs.map((doc) => [doc.id, { id: doc.id, ...doc.data() }]),
+  );
+  const assignmentTickets = assignments.map((assignment) => {
+    const sourceTicket = sourceTicketsById.get(assignment.originalTicketId) || {};
+    const signedQrPayload =
+      typeof assignment.qrPayload === 'string'
+        ? assignment.qrPayload
+        : typeof assignment.qrPayload?.token === 'string'
+          ? assignment.qrPayload.token
+          : assignment.assignmentId || assignment.id;
+    return {
+      ...sourceTicket,
+      ...assignment,
+      id: assignment.assignmentId || assignment.id,
+      ticketId: assignment.assignmentId || assignment.id,
+      tierId: assignment.tierId || sourceTicket.tierId || null,
+      tierName:
+        assignment.ticketType || sourceTicket.tierName || sourceTicket.ticketType || 'Transferred Pass',
+      bookingCode: sourceTicket.bookingCode || null,
+      qrMode: 'signed_assignment',
+      qrData: signedQrPayload,
+      qrCode: signedQrPayload,
+      qrPayload: signedQrPayload,
+      userId,
+      source: 'transfer',
+    };
+  });
+  assignmentOrders.forEach((order) => {
+    const ownedAssignments = assignmentTickets.filter((ticket) => ticket.orderId === order.id);
+    if (!ownedAssignments.length) return;
+    walletOrders.push(
+      mapOrderForWallet(
+        {
+          ...order,
+          userId,
+          source: 'transfer',
+          bookingCode: ownedAssignments[0]?.bookingCode || null,
+          bookingCodes: [],
+        },
+        ownedAssignments,
+        eventMap.get(order.eventId),
+      ),
+    );
   });
 
   const walletTickets = tickets
@@ -725,7 +868,8 @@ export async function getUserTicketWallet({ db = getAdminDb(), userId }) {
         qrJwt: null,
         qrExpiresAt: null,
       };
-    });
+    })
+    .concat(assignmentTickets);
 
   return {
     orders: walletOrders.sort((left, right) => {

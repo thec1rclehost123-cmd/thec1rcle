@@ -13,6 +13,22 @@ export interface AuditLogInput {
   payload?: Record<string, unknown>;
 }
 
+function removeUndefined(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => (item === undefined ? null : removeUndefined(item)));
+  }
+
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, item]) => item !== undefined)
+        .map(([key, item]) => [key, removeUndefined(item)]),
+    );
+  }
+
+  return value;
+}
+
 export async function writeAuditLog(fastify: FastifyInstance, input: AuditLogInput) {
   const entryId = randomUUID();
   await fastify.db
@@ -28,7 +44,7 @@ export async function writeAuditLog(fastify: FastifyInstance, input: AuditLogInp
       entityId: input.entityId || null,
       entityType: input.entityType || null,
       requestId: input.requestId || null,
-      payload: input.payload || {},
+      payload: removeUndefined(input.payload || {}),
       createdAt: new Date().toISOString(),
     });
 }

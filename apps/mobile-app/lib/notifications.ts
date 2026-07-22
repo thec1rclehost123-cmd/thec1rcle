@@ -7,6 +7,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch } from './api';
 
 const PUSH_TOKEN_KEY = '@c1rcle/pushToken';
+const PUSH_TOKEN_REVOKE_TIMEOUT_MS = 2_000;
+
+function pushTokenKey(userId: string): string {
+  return `${PUSH_TOKEN_KEY}:${userId}`;
+}
+
+function getDeviceId(): string {
+  return `${Platform.OS}-${Device.osBuildId || Device.modelId || 'unknown'}`;
+}
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -19,26 +28,30 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Request notification permissions
+async function ensureAndroidNotificationChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+
+  await Notifications.setNotificationChannelAsync('default', {
+    name: 'Default',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#6D5DF6',
+  });
+}
+
+// Request notification permissions. Only call this after an explicit user action.
 export async function requestNotificationPermissions(): Promise<boolean> {
   if (!Device.isDevice) {
     if (__DEV__) console.log('Push notifications only work on physical devices');
     return false;
   }
 
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#6D5DF6',
-    });
-  }
+  await ensureAndroidNotificationChannel();
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  const { status: existingStatus, canAskAgain } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
-  if (existingStatus !== 'granted') {
+  if (existingStatus !== 'granted' && canAskAgain !== false) {
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
   }
@@ -65,10 +78,18 @@ export type PushTokenResult =
   | { error: 'no_project_id' }
   | { error: 'system_error'; message: string };
 
-// Get Expo push token
-export async function getExpoPushToken(): Promise<PushTokenResult | null> {
+// Get Expo push token without surprising the user with a system permission dialog.
+export async function getExpoPushToken(
+  options: { requestPermission?: boolean } = {},
+): Promise<PushTokenResult | null> {
   try {
-    const hasPermission = await requestNotificationPermissions();
+    if (!Device.isDevice) return { error: 'permission_denied' };
+
+    await ensureAndroidNotificationChannel();
+    const existingPermission = await Notifications.getPermissionsAsync();
+    const hasPermission =
+      existingPermission.status === 'granted' ||
+      (options.requestPermission === true && await requestNotificationPermissions());
     if (!hasPermission) return { error: 'permission_denied' };
 
     const projectId = getEasProjectId();
@@ -92,7 +113,7 @@ async function sendDeviceTokenToGateway(token: string): Promise<void> {
       token,
       provider: 'expo',
       platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'unknown',
-      deviceId: `${Platform.OS}-${Device.osBuildId || Device.modelId || 'unknown'}`,
+      deviceId: getDeviceId(),
       projectId: getEasProjectId(),
       appVersion: Constants.expoConfig?.version || 'unknown',
     }),
@@ -100,10 +121,67 @@ async function sendDeviceTokenToGateway(token: string): Promise<void> {
   });
 }
 
-// Register push token with user profile — via API gateway
-export async function registerPushToken(userId: string): Promise<boolean> {
+/**
+ * Best-effort remote token revocation performed before Firebase sign-out.
+ * The remote request is bounded so a slow gateway can never trap the user in
+ * the logged-in state. The account-scoped local registration is always removed.
+ */
+export async function revokePushToken(
+  userId: string,
+  options: { timeoutMs?: number } = {},
+): Promise<boolean> {
+  const timeoutMs = Math.max(0, options.timeoutMs ?? PUSH_TOKEN_REVOKE_TIMEOUT_MS);
+  let active = true;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const revokeRemote = async (): Promise<boolean> => {
+    let token = await AsyncStorage.getItem(pushTokenKey(userId));
+    if (!active) return false;
+
+    if (!token) {
+      const result = await getExpoPushToken({ requestPermission: false });
+      if (!active || !result || 'error' in result) return false;
+      token = result.token;
+    }
+
+    if (!active) return false;
+    await apiFetch('/api/v1/users/me/device-token', {
+      method: 'DELETE',
+      body: JSON.stringify({ token, deviceId: getDeviceId() }),
+      requireAuth: true,
+    });
+    return true;
+  };
+
   try {
-    const result = await getExpoPushToken();
+    const timeout = new Promise<boolean>((resolve) => {
+      timeoutId = setTimeout(() => {
+        active = false;
+        resolve(false);
+      }, timeoutMs);
+    });
+    return await Promise.race([revokeRemote(), timeout]);
+  } catch (error) {
+    if (__DEV__) console.warn('Error revoking push token:', error);
+    return false;
+  } finally {
+    active = false;
+    if (timeoutId) clearTimeout(timeoutId);
+    try {
+      await AsyncStorage.removeItem(pushTokenKey(userId));
+    } catch (error) {
+      if (__DEV__) console.warn('Error clearing local push token:', error);
+    }
+  }
+}
+
+// Register push token with user profile — via API gateway
+export async function registerPushToken(
+  userId: string,
+  options: { requestPermission?: boolean } = {},
+): Promise<boolean> {
+  try {
+    const result = await getExpoPushToken(options);
     if (!result || 'error' in result) {
       if (result && result.error === 'permission_denied') {
         if (__DEV__) console.log('Push notification permission not granted');
@@ -112,7 +190,7 @@ export async function registerPushToken(userId: string): Promise<boolean> {
     }
 
     await sendDeviceTokenToGateway(result.token);
-    await AsyncStorage.setItem(PUSH_TOKEN_KEY, result.token);
+    await AsyncStorage.setItem(pushTokenKey(userId), result.token);
 
     return true;
   } catch (error) {
@@ -213,15 +291,15 @@ export async function setBadgeCount(count: number): Promise<void> {
  */
 export async function refreshPushToken(userId: string): Promise<void> {
   try {
-    const result = await getExpoPushToken();
+    const result = await getExpoPushToken({ requestPermission: false });
     if (!result || 'error' in result) return;
 
-    const storedToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+    const storedToken = await AsyncStorage.getItem(pushTokenKey(userId));
     if (storedToken === result.token) return;
 
     await sendDeviceTokenToGateway(result.token);
 
-    await AsyncStorage.setItem(PUSH_TOKEN_KEY, result.token);
+    await AsyncStorage.setItem(pushTokenKey(userId), result.token);
   } catch (error) {
     if (__DEV__) console.error('Error refreshing push token:', error);
   }

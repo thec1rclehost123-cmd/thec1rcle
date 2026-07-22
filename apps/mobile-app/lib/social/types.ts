@@ -101,6 +101,13 @@ export interface DirectMessage {
   readAt?: any;
   isDeleted?: boolean;
   isLiked?: boolean;
+  replyTo?: string;
+  replyContext?: {
+    type: 'prompt' | 'photo';
+    title: string;
+    answer?: string;
+    imageUrl?: string;
+  };
 }
 
 // Block record

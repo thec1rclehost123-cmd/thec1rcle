@@ -1018,7 +1018,6 @@ export default async function authRoutes(fastify: FastifyInstance) {
       preHandler: [fastify.validate({ body: OtpSendSchema })],
     },
     async (request: any, reply) => {
-      const { sendGuestOtp } = await import('../../lib/guest-otp');
       const { type, recipient } = request.body;
 
       try {
@@ -1043,7 +1042,6 @@ export default async function authRoutes(fastify: FastifyInstance) {
       preHandler: [fastify.validate({ body: OtpVerifySchema })],
     },
     async (request: any, reply) => {
-      const { verifyGuestOtp } = await import('../../lib/guest-otp');
       const { type, recipient, code } = request.body;
 
       try {

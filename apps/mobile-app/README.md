@@ -56,8 +56,11 @@ mobile-app/
 ├── app/                    # Expo Router screens
 │   ├── (auth)/             # Authentication flow
 │   │   ├── login.tsx
-│   │   ├── signup.tsx
+│   │   ├── phone.tsx
+│   │   ├── otp.tsx
+│   │   ├── signup.tsx      # Legacy redirect
 │   │   └── forgot-password.tsx
+│   ├── (first-run)/        # Canonical account and discovery setup
 │   ├── (tabs)/             # Main tab navigation
 │   │   ├── _layout.tsx     # Premium tab bar with animations
 │   │   ├── explore.tsx     # Event discovery
@@ -116,8 +119,9 @@ mobile-app/
 ## 🧭 Navigation Structure
 
 ### Auth Flow (`/(auth)`)
-- `/login` - Email/password login
-- `/signup` - Create account
+- `/login` - Apple, Google, phone, or guest entry
+- `/phone` and `/otp` - Phone sign-in and provider-account phone linking
+- `/signup` - Legacy link redirected to Login
 - `/forgot-password` - Password reset
 
 ### Main Tabs (`/(tabs)`)
@@ -149,11 +153,8 @@ Auth is managed by Firebase and the `authStore`:
 // Check auth state
 const { user, initialized } = useAuthStore();
 
-// Login
-await loginWithEmail(email, password);
-
-// Signup
-await signupWithEmail(email, password);
+// Provider or phone authentication is exposed through useAuth().
+// Every completed account is synchronized with a Firebase-verified phone.
 
 // Logout
 await logout();

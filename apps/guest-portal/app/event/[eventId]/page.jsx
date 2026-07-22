@@ -55,21 +55,38 @@ export async function generateMetadata({ params }) {
   const image = getEventImage(event);
   const canonical = `${getSiteUrl()}/event/${encodeURIComponent(event.slug || event.id || eventId)}`;
 
+  const startDate = event.startDateTime || event.startAt || event.startDate;
+  const venueName = event.venueName || event.venue || event.location;
+  let dateStr = '';
+  if (startDate) {
+    const d = new Date(startDate);
+    if (!isNaN(d.getTime())) {
+      dateStr = d.toLocaleDateString('en-IN', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }) + ' • ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    }
+  }
+  const richDescription = [dateStr, venueName, description].filter(Boolean).join(' | ');
+
   return {
     title: buildTitle(title),
-    description,
+    description: richDescription,
     alternates: { canonical },
     openGraph: {
       title,
-      description,
+      description: richDescription,
       url: canonical,
       type: 'website',
+      siteName: 'THE.C1RCLE',
       images: [{ url: image, width: 1200, height: 630, alt: title }],
     },
     twitter: {
       card: 'summary_large_image',
       title,
-      description,
+      description: richDescription,
       images: [image],
     },
   };

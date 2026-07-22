@@ -235,11 +235,11 @@ export default function SocialSetupPhotos() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.Text entering={FadeInDown.delay(40).springify().damping(18)} style={styles.title}>
+        <Animated.Text entering={FadeInDown.delay(40)} style={styles.title}>
           Add your photos
         </Animated.Text>
         <Animated.Text
-          entering={FadeInDown.delay(80).springify().damping(18)}
+          entering={FadeInDown.delay(80)}
           style={styles.subtitle}
         >
           First photo is your main pic. Add up to 6.
@@ -247,7 +247,7 @@ export default function SocialSetupPhotos() {
 
         {/* ── Top row: 1 large + 2 small stacked ── */}
         <Animated.View
-          entering={FadeInDown.delay(140).springify().damping(16)}
+          entering={FadeInDown.delay(140)}
           style={styles.topRow}
         >
           <PhotoSlot {...slotProps(0)} width={LARGE_W} height={LARGE_H} />
@@ -259,7 +259,7 @@ export default function SocialSetupPhotos() {
 
         {/* ── Bottom row: 3 equal ── */}
         <Animated.View
-          entering={FadeInDown.delay(200).springify().damping(16)}
+          entering={FadeInDown.delay(200)}
           style={styles.bottomRow}
         >
           <PhotoSlot {...slotProps(3)} width={THIRD_W} height={THIRD_H} />
@@ -267,7 +267,7 @@ export default function SocialSetupPhotos() {
           <PhotoSlot {...slotProps(5)} width={THIRD_W} height={THIRD_H} />
         </Animated.View>
 
-        <Animated.Text entering={FadeInDown.delay(260).springify().damping(18)} style={styles.tip}>
+        <Animated.Text entering={FadeInDown.delay(260)} style={styles.tip}>
           💡 Clear solo face shots get 3× more matches
         </Animated.Text>
       </ScrollView>

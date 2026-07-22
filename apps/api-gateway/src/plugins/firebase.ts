@@ -44,6 +44,7 @@ import { buildRequestAuthContext, type RequestAuthContext } from '../lib/auth-co
 import { writeAuditLog as persistAuditLog, type AuditLogInput } from '../lib/audit-log';
 import { parseCookieHeader, verifyGuestCsrfRequest } from '../lib/guest-csrf';
 import { PromoterServiceV2 } from '../services/promoter-v2';
+import { createRequireVerifiedPhone } from '../lib/verified-phone-guard';
 
 export default fp(async (fastify) => {
   if (!getApps().length) {
@@ -147,6 +148,7 @@ export default fp(async (fastify) => {
   fastify.decorateRequest('user', null);
   fastify.decorateRequest('authContext', null);
   fastify.decorateRequest('authVerification', null);
+  fastify.decorateRequest('verifiedPhone', null);
   fastify.decorateRequest('workspaceId', null);
   fastify.decorateRequest('workspace', null); // 🏢 SaaS: Full workspace metadata
 
@@ -420,6 +422,10 @@ export default fp(async (fastify) => {
     }
   });
 
+  // Consumer safety guard. Profile fields and stale ID-token claims are never
+  // verification proof; current Firebase Admin auth data is authoritative.
+  fastify.decorate('requireVerifiedPhone', createRequireVerifiedPhone(auth));
+
   // Partner Access Guard — auth + ownership/membership check in one preHandler
   // Usage: preHandler: [fastify.requirePartnerAccess((req) => req.params.id)]
   fastify.decorate('requirePartnerAccess', (getPartnerId: (request: any) => string) => {
@@ -599,6 +605,7 @@ declare module 'fastify' {
     enrichAuthContext: (request: any) => Promise<void>;
     verifyPartnerAccess: (request: any, partnerId: string) => Promise<boolean>;
     requireAuth: (request: any, reply: any) => Promise<void>;
+    requireVerifiedPhone: (request: any, reply: any) => Promise<void>;
     requirePartnerAccess: (
       getPartnerId: (request: any) => string,
     ) => (request: any, reply: any) => Promise<void>;
@@ -610,6 +617,7 @@ declare module 'fastify' {
     user: DecodedIdToken | null;
     authContext: RequestAuthContext | null;
     authVerification: Record<string, any> | null;
+    verifiedPhone: string | null;
     workspaceId: string | null;
     workspace: any | null;
   }

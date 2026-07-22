@@ -63,19 +63,8 @@ function buildWebhookRawBody(request: any): string {
 }
 
 export default async function paymentRoutes(fastify: FastifyInstance) {
-  fastify.addContentTypeParser(
-    'application/json',
-    { parseAs: 'buffer' },
-    (_req: any, body, done) => {
-      _req.rawBody = (body as Buffer).toString('utf8');
-      try {
-        done(null, JSON.parse(_req.rawBody));
-      } catch (err: any) {
-        done(err, undefined);
-      }
-    },
-  );
-
+  const requireVerifiedPhone =
+    (fastify as any).requireVerifiedPhone || (fastify as any).requireAuth;
   /**
    * GET /api/v1/payments/config
    * Get Razorpay client configuration
@@ -91,7 +80,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/payments/order',
     {
-      preHandler: [fastify.requireAuth, fastify.validate({ body: PaymentOrderBody })],
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: PaymentOrderBody })],
     },
     async (request: { body: any; user: any }, reply) => {
       const { orderId } = request.body;
@@ -139,11 +128,15 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
           userId,
           razorpayOrderId: result?.razorpayOrderId,
         });
+        reply.header('Deprecation', 'true');
+        reply.header('Link', '</api/v1/checkout/initiate>; rel="successor-version"');
         return result;
       } catch (error: any) {
         fastify.log.error(`Payment order failed: ${error.message}`);
         const status =
-          error.message === 'Forbidden'
+          error.code === 'STALE_CART' || error.code === 'EVENT_NOT_PURCHASABLE'
+            ? 409
+            : error.message === 'Forbidden'
             ? 403
             : error.message === 'Order not found'
               ? 404
@@ -155,7 +148,9 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         return reply.status(status).send(
           buildErrorResponse({
             code:
-              status === 403
+              error.code === 'STALE_CART' || error.code === 'EVENT_NOT_PURCHASABLE'
+                ? error.code
+                : status === 403
                 ? 'FORBIDDEN'
                 : status === 404
                   ? 'NOT_FOUND'
@@ -177,7 +172,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/payments/verify',
     {
-      preHandler: [fastify.requireAuth, fastify.validate({ body: PaymentVerifyBody })],
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: PaymentVerifyBody })],
     },
     async (request: { body: any; user: any }, reply) => {
       const { orderId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = request.body;
@@ -304,6 +299,8 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
   );
 
   fastify.post('/payments/webhook', async (request: any, reply) => {
+    reply.header('Deprecation', 'true');
+    reply.header('Link', '</api/v1/checkout/webhook>; rel="successor-version"');
     const rawBody = buildWebhookRawBody(request);
     const signature = request.headers['x-razorpay-signature'] as string | undefined;
 

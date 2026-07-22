@@ -28,6 +28,8 @@ const ReportBody = z
   .strict();
 
 export default async function matchingRoutes(fastify: FastifyInstance) {
+  const requireVerifiedPhone =
+    (fastify as any).requireVerifiedPhone || (fastify as any).requireAuth;
   /**
    * GET /api/v1/matching/feed
    * Get ranked list of potential matches (events for V1)
@@ -35,7 +37,7 @@ export default async function matchingRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/feed',
     {
-      preHandler: [fastify.validate({ querystring: MatchFeedQuery })],
+      preHandler: [requireVerifiedPhone, fastify.validate({ querystring: MatchFeedQuery })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
@@ -72,7 +74,7 @@ export default async function matchingRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/swipe',
     {
-      preHandler: [fastify.validate({ body: SwipeBody })],
+      preHandler: [requireVerifiedPhone, fastify.validate({ body: SwipeBody })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;

@@ -25,7 +25,7 @@ import Animated, {
   useAnimatedStyle,
   interpolate,
   useAnimatedScrollHandler,
-  withSpring,
+
   withTiming,
   withRepeat,
   withSequence,
@@ -42,7 +42,14 @@ import { getEventImage, EVENT_PLACEHOLDER } from '@/lib/utils/event';
 import { useCartStore } from '@/store/cartStore';
 import { colors, radii, gradients, typography } from '@/lib/design/theme';
 import { resolveEventAccentColor } from '@/hooks/useEventAccent';
-import { safeDate, formatEventDate, formatEventTime } from '@/lib/utils/date';
+import {
+  DEFAULT_EVENT_TIME_ZONE,
+  safeDate,
+  formatEventDate,
+  formatEventDateLong,
+  formatEventTime,
+  resolveEventTimeZone,
+} from '@/lib/utils/date';
 import { trackScreen } from '@/lib/analytics';
 import { VenueSheet } from '@/components/ui/VenueSheet';
 import { GuestlistSheet } from '@/components/ui/GuestlistSheet';
@@ -56,6 +63,7 @@ import { useTicketsStore } from '@/store/ticketsStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSubscriptionStore, type PremiumFeature } from '@/store/subscriptionStore';
 import AuthSheet from '@/components/ui/AuthSheet';
+import { useRecommendationsStore } from '@/store/recommendationsStore';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const HEADER_HEIGHT = 400;
@@ -158,14 +166,19 @@ function hexToRgba(color: string, alpha: number) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function formatGoingDate(value?: string) {
+function formatGoingDate(value?: string, timeZone = DEFAULT_EVENT_TIME_ZONE) {
   const date = safeDate(value);
   if (!date) return 'Date TBA';
-  const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
-  const month = date.toLocaleDateString('en-US', { month: 'short' });
-  const day = date.getDate();
+  const resolvedTimeZone = resolveEventTimeZone(timeZone);
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: resolvedTimeZone });
+  const month = date.toLocaleDateString('en-US', { month: 'short', timeZone: resolvedTimeZone });
+  const day = date.toLocaleDateString('en-US', { day: 'numeric', timeZone: resolvedTimeZone });
   const time = date
-    .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    .toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: resolvedTimeZone,
+    })
     .replace(':00', '');
   return `${weekday}, ${month} ${day} at ${time}`;
 }
@@ -196,7 +209,10 @@ function TicketOriginEventView({
       event.venue ||
       'Address TBA',
   );
-  const dateLabel = formatGoingDate(String(params.eventDate || event.startDate || ''));
+  const dateLabel = formatGoingDate(
+    String(params.eventDate || event.startDate || ''),
+    event.timezone || DEFAULT_EVENT_TIME_ZONE,
+  );
   const [showShare, setShowShare] = useState(false);
   const handleShareGoing = () => {
     Haptics.selectionAsync();
@@ -486,7 +502,7 @@ const TicketTierCard = memo(function TicketTierCard({
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setAdded(true);
-    scale.value = withSpring(1.02, { damping: 10 });
+    scale.value = withTiming(1.02, { duration: 250 });
 
     if (result?.replacedEventTitle) {
       Alert.alert(
@@ -497,14 +513,14 @@ const TicketTierCard = memo(function TicketTierCard({
 
     resetTimerRef.current = setTimeout(() => {
       resetTimerRef.current = null;
-      scale.value = withSpring(1);
+      scale.value = (1);
       setAdded(false);
     }, 2000);
   }, [isGenderRestricted, isGenderUnknown, genderRestriction, addItem, event, tier, quantity, promoterCode]);
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 80).springify()}
+      entering={FadeInDown.delay(index * 80)}
       style={[
         animatedStyle,
         styles.tierCard,
@@ -612,7 +628,7 @@ function HeaderButton({
     <Pressable onPress={onPress} style={styles.headerButton}>
       <BlurView
         blurMethod="dimezisBlurView"
-        intensity={28}
+        intensity={15}
         tint="dark"
         style={styles.headerButtonBlur}
       >
@@ -627,7 +643,53 @@ function HeaderButton({
   );
 }
 
-export default function EventDetailScreen() {
+function CopyLinkButton({ eventLink }: { eventLink: string }) {
+  const [copied, setCopied] = useState(false);
+  const flip = useSharedValue(0);
+
+  const iconStyle1 = useAnimatedStyle(() => ({
+    position: 'absolute',
+    transform: [
+      { perspective: 400 },
+      { rotateY: `${interpolate(flip.value, [0, 1], [0, 180])}deg` }
+    ],
+    opacity: interpolate(flip.value, [0, 0.5, 1], [1, 0, 0]),
+  }));
+
+  const iconStyle2 = useAnimatedStyle(() => ({
+    position: 'absolute',
+    transform: [
+      { perspective: 400 },
+      { rotateY: `${interpolate(flip.value, [0, 1], [-180, 0])}deg` }
+    ],
+    opacity: interpolate(flip.value, [0, 0.5, 1], [0, 0, 1]),
+  }));
+
+  const handleCopy = async () => {
+    if (copied) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await Clipboard.setStringAsync(eventLink);
+    setCopied(true);
+    flip.value = withTiming(1, { duration: 300 });
+    setTimeout(() => {
+      flip.value = withTiming(0, { duration: 300 });
+      setTimeout(() => setCopied(false), 300);
+    }, 2000);
+  };
+
+  return (
+    <Pressable onPress={handleCopy} style={[styles.detailControlButton, { justifyContent: 'center', alignItems: 'center' }]}>
+      <Animated.View style={iconStyle1}>
+        <Ionicons name="link-outline" size={21} color="#fff" />
+      </Animated.View>
+      <Animated.View style={iconStyle2}>
+        <Ionicons name="checkmark" size={21} color="#4ade80" />
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+export default memo(function EventDetailScreen() {
   const params = useLocalSearchParams<{
     id: string;
     ref?: string;
@@ -747,6 +809,11 @@ export default function EventDetailScreen() {
   useEffect(() => {
     trackScreen('EventDetail');
   }, []);
+
+  useEffect(() => {
+    const category = event?.category ?? event?.type;
+    if (category) void useRecommendationsStore.getState().trackBrowse(category);
+  }, [event?.id, event?.category, event?.type]);
 
   useEffect(() => {
     if (user?.uid) {
@@ -951,7 +1018,7 @@ export default function EventDetailScreen() {
     heartBurst.value = 0;
     heartPop.value = withSequence(
       withTiming(0.88, { duration: 60, easing: Easing.out(Easing.quad) }),
-      withSpring(1, { damping: 8, stiffness: 360 }),
+      withTiming(1, { duration: 150, easing: Easing.out(Easing.quad) }),
     );
     heartBurst.value = withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) });
     if (!user?.uid || useAuthStore.getState().isGuest) {
@@ -1022,6 +1089,18 @@ export default function EventDetailScreen() {
     }
   };
 
+  const eventCutoff = safeDate(
+    (event as any)?.endDate ||
+      (event as any)?.endAt ||
+      (event as any)?.endsAt ||
+      event?.startDate,
+  );
+  const eventLifecycle = String((event as any)?.lifecycle || (event as any)?.status || '')
+    .trim()
+    .toLowerCase();
+  const isEventEnded =
+    ['past', 'ended', 'completed', 'cancelled', 'canceled', 'archived'].includes(eventLifecycle) ||
+    Boolean(eventCutoff && eventCutoff.getTime() <= Date.now());
   const isSoldOut = !event?.tickets?.some((tier) => tier.remaining > 0);
   const isPremiumGated = event?.premiumOnly === true || event?.isEarlyAccess === true;
   const premiumGateFeature: PremiumFeature = event?.isEarlyAccess
@@ -1038,7 +1117,7 @@ export default function EventDetailScreen() {
       useSubscriptionStore.getState().openPaywall(premiumGateFeature);
       return;
     }
-    if (ticketTransitionLocked.current || loading || isSoldOut) return;
+    if (ticketTransitionLocked.current || loading || isSoldOut || isEventEnded) return;
     ticketTransitionLocked.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     ticketTransition.value = 0;
@@ -1109,12 +1188,8 @@ export default function EventDetailScreen() {
     );
   }
 
-  const formattedDate = (() => {
-    const d = safeDate(event.startDate);
-    if (!d) return 'TBD';
-    return d.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
-  })();
-  const formattedTime = formatEventTime(event.startDate);
+  const formattedDate = formatEventDateLong(event.startDate, event.timezone);
+  const formattedTime = formatEventTime(event.startDate, event.timezone);
 
   const availableTicketPrices = (event.tickets ?? [])
     .filter((tier) => tier.remaining > 0)
@@ -1123,7 +1198,9 @@ export default function EventDetailScreen() {
     availableTicketPrices.length > 0 ? Math.min(...availableTicketPrices) : event.minPrice || 0;
   const hasAvailableTickets = availableTicketPrices.length > 0;
   const floatingTicketLabel =
-    cartCount > 0
+    isEventEnded
+      ? 'Event Ended'
+      : cartCount > 0
       ? `Checkout (${cartCount})`
       : hasAvailableTickets
         ? lowestPrice > 0
@@ -1224,8 +1301,8 @@ export default function EventDetailScreen() {
         />
       ) : null}
       <LinearGradient
-        colors={[hexToRgba(accent, 0.2), 'rgba(5,5,5,0.5)', 'rgba(5,5,5,0.7)']}
-        locations={[0, 0.5, 1]}
+        colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.8)', '#000000']}
+        locations={[0, 0.4, 1]}
         style={StyleSheet.absoluteFill}
       />
       <Stack.Screen options={{ animation: 'fade', headerShown: false }} />
@@ -1299,9 +1376,7 @@ export default function EventDetailScreen() {
           </Text>
         </Animated.View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Pressable onPress={handleShare} style={styles.detailControlButton}>
-            <Ionicons name="share-outline" size={21} color="#fff" />
-          </Pressable>
+          <CopyLinkButton eventLink={`https://thec1rcle.com/event/${encodeURIComponent(id || '')}`} />
           <AnimatedPressable
             onPress={() => handleLike('top')}
             style={[styles.detailControlButton, heartButtonAnimatedStyle]}
@@ -1338,7 +1413,7 @@ export default function EventDetailScreen() {
           ]}
         >
           <Animated.View
-            entering={posterTransitionTag ? undefined : FadeInDown.delay(80).springify()}
+            entering={posterTransitionTag ? undefined : FadeInDown.delay(80)}
             style={[styles.posterFrame, { borderColor: hexToRgba(accent, 0.42) }]}
           >
             {posterUri ? (
@@ -1358,15 +1433,15 @@ export default function EventDetailScreen() {
             )}
             <LinearGradient
               pointerEvents="none"
-              colors={['transparent', 'rgba(5,5,5,0.5)', 'rgba(5,5,5,0.7)']}
-              locations={[0, 0.5, 1]}
+              colors={['transparent', 'rgba(0,0,0,0.6)', '#000000']}
+              locations={[0, 0.7, 1]}
               style={styles.posterImageFade}
             />
           </Animated.View>
         </Animated.View>
 
         <View style={styles.detailContent}>
-          <Animated.View entering={FadeInDown.delay(160).springify()} style={styles.detailTitleRow}>
+          <Animated.View entering={FadeInDown.delay(160)} style={styles.detailTitleRow}>
             <Text
               style={[styles.detailEventTitle, { color: '#fff' }]}
               numberOfLines={2}
@@ -1401,7 +1476,7 @@ export default function EventDetailScreen() {
             </AnimatedPressable>
           </Animated.View>
 
-          <Animated.View entering={FadeInDown.delay(180).springify()} style={styles.detailFacts}>
+          <Animated.View entering={FadeInDown.delay(180)} style={styles.detailFacts}>
             <View style={styles.detailFactRow}>
               <Ionicons name="location-outline" size={18} color="rgba(255,255,255,0.66)" />
               <Text
@@ -1419,7 +1494,7 @@ export default function EventDetailScreen() {
             </View>
           </Animated.View>
 
-          <Animated.View entering={FadeInDown.delay(195).springify()}>
+          <Animated.View entering={FadeInDown.delay(195)}>
             <Pressable
               style={styles.interestedBar}
               onPress={() => {
@@ -1428,17 +1503,22 @@ export default function EventDetailScreen() {
               }}
             >
               <View style={styles.interestedAvatars}>
-                {interestedListUsers.slice(0, 6).map((userInfo: any, index: number) => {
+                {interestedListUsers.slice(0, 5).map((userInfo: any, index: number) => {
                   const initial = (
                     (userInfo.displayName || userInfo.name)?.[0] ?? '?'
                   ).toUpperCase();
+                  const photoStr =
+                    userInfo?.photoURL ||
+                    userInfo?.photoUrl ||
+                    userInfo?.avatarUrl ||
+                    userInfo?.avatar ||
+                    userInfo?.profilePictureUrl;
                   const avatarSource = (userInfo as any).photoSource
                     ? (userInfo as any).photoSource
-                    : typeof userInfo?.photoURL === 'string' &&
-                        userInfo.photoURL.length > 0 &&
-                        (userInfo.photoURL.startsWith('http') ||
-                          userInfo.photoURL.startsWith('https'))
-                      ? { uri: userInfo.photoURL }
+                    : typeof photoStr === 'string' &&
+                      photoStr.length > 0 &&
+                      (photoStr.startsWith('http') || photoStr.startsWith('https'))
+                      ? { uri: photoStr }
                       : null;
                   return (
                     <View
@@ -1472,7 +1552,7 @@ export default function EventDetailScreen() {
 
           {event.description && (
             <Animated.View
-              entering={FadeInDown.delay(210).springify()}
+              entering={FadeInDown.delay(210)}
               style={styles.detailSection}
             >
               <Text style={[styles.detailSectionLabel, { color: '#fff' }]}>Details</Text>
@@ -1494,7 +1574,7 @@ export default function EventDetailScreen() {
           )}
 
           <Animated.View
-            entering={FadeInDown.delay(240).springify()}
+            entering={FadeInDown.delay(240)}
             style={styles.locationSection}
           >
             <Text style={styles.locationTitle}>Location</Text>
@@ -1576,7 +1656,7 @@ export default function EventDetailScreen() {
           </Animated.View>
 
           <Animated.View
-            entering={FadeInDown.delay(270).springify()}
+            entering={FadeInDown.delay(270)}
             style={styles.venueProfileHero}
           >
             <Pressable
@@ -1674,9 +1754,9 @@ export default function EventDetailScreen() {
             styles.floatingPill,
             isPremiumGated && !isPremium ? styles.floatingPillPremium : { backgroundColor: accent },
             ticketButtonAnimatedStyle,
-            (loading || isSoldOut) && { opacity: 0.5 },
+            (loading || isSoldOut || isEventEnded) && { opacity: 0.5 },
           ]}
-          pointerEvents={loading || isSoldOut ? 'none' : 'auto'}
+          pointerEvents={loading || isSoldOut || isEventEnded ? 'none' : 'auto'}
         >
           {isPremiumGated && !isPremium ? (
             <LinearGradient
@@ -1704,7 +1784,7 @@ export default function EventDetailScreen() {
       <AuthSheet visible={showAuthSheet} onDismiss={() => setShowAuthSheet(false)} />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -1910,7 +1990,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.15)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.2)',
   },
@@ -2771,7 +2851,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 10,
+    marginBottom: 6,
   },
   detailEventTitle: {
     flex: 1,
@@ -2798,8 +2878,8 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   detailFacts: {
-    gap: 8,
-    marginBottom: 18,
+    gap: 6,
+    marginBottom: 10,
   },
   detailFactRow: {
     flexDirection: 'row',
@@ -2814,11 +2894,8 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   interestedBar: {
-    minHeight: 118,
     justifyContent: 'center',
-    paddingHorizontal: 22,
-    paddingVertical: 16,
-    marginBottom: 26,
+    marginBottom: 20,
   },
   interestedAvatars: {
     flexDirection: 'row',
@@ -2828,12 +2905,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   interestedAvatar: {
-    width: 73,
-    height: 73,
-    borderRadius: 36.5,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     borderWidth: 2,
-    borderColor: '#050505',
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderColor: '#161618',
+    backgroundColor: '#050505',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',

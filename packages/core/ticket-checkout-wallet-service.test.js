@@ -66,6 +66,7 @@ class FakeQuery {
     this.collectionName = collectionName;
     this.filters = [];
     this.limitValue = null;
+    this.orderByValue = null;
   }
 
   where(field, op, value) {
@@ -78,6 +79,11 @@ class FakeQuery {
     return this;
   }
 
+  orderBy(field, direction = 'asc') {
+    this.orderByValue = { field, direction };
+    return this;
+  }
+
   async get() {
     let docs = [...this.db.getCollection(this.collectionName).entries()].map(
       ([id, data]) => new FakeDocSnapshot(new FakeDocRef(this.db, this.collectionName, id), data),
@@ -85,9 +91,20 @@ class FakeQuery {
     for (const filter of this.filters) {
       if (filter.field === '__name__' && filter.op === 'in') {
         docs = docs.filter((doc) => filter.value.includes(doc.id));
+      } else if (filter.op === 'in') {
+        docs = docs.filter((doc) => filter.value.includes(doc.data()?.[filter.field]));
       } else {
         docs = docs.filter((doc) => doc.data()?.[filter.field] === filter.value);
       }
+    }
+    if (this.orderByValue) {
+      const { field, direction } = this.orderByValue;
+      docs.sort((left, right) => {
+        const comparison = String(left.data()?.[field] || '').localeCompare(
+          String(right.data()?.[field] || ''),
+        );
+        return direction === 'desc' ? -comparison : comparison;
+      });
     }
     if (this.limitValue) docs = docs.slice(0, this.limitValue);
     return new FakeQuerySnapshot(docs);
@@ -211,6 +228,7 @@ describe('ticket checkout wallet service', () => {
           qrCode: result.tickets[0].id,
           qrData: result.tickets[0].id,
           qrPayload: result.tickets[0].id,
+          isClaimed: true,
         }),
       ]),
       ticketsIssuedAt: expect.any(String),
@@ -221,6 +239,191 @@ describe('ticket checkout wallet service', () => {
       id: 'ord_free',
       eventTitle: 'After Dark',
       eventDate: '2099-01-01T20:00:00.000Z',
+    });
+  });
+
+  it('keeps a newly purchased ticket visible after more than twenty historical tickets', async () => {
+    const orders = {};
+    const tickets = {};
+    for (let index = 0; index < 25; index += 1) {
+      const orderId = `old_${index}`;
+      const createdAt = `2026-01-${String(index + 1).padStart(2, '0')}T00:00:00.000Z`;
+      orders[orderId] = buildOrder({ id: orderId, createdAt });
+      tickets[`ticket_${orderId}`] = {
+        id: `ticket_${orderId}`,
+        ticketId: `ticket_${orderId}`,
+        orderId,
+        eventId: 'event_1',
+        userId: 'user_1',
+        status: 'active',
+        createdAt,
+      };
+    }
+
+    orders.newest = buildOrder({ id: 'newest', createdAt: '2026-07-16T23:00:00.000Z' });
+    tickets.ticket_newest = {
+      id: 'ticket_newest',
+      ticketId: 'ticket_newest',
+      orderId: 'newest',
+      eventId: 'event_1',
+      userId: 'user_1',
+      status: 'active',
+      createdAt: '2026-07-16T23:00:00.000Z',
+    };
+
+    const db = new FakeDb({
+      orders,
+      tickets,
+      events: {
+        event_1: {
+          title: 'After Dark',
+          startDate: '2099-02-01T20:00:00.000Z',
+          venueName: 'Club Room',
+        },
+      },
+    });
+
+    const wallet = await getUserTicketWallet({ db, userId: 'user_1' });
+    const newestOrder = wallet.orders.find((order) => order.id === 'newest');
+
+    expect(newestOrder).toBeDefined();
+    expect(newestOrder.eventDate).toBe('2099-02-01T20:00:00.000Z');
+  });
+
+  it('moves a transferred ticket out of the sender wallet and into the recipient wallet', async () => {
+    const order = buildOrder({
+      id: 'ord_transfer',
+      userId: 'sender_1',
+      tickets: [{ ticketId: 'ga', name: 'General Admission', quantity: 1, price: 500 }],
+    });
+    const db = new FakeDb({
+      orders: { ord_transfer: order },
+      tickets: {
+        'TKT-ORD_TRANSFER-GA-1': {
+          id: 'TKT-ORD_TRANSFER-GA-1',
+          orderId: 'ord_transfer',
+          eventId: 'event_1',
+          userId: 'sender_1',
+          tierId: 'ga',
+          tierName: 'General Admission',
+          bookingCode: 'ABC234',
+          status: 'transferred',
+          createdAt: '2026-07-16T23:00:00.000Z',
+        },
+      },
+      ticket_assignments: {
+        'TRANS-TKT-ORD_TRANSFER-GA-1-RECIPIENT': {
+          assignmentId: 'TRANS-TKT-ORD_TRANSFER-GA-1-RECIPIENT',
+          originalTicketId: 'TKT-ORD_TRANSFER-GA-1',
+          orderId: 'ord_transfer',
+          eventId: 'event_1',
+          tierId: 'ga',
+          redeemerId: 'recipient_1',
+          status: 'active',
+          qrPayload: 'signed-recipient-qr',
+          receivedFrom: 'Sender One',
+          createdAt: '2026-07-16T23:01:00.000Z',
+        },
+      },
+      events: {
+        event_1: {
+          title: 'After Dark',
+          startDate: '2099-02-01T20:00:00.000Z',
+          venueName: 'Club Room',
+        },
+      },
+    });
+
+    const senderWallet = await getUserTicketWallet({ db, userId: 'sender_1' });
+    const recipientWallet = await getUserTicketWallet({ db, userId: 'recipient_1' });
+
+    expect(senderWallet.orders).toHaveLength(0);
+    expect(senderWallet.tickets).toHaveLength(0);
+    expect(recipientWallet.orders).toHaveLength(1);
+    expect(recipientWallet.orders[0]).toMatchObject({
+      id: 'ord_transfer',
+      userId: 'recipient_1',
+      source: 'transfer',
+      tickets: [
+        expect.objectContaining({
+          quantity: 1,
+          receivedFrom: 'Sender One',
+        }),
+      ],
+      qrCodes: [
+        expect.objectContaining({
+          ticketId: 'TRANS-TKT-ORD_TRANSFER-GA-1-RECIPIENT',
+          qrCode: 'signed-recipient-qr',
+        }),
+      ],
+    });
+    expect(recipientWallet.tickets).toEqual([
+      expect.objectContaining({
+        id: 'TRANS-TKT-ORD_TRANSFER-GA-1-RECIPIENT',
+        qrPayload: 'signed-recipient-qr',
+      }),
+    ]);
+  });
+
+  it('shows a claimed share slot only in the claimant wallet', async () => {
+    const order = buildOrder({
+      id: 'ord_share',
+      userId: 'sender_1',
+      tickets: [{ ticketId: 'ga', name: 'General Admission', quantity: 3, price: 500 }],
+    });
+    const ticketSeed = {};
+    for (let slotIndex = 1; slotIndex <= 3; slotIndex += 1) {
+      ticketSeed[`TKT-ORD_SHARE-GA-${slotIndex}`] = {
+        id: `TKT-ORD_SHARE-GA-${slotIndex}`,
+        ticketId: `ord_share-ga-${slotIndex}`,
+        orderId: 'ord_share',
+        eventId: 'event_1',
+        userId: 'sender_1',
+        tierId: 'ga',
+        tierName: 'General Admission',
+        slotIndex,
+        status: slotIndex === 2 ? 'shared' : 'active',
+        createdAt: `2026-07-16T23:00:0${slotIndex}.000Z`,
+      };
+    }
+    const db = new FakeDb({
+      orders: { ord_share: order },
+      tickets: ticketSeed,
+      ticket_assignments: {
+        claim_1: {
+          assignmentId: 'claim_1',
+          bundleId: 'share_1',
+          orderId: 'ord_share',
+          eventId: 'event_1',
+          tierId: 'ga',
+          slotIndex: 2,
+          redeemerId: 'recipient_1',
+          status: 'active',
+          qrPayload: { token: 'signed-claimant-qr', issuedAt: 1 },
+          createdAt: '2026-07-16T23:01:00.000Z',
+        },
+      },
+      events: {
+        event_1: {
+          title: 'After Dark',
+          startDate: '2099-02-01T20:00:00.000Z',
+          venueName: 'Club Room',
+        },
+      },
+    });
+
+    const senderWallet = await getUserTicketWallet({ db, userId: 'sender_1' });
+    const recipientWallet = await getUserTicketWallet({ db, userId: 'recipient_1' });
+
+    expect(senderWallet.tickets).toHaveLength(2);
+    expect(senderWallet.orders[0].tickets).toEqual([
+      expect.objectContaining({ tierId: 'ga', quantity: 2 }),
+    ]);
+    expect(recipientWallet.orders).toHaveLength(1);
+    expect(recipientWallet.orders[0]).toMatchObject({
+      userId: 'recipient_1',
+      source: 'transfer',
+      qrCodes: [expect.objectContaining({ ticketId: 'claim_1', qrCode: 'signed-claimant-qr' })],
     });
   });
 
