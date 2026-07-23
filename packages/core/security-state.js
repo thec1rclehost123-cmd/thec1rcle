@@ -98,13 +98,31 @@ function deleteBlockFromFirestore(type, entityId) {
  * Check the Firestore fallback for a block record.
  * Only called when Redis is unavailable.
  *
+ * Distinguishes two very different "not blocked" outcomes:
+ *   - `{ blocked: false }`                     → authoritative: we read the store,
+ *                                                 there is genuinely no live block.
+ *   - `{ blocked: false, unavailable: true }`  → indeterminate: Redis AND Firestore
+ *                                                 are both down, so block state is
+ *                                                 simply unknown.
+ *
+ * Callers decide what an indeterminate result means. Low-privilege paths
+ * (isIpBlocked / isUserBlocked) keep failing open to preserve availability;
+ * the admin path fails closed, because silently admitting a possibly-suspended
+ * admin is worse than briefly denying a legitimate one.
+ *
  * @param {'ip'|'user'|'admin'} type
  * @param {string}              entityId
- * @returns {Promise<{ blocked: boolean, reason?: string }>}
+ * @returns {Promise<{ blocked: boolean, reason?: string, unavailable?: boolean }>}
  */
 async function checkFirestoreBlock(type, entityId) {
   try {
     const db = getAdminDb();
+    // Toy mode / no Firestore configured: getAdminDb() returns null. There is no
+    // block mirror in this runtime and nothing was ever dual-written to one, so
+    // this is an authoritative "no block" — NOT an outage. Reporting it as
+    // `unavailable` here would fail-closed every admin request in local dev.
+    if (!db) return { blocked: false };
+
     const doc = await db.collection('security_blocks').doc(`${type}:${entityId}`).get();
     if (!doc.exists) return { blocked: false };
 
@@ -118,8 +136,9 @@ async function checkFirestoreBlock(type, entityId) {
     }
     return { blocked: true, reason: data.reason };
   } catch (_) {
-    // Firestore also unavailable — fail open as a last resort
-    return { blocked: false };
+    // Firestore also unavailable — block state is genuinely unknown.
+    // Flag it so security-critical callers can fail closed instead of guessing.
+    return { blocked: false, unavailable: true };
   }
 }
 
@@ -504,8 +523,15 @@ export async function clearAdminSuspension(adminId) {
 
 /**
  * Check if an admin is currently suspended.
+ *
+ * Returns `unavailable: true` when neither Redis nor Firestore could answer.
+ * Callers guarding admin access MUST treat that as "deny" — see
+ * apps/admin-console/lib/server/adminMiddleware.js. Suspension is dual-written
+ * to Firestore, so a Redis-only outage still resolves authoritatively here;
+ * `unavailable` is reserved for the both-stores-down case.
+ *
  * @param {string} adminId
- * @returns {Promise<{ suspended: boolean, reason?: string }>}
+ * @returns {Promise<{ suspended: boolean, reason?: string, unavailable?: boolean }>}
  */
 export async function isAdminSuspended(adminId) {
   if (!adminId) return { suspended: false };
@@ -521,6 +547,13 @@ export async function isAdminSuspended(adminId) {
         JSON.stringify({ adminId }),
       );
       const fb = await checkFirestoreBlock('admin', adminId);
+      if (fb.unavailable) {
+        console.error(
+          '[SecurityState:Degraded] admin_suspension_state_unknown — redis AND firestore unavailable',
+          JSON.stringify({ adminId }),
+        );
+        return { suspended: false, unavailable: true };
+      }
       return { suspended: fb.blocked, reason: fb.reason };
     },
   );
