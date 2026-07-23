@@ -64,7 +64,8 @@ async function updateAdmin(email, password) {
       {
         uid: user.uid,
         email: email,
-        role: 'super',
+        admin_role: 'super',
+        role: 'admin',
         displayName: 'System Admin',
         updatedAt: new Date().toISOString(),
       },

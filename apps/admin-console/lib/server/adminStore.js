@@ -738,6 +738,7 @@ export const adminStore = {
     const uid = user.uid;
 
     await auth.setCustomUserClaims(uid, {
+      role: 'admin',
       admin: true,
       admin_role: role,
     });
@@ -747,7 +748,8 @@ export const adminStore = {
       uid,
       email,
       displayName: name,
-      role,
+      admin_role: role,
+      role: 'admin',
       status: 'active',
       provisionedBy: adminId,
       createdAt: FieldValue.serverTimestamp(),
@@ -1625,10 +1627,15 @@ export const adminStore = {
     if (!snap.exists) throw Object.assign(new Error('Admin not found'), { statusCode: 404 });
     await ref.update({
       admin_role: newRole,
+      role: 'admin',
       updatedAt: FieldValue.serverTimestamp(),
     });
     try {
-      await auth.setCustomUserClaims(adminId, { admin_role: newRole });
+      await auth.setCustomUserClaims(adminId, {
+        role: 'admin',
+        admin: true,
+        admin_role: newRole,
+      });
     } catch (error) {
       console.error(`[adminStore] Failed to set custom user claims for admin ${adminId}:`, error);
       throw error;

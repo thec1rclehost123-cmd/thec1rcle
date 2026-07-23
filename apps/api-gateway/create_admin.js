@@ -58,7 +58,8 @@ async function createAdmin(email) {
     await db.collection('admins').doc(user.uid).set({
       uid: user.uid,
       email: email,
-      role: 'super',
+      admin_role: 'super',
+      role: 'admin',
       displayName: 'System Admin',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

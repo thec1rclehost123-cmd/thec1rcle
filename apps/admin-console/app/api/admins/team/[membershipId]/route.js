@@ -54,7 +54,7 @@ async function patchHandler(req, { params }) {
 
     await adminRef.update({
       admin_role: role,
-      role,
+      role: 'admin',
       updatedAt: new Date().toISOString(),
     });
 

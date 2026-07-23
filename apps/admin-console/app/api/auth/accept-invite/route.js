@@ -142,7 +142,7 @@ export async function POST(req) {
         email,
         displayName: name,
         admin_role: role,
-        role,
+        role: 'admin',
         status: 'active',
         provisionedBy: invData.invitedBy || 'system',
         mustChangePassword: Boolean(invData.isNewAccount),
