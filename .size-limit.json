@@ -22,4 +22,5 @@
     "path": "apps/api-gateway/dist/**/*.js",
     "limit": "10 MB",
     "running": false
+  }
 ]
