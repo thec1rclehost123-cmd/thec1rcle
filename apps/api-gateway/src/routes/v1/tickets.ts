@@ -1075,8 +1075,22 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       const eventDoc = await fastify.db.collection('events').doc(entitlement.eventId).get();
       const event = eventDoc.exists ? eventDoc.data() : null;
 
-      const { generateEntitlementQR } = await import('@c1rcle/core/entitlement-engine');
-      const qrPayload = JSON.stringify(generateEntitlementQR(entitlementId));
+      // This route is intentionally reachable without login (share links,
+      // "view my ticket" from a fresh device), so it never requires auth.
+      // But a *scannable* entry credential is a different matter than
+      // viewing ticket details -- generateEntitlementQR mints a fresh
+      // valid signature for whatever entitlementId it's given, with no
+      // proof of ownership baked in, so it must only run for the request
+      // that's actually authenticated as the entitlement's owner. Anyone
+      // else viewing this link sees the ticket, not a working door credential.
+      const requesterId = request.user?.uid || null;
+      const isOwner = Boolean(requesterId) && requesterId === entitlement.userId;
+
+      let qrPayload: string | null = null;
+      if (isOwner) {
+        const { generateEntitlementQR } = await import('@c1rcle/core/entitlement-engine');
+        qrPayload = JSON.stringify(generateEntitlementQR(entitlementId));
+      }
 
       return {
         success: true,
