@@ -1,13 +1,4 @@
 /* global jest */
-process.env.EXPO_PUBLIC_FIREBASE_API_KEY = 'test-firebase-api-key';
-process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN = 'test.firebaseapp.com';
-process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID = 'test-project';
-process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET = 'test.appspot.com';
-process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = '000000000000';
-process.env.EXPO_PUBLIC_FIREBASE_APP_ID = '1:000000000000:web:abcdef';
-process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID = 'rzp_test_xxxxxxxxxxxx';
-process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3005';
-process.env.EXPO_PUBLIC_SENTRY_DSN = 'https://key@o0.ingest.sentry.io/0';
 import fetchMockLib from 'jest-fetch-mock';
 fetchMockLib.enableMocks();
 global.fetchMock = fetchMockLib;
@@ -88,49 +79,6 @@ jest.mock('react-native-css-interop', () => ({
   createInteropElement: require('react').createElement,
 }));
 
-<<<<<<< HEAD
-const mockAuthInstance = {
-  onAuthStateChanged: jest.fn(() => jest.fn()),
-  signInWithEmailAndPassword: jest.fn(),
-  createUserWithEmailAndPassword: jest.fn(),
-  signOut: jest.fn(),
-  currentUser: null,
-  applyActionCode: jest.fn(),
-  sendPasswordResetEmail: jest.fn(),
-  signInWithPhoneNumber: jest.fn(),
-  signInWithCredential: jest.fn(),
-  fetchSignInMethodsForEmail: jest.fn().mockResolvedValue([]),
-  AppleAuthProvider: { credential: jest.fn() },
-  GoogleAuthProvider: { credential: jest.fn() },
-  PhoneAuthProvider: { credential: jest.fn() },
-};
-
-jest.mock(
-  '@react-native-firebase/auth',
-  () => {
-    const authFn = jest.fn(() => mockAuthInstance);
-    authFn.AppleAuthProvider = { credential: jest.fn() };
-    authFn.GoogleAuthProvider = { credential: jest.fn() };
-    authFn.PhoneAuthProvider = { credential: jest.fn() };
-    return {
-      __esModule: true,
-      default: authFn,
-      FirebaseAuthTypes: {},
-    };
-  },
-  { virtual: true },
-);
-
-jest.mock(
-  '@react-native-firebase/app',
-  () => ({
-    default: jest.fn(),
-  }),
-  { virtual: true },
-);
-
-=======
->>>>>>> origin/pre-staging
 jest.mock(
   'expo-crypto',
   () => ({

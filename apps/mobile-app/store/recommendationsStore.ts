@@ -28,6 +28,7 @@ const TIME_OF_DAY_BOOSTS: Record<string, number[]> = {
   comedy: [18, 19, 20, 21, 22],
 };
 
+interface RecommendationsState {
   recommendations: Event[];
   scoredEvents: Record<string, { score: number }>;
   browsedCategories: string[];
@@ -201,18 +202,10 @@ export const useRecommendationsStore = create<RecommendationsState>((set, get) =
       }))
       .sort((a, b) => b.score - a.score);
 
-<<<<<<< HEAD
-        set({
-            recommendations: scored.slice(0, 10).map(({ event }) => event),
-            scoredEvents: Object.fromEntries(scored.map(({ event, score }) => [event.id, { score }])),
-            source: 'local',
-        });
-    },
-=======
     set({
       recommendations: scored.slice(0, 10).map(({ event }) => event),
       scoredEvents: Object.fromEntries(scored.map(({ event, score }) => [event.id, { score }])),
+      source: 'local',
     });
   },
->>>>>>> origin/pre-staging
 }));
