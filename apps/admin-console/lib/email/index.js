@@ -17,13 +17,36 @@ export async function sendTicketEmail({
   return { success: false, error: 'Not supported in admin-console' };
 }
 
-export async function sendAdminInvitationEmail({ to, name, roleLabel, acceptLink, tempPassword }) {
+export async function sendAdminInvitationEmail({
+  to,
+  name,
+  roleLabel,
+  acceptLink,
+  tempPassword = null,
+}) {
   if (!resend) {
     console.warn('Resend API key not found. Skipping email send (mock).');
     return { success: true, mock: true };
   }
 
   const fromAddr = 'THE C1RCLE <noreply@thec1rcle.com>';
+
+  // tempPassword is only present for a brand-new account. A re-invite of an
+  // email that already has Firebase Auth credentials (e.g. reactivating a
+  // suspended admin) must never touch or re-issue their existing password.
+  const credentialBlock = tempPassword
+    ? `
+            <div style="background-color:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;margin:28px 0;text-align:center;box-sizing:border-box;">
+              <span style="font-size:11px;color:#71717a;letter-spacing:0.1em;font-weight:bold;text-transform:uppercase;display:block;margin-bottom:8px;">Temporary Password</span>
+              <code style="font-family:monospace;font-size:20px;color:#ffffff;font-weight:bold;letter-spacing:0.05em;background-color:rgba(0,0,0,0.3);padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);display:inline-block;">${tempPassword}</code>
+              <span style="font-size:11px;color:#71717a;display:block;margin-top:12px;">You will be prompted to set a permanent secure password upon first access.</span>
+            </div>
+          `
+    : `
+            <div style="background-color:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;margin:28px 0;text-align:center;box-sizing:border-box;">
+              <span style="font-size:13px;color:#a1a1aa;line-height:1.6;">Sign in with your existing password. Use "Forgot password" on the login screen if you no longer have it.</span>
+            </div>
+          `;
 
   try {
     const data = await resend.emails.send({
@@ -37,21 +60,17 @@ export async function sendAdminInvitationEmail({ to, name, roleLabel, acceptLink
               <h2 style="color:#ffffff;font-size:24px;font-weight:900;letter-spacing:0.1em;margin:0;text-transform:uppercase;">THE C1RCLE</h2>
               <span style="font-size:10px;color:#a1a1aa;letter-spacing:0.2em;font-weight:bold;text-transform:uppercase;display:block;margin-top:6px;">Administrative Node</span>
             </div>
-            
+
             <h1 style="font-size:28px;font-weight:800;margin:0 0 20px 0;color:#ffffff;letter-spacing:-0.02em;">You're Invited</h1>
-            
+
             <p style="font-size:15px;line-height:1.6;color:#a1a1aa;margin:0 0 24px 0;">
               Hello ${name || 'Team Member'},<br/><br/>
-              You have been invited to join the administrative team on <strong>THE C1RCLE</strong> with 
+              You have been invited to join the administrative team on <strong>THE C1RCLE</strong> with
               <span style="background-color:rgba(99,102,241,0.15);color:#818cf8;padding:4px 10px;border-radius:6px;font-weight:bold;font-size:13px;white-space:nowrap;display:inline-block;margin:0 2px;text-transform:uppercase;letter-spacing:0.05em;">${roleLabel}</span> authority.
             </p>
 
-            <div style="background-color:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;margin:28px 0;text-align:center;box-sizing:border-box;">
-              <span style="font-size:11px;color:#71717a;letter-spacing:0.1em;font-weight:bold;text-transform:uppercase;display:block;margin-bottom:8px;">Temporary Password</span>
-              <code style="font-family:monospace;font-size:20px;color:#ffffff;font-weight:bold;letter-spacing:0.05em;background-color:rgba(0,0,0,0.3);padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);display:inline-block;">${tempPassword}</code>
-              <span style="font-size:11px;color:#71717a;display:block;margin-top:12px;">You will be prompted to set a permanent secure password upon first access.</span>
-            </div>
-            
+            ${credentialBlock}
+
             <div style="text-align:center;margin:32px 0 28px 0;">
               <a href="${acceptLink}" style="background-color:#ffffff;color:#000000;text-decoration:none;padding:16px 36px;font-size:14px;font-weight:black;border-radius:12px;display:inline-block;box-shadow:0 4px 20px rgba(255,255,255,0.15);text-transform:uppercase;letter-spacing:0.1em;">Accept Invitation</a>
             </div>

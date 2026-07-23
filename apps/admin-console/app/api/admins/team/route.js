@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAdminDb } from '@/lib/firebase/admin';
+import { getAdminDb, getAdminAuth } from '@/lib/firebase/admin';
 import { withAdminAuth } from '@/lib/server/adminMiddleware';
 import { sendAdminInvitationEmail } from '@/lib/email';
 import { randomInt, randomUUID } from 'node:crypto';
@@ -131,8 +131,29 @@ async function inviteHandler(req) {
       );
     }
 
-    // 3. Create the invitation details
-    const tempPassword = generateTemporaryPassword();
+    // 3. Provision (or locate) the Firebase Auth account up front, so the
+    // password never has to round-trip through Firestore. A brand-new
+    // account gets a fresh temp password, emailed once and never persisted.
+    // An email that already has Firebase Auth credentials (e.g. reactivating
+    // a previously-suspended admin) keeps its existing password untouched --
+    // this invite flow only ever grants/updates *role*, never credentials,
+    // for an account that already exists.
+    const auth = getAdminAuth();
+    const name = firstName && lastName ? `${firstName} ${lastName}` : 'Team Member';
+    let tempPassword = null;
+    let isNewAccount = false;
+
+    try {
+      await auth.getUserByEmail(cleanEmail);
+      // Existing account -- leave credentials alone.
+    } catch (lookupErr) {
+      if (lookupErr.code !== 'auth/user-not-found') throw lookupErr;
+      tempPassword = generateTemporaryPassword();
+      await auth.createUser({ email: cleanEmail, password: tempPassword, displayName: name });
+      isNewAccount = true;
+    }
+
+    // 4. Create the invitation record (no password field, ever)
     const inviteToken = randomUUID();
     const inviteExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const now = new Date().toISOString();
@@ -143,14 +164,14 @@ async function inviteHandler(req) {
       lastName: lastName || null,
       role: role || 'readonly',
       status: 'pending',
-      tempPassword,
+      isNewAccount,
       inviteToken,
       inviteExpires,
       createdAt: now,
       invitedBy: req.user.uid,
     });
 
-    // 4. Construct accept link
+    // 5. Construct accept link
     let origin = 'http://localhost:3000';
     const referer = req.headers.get('referer');
     const headerOrigin = req.headers.get('origin');
@@ -165,7 +186,6 @@ async function inviteHandler(req) {
     }
 
     const acceptLink = `${origin}/accept-invite?code=${inviteToken}`;
-    const name = firstName && lastName ? `${firstName} ${lastName}` : 'Team Member';
     const roleLabels = {
       super: 'Super Admin',
       ops: 'Operations',
@@ -176,10 +196,13 @@ async function inviteHandler(req) {
     };
     const roleLabel = roleLabels[role] || role || 'Admin';
 
-    // 5. Send invitation email
+    // 6. Send invitation email
     if (process.env.NODE_ENV === 'development') {
+      const credentialLine = tempPassword
+        ? `🔑  Temporary Password: ${tempPassword}`
+        : '🔑  Existing account -- no new password issued';
       console.log(
-        `\n✉️  [dev] Admin Invitation for ${cleanEmail}:\n🔗  Accept Link: ${acceptLink}\n🔑  Temporary Password: ${tempPassword}\n`,
+        `\n✉️  [dev] Admin Invitation for ${cleanEmail}:\n🔗  Accept Link: ${acceptLink}\n${credentialLine}\n`,
       );
     }
 
