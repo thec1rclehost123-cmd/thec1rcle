@@ -29,6 +29,7 @@ import { formatEventDate, formatEventTime } from '@/lib/utils/date';
 import { formatInr } from '@/lib/money';
 import { useAuthStore } from '@/store/authStore';
 import { useCartStore, type CartItem } from '@/store/cartStore';
+import { useEventsStore, type Event } from '@/store/eventsStore';
 import { useProfileStore } from '@/store/profileStore';
 import { useSubscriptionStore, type PremiumFeature } from '@/store/subscriptionStore';
 
@@ -238,6 +239,7 @@ export default function CheckoutScreen() {
     clearPromoCode,
   } = useCartStore();
   const openPaywall = useSubscriptionStore((state) => state.openPaywall);
+  const getEventById = useEventsStore((state) => state.getEventById);
 
   const [promoInput, setPromoInput] = useState('');
   const [promoError, setPromoError] = useState<string | null>(null);
@@ -250,6 +252,7 @@ export default function CheckoutScreen() {
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [hostUpdatesOptIn, setHostUpdatesOptIn] = useState(true);
   const [reservationClock, setReservationClock] = useState(Date.now());
+  const [authoritativeEvent, setAuthoritativeEvent] = useState<Event | null>(null);
 
   const reservationExpiresAt = pendingReservation
     ? new Date(pendingReservation.expiresAt).getTime()
@@ -265,10 +268,13 @@ export default function CheckoutScreen() {
 
   const cartEventTitle = items[0]?.eventTitle || 'Your booking';
   const cartEventDate = items[0]?.eventDate || '';
+  const cartEventTimezone = items[0]?.eventTimezone;
   const cartEventVenue = items[0]?.eventVenue || 'Venue TBA';
   const cartEventImage = items[0]?.eventCoverImage;
   const cartEventAccentColor = items[0]?.eventAccentColor;
   const eventId = items[0]?.eventId || '';
+  const displayEventDate = authoritativeEvent?.startDate || cartEventDate;
+  const displayEventTimezone = authoritativeEvent?.timezone || cartEventTimezone;
   const promoterCode = items.find((item) => item.promoterCode)?.promoterCode;
   const ticketCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const hostLabel = cartEventVenue === 'Venue TBA' ? 'the host' : cartEventVenue;
@@ -329,6 +335,21 @@ export default function CheckoutScreen() {
   useEffect(() => {
     fetchPricing();
   }, [fetchPricing]);
+
+  useEffect(() => {
+    let active = true;
+    setAuthoritativeEvent(null);
+    if (!eventId)
+      return () => {
+        active = false;
+      };
+    void getEventById(eventId, true).then((event) => {
+      if (active) setAuthoritativeEvent(event);
+    });
+    return () => {
+      active = false;
+    };
+  }, [eventId, getEventById]);
 
   useEffect(() => {
     if (!pendingReservation) return;
@@ -502,7 +523,8 @@ export default function CheckoutScreen() {
         orderId: result.orderId,
         eventId,
         eventTitle: cartEventTitle,
-        eventDate: cartEventDate,
+        eventDate: displayEventDate,
+        eventTimezone: displayEventTimezone || '',
         eventCoverImage: cartEventImage || '',
         accentColor: cartEventAccentColor || '',
         venueLocation: cartEventVenue,
@@ -628,8 +650,8 @@ export default function CheckoutScreen() {
             <View style={styles.heroMetaRow}>
               <Ionicons name="calendar-outline" size={13} color="rgba(254,248,232,0.6)" />
               <Text style={styles.heroMetaText} numberOfLines={1}>
-                {cartEventDate
-                  ? `${formatEventDate(cartEventDate)} · ${formatEventTime(cartEventDate)}`
+                {displayEventDate
+                  ? `${formatEventDate(displayEventDate, displayEventTimezone)} · ${formatEventTime(displayEventDate, displayEventTimezone)}`
                   : 'Date TBA'}
               </Text>
             </View>
@@ -740,9 +762,7 @@ export default function CheckoutScreen() {
             {platformFee + paymentFee + taxes > 0 ? (
               <View style={styles.priceLine}>
                 <Text style={styles.priceLabel}>Taxes & Fees</Text>
-                <Text style={styles.priceValue}>
-                  {formatInr(platformFee + paymentFee + taxes)}
-                </Text>
+                <Text style={styles.priceValue}>{formatInr(platformFee + paymentFee + taxes)}</Text>
               </View>
             ) : null}
           </View>

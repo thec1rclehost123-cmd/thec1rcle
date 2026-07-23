@@ -17,6 +17,7 @@ export interface CartItem {
   eventId: string;
   eventTitle: string;
   eventDate: string;
+  eventTimezone?: string;
   eventVenue: string;
   eventCoverImage?: string;
   eventAccentColor?: string;

@@ -31,8 +31,19 @@ export function safeDate(value: unknown): Date | null {
 
 export const DEFAULT_EVENT_TIME_ZONE = 'Asia/Kolkata';
 
+/** Resolve the single canonical start instant accepted across event contracts. */
+export function canonicalEventStart(event: Record<string, unknown> | null | undefined): string {
+  if (!event) return '';
+  for (const key of ['startAt', 'startDate', 'startDateTime', 'startsAt', 'date'] as const) {
+    const date = safeDate(event[key]);
+    if (date) return date.toISOString();
+  }
+  return '';
+}
+
 export function resolveEventTimeZone(value?: string): string {
-  const candidate = typeof value === 'string' && value.trim() ? value.trim() : DEFAULT_EVENT_TIME_ZONE;
+  const candidate =
+    typeof value === 'string' && value.trim() ? value.trim() : DEFAULT_EVENT_TIME_ZONE;
   try {
     new Intl.DateTimeFormat('en-IN', { timeZone: candidate }).format(0);
     return candidate;

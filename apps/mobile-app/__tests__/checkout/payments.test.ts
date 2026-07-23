@@ -12,6 +12,7 @@ import {
   reserveTickets,
   verifyPayment,
 } from '../../lib/api';
+import { Alert } from 'react-native';
 
 const mockFetchUserOrders = jest.fn(async () => undefined);
 const mockGetIdToken = jest.fn(async () => 'firebase-token');
@@ -138,6 +139,45 @@ describe('processFullCheckout', () => {
     expect(useCartStore.getState().pendingReservation).toBeNull();
     expect(useCartStore.getState().pendingPaymentOrderId).toBeNull();
     expect(mockFetchUserOrders).toHaveBeenCalledWith();
+  });
+
+  it('uses the explicit dev simulation for a backend mock order without opening Razorpay', async () => {
+    (reserveTickets as jest.Mock).mockResolvedValueOnce({
+      success: true,
+      reservationId: 'res_mock',
+      items: baseParams.items,
+      expiresAt: futureExpiry,
+      expiresInSeconds: 600,
+    });
+    (initiateCheckout as jest.Mock).mockResolvedValueOnce({
+      success: true,
+      requiresPayment: true,
+      order: { id: 'order_local_qa' },
+      razorpay: {
+        key: 'rzp_test_mock',
+        orderId: 'order_mock_local_qa',
+        amount: 1500,
+        amountPaise: 150000,
+        currency: 'INR',
+      },
+    });
+    jest.spyOn(Alert, 'alert').mockImplementationOnce((_title, _message, buttons) => {
+      buttons?.[1]?.onPress?.();
+    });
+    (verifyPayment as jest.Mock).mockResolvedValueOnce({ success: true });
+
+    const result = await processFullCheckout(baseParams);
+
+    expect(result).toEqual({ success: true, orderId: 'order_local_qa', requiresPayment: true });
+    expect(mockOpen).not.toHaveBeenCalled();
+    expect(verifyPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: 'order_local_qa',
+        razorpay_order_id: 'order_mock_local_qa',
+        razorpay_payment_id: expect.stringMatching(/^pay_dev_/),
+      }),
+      expect.any(Object),
+    );
   });
 
   it('confirms free orders without opening Razorpay or verifying a payment signature', async () => {

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { canonicalEventStart } from '@/lib/utils/date';
 import { apiFetch } from '@/lib/api';
 import { DEMO_EVENTS, PUBLIC_DEMO_MODE } from '@/lib/demo';
 
@@ -108,7 +109,7 @@ interface EventsState {
   fetchPublicEvents: (options?: { limit?: number }) => Promise<void>;
   searchEvents: (filters: SearchFilters) => Promise<void>;
   loadMoreEvents: () => Promise<void>;
-  getEventById: (id: string) => Promise<Event | null>;
+  getEventById: (id: string, force?: boolean) => Promise<Event | null>;
   clearSearch: () => void;
   fetchByCategory: (category: string, city?: string) => Promise<void>;
   loadMoreByCategory: (category: string, city?: string) => Promise<void>;
@@ -251,11 +252,7 @@ function getCanonicalDemoPoster(id: string): string | undefined {
 function normalizeEvent(raw: any): Event {
   const id = String(raw?.id || raw?.eventId || raw?.slug || '');
   const tickets = extractTicketTiers(raw);
-  const startDate =
-    toIsoString(raw?.startDate) ||
-    toIsoString(raw?.startAt) ||
-    toIsoString(raw?.startsAt) ||
-    toIsoString(raw?.date);
+  const startDate = canonicalEventStart(raw);
   const endDate = toIsoString(raw?.endDate) || toIsoString(raw?.endAt) || toIsoString(raw?.endsAt);
   const canonicalDemoPoster = getCanonicalDemoPoster(id);
   const coverImage =
@@ -560,7 +557,7 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     await get().fetchEvents(undefined, lastId || undefined);
   },
 
-  getEventById: async (id: string): Promise<Event | null> => {
+  getEventById: async (id: string, force = false): Promise<Event | null> => {
     if (!id || typeof id !== 'string') return null;
 
     if (PUBLIC_DEMO_MODE) {
@@ -569,8 +566,9 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     }
 
     const state = get();
-    const cached = state.events.find((e) => e.id === id) || state.featuredEvents.find((e) => e.id === id);
-    if (cached) {
+    const cached =
+      state.events.find((e) => e.id === id) || state.featuredEvents.find((e) => e.id === id);
+    if (cached && !force) {
       revalidateEventInBackground(id);
       return cached;
     }
@@ -678,7 +676,8 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         categoryLoading: { ...s.categoryLoading, [category]: false },
       }));
     } catch (error: any) {
-      if (!error.isAbort && __DEV__) console.warn(`Error loading more category ${category}:`, error);
+      if (!error.isAbort && __DEV__)
+        console.warn(`Error loading more category ${category}:`, error);
       set((s) => ({ categoryLoading: { ...s.categoryLoading, [category]: false } }));
     }
   },

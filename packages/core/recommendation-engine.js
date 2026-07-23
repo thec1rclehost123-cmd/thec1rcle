@@ -145,7 +145,9 @@ async function buildUserProfile(userId) {
     (discoveryProfile.vibeTags || userData.vibeTags || []).map(normalized),
   );
   const intents = new Set((discoveryProfile.intents || userData.intents || []).map(normalized));
-  (behaviorSignals.browsedCategories || []).forEach((category) => preferredTags.add(normalized(category)));
+  (behaviorSignals.browsedCategories || []).forEach((category) =>
+    preferredTags.add(normalized(category)),
+  );
   const city = discoveryProfile.cityName || userData.city;
   if (city) preferredCities.add(normalized(city));
 
@@ -154,7 +156,10 @@ async function buildUserProfile(userId) {
       .map((value) => (typeof value === 'string' ? value : value?.eventId || value?.id))
       .filter(Boolean)
       .map(String);
-  const historicalEventIds = orders.map((order) => order.eventId).filter(Boolean).map(String);
+  const historicalEventIds = orders
+    .map((order) => order.eventId)
+    .filter(Boolean)
+    .map(String);
   const interestEventIds = [
     ...extractEventIds(userData.interestedEventIds),
     ...extractEventIds(userData.interestedEvents),
@@ -221,8 +226,10 @@ export function rankEventsForProfile(candidates, userProfile, limit = 5) {
 }
 
 export async function getRecommendedEventsV2(userId, limit = 5) {
-  const candidates = await listCandidateEvents(100);
-  const userProfile = await buildUserProfile(userId);
+  const [candidates, userProfile] = await Promise.all([
+    listCandidateEvents(100),
+    buildUserProfile(userId),
+  ]);
   const ranked = rankEventsForProfile(candidates, userProfile, limit);
   const personalized =
     userProfile.onboardingTags.size > 0 ||

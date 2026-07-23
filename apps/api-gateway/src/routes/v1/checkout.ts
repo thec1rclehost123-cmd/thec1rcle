@@ -37,6 +37,10 @@ function allowMockRazorpay() {
   return !isProduction && process.env.C1RCLE_ALLOW_MOCK_RAZORPAY === 'true';
 }
 
+function forceMockRazorpay() {
+  return allowMockRazorpay() && process.env.C1RCLE_FORCE_MOCK_RAZORPAY === 'true';
+}
+
 function buildWebhookRawBody(request: any): string {
   if (request.rawBody) return request.rawBody;
   if (typeof request.body === 'string') return request.body;
@@ -638,6 +642,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
               keyId: process.env.RAZORPAY_KEY_ID,
               keySecret: process.env.RAZORPAY_KEY_SECRET,
               allowMockPayment: allowMockRazorpay(),
+              forceMockPayment: forceMockRazorpay(),
             },
           });
 
@@ -781,6 +786,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             keyId: process.env.RAZORPAY_KEY_ID,
             keySecret: process.env.RAZORPAY_KEY_SECRET,
             allowMockPayment: allowMockRazorpay(),
+            forceMockPayment: forceMockRazorpay(),
           },
         });
 
@@ -982,6 +988,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             keyId: process.env.RAZORPAY_KEY_ID,
             keySecret: process.env.RAZORPAY_KEY_SECRET,
             allowMockPayment: allowMockRazorpay(),
+            forceMockPayment: forceMockRazorpay(),
           });
 
           return {

@@ -30,6 +30,7 @@ import { useEventInterestStore } from '@/store/eventInterestStore';
 import { useProfileStore } from '@/store/profileStore';
 import { colors, typography } from '@/lib/design/theme';
 import { resolveEventAccentColor } from '@/hooks/useEventAccent';
+import { formatEventDate, formatEventTime } from '@/lib/utils/date';
 
 type SearchParamValue = string | string[] | undefined;
 
@@ -38,6 +39,7 @@ interface OrderDetails {
   eventId?: string;
   eventTitle: string;
   eventDate?: string;
+  eventTimezone?: string;
   eventCoverImage?: string;
   venueLocation?: string;
   hostName?: string;
@@ -87,17 +89,9 @@ function getReadableTextColor(color: string) {
   return luminance > 0.48 ? '#161616' : '#FFFFFF';
 }
 
-function formatConfirmationDate(value?: string) {
+function formatConfirmationDate(value?: string, timeZone?: string) {
   if (!value) return 'Date TBA';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
-  const month = date.toLocaleDateString('en-US', { month: 'short' });
-  const day = date.getDate();
-  const time = date
-    .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    .replace(':00', '');
-  return `${weekday}, ${month} ${day} at ${time}`;
+  return `${formatEventDate(value, timeZone)} at ${formatEventTime(value, timeZone)}`;
 }
 
 function buildRouteOrder(params: Record<string, SearchParamValue>): OrderDetails | null {
@@ -111,6 +105,7 @@ function buildRouteOrder(params: Record<string, SearchParamValue>): OrderDetails
     eventId: getParam(params.eventId),
     eventTitle,
     eventDate: getParam(params.eventDate),
+    eventTimezone: getParam(params.eventTimezone),
     eventCoverImage: getParam(params.eventCoverImage),
     venueLocation: getParam(params.venueLocation),
     hostName: getParam(params.hostName),
@@ -135,6 +130,7 @@ function mapStoreOrder(storeOrder: Order): OrderDetails {
     eventId: storeOrder.eventId,
     eventTitle: storeOrder.eventTitle || 'Event',
     eventDate: storeOrder.eventStartDate || storeOrder.eventDate,
+    eventTimezone: (storeOrder as any).eventTimezone || (storeOrder as any).timezone,
     eventCoverImage: storeOrder.eventCoverImage,
     venueLocation: storeOrder.venueLocation,
     hostName: storeOrder.hostName,
@@ -252,10 +248,7 @@ export default function CheckoutSuccessScreen() {
     return () => backSubscription.remove();
   }, [orderId, syncOrderInBackground]);
 
-  const pageBg = normalizeHexColor(
-    order?.backgroundColor || order?.accentColor,
-    colors.iris,
-  );
+  const pageBg = normalizeHexColor(order?.backgroundColor || order?.accentColor, colors.iris);
   const foreground =
     order?.textColor && /^#[0-9A-Fa-f]{6}$/.test(order.textColor)
       ? order.textColor
@@ -265,7 +258,7 @@ export default function CheckoutSuccessScreen() {
   const buttonBorder = hexToRgba(foreground, 0.18);
   const posterWidth = Math.min(width - 40, 380);
   const posterHeight = Math.min(height * 0.56, posterWidth * 1.28);
-  const dateLabel = formatConfirmationDate(order?.eventDate);
+  const dateLabel = formatConfirmationDate(order?.eventDate, order?.eventTimezone);
   const venueLabel = order?.venueLocation || 'Venue TBA';
   const poster = order?.eventCoverImage;
 
@@ -327,7 +320,7 @@ export default function CheckoutSuccessScreen() {
         colors={[
           hexToRgba(order.accentColor || '#D915A8', 0.6), // Dominant color bleed
           hexToRgba(pageBg, 0.9),
-          pageBg
+          pageBg,
         ]}
         locations={[0, 0.48, 1]}
         style={StyleSheet.absoluteFill}
@@ -400,9 +393,7 @@ export default function CheckoutSuccessScreen() {
               {syncing ? (
                 <ActivityIndicator color={foreground} size="small" />
               ) : (
-                <Text style={[styles.retrySyncText, { color: foreground }]}>
-                  Retry ticket sync
-                </Text>
+                <Text style={[styles.retrySyncText, { color: foreground }]}>Retry ticket sync</Text>
               )}
             </Pressable>
           ) : null}

@@ -20,7 +20,10 @@ type FirstRunState = {
   load: () => Promise<void>;
   saveIdentity: (displayName: string, dateOfBirth: string) => Promise<boolean>;
   saveCity: (cityId: string, cityName: string, source: 'manual' | 'location') => Promise<boolean>;
-  savePreferences: (updates: { vibeTags?: NightlifeTaste[]; intents?: UserIntent[] }) => Promise<boolean>;
+  savePreferences: (updates: {
+    vibeTags?: NightlifeTaste[];
+    intents?: UserIntent[];
+  }) => Promise<boolean>;
   skipEmail: () => Promise<boolean>;
   complete: () => Promise<boolean>;
   clear: () => void;
@@ -60,7 +63,7 @@ async function readFallback(userId?: string | null) {
   if (!key) return null;
   try {
     const raw = await AsyncStorage.getItem(key);
-    return raw ? JSON.parse(raw) as FirstRunSnapshot : null;
+    return raw ? (JSON.parse(raw) as FirstRunSnapshot) : null;
   } catch {
     await AsyncStorage.removeItem(key).catch(() => undefined);
     return null;
@@ -111,7 +114,9 @@ export const useFirstRunStore = create<FirstRunState>((set, get) => ({
     try {
       const response = await request('/api/v1/users/me/onboarding', 'GET');
       if (!isCurrentFirstRunRequest(requestContext)) return;
-      const snapshot = unwrapFirstRunSnapshot(response, fallback);
+      // A successful bootstrap is canonical. Local fallback is only for an
+      // offline/error path and must not restore fields the server cleared.
+      const snapshot = unwrapFirstRunSnapshot(response);
       if (snapshot) await writeFallback(snapshot, requestContext.userId);
       if (!isCurrentFirstRunRequest(requestContext)) return;
       set({ snapshot, loading: false, hydrated: true });
@@ -119,16 +124,29 @@ export const useFirstRunStore = create<FirstRunState>((set, get) => ({
       if (!isCurrentFirstRunRequest(requestContext)) return;
       // A user-scoped snapshot enables deterministic offline resume. It never
       // grants backend access; protected APIs still enforce canonical state.
-      set({ snapshot: fallback, loading: false, hydrated: true, error: fallback ? null : error?.message ?? 'Unable to load setup.' });
+      set({
+        snapshot: fallback,
+        loading: false,
+        hydrated: true,
+        error: fallback ? null : (error?.message ?? 'Unable to load setup.'),
+      });
     }
   },
   saveIdentity: async (displayName, dateOfBirth) => {
     const requestContext = beginFirstRunRequest();
     set({ loading: true, error: null });
     try {
-      const response = await request('/api/v1/users/me/onboarding/identity', 'PATCH', { displayName, dateOfBirth });
+      const response = await request('/api/v1/users/me/onboarding/identity', 'PATCH', {
+        displayName,
+        dateOfBirth,
+      });
       if (!isCurrentFirstRunRequest(requestContext)) return false;
-      const snapshot = unwrapFirstRunSnapshot(response, get().snapshot) ?? { ...get().snapshot, displayName, dateOfBirth, currentStage: 'city' as const };
+      const snapshot = unwrapFirstRunSnapshot(response, get().snapshot) ?? {
+        ...get().snapshot,
+        displayName,
+        dateOfBirth,
+        currentStage: 'city' as const,
+      };
       await writeFallback(snapshot, requestContext.userId);
       if (!isCurrentFirstRunRequest(requestContext)) return false;
       set({ snapshot, loading: false });
@@ -145,13 +163,26 @@ export const useFirstRunStore = create<FirstRunState>((set, get) => ({
       }
       if (error?.status === 404) {
         try {
-          await legacyProfilePatch({ displayName, dateOfBirth, basicSetupComplete: true, profileSetupComplete: true });
+          await legacyProfilePatch({
+            displayName,
+            dateOfBirth,
+            basicSetupComplete: true,
+            profileSetupComplete: true,
+          });
           if (!isCurrentFirstRunRequest(requestContext)) return false;
-          const snapshot = { ...get().snapshot, displayName, dateOfBirth, currentStage: 'city' as const };
+          const snapshot = {
+            ...get().snapshot,
+            displayName,
+            dateOfBirth,
+            currentStage: 'city' as const,
+          };
           await writeFallback(snapshot, requestContext.userId);
           if (!isCurrentFirstRunRequest(requestContext)) return false;
-          set({ snapshot, loading: false }); return true;
-        } catch (fallbackError: any) { failure = fallbackError; }
+          set({ snapshot, loading: false });
+          return true;
+        } catch (fallbackError: any) {
+          failure = fallbackError;
+        }
       }
       if (!isCurrentFirstRunRequest(requestContext)) return false;
       set({ loading: false, error: failure?.message ?? 'Could not save your details.' });
@@ -162,9 +193,18 @@ export const useFirstRunStore = create<FirstRunState>((set, get) => ({
     const requestContext = beginFirstRunRequest();
     set({ loading: true, error: null });
     try {
-      const response = await request('/api/v1/users/me/onboarding/city', 'PATCH', { cityId, cityName, source });
+      const response = await request('/api/v1/users/me/onboarding/city', 'PATCH', {
+        cityId,
+        cityName,
+        source,
+      });
       if (!isCurrentFirstRunRequest(requestContext)) return false;
-      const snapshot = unwrapFirstRunSnapshot(response, get().snapshot) ?? { ...get().snapshot, cityId, cityName, currentStage: 'tastes' as const };
+      const snapshot = unwrapFirstRunSnapshot(response, get().snapshot) ?? {
+        ...get().snapshot,
+        cityId,
+        cityName,
+        currentStage: 'tastes' as const,
+      };
       await writeFallback(snapshot, requestContext.userId);
       if (!isCurrentFirstRunRequest(requestContext)) return false;
       set({ snapshot, loading: false });
@@ -179,8 +219,11 @@ export const useFirstRunStore = create<FirstRunState>((set, get) => ({
           const snapshot = { ...get().snapshot, cityId, cityName, currentStage: 'tastes' as const };
           await writeFallback(snapshot, requestContext.userId);
           if (!isCurrentFirstRunRequest(requestContext)) return false;
-          set({ snapshot, loading: false }); return true;
-        } catch (fallbackError: any) { failure = fallbackError; }
+          set({ snapshot, loading: false });
+          return true;
+        } catch (fallbackError: any) {
+          failure = fallbackError;
+        }
       }
       if (!isCurrentFirstRunRequest(requestContext)) return false;
       set({ loading: false, error: failure?.message ?? 'Could not save your city.' });
@@ -194,7 +237,11 @@ export const useFirstRunStore = create<FirstRunState>((set, get) => ({
       const response = await request('/api/v1/users/me/onboarding/preferences', 'PATCH', updates);
       if (!isCurrentFirstRunRequest(requestContext)) return false;
       const currentStage: FirstRunStage = updates.intents ? 'complete' : 'intent';
-      const snapshot = unwrapFirstRunSnapshot(response, get().snapshot) ?? { ...get().snapshot, ...updates, currentStage };
+      const snapshot = unwrapFirstRunSnapshot(response, get().snapshot) ?? {
+        ...get().snapshot,
+        ...updates,
+        currentStage,
+      };
       await writeFallback(snapshot, requestContext.userId);
       if (!isCurrentFirstRunRequest(requestContext)) return false;
       set({ snapshot, loading: false });
@@ -206,11 +253,18 @@ export const useFirstRunStore = create<FirstRunState>((set, get) => ({
         try {
           await legacyProfilePatch(updates);
           if (!isCurrentFirstRunRequest(requestContext)) return false;
-          const snapshot = { ...get().snapshot, ...updates, currentStage: (updates.intents ? 'complete' : 'intent') as FirstRunStage };
+          const snapshot = {
+            ...get().snapshot,
+            ...updates,
+            currentStage: (updates.intents ? 'complete' : 'intent') as FirstRunStage,
+          };
           await writeFallback(snapshot, requestContext.userId);
           if (!isCurrentFirstRunRequest(requestContext)) return false;
-          set({ snapshot, loading: false }); return true;
-        } catch (fallbackError: any) { failure = fallbackError; }
+          set({ snapshot, loading: false });
+          return true;
+        } catch (fallbackError: any) {
+          failure = fallbackError;
+        }
       }
       if (!isCurrentFirstRunRequest(requestContext)) return false;
       set({ loading: false, error: failure?.message ?? 'Could not save your preferences.' });
@@ -221,9 +275,15 @@ export const useFirstRunStore = create<FirstRunState>((set, get) => ({
     const requestContext = beginFirstRunRequest();
     set({ loading: true, error: null });
     try {
-      const response = await request('/api/v1/users/me/onboarding/email-prompt', 'POST', { status: 'skipped' });
+      const response = await request('/api/v1/users/me/onboarding/email-prompt', 'POST', {
+        status: 'skipped',
+      });
       if (!isCurrentFirstRunRequest(requestContext)) return false;
-      const snapshot = unwrapFirstRunSnapshot(response, get().snapshot) ?? { ...get().snapshot, emailPromptStatus: 'skipped' as const, currentStage: 'identity' as const };
+      const snapshot = unwrapFirstRunSnapshot(response, get().snapshot) ?? {
+        ...get().snapshot,
+        emailPromptStatus: 'skipped' as const,
+        currentStage: 'identity' as const,
+      };
       await writeFallback(snapshot, requestContext.userId);
       if (!isCurrentFirstRunRequest(requestContext)) return false;
       set({ snapshot, loading: false });
@@ -231,10 +291,15 @@ export const useFirstRunStore = create<FirstRunState>((set, get) => ({
     } catch (error: any) {
       if (!isCurrentFirstRunRequest(requestContext)) return false;
       if (error?.status === 404) {
-        const snapshot = { ...get().snapshot, emailPromptStatus: 'skipped' as const, currentStage: 'identity' as const };
+        const snapshot = {
+          ...get().snapshot,
+          emailPromptStatus: 'skipped' as const,
+          currentStage: 'identity' as const,
+        };
         await writeFallback(snapshot, requestContext.userId);
         if (!isCurrentFirstRunRequest(requestContext)) return false;
-        set({ snapshot, loading: false }); return true;
+        set({ snapshot, loading: false });
+        return true;
       }
       set({ loading: false, error: error?.message ?? 'Could not continue.' });
       return false;
@@ -246,7 +311,11 @@ export const useFirstRunStore = create<FirstRunState>((set, get) => ({
     try {
       const response = await request('/api/v1/users/me/onboarding/complete', 'POST');
       if (!isCurrentFirstRunRequest(requestContext)) return false;
-      const snapshot = unwrapFirstRunSnapshot(response, get().snapshot) ?? { ...get().snapshot, completed: true, currentStage: 'complete' as const };
+      const snapshot = unwrapFirstRunSnapshot(response, get().snapshot) ?? {
+        ...get().snapshot,
+        completed: true,
+        currentStage: 'complete' as const,
+      };
       await writeFallback(snapshot, requestContext.userId);
       if (!isCurrentFirstRunRequest(requestContext)) return false;
       set({ snapshot, loading: false });
@@ -258,11 +327,18 @@ export const useFirstRunStore = create<FirstRunState>((set, get) => ({
         try {
           await legacyProfilePatch({ onboardingComplete: true });
           if (!isCurrentFirstRunRequest(requestContext)) return false;
-          const snapshot = { ...get().snapshot, completed: true, currentStage: 'complete' as const };
+          const snapshot = {
+            ...get().snapshot,
+            completed: true,
+            currentStage: 'complete' as const,
+          };
           await writeFallback(snapshot, requestContext.userId);
           if (!isCurrentFirstRunRequest(requestContext)) return false;
-          set({ snapshot, loading: false }); return true;
-        } catch (fallbackError: any) { failure = fallbackError; }
+          set({ snapshot, loading: false });
+          return true;
+        } catch (fallbackError: any) {
+          failure = fallbackError;
+        }
       }
       if (!isCurrentFirstRunRequest(requestContext)) return false;
       set({ loading: false, error: failure?.message ?? 'Could not finish setup.' });

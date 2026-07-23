@@ -87,6 +87,32 @@ describe('firstRunStore canonical snapshot compatibility', () => {
     });
   });
 
+  it('lets a successful server reset replace a stale completed local draft', async () => {
+    await AsyncStorage.setItem(
+      'c1rcle:first_run:v2:user_revisit',
+      JSON.stringify(completeSnapshot),
+    );
+    mockApiFetch.mockResolvedValueOnce({
+      success: true,
+      snapshot: {
+        version: 2,
+        currentStage: 'identity',
+        completed: false,
+      },
+    });
+
+    await useFirstRunStore.getState().load();
+
+    expect(useFirstRunStore.getState().snapshot).toEqual({
+      version: 2,
+      currentStage: 'identity',
+      completed: false,
+    });
+    await expect(AsyncStorage.getItem('c1rcle:first_run:v2:user_revisit')).resolves.toBe(
+      JSON.stringify({ version: 2, currentStage: 'identity', completed: false }),
+    );
+  });
+
   it('does not erase saved identity, city, or tastes on a metadata-only legacy response', async () => {
     useFirstRunStore.setState({ snapshot: { ...completeSnapshot, currentStage: 'tastes' } });
     mockApiFetch.mockResolvedValueOnce({
@@ -130,7 +156,12 @@ describe('firstRunStore canonical snapshot compatibility', () => {
     await Promise.resolve();
 
     userBResponse.resolve({
-      snapshot: { ...completeSnapshot, displayName: 'User B', cityId: 'mumbai', cityName: 'Mumbai' },
+      snapshot: {
+        ...completeSnapshot,
+        displayName: 'User B',
+        cityId: 'mumbai',
+        cityName: 'Mumbai',
+      },
     });
     await loadB;
     userAResponse.resolve({

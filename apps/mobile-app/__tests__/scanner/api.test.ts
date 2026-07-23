@@ -65,6 +65,24 @@ describe('validateEventCode', () => {
     expect(result.error).toBe('Invalid event code');
   });
 
+  it('converts a structured gateway error into render-safe text', async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Invalid event code',
+          requestId: 'req_scanner_1',
+        },
+      }),
+      { status: 404 },
+    );
+
+    const result = await validateEventCode('BAD-CODE');
+
+    expect(result).toMatchObject({ valid: false, error: 'Invalid event code' });
+    expect(typeof result.error).toBe('string');
+  });
+
   it('returns valid=false on 403 (revoked code)', async () => {
     fetchMock.mockResponseOnce(JSON.stringify({ error: 'Code revoked' }), { status: 403 });
     const result = await validateEventCode('REVOKED-CODE');

@@ -60,4 +60,24 @@ describe('PaymentService', () => {
     expect(second).toMatchObject(first);
     expect(orderRepo.payments.size).toBe(1);
   });
+
+  it('forces a deterministic mock order even when Razorpay keys are configured', async () => {
+    const orderRepo = new FakeOrderRepository();
+    const service = new PaymentService(orderRepo as any);
+
+    const payment = await service.prepareRazorpayOrder({
+      order: { id: 'ord_force_mock', totalAmount: 1499, workspaceId: 'ws_1' } as any,
+      userId: 'user_1',
+      config: {
+        keyId: 'rzp_test_real_key',
+        keySecret: 'test_secret',
+        allowMockPayment: true,
+        forceMockPayment: true,
+      },
+    });
+
+    expect(payment.razorpayOrderId).toMatch(/^order_mock_/);
+    expect(payment.key).toBe('rzp_test_DEVELOPMENT');
+    expect(orderRepo.payments.size).toBe(1);
+  });
 });

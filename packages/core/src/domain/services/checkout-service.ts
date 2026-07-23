@@ -70,7 +70,7 @@ export class CheckoutService {
   }): Promise<any> {
     // Opportunistically restore inventory from abandoned payment attempts.
     // This is a safety net; the client also cancels an abandoned order directly.
-    await cleanupStaleOrders(null, 10).catch((error: any) => {
+    void cleanupStaleOrders(params.userId, 10).catch((error: any) => {
       telemetry.error('[Checkout] Stale-order cleanup failed before reservation', error, {
         userId: params.userId,
         eventId: params.eventId,
@@ -151,6 +151,7 @@ export class CheckoutService {
       keyId?: string;
       keySecret?: string;
       allowMockPayment?: boolean;
+      forceMockPayment?: boolean;
     };
   }): Promise<any> {
     const { eventId, tierId, quantity, user, workspaceId = null } = params;
@@ -202,10 +203,7 @@ export class CheckoutService {
       activeReservationId = reservationId;
       const expiresAt = reservationResult.expiresAt;
       const checkoutSnapshot = reservationResult.checkoutSnapshot;
-      const pricedEvent = await this.eventRepo.getById(
-        eventId,
-        workspaceId || (undefined as any),
-      );
+      const pricedEvent = await this.eventRepo.getById(eventId, workspaceId || (undefined as any));
       if (!pricedEvent) throw this.withCode(new Error('Event not found'), 'NOT_FOUND');
       this.inventory.assertEventAvailable(pricedEvent);
       assertCheckoutSnapshotCurrent(checkoutSnapshot, pricedEvent, [item]);
@@ -335,6 +333,7 @@ export class CheckoutService {
         keyId: params.paymentGatewayConfig.keyId || '',
         keySecret: params.paymentGatewayConfig.keySecret || '',
         allowMockPayment: params.paymentGatewayConfig.allowMockPayment,
+        forceMockPayment: params.paymentGatewayConfig.forceMockPayment,
       });
 
       telemetry.track('CHECKOUT_INTENT_CREATED', {

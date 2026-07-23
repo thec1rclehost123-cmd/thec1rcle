@@ -13,7 +13,7 @@ describe('native detail intent dedupe', () => {
 
   it('collapses the same rapid host route across equivalent native path formats', () => {
     expect(collapseRapidDuplicateDetailIntent('c1rcle://host/demo-host-03', 1_000)).toBe(
-      'c1rcle://host/demo-host-03',
+      '/host/demo-host-03',
     );
     expect(collapseRapidDuplicateDetailIntent('/host/demo-host-03', 1_100)).toBeNull();
   });
@@ -21,7 +21,7 @@ describe('native detail intent dedupe', () => {
   it('collapses the same rapid venue route including app-prefixed universal paths', () => {
     expect(
       collapseRapidDuplicateDetailIntent('https://thec1rcle.com/app/venue/demo-venue-nowl', 2_000),
-    ).toBe('https://thec1rcle.com/app/venue/demo-venue-nowl');
+    ).toBe('/venue/demo-venue-nowl');
     expect(collapseRapidDuplicateDetailIntent('/venue/demo-venue-nowl', 2_050)).toBeNull();
   });
 
@@ -43,15 +43,25 @@ describe('native detail intent dedupe', () => {
     expect(collapseRapidDuplicateDetailIntent('/event/event-a', 5_001)).toBe('/event/event-a');
   });
 
+  it.each([
+    ['c1rcle://settings/notifications', '/settings/notifications'],
+    ['c1rcle://legal/privacy', '/legal/privacy'],
+    ['c1rcle://search', '/search'],
+    ['c1rcle://explore/map', '/explore/map'],
+    ['c1rcle://event?eventId=demo-event-05', '/event/demo-event-05?eventId=demo-event-05'],
+  ])('normalizes %s into the Expo Router file path', (nativePath, expected) => {
+    expect(collapseRapidDuplicateDetailIntent(nativePath)).toBe(expected);
+  });
+
   it('keys encoded and decoded identifiers consistently', () => {
     expect(getNativeDetailIntentKey('/host/demo%2Dhost%2D03')).toBe('host:demo-host-03');
     expect(getNativeDetailIntentKey('/host/demo-host-03')).toBe('host:demo-host-03');
   });
 
   it('is wired through the Expo Router native-intent entry point', () => {
-    expect(
-      redirectSystemPath({ path: 'c1rcle://venue/demo-venue-nowl', initial: false }),
-    ).toBe('c1rcle://venue/demo-venue-nowl');
+    expect(redirectSystemPath({ path: 'c1rcle://venue/demo-venue-nowl', initial: false })).toBe(
+      '/venue/demo-venue-nowl',
+    );
     expect(
       redirectSystemPath({ path: 'c1rcle://venue/demo-venue-nowl', initial: false }),
     ).toBeNull();

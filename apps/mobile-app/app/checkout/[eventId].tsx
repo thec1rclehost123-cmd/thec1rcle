@@ -412,6 +412,7 @@ export default function TicketSelectionScreen() {
         eventId: event.id,
         eventTitle: event.title,
         eventDate: event.startDate,
+        eventTimezone: event.timezone,
         eventVenue: venueLabel,
         eventCoverImage: eventImage ?? undefined,
         eventAccentColor: posterAccent,
@@ -488,7 +489,8 @@ export default function TicketSelectionScreen() {
             <View style={styles.heroMetaRow}>
               <Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.52)" />
               <Text style={styles.heroMetaText}>
-                {formatEventDate(event.startDate)} · {formatEventTime(event.startDate)}
+                {formatEventDate(event.startDate, event.timezone)} ·{' '}
+                {formatEventTime(event.startDate, event.timezone)}
               </Text>
             </View>
             <View style={styles.heroMetaRow}>

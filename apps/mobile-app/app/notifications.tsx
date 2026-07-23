@@ -18,7 +18,7 @@ import Animated, {
   withTiming,
   Layout,
 } from 'react-native-reanimated';
-import { Swipeable } from 'react-native-gesture-handler';
+import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '@/store/authStore';
 import {
@@ -36,7 +36,7 @@ import { formatRelativeTime } from '@/lib/utils/date';
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // Notification Item Component
-function NotificationItem({
+export function NotificationItem({
   notification,
   index,
   onPress,
@@ -76,11 +76,7 @@ function NotificationItem({
   );
 
   return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 50)}
-      exiting={SlideOutRight}
-      layout={Layout}
-    >
+    <Animated.View entering={FadeInDown.delay(index * 50)} exiting={SlideOutRight} layout={Layout}>
       <View>
         <Swipeable renderRightActions={renderRightActions}>
           <View collapsable={false}>
@@ -143,7 +139,12 @@ function DittoNotificationEmptyState() {
         <View style={styles.phoneFrame}>
           {/* Mock Row 1 */}
           <View style={styles.listRow}>
-            <View style={[styles.avatarOrb, { borderRadius: 12, backgroundColor: '#8B5CF6', overflow: 'hidden' }]}>
+            <View
+              style={[
+                styles.avatarOrb,
+                { borderRadius: 12, backgroundColor: '#8B5CF6', overflow: 'hidden' },
+              ]}
+            >
               <Image
                 source={require('../assets/images/attendees/riya.png')}
                 style={{ width: '100%', height: '100%' }}
@@ -175,7 +176,12 @@ function DittoNotificationEmptyState() {
 
           {/* Mock Row 3 */}
           <View style={styles.listRow}>
-            <View style={[styles.avatarOrb, { borderRadius: 22, backgroundColor: '#EAB308', overflow: 'hidden' }]}>
+            <View
+              style={[
+                styles.avatarOrb,
+                { borderRadius: 22, backgroundColor: '#EAB308', overflow: 'hidden' },
+              ]}
+            >
               <Image
                 source={require('../assets/images/attendees/neil.png')}
                 style={{ width: '100%', height: '100%' }}

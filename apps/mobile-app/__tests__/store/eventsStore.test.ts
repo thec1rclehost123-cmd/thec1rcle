@@ -126,6 +126,21 @@ describe('eventsStore', () => {
       expect(events[0].id).toBe('evt_1');
       expect(events[1].id).toBe('evt_2');
     });
+
+    it('uses startAt as the canonical event start when legacy fields disagree', async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        items: [
+          makeEvent({
+            startAt: '2026-08-02T20:00:00.000Z',
+            startDate: '2026-07-01T18:00:00.000Z',
+          }),
+        ],
+      });
+
+      await useEventsStore.getState().fetchEvents('Mumbai', undefined, true);
+
+      expect(useEventsStore.getState().events[0].startDate).toBe('2026-08-02T20:00:00.000Z');
+    });
   });
 
   describe('fetchFeaturedEvents', () => {

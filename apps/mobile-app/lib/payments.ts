@@ -457,6 +457,10 @@ interface RazorpayResult {
  */
 async function openNativeRazorpay(options: RazorpayOptions): Promise<RazorpayResult> {
   try {
+    if (__DEV__ && options.razorpayOrderId.startsWith('order_mock_')) {
+      return devPaymentFallback(options);
+    }
+
     const RazorpayCheckout = getRazorpaySDK();
 
     if (RazorpayCheckout) {

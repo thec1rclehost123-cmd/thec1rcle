@@ -248,7 +248,7 @@ export function handleDeepLink(url: string, options: HandleDeepLinkOptions = {})
 
   const { type, params } = parseDeepLink(url);
 
-  if (options.nativeFileRouteAlreadyHandled && (type === 'host' || type === 'venue')) {
+  if (options.nativeFileRouteAlreadyHandled) {
     return;
   }
 

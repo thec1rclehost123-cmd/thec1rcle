@@ -20,6 +20,16 @@ const SCAN_API = `${GATEWAY_URL}/api/v1/scan`;
 const WALLET_API = `${GATEWAY_URL}/api/v1/cover-charge`;
 const DEVICE_ID_KEY = 'c1rcle_scanner_device_id';
 
+export function scannerErrorMessage(value: unknown, fallback: string): string {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (value && typeof value === 'object') {
+    const error = value as Record<string, unknown>;
+    if (typeof error.message === 'string' && error.message.trim()) return error.message.trim();
+    if (typeof error.code === 'string' && error.code.trim()) return error.code.trim();
+  }
+  return fallback;
+}
+
 // ── Timeout helper ─────────────────────────────────────────────────────────
 function makeAbort(ms: number): { signal: AbortSignal; cleanup: () => void } {
   const ctrl = new AbortController();
@@ -169,7 +179,7 @@ export async function validateEventCode(code: string): Promise<ScannerEventData>
         event: {} as any,
         permissions: { canScan: false, canDoorEntry: false, canWalkIn: false, canCharge: false },
         tiers: [],
-        error: data.error || 'Invalid code',
+        error: scannerErrorMessage(data.error ?? data.message, 'Invalid code'),
       };
     }
     return { valid: true, code, ...data };
