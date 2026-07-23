@@ -3,19 +3,13 @@
  * Scores events based on time-of-day + order history + browsed categories + heatScore
  */
 
-<<<<<<< HEAD
-import { create } from "zustand";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { Event } from "./eventsStore";
-import { apiFetch, deduplicateRequest } from "@/lib/api";
-import { firstRunFeatureFlags } from "@/lib/featureFlags";
-import { getFirebaseAuth } from "@/lib/firebase";
-import { finishFirstRunMetric, startFirstRunMetric } from "@/lib/firstRunPerformance";
-=======
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Event } from './eventsStore';
->>>>>>> origin/pre-staging
+import { apiFetch, deduplicateRequest } from '@/lib/api';
+import { firstRunFeatureFlags } from '@/lib/featureFlags';
+import { getFirebaseAuth } from '@/lib/firebase';
+import { finishFirstRunMetric, startFirstRunMetric } from '@/lib/firstRunPerformance';
 
 const BROWSED_KEY = 'c1rcle:browsed_categories';
 const BROWSED_MAX = 10; // keep last 10 browsed category entries
@@ -34,28 +28,12 @@ const TIME_OF_DAY_BOOSTS: Record<string, number[]> = {
   comedy: [18, 19, 20, 21, 22],
 };
 
-interface RecommendationsState {
-<<<<<<< HEAD
-    recommendations: Event[];
-    scoredEvents: Record<string, { score: number }>;
-    browsedCategories: string[];
-    reasonLabel: string;
-    source: 'server' | 'local';
-    recommendationsOwnerUserId: string | null;
-
-    // Call on each event detail open
-    trackBrowse: (category: string) => Promise<void>;
-    // Call to rescore events against user signals
-    score: (events: Event[], pastOrderCategories: string[]) => void;
-    // Load persisted browsed categories from AsyncStorage
-    loadBrowsed: () => Promise<void>;
-    setServerRecommendations: (items: Array<{ event: Event; reasonLabel?: string }>) => void;
-    setRecommendationsOwner: (userId: string | null) => void;
-    loadServerRecommendations: (userId: string) => Promise<boolean>;
-=======
   recommendations: Event[];
   scoredEvents: Record<string, { score: number }>;
   browsedCategories: string[];
+  reasonLabel: string;
+  source: 'server' | 'local';
+  recommendationsOwnerUserId: string | null;
 
   // Call on each event detail open
   trackBrowse: (category: string) => Promise<void>;
@@ -63,7 +41,9 @@ interface RecommendationsState {
   score: (events: Event[], pastOrderCategories: string[]) => void;
   // Load persisted browsed categories from AsyncStorage
   loadBrowsed: () => Promise<void>;
->>>>>>> origin/pre-staging
+  setServerRecommendations: (items: Array<{ event: Event; reasonLabel?: string }>) => void;
+  setRecommendationsOwner: (userId: string | null) => void;
+  loadServerRecommendations: (userId: string) => Promise<boolean>;
 }
 
 const EMPTY_RECOMMENDATIONS_STATE = {
@@ -160,11 +140,6 @@ export const useRecommendationsStore = create<RecommendationsState>((set, get) =
             }
         });
     },
-=======
-  recommendations: [],
-  scoredEvents: {},
-  browsedCategories: [],
->>>>>>> origin/pre-staging
 
   loadBrowsed: async () => {
     try {
@@ -177,30 +152,6 @@ export const useRecommendationsStore = create<RecommendationsState>((set, get) =
     }
   },
 
-<<<<<<< HEAD
-    trackBrowse: async (category: string) => {
-        if (!category) return;
-        const cat = category.toLowerCase();
-        const current = get().browsedCategories;
-        // Deduplicate + cap at BROWSED_MAX
-        const updated = [cat, ...current.filter((c) => c !== cat)].slice(0, BROWSED_MAX);
-        set({ browsedCategories: updated });
-        try {
-            await AsyncStorage.setItem(BROWSED_KEY, JSON.stringify(updated));
-        } catch {
-            // non-critical
-        }
-        try {
-            await apiFetch('/api/v1/users/me/recommendation-signals', {
-                method: 'POST',
-                requireAuth: true,
-                body: JSON.stringify({ type: 'category_browse', category: cat }),
-            });
-        } catch {
-            // Guests, offline sessions, and legacy gateways keep the local fallback.
-        }
-    },
-=======
   trackBrowse: async (category: string) => {
     if (!category) return;
     const cat = category.toLowerCase();
@@ -213,8 +164,16 @@ export const useRecommendationsStore = create<RecommendationsState>((set, get) =
     } catch {
       // non-critical
     }
+    try {
+      await apiFetch('/api/v1/users/me/recommendation-signals', {
+        method: 'POST',
+        requireAuth: true,
+        body: JSON.stringify({ type: 'category_browse', category: cat }),
+      });
+    } catch {
+      // Guests, offline sessions, and legacy gateways keep the local fallback.
+    }
   },
->>>>>>> origin/pre-staging
 
   score: (events: Event[], pastOrderCategories: string[]) => {
     const { browsedCategories } = get();
