@@ -31,6 +31,15 @@ export async function createOrder(payload: any) {
       updatedAt: new Date().toISOString(),
     };
 
+    // Determine up front whether this order already exists, before any
+    // writes happen in this transaction (Firestore requires all reads
+    // first). A retried call -- network timeout, duplicate webhook, etc. --
+    // must not re-run one-time side effects (promo redemption, public
+    // attendee sync) against an order that was already fully processed.
+    const orderRef = db.collection(orderData.isRSVP ? 'rsvp_orders' : 'orders').doc(orderId);
+    const preExistingOrderDoc = await transaction.get(orderRef);
+    const isNewOrder = !preExistingOrderDoc.exists;
+
     // 1. Execute unified order creation and inventory commitment
     const finalOrder = await coreExecuteOrderCreation(transaction, {
       db,
@@ -40,8 +49,10 @@ export async function createOrder(payload: any) {
       inventoryEngine,
     });
 
-    // 2. Generate QR codes if confirmed
-    if (finalOrder.status === 'confirmed') {
+    // 2. Generate QR codes if confirmed (only for a genuinely new order --
+    // a retry resolves to the already-processed order without re-running
+    // redemption/discovery-sync side effects a second time)
+    if (finalOrder.status === 'confirmed' && isNewOrder) {
       finalOrder.qrCodes = generateOrderQRCodes(finalOrder, event);
       finalOrder.confirmedAt = new Date().toISOString();
 

@@ -99,7 +99,23 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
           readonly: 10,
         };
 
-        const userRoleValue = hierarchy[admin_role] || hierarchy['admin'] || 0;
+        // Reject missing or unrecognized role claims immediately
+        if (!admin_role || !hierarchy.hasOwnProperty(admin_role)) {
+          logAuthEvent('INVALID_ADMIN_ROLE_CLAIM', {
+            uid: decodedToken.uid,
+            admin_role,
+            path: req.nextUrl?.pathname,
+          });
+          return genericNotFound();
+        }
+
+        // Validate endpoint's requiredRole configuration
+        if (requiredRole && !hierarchy.hasOwnProperty(requiredRole)) {
+          console.error(`[Admin Auth] Invalid required role configuration: ${requiredRole}`);
+          return genericNotFound();
+        }
+
+        const userRoleValue = hierarchy[admin_role];
         const requiredRoleValue = hierarchy[requiredRole] || 100;
 
         if (userRoleValue < requiredRoleValue) {
@@ -119,15 +135,6 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
           logAuthEvent('STALE_ADMIN_SESSION', {
             uid: decodedToken.uid,
             authTime: new Date(authTime).toISOString(),
-            path: req.nextUrl?.pathname,
-          });
-          return genericNotFound();
-        }
-
-        // Reject tokens missing admin_role claim — do not silently downgrade
-        if (!admin_role) {
-          logAuthEvent('MISSING_ADMIN_ROLE_CLAIM', {
-            uid: decodedToken.uid,
             path: req.nextUrl?.pathname,
           });
           return genericNotFound();
@@ -181,7 +188,7 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
         ipAddress,
         userAgent,
         requestId,
-        admin_role: admin_role || 'super',
+        admin_role: admin_role || (isDev ? 'super' : 'readonly'),
       };
 
       return handler(req, ...args);

@@ -19,6 +19,19 @@ async function patchHandler(req, { params }) {
       return NextResponse.json({ error: 'Role is required' }, { status: 400 });
     }
 
+    const VALID_ADMIN_ROLES = [
+      'super',
+      'admin',
+      'ops',
+      'finance',
+      'content',
+      'support',
+      'readonly',
+    ];
+    if (!VALID_ADMIN_ROLES.includes(role)) {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
+    }
+
     const db = getAdminDb();
 
     // 1. Is it a pending invitation?
@@ -41,7 +54,7 @@ async function patchHandler(req, { params }) {
 
     await adminRef.update({
       admin_role: role,
-      role,
+      role: 'admin',
       updatedAt: new Date().toISOString(),
     });
 

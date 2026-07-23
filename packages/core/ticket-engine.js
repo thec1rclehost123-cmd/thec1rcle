@@ -6,8 +6,6 @@
 import { randomBytes, createHmac } from 'node:crypto';
 import { getTicketSecret } from './secret-registry.js';
 
-const TICKET_SECRET = getTicketSecret();
-
 /**
  * Signs a ticket ID for QR verification.
  */
@@ -53,41 +51,43 @@ export function validateTransfer(transfer, recipientId) {
 export async function getUserTicketsFromCollection(userId) {
   const { getAdminDb } = await import('./admin.js');
   const db = getAdminDb();
-  
+
   const ticketsSnap = await db.collection('tickets').where('userId', '==', userId).get();
-  
+
   const upcomingTickets = [];
   const pastTickets = [];
-  
+
   if (ticketsSnap.empty) {
     return { upcomingTickets, pastTickets };
   }
 
   // Extract unique event IDs
-  const eventIds = [...new Set(ticketsSnap.docs.map(doc => doc.data().eventId).filter(Boolean))];
+  const eventIds = [...new Set(ticketsSnap.docs.map((doc) => doc.data().eventId).filter(Boolean))];
   const eventsMap = {};
-  
+
   if (eventIds.length > 0) {
     // Firestore 'in' queries are limited to 30 items
     const chunks = [];
     for (let i = 0; i < eventIds.length; i += 30) {
       chunks.push(eventIds.slice(i, i + 30));
     }
-    
-    await Promise.all(chunks.map(async (chunk) => {
-      const eventsSnap = await db.collection('events').where('__name__', 'in', chunk).get();
-      eventsSnap.forEach(doc => {
-        eventsMap[doc.id] = doc.data();
-      });
-    }));
+
+    await Promise.all(
+      chunks.map(async (chunk) => {
+        const eventsSnap = await db.collection('events').where('__name__', 'in', chunk).get();
+        eventsSnap.forEach((doc) => {
+          eventsMap[doc.id] = doc.data();
+        });
+      }),
+    );
   }
 
   const now = new Date();
 
-  ticketsSnap.forEach(doc => {
+  ticketsSnap.forEach((doc) => {
     const ticket = doc.data();
     const event = eventsMap[ticket.eventId];
-    
+
     let eventDetails = null;
     let isPast = false;
 
@@ -98,11 +98,11 @@ export async function getUserTicketsFromCollection(userId) {
         date: event.startDate || event.startAt,
         venue: event.venue || event.venueName || event.location || 'TBD',
       };
-      
-      const eventEndDate = event.endDate 
-        ? new Date(event.endDate) 
+
+      const eventEndDate = event.endDate
+        ? new Date(event.endDate)
         : new Date(event.startDate || event.startAt);
-      
+
       isPast = eventEndDate < now;
     }
 
@@ -111,7 +111,7 @@ export async function getUserTicketsFromCollection(userId) {
       ...ticket,
       qrMode: ticket.qrMode || 'jwt',
       qrPayload: ticket.qrPayload || ticket.qrJwt || null,
-      event: eventDetails
+      event: eventDetails,
     };
 
     if (isPast || ticket.status === 'used') {
@@ -148,11 +148,11 @@ export async function initiateGroupTransfer(userId, ticketId) {
   }
 
   const transferToken = generateSecureToken(32);
-  
+
   await ticketRef.update({
     status: 'transfer_pending',
     transferToken,
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
   });
 
   return { transferToken };
@@ -166,7 +166,8 @@ export async function claimGroupTransfer(userId, transferToken) {
   const { ensureEventChatMembership } = await import('./guest-chat-service.js');
   const db = getAdminDb();
 
-  const ticketsSnap = await db.collection('tickets')
+  const ticketsSnap = await db
+    .collection('tickets')
     .where('transferToken', '==', transferToken)
     .where('status', '==', 'transfer_pending')
     .limit(1)
@@ -200,7 +201,7 @@ export async function claimGroupTransfer(userId, transferToken) {
       userId,
       status: 'active',
       transferToken: null,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     });
   });
 

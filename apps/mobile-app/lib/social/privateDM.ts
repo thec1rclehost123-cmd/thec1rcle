@@ -248,7 +248,7 @@ export function subscribeToDirectMessages(
         );
       }
     } catch {
-      // Polling error, ignore
+      console.warn('[privateDM] poll failed');
     }
   }
 

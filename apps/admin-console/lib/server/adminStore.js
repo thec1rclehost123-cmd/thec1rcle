@@ -94,6 +94,7 @@ export const TIER3_ACTIONS = [
   'PAYOUT_FREEZE',
   'IDENTITY_SUSPEND',
   'IDENTITY_REINSTATE',
+  'ADMIN_ROLE_UPDATE',
 ];
 
 export const adminStore = {
@@ -706,6 +707,19 @@ export const adminStore = {
   },
 
   async adminProvision({ email, name, role }, adminId, adminRole, reason) {
+    const VALID_ADMIN_ROLES = [
+      'super',
+      'admin',
+      'ops',
+      'finance',
+      'content',
+      'support',
+      'readonly',
+    ];
+    if (!VALID_ADMIN_ROLES.includes(role)) {
+      throw Object.assign(new Error('Invalid role specified'), { statusCode: 400 });
+    }
+
     const auth = getAdminAuth();
     const db = getAdminDb();
 
@@ -724,6 +738,7 @@ export const adminStore = {
     const uid = user.uid;
 
     await auth.setCustomUserClaims(uid, {
+      role: 'admin',
       admin: true,
       admin_role: role,
     });
@@ -733,7 +748,8 @@ export const adminStore = {
       uid,
       email,
       displayName: name,
-      role,
+      admin_role: role,
+      role: 'admin',
       status: 'active',
       provisionedBy: adminId,
       createdAt: FieldValue.serverTimestamp(),
@@ -1591,6 +1607,19 @@ export const adminStore = {
   },
 
   async adminRoleUpdate(adminId, newRole, actingAdminId, reason) {
+    const VALID_ADMIN_ROLES = [
+      'super',
+      'admin',
+      'ops',
+      'finance',
+      'content',
+      'support',
+      'readonly',
+    ];
+    if (!VALID_ADMIN_ROLES.includes(newRole)) {
+      throw Object.assign(new Error('Invalid role specified'), { statusCode: 400 });
+    }
+
     const db = getAdminDb();
     const auth = getAdminAuth();
     const ref = db.collection('admins').doc(adminId);
@@ -1598,10 +1627,15 @@ export const adminStore = {
     if (!snap.exists) throw Object.assign(new Error('Admin not found'), { statusCode: 404 });
     await ref.update({
       admin_role: newRole,
+      role: 'admin',
       updatedAt: FieldValue.serverTimestamp(),
     });
     try {
-      await auth.setCustomUserClaims(adminId, { admin_role: newRole });
+      await auth.setCustomUserClaims(adminId, {
+        role: 'admin',
+        admin: true,
+        admin_role: newRole,
+      });
     } catch (error) {
       console.error(`[adminStore] Failed to set custom user claims for admin ${adminId}:`, error);
       throw error;

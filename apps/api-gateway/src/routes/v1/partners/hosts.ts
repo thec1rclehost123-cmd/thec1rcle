@@ -1907,7 +1907,6 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         return reply.send({
           success: true,
           email: invData.email,
-          tempPassword: decrypt(invData.tempPassword),
           alreadyAccepted: true,
         });
       }
@@ -1993,7 +1992,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         updatedAt: new Date().toISOString(),
       });
 
-      return reply.send({ success: true, email, tempPassword });
+      return reply.send({ success: true, email });
     } catch (err: any) {
       fastify.log.error({ err }, 'POST /partners/hosts/team/accept failed');
       return reply.status(500).send(
@@ -2616,7 +2615,6 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             .collection('rsvp_orders')
             .where('eventId', '==', evtId)
             .where('status', '==', 'confirmed');
-          if (query.tierId) qRsvps = qRsvps.where('tierId', '==', query.tierId);
 
           const [ordersSnap, rsvpsSnap, entitlementsSnap] = await Promise.all([
             qOrders

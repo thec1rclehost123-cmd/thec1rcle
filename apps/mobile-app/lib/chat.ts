@@ -138,7 +138,7 @@ export function subscribeToEventMessages(
       );
       if (active && response.messages) onMessage(response.messages);
     } catch (error) {
-      console.warn('subscribeToEventMessages poll failed:', error);
+      console.warn('[chat] poll failed for event', eventId, error);
     }
   }
 

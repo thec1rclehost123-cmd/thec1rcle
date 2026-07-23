@@ -35,7 +35,9 @@ export default function GuestListScreen() {
         sessionToken || eventData?.sessionToken,
       );
       setGuests(data);
-    } catch {}
+    } catch {
+      console.warn('[guestlist] failed to fetch guests');
+    }
     setLoading(false);
   }, [eventData, sessionToken]);
 

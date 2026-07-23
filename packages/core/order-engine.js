@@ -4,7 +4,7 @@
  * Location: packages/core/order-engine.js
  */
 
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { getAdminDb } from './admin.js';
 
 export const PAYMENT_PENDING_ORDER_STATUS = 'payment_pending';
@@ -27,7 +27,7 @@ function generateOrderSequence() {
 /**
  * Validates if an order can be placed based on global and user-specific limits.
  */
-export async function validateOrder(event, items, userContext, options = {}) {
+export async function validateOrder(event, items, userContext, _options = {}) {
   const { existingTicketCount = 0, hasExistingRSVP = false, userGender = 'any' } = userContext;
   const { isRSVP = false } = event;
 
@@ -62,6 +62,9 @@ export async function validateOrder(event, items, userContext, options = {}) {
   if (isRSVP) {
     if (hasExistingRSVP) {
       return { success: false, error: "You have already RSVP'd for this event" };
+    }
+    if (totalRequested !== 1) {
+      return { success: false, error: 'RSVP is limited to 1 ticket per registration' };
     }
   }
 
@@ -183,7 +186,6 @@ export async function executeOrderCreation(
   transaction,
   { db, event, orderData, reservationId = null, inventoryEngine },
 ) {
-  const eventRef = db.collection('events').doc(event.id);
   const orderId = orderData.id;
   const orderRef = db.collection(orderData.isRSVP ? 'rsvp_orders' : 'orders').doc(orderId);
 

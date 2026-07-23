@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from './providers/AuthProvider';
 import { getFirebaseStorage } from '../lib/firebase/client';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 export default function HostVerificationForm({ onClose }) {
   const { user, updateUserProfile } = useAuth();
@@ -38,6 +38,9 @@ export default function HostVerificationForm({ onClose }) {
     setUploading(true);
     setError('');
 
+    let idRef = null;
+    let instaRef = null;
+
     try {
       const storage = getFirebaseStorage();
 
@@ -47,13 +50,13 @@ export default function HostVerificationForm({ onClose }) {
 
       // Upload ID document
       const idExtension = files.idDocument.name.split('.').pop() || 'jpg';
-      const idRef = ref(storage, `host-verifications/${user.uid}-id-${Date.now()}.${idExtension}`);
+      idRef = ref(storage, `host-verifications/${user.uid}-id-${Date.now()}.${idExtension}`);
       await uploadBytes(idRef, files.idDocument);
       const idUrl = await getDownloadURL(idRef);
 
       // Upload Instagram screenshot
       const instaExtension = files.instaScreenshot.name.split('.').pop() || 'jpg';
-      const instaRef = ref(
+      instaRef = ref(
         storage,
         `host-verifications/${user.uid}-insta-${Date.now()}.${instaExtension}`,
       );
@@ -89,6 +92,19 @@ export default function HostVerificationForm({ onClose }) {
       setStep('success');
     } catch (err) {
       console.error('Error submitting host application:', err);
+
+      // Cleanup any uploaded storage files if error occurs during process
+      if (idRef) {
+        await deleteObject(idRef).catch((cleanupErr) =>
+          console.error('Failed to cleanup ID document in storage:', cleanupErr),
+        );
+      }
+      if (instaRef) {
+        await deleteObject(instaRef).catch((cleanupErr) =>
+          console.error('Failed to cleanup Instagram screenshot in storage:', cleanupErr),
+        );
+      }
+
       let msg = 'Failed to submit application.';
       if (err.code === 'storage/unauthorized' || err.code === 'permission-denied') {
         msg = 'Permission denied. Please check your Firebase Storage & Firestore rules.';

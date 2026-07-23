@@ -1,3 +1,4 @@
+/* global jest */
 process.env.EXPO_PUBLIC_FIREBASE_API_KEY = 'test-firebase-api-key';
 process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN = 'test.firebaseapp.com';
 process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID = 'test-project';
@@ -7,7 +8,6 @@ process.env.EXPO_PUBLIC_FIREBASE_APP_ID = '1:000000000000:web:abcdef';
 process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID = 'rzp_test_xxxxxxxxxxxx';
 process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3005';
 process.env.EXPO_PUBLIC_SENTRY_DSN = 'https://key@o0.ingest.sentry.io/0';
-
 import fetchMockLib from 'jest-fetch-mock';
 fetchMockLib.enableMocks();
 global.fetchMock = fetchMockLib;
@@ -88,6 +88,7 @@ jest.mock('react-native-css-interop', () => ({
   createInteropElement: require('react').createElement,
 }));
 
+<<<<<<< HEAD
 const mockAuthInstance = {
   onAuthStateChanged: jest.fn(() => jest.fn()),
   signInWithEmailAndPassword: jest.fn(),
@@ -128,6 +129,8 @@ jest.mock(
   { virtual: true },
 );
 
+=======
+>>>>>>> origin/pre-staging
 jest.mock(
   'expo-crypto',
   () => ({

@@ -59,6 +59,8 @@ export const useScannerStore = create<ScannerState>((set) => ({
         sessionToken: data.sessionToken ?? null,
         sessionExpiresAt: data.sessionExpiresAt ?? null,
       });
-    } catch {}
+    } catch {
+      console.warn('[scannerStore] authenticateSession failed');
+    }
   },
 }));

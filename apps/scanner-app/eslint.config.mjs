@@ -46,6 +46,7 @@ export default [
         AbortController: 'readonly',
         AbortSignal: 'readonly',
         RequestInit: 'readonly',
+        NodeJS: 'readonly',
         crypto: 'readonly',
         document: 'readonly',
       },

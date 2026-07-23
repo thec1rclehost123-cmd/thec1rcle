@@ -3,7 +3,6 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Shield, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
-import { useAuth } from '@/components/providers/AuthProvider';
 
 const ROLE_LABELS = {
   super: 'Super Admin',
@@ -17,7 +16,6 @@ const ROLE_LABELS = {
 function AcceptInviteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { login } = useAuth();
 
   const code = searchParams.get('code') || '';
 
@@ -25,6 +23,7 @@ function AcceptInviteContent() {
   const [inviteInfo, setInviteInfo] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [isNewAccount, setIsNewAccount] = useState(true);
 
   useEffect(() => {
     if (!code) {
@@ -73,13 +72,14 @@ function AcceptInviteContent() {
         return;
       }
 
-      // Log in using temp password
-      await login(inviteInfo?.email || data.email, data.tempPassword);
-
+      // The password (temp, for a new account, or their existing one) was
+      // delivered by email, not by this response -- sign in on the login
+      // page rather than attempting a silent login here.
+      setIsNewAccount(Boolean(data.isNewAccount));
       setStep('success');
       setTimeout(() => {
-        router.replace('/change-password');
-      }, 1500);
+        router.replace('/login');
+      }, 2000);
     } catch (err) {
       console.error(err);
       setErrorMsg('Something went wrong. Please try again.');
@@ -196,7 +196,11 @@ function AcceptInviteContent() {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-white mb-1">Invitation Accepted</h2>
-                <p className="text-xs text-zinc-400">Redirecting to set your secure passcode...</p>
+                <p className="text-xs text-zinc-400">
+                  {isNewAccount
+                    ? 'Check your email for your temporary password, then sign in.'
+                    : 'Sign in with your existing password.'}
+                </p>
               </div>
             </div>
           )}

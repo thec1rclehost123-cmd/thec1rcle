@@ -58,6 +58,7 @@ const baseParams = {
 describe('processFullCheckout', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+<<<<<<< HEAD
     mockFetchUserOrders.mockClear();
     process.env.EXPO_PUBLIC_RAZORPAY_KEY = 'rzp_test_public';
     __setRazorpayCheckoutForTests({ open: mockOpen });
@@ -65,6 +66,11 @@ describe('processFullCheckout', () => {
     (cancelOrder as jest.Mock).mockResolvedValue({ success: true });
     (cancelReservation as jest.Mock).mockResolvedValue({ success: true });
     (getOrder as jest.Mock).mockResolvedValue({ status: 'payment_pending' });
+=======
+    process.env.EXPO_PUBLIC_RAZORPAY_KEY = 'rzp_test_public';
+    __setRazorpayCheckoutForTests({ open: mockOpen });
+    useCartStore.getState().clearCart();
+>>>>>>> origin/pre-staging
   });
 
   it('reserves inventory, opens Razorpay, verifies payment, and clears recovery state', async () => {
@@ -82,8 +88,12 @@ describe('processFullCheckout', () => {
       razorpay: {
         key: 'rzp_test_public',
         orderId: 'rzp_order_1',
+<<<<<<< HEAD
         amount: 1500,
         amountPaise: 150000,
+=======
+        amount: 150000,
+>>>>>>> origin/pre-staging
         currency: 'INR',
       },
     });
@@ -138,6 +148,7 @@ describe('processFullCheckout', () => {
     ]);
     expect(useCartStore.getState().pendingReservation).toBeNull();
     expect(useCartStore.getState().pendingPaymentOrderId).toBeNull();
+<<<<<<< HEAD
     expect(mockFetchUserOrders).toHaveBeenCalledWith();
   });
 
@@ -180,6 +191,10 @@ describe('processFullCheckout', () => {
     );
   });
 
+=======
+  });
+
+>>>>>>> origin/pre-staging
   it('confirms free orders without opening Razorpay or verifying a payment signature', async () => {
     (reserveTickets as jest.Mock).mockResolvedValueOnce({
       success: true,
@@ -224,7 +239,10 @@ describe('processFullCheckout', () => {
 
     await processFullCheckout(baseParams);
 
+<<<<<<< HEAD
     expect(cancelReservation).toHaveBeenCalledWith('expired_res');
+=======
+>>>>>>> origin/pre-staging
     expect(reserveTickets).toHaveBeenCalled();
     expect(initiateCheckout).toHaveBeenCalledWith(
       expect.objectContaining({ reservationId: 'fresh_res' }),
@@ -232,6 +250,7 @@ describe('processFullCheckout', () => {
     );
   });
 
+<<<<<<< HEAD
   it('cancels the pending order and releases inventory when Razorpay is cancelled', async () => {
     (reserveTickets as jest.Mock).mockResolvedValueOnce({
       success: true,
@@ -327,6 +346,27 @@ describe('processFullCheckout', () => {
         currency: 'INR',
       },
     });
+=======
+  it('returns a failed result when backend payment verification fails', async () => {
+    (reserveTickets as jest.Mock).mockResolvedValueOnce({
+      success: true,
+      reservationId: 'res_1',
+      items: baseParams.items,
+      expiresAt: futureExpiry,
+      expiresInSeconds: 600,
+    });
+    (initiateCheckout as jest.Mock).mockResolvedValueOnce({
+      success: true,
+      requiresPayment: true,
+      order: { id: 'order_1' },
+      razorpay: {
+        key: 'rzp_test_public',
+        orderId: 'rzp_order_1',
+        amount: 150000,
+        currency: 'INR',
+      },
+    });
+>>>>>>> origin/pre-staging
     mockOpen.mockResolvedValueOnce({
       razorpay_order_id: 'rzp_order_1',
       razorpay_payment_id: 'pay_1',
@@ -339,6 +379,7 @@ describe('processFullCheckout', () => {
     expect(result.success).toBe(false);
     expect(result.error).toBe('Bad signature');
   });
+<<<<<<< HEAD
 
   it('recovers as successful when verification response is lost after server confirmation', async () => {
     (reserveTickets as jest.Mock).mockResolvedValueOnce({
@@ -411,4 +452,6 @@ describe('processFullCheckout', () => {
 
     expect(useCartStore.getState().pendingReservation?.reservationId).toBe('res_still_active');
   });
+=======
+>>>>>>> origin/pre-staging
 });

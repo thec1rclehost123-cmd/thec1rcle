@@ -1719,7 +1719,6 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return {
           success: true,
           email: staffData.email,
-          tempPassword: decrypt(staffData.tempPassword),
           alreadyAccepted: true,
         };
       }
@@ -1816,7 +1815,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         updatedAt: new Date().toISOString(),
       });
 
-      return { success: true, email, tempPassword };
+      return { success: true, email };
     } catch (error: any) {
       fastify.log.error({ error: error.message }, 'POST /venue/staff/accept failed');
       return reply.status(500).send({ error: 'Internal Server Error' });

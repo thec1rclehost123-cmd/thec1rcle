@@ -132,7 +132,13 @@ export async function recordRedemption(
 ) {
   const db = admin.firestore();
 
-  // 1. Create redemption record payload
+  // Keyed deterministically by orderId (one order redeems at most one promo
+  // code), so a retried call -- from this function's own caller, or any
+  // future caller -- resolves to the same document instead of minting a
+  // fresh random ID and incrementing redemptionCount a second time.
+  const redemptionRef = db.collection(PROMO_REDEMPTIONS_COLLECTION).doc(orderId);
+  const promoCodeRef = db.collection(PROMO_CODES_COLLECTION).doc(promoCodeId);
+
   const redemptionData = {
     promoCodeId,
     orderId,
@@ -141,27 +147,34 @@ export async function recordRedemption(
     timestamp: new Date().toISOString(),
   };
 
-  // 2. Increment redemption count on promo code
   const promoUpdates = {
     redemptionCount: admin.firestore.FieldValue.increment(1),
     updatedAt: new Date().toISOString(),
   };
 
   if (transaction) {
-    // Atomic transactional write (bound to order transaction)
-    const redemptionRef = db.collection(PROMO_REDEMPTIONS_COLLECTION).doc();
-    const promoCodeRef = db.collection(PROMO_CODES_COLLECTION).doc(promoCodeId);
-    transaction.set(redemptionRef, redemptionData);
+    // transaction.create() fails the whole transaction if a redemption for
+    // this order already exists, instead of silently overwriting it and
+    // double-incrementing redemptionCount. No pre-read here on purpose:
+    // by the time this runs, the surrounding order transaction has
+    // already issued writes, and Firestore requires all reads to happen
+    // before any writes in a transaction.
+    transaction.create(redemptionRef, redemptionData);
     transaction.update(promoCodeRef, promoUpdates);
-  } else {
-    // Standalone batch write mode
-    const batch = db.batch();
-    const redemptionRef = db.collection(PROMO_REDEMPTIONS_COLLECTION).doc();
-    batch.set(redemptionRef, redemptionData);
-    const promoCodeRef = db.collection(PROMO_CODES_COLLECTION).doc(promoCodeId);
-    batch.update(promoCodeRef, promoUpdates);
-    await batch.commit();
+    return { success: true };
   }
+
+  // Standalone mode: no surrounding transaction, so it's safe to check
+  // first.
+  const existing = await redemptionRef.get();
+  if (existing.exists) {
+    return { success: true, alreadyRedeemed: true };
+  }
+
+  const batch = db.batch();
+  batch.set(redemptionRef, redemptionData);
+  batch.update(promoCodeRef, promoUpdates);
+  await batch.commit();
 
   return { success: true };
 }
