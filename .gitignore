@@ -103,6 +103,7 @@ sentry.properties
 *.local
 .npmrc.local
 scratch/
+temp/
 
 # ── Intern/Custom Files ────────────────────────────────────────────────────────
 /ANIL_*
