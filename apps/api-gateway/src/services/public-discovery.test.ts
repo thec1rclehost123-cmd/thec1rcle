@@ -488,8 +488,17 @@ describe('PublicDiscoveryService', () => {
       })),
     };
 
-    await expect(service.getHostPublicProfile('after-dark')).rejects.toThrow('missing index');
-    await expect(service.getVenuePublicProfile('high-spirits')).rejects.toThrow('missing index');
+    // Implementation now gracefully degrades — queryList errors are caught and
+    // the profile is returned with empty event arrays instead of rejecting.
+    const hostResult = await service.getHostPublicProfile('after-dark');
+    expect(hostResult).toBeTruthy();
+    expect(hostResult.upcomingEvents).toEqual([]);
+    expect(hostResult.pastEvents).toEqual([]);
+
+    const venueResult = await service.getVenuePublicProfile('high-spirits');
+    expect(venueResult).toBeTruthy();
+    expect(venueResult.upcomingEvents).toEqual([]);
+    expect(venueResult.pastEvents).toEqual([]);
   });
 
   it('syncEventReadModels stores normalized date fields for event cards', async () => {
