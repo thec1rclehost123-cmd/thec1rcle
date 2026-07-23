@@ -120,7 +120,9 @@ export function subscribeToEventMessages(
         { requireAuth: true },
       );
       if (active && response.messages) onMessage(response.messages);
-    } catch (e) {}
+    } catch {
+      console.warn('[chat] poll failed for event', eventId);
+    }
   }
 
   poll();

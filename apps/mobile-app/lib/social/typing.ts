@@ -56,7 +56,9 @@ async function setTypingStatus(
         }
       }, TYPING_TIMEOUT);
     }
-  } catch (e) {}
+  } catch {
+    console.warn('[typing] setTypingStatus failed');
+  }
 }
 
 export async function setGroupTypingStatus(
@@ -109,7 +111,9 @@ export function subscribeToGroupTyping(
           users,
         });
       }
-    } catch (e) {}
+    } catch {
+      console.warn('[typing] pollGroupTyping failed');
+    }
   }
 
   poll();
@@ -147,7 +151,9 @@ export function subscribeToDMTyping(
         );
         onTypingChange(!!otherTyper, otherTyper?.userName);
       }
-    } catch (e) {}
+    } catch {
+      console.warn('[typing] pollPrivateTyping failed');
+    }
   }
 
   poll();

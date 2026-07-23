@@ -99,7 +99,7 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
           readonly: 10,
         };
 
-        const userRoleValue = hierarchy[admin_role] || hierarchy['admin'] || 0;
+        const userRoleValue = hierarchy[admin_role] ?? 0;
         const requiredRoleValue = hierarchy[requiredRole] || 100;
 
         if (userRoleValue < requiredRoleValue) {

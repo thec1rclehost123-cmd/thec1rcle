@@ -1,4 +1,4 @@
-import { inngest, Events } from '../inngest-client.js';
+import { inngest } from '../inngest-client.js';
 import { getAdminDb } from '../admin.js';
 import { computeVenueHeatScore, computeHostHeatScore } from '../guest-discovery-engine.js';
 
@@ -40,7 +40,7 @@ export const recalculateHeatScores = inngest.createFunction(
           // Formula: (Tickets Sold * 10) + (Heat Signal * 5) - (Days to Event penalty)
           // Simplified for Phase 2:
           const ticketsSold = event.ticketsStats?.totalSold ?? 0;
-          const views = event.analytics?.views || 0;
+          const views = event.analytics?.views ?? 0;
 
           // Base score
           let score = ticketsSold * 10 + views * 0.5;
@@ -79,7 +79,7 @@ export const processVenueClick = inngest.createFunction(
   },
   { event: 'venue/click' },
   async ({ event, step }) => {
-    const { venueId, visitorId, timestamp } = event.data;
+    const { venueId, _visitorId, timestamp } = event.data;
     const db = getAdminDb();
 
     // 1. Fetch ticket sales count from events collection
@@ -141,7 +141,7 @@ export const processHostClick = inngest.createFunction(
   },
   { event: 'host/click' },
   async ({ event, step }) => {
-    const { hostId, visitorId, timestamp } = event.data;
+    const { hostId, _visitorId, timestamp } = event.data;
     const db = getAdminDb();
 
     // 1. Fetch ticket sales count from events collection

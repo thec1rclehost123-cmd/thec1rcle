@@ -1097,9 +1097,9 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         ticket: {
           entitlementId: entitlement.id,
           checkedIn:
-            entitlement.checkedIn ||
+            entitlement.checkedIn === true ||
             entitlement.state === 'CONSUMED' ||
-            (entitlement.scanCountUsed && entitlement.scanCountUsed > 0),
+            (typeof entitlement.scanCountUsed === 'number' && entitlement.scanCountUsed > 0),
           state: entitlement.state,
           ticketType: entitlement.metadata?.tierName || entitlement.ticketType || 'Entry',
           entryType: entitlement.metadata?.entryType || 'general',

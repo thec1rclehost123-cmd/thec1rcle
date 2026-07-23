@@ -33,12 +33,10 @@ export async function POST(req: NextRequest) {
       parsed = { text };
     }
 
-    // eslint-disable-next-line no-console
     console.debug('[promoter upload proxy] gateway response', { status: res.status, parsed });
 
     return NextResponse.json(parsed, { status: res.status });
   } catch (err: any) {
-    // eslint-disable-next-line no-console
     console.error('[promoter upload proxy] forward failed', err?.message || err);
     return NextResponse.json(
       { success: false, error: { message: err?.message || 'Forward failed' } },

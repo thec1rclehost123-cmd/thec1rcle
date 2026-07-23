@@ -289,12 +289,16 @@ function decodeState(value?: string) {
   if (!value) return {};
   try {
     const raw = Buffer.from(value, 'base64url').toString('utf8');
+    if (!raw.includes(':')) return {};
     const decrypted = decrypt(raw);
     if (decrypted) {
-      return JSON.parse(decrypted);
+      try {
+        return JSON.parse(decrypted);
+      } catch {
+        return {};
+      }
     }
-    // Fallback: if value was not encrypted (legacy/active transition), attempt raw parse
-    return JSON.parse(raw);
+    return {};
   } catch {
     return {};
   }
@@ -1500,6 +1504,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
           { partnerId, partnerType, err },
           'partner-context: partner lookup failed during context resolution',
         );
+        isSuspended = true;
       }
 
       const context: Record<string, unknown> = {

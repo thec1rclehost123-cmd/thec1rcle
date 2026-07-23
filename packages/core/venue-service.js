@@ -1,12 +1,12 @@
 export async function getAllVenues(db, cityFilter = null) {
   let query = db.collection('venues').where('status', '==', 'active');
-  
+
   if (cityFilter) {
     query = query.where('city', '==', cityFilter);
   }
 
   const snap = await query.get();
-  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 }
 
 export async function getVenueById(db, venueId) {
@@ -36,13 +36,14 @@ export async function getVenueEvents(db, venueId) {
 
   const now = new Date().toISOString();
   // Fetch future events for this venue
-  const snap = await db.collection('events')
+  const snap = await db
+    .collection('events')
     .where('venueId', '==', venueId)
     .where('startDate', '>=', now)
     .orderBy('startDate', 'asc')
     .get();
 
-  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 }
 
 export async function toggleVenueFollow(db, venueId, userId) {
@@ -59,7 +60,7 @@ export async function toggleVenueFollow(db, venueId, userId) {
     // Follow
     await followerRef.set({
       userId,
-      followedAt: new Date().toISOString()
+      followedAt: new Date().toISOString(),
     });
     return { followed: true };
   }

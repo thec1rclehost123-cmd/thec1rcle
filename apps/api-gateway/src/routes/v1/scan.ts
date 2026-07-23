@@ -347,6 +347,18 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         // spot, with no proof they ever held the real ticket. Bare IDs are
         // parsed as JSON like everything else, which correctly fails below
         // and is denied as invalid input.
+        //
+        // Transitional monitoring: detect bare ENT- strings reaching here
+        // (previously the code auto-signed them). Log any sightings so we
+        // can confirm no legitimate client depends on this behavior before
+        // removing the monitoring path entirely. After 60 days of zero
+        // sightings, this explicit check can be removed.
+        if (typeof qrData === 'string' && qrData.trim().startsWith('ENT-')) {
+          fastify.log.warn(
+            { qrData: qrData.substring(0, 60), requestId: request.id },
+            'Bare ENT- ID presented to scanner (no QR signature envelope) — rejecting',
+          );
+        }
         payload = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
       } catch (e) {
         return reply.status(400).send({ error: 'Invalid QR format', result: 'invalid' });

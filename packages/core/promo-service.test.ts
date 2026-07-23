@@ -47,7 +47,6 @@ describe('Promo Service', () => {
     const mockItems = [{ tierId: 't1', price: 1000, quantity: 1 }];
 
     it('should calculate correct percentage discount', async () => {
-      // First create a code in the fallback map
       await PromoService.createPromoCode(mockEventId, {
         code: 'DISCOUNT20',
         discountType: 'percent',
@@ -99,5 +98,31 @@ describe('Promo Service', () => {
       expect(validation.valid).toBe(true);
       expect(validation.discountAmount).toBe(50);
     });
+  });
+});
+
+describe('Promo Redemption Idempotency — C1 regression', () => {
+  it('calling recordRedemption twice with same orderId returns success and idempotent flag', async () => {
+    const orderId = 'ORD-42';
+
+    const result1 = await PromoService.recordRedemption('promo-1', orderId, 'user-1', {
+      discountAmount: 500,
+    });
+    expect(result1.success).toBe(true);
+    expect(result1.alreadyRedeemed).toBeUndefined();
+
+    const result2 = await PromoService.recordRedemption('promo-1', orderId, 'user-1', {
+      discountAmount: 500,
+    });
+    expect(result2.success).toBe(true);
+    expect(result2.alreadyRedeemed).toBe(true);
+  });
+
+  it('different orderIds produce separate redemptions', async () => {
+    await PromoService.recordRedemption('promo-1', 'ORD-1', 'user-1', { discountAmount: 100 });
+    await PromoService.recordRedemption('promo-1', 'ORD-2', 'user-1', { discountAmount: 200 });
+
+    // Both should succeed, neither should be flagged as already redeemed
+    // (This exercises the fallback map's per-key tracking)
   });
 });

@@ -141,7 +141,9 @@ export function subscribeToDirectMessages(
         // Return reversed to match UI expectation (oldest first)
         onMessages([...response.messages].reverse());
       }
-    } catch (e) {}
+    } catch {
+      console.warn('[privateDM] poll failed');
+    }
   }
 
   poll();

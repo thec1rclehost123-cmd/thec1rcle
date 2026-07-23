@@ -102,7 +102,9 @@ class WebSocketManager {
 
         // Also dispatch to wildcard (empty topic = all messages)
         this.subscriptions.get('*')?.forEach((h) => h(msg));
-      } catch {}
+      } catch {
+        console.warn('[websocket] failed to handle message');
+      }
     };
 
     ws.onclose = () => {

@@ -17,8 +17,6 @@
  * the native calendar card preview in Gmail inbox.
  */
 
-import React from 'react';
-
 // ─── Helpers ──────────────────────────────────────────────────
 
 const formatCurrency = (amount) => {
