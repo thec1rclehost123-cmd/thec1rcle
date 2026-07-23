@@ -264,16 +264,20 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
           fastify.db
             .collection('orders')
             .where('eventId', '==', eventId)
-            .where('status', 'in', ['confirmed', 'checked_in'])
+            .where('status', 'in', ['confirmed', 'checked_in', 'partially_checked_in'])
             .get(),
         ]);
 
         const overview = overviewSnap.exists ? (overviewSnap.data() as Record<string, any>) : {};
         const orders = ordersSnap.docs.map((d) => d.data());
-        const grossRevenue = orders.reduce(
-          (s: number, o: any) => s + (Number(o.totalAmount) || 0),
-          0,
-        );
+        const totalGrossPaise = orders.reduce((s: number, o: any) => {
+          if (typeof o.totalPaise === 'number' && o.totalPaise > 0) {
+            return s + o.totalPaise;
+          }
+          const rawAmount = Number(o.totalAmount) || 0;
+          return s + (rawAmount > 1000 ? rawAmount : Math.round(rawAmount * 100));
+        }, 0);
+        const grossRevenue = Math.round(totalGrossPaise / 100);
         const ticketsSold = orders.reduce(
           (s: number, o: any) =>
             s +

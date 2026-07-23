@@ -143,3 +143,5 @@ export async function buildGuestPassPreview({
 
   return { statusCode: 501, body };
 }
+
+export const buildGuestPass = buildGuestPassPreview;
