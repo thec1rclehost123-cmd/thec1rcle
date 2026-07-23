@@ -104,7 +104,7 @@ jobs:
         run: npx turbo build --filter=@c1rcle/types --filter=@c1rcle/core
 
       - name: Run lint, typecheck, test
-        run: npx turbo run lint type-check test --output-logs=grouped
+        run: npx turbo run lint type-check test --output-logs=new-only
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
