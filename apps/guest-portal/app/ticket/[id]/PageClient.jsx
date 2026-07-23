@@ -41,7 +41,15 @@ export default function TicketPageClient({ params: paramsPromise }) {
   }, [id]);
 
   const handleShare = async () => {
-    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+    // Prefer the unguessable share token over whatever is in the address bar.
+    // The current URL may contain the raw, enumerable entitlement ID (e.g. an
+    // owner deep-link), which the backend only honours for the authenticated
+    // owner — sharing that link would just 404 for the recipient. The share
+    // token is the capability that lets someone else actually view the ticket.
+    let shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+    if (ticket?.shareToken && typeof window !== 'undefined') {
+      shareUrl = `${window.location.origin}/ticket/${ticket.shareToken}`;
+    }
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
