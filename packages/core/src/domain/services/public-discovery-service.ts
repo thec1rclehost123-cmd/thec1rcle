@@ -1029,11 +1029,11 @@ export class PublicDiscoveryService {
       try {
         settings = await this.db.collection('platform_settings').doc('spotlights').get();
       } catch (error: any) {
-        console.error(
+        console.warn(
           '[PublicDiscoveryService] listFeaturedEvents: failed to fetch platform spotlights:',
           error,
         );
-        throw error;
+        settings = null;
       }
       const pinnedIds = Array.isArray(settings?.data?.()?.featured)
         ? settings.data()!.featured.filter((id: any) => typeof id === 'string' && id.trim())
@@ -1235,20 +1235,52 @@ export class PublicDiscoveryService {
           .where('profileId', '==', host.id)
           .where('profileType', '==', 'host')
           .limit(12)
-          .get(),
+          .get()
+          .catch((err: any) => {
+            console.warn(
+              `[PublicDiscoveryService] getHostPublicProfile: failed to fetch posts for ${host.id}:`,
+              err,
+            );
+            return null;
+          }),
         this.db
           .collection(PROFILE_HIGHLIGHTS)
           .where('profileId', '==', host.id)
           .where('profileType', '==', 'host')
-          .get(),
-        this.db.collection(PROFILE_STATS).doc(`host_${host.id}`).get(),
-        this.events.queryList({
-          hostId: host.id,
-          limit: 48,
-          orderByField: 'startAt',
-          direction: 'asc',
-          minStartAt: new Date().toISOString().slice(0, 10),
-        }),
+          .get()
+          .catch((err: any) => {
+            console.warn(
+              `[PublicDiscoveryService] getHostPublicProfile: failed to fetch highlights for ${host.id}:`,
+              err,
+            );
+            return null;
+          }),
+        this.db
+          .collection(PROFILE_STATS)
+          .doc(`host_${host.id}`)
+          .get()
+          .catch((err: any) => {
+            console.warn(
+              `[PublicDiscoveryService] getHostPublicProfile: failed to fetch stats for ${host.id}:`,
+              err,
+            );
+            return null;
+          }),
+        this.events
+          .queryList({
+            hostId: host.id,
+            limit: 48,
+            orderByField: 'startAt',
+            direction: 'asc',
+            minStartAt: new Date().toISOString().slice(0, 10),
+          })
+          .catch((err: any) => {
+            console.warn(
+              `[PublicDiscoveryService] getHostPublicProfile: failed to fetch events for ${host.id}:`,
+              err,
+            );
+            return [];
+          }),
       ]);
       const hostEvents = allEvents
         .filter((event: any) => event.hostId === host.id)
@@ -1348,23 +1380,67 @@ export class PublicDiscoveryService {
             .collection(PROFILE_HIGHLIGHTS)
             .where('profileId', '==', venue.id)
             .where('profileType', '==', 'venue')
-            .get(),
-          this.db.collection(PROFILE_STATS).doc(`venue_${venue.id}`).get(),
-          this.db.collection(VENUE_MENU).where('venueId', '==', venue.id).limit(1).get(),
-          this.events.queryList({
-            venueId: venue.id,
-            limit: 96,
-            orderByField: 'startAt',
-            direction: 'asc',
-            minStartAt: new Date().toISOString().slice(0, 10),
-          }),
-          this.venues.queryList({
-            cityKey: venue.cityKey || null,
-            areaKey: venue.areaKey || null,
-            limit: 24,
-            orderByField: 'followersCount',
-            direction: 'desc',
-          }),
+            .get()
+            .catch((err: any) => {
+              console.warn(
+                `[PublicDiscoveryService] getVenuePublicProfile: failed to fetch highlights for ${venue.id}:`,
+                err,
+              );
+              return null;
+            }),
+          this.db
+            .collection(PROFILE_STATS)
+            .doc(`venue_${venue.id}`)
+            .get()
+            .catch((err: any) => {
+              console.warn(
+                `[PublicDiscoveryService] getVenuePublicProfile: failed to fetch stats for ${venue.id}:`,
+                err,
+              );
+              return null;
+            }),
+          this.db
+            .collection(VENUE_MENU)
+            .where('venueId', '==', venue.id)
+            .limit(1)
+            .get()
+            .catch((err: any) => {
+              console.warn(
+                `[PublicDiscoveryService] getVenuePublicProfile: failed to fetch menu for ${venue.id}:`,
+                err,
+              );
+              return null;
+            }),
+          this.events
+            .queryList({
+              venueId: venue.id,
+              limit: 96,
+              orderByField: 'startAt',
+              direction: 'asc',
+              minStartAt: new Date().toISOString().slice(0, 10),
+            })
+            .catch((err: any) => {
+              console.warn(
+                `[PublicDiscoveryService] getVenuePublicProfile: failed to fetch events for ${venue.id}:`,
+                err,
+              );
+              return [];
+            }),
+          this.venues
+            .queryList({
+              cityKey: venue.cityKey || null,
+              areaKey: venue.areaKey || null,
+              limit: 24,
+              orderByField: 'followersCount',
+              direction: 'desc',
+            })
+            .catch((err: any) => {
+              console.warn(
+                `[PublicDiscoveryService] getVenuePublicProfile: failed to fetch similar venues for ${venue.id}:`,
+                err,
+              );
+              return [];
+            }),
         ],
       );
       const venueEvents = allEvents
