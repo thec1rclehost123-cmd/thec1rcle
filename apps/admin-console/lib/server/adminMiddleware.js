@@ -163,12 +163,22 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
       const requestId = req.headers.get('x-request-id') || randomUUID();
 
       // Active defense: reject suspended admins — checked AFTER token verify
-      // so we know the UID before consulting Redis
+      // so we know the UID before consulting Redis.
+      //
+      // isAdminSuspended resolves against Redis first and falls back to the
+      // Firestore `security_blocks` mirror, so a Redis-only outage still answers
+      // authoritatively. It reports `unavailable: true` only when BOTH stores are
+      // unreachable — at that point we cannot prove this admin isn't suspended,
+      // so we deny rather than fail open. Admin privileges are the highest-blast-
+      // radius credential in the system; a brief lockout during a total data-plane
+      // outage (when the console is largely non-functional anyway) is strictly
+      // preferable to admitting a suspended admin.
       let suspensionStatus = { suspended: false };
       try {
         suspensionStatus = await isAdminSuspended(decodedToken.uid);
-      } catch (redisErr) {
-        console.error('[SECURITY] Redis suspension check failed (fail-open):', redisErr.message);
+      } catch (stateErr) {
+        console.error('[SECURITY] Admin suspension check threw:', stateErr.message);
+        suspensionStatus = { suspended: false, unavailable: true };
       }
 
       if (suspensionStatus && suspensionStatus.suspended) {
@@ -176,6 +186,16 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
           uid: decodedToken.uid,
           admin_role,
           reason: suspensionStatus.reason,
+          path: req.nextUrl?.pathname,
+          requestId,
+        });
+        return genericNotFound();
+      }
+
+      if (suspensionStatus && suspensionStatus.unavailable) {
+        logAuthEvent('ADMIN_SUSPENSION_STATE_UNKNOWN', {
+          uid: decodedToken.uid,
+          admin_role,
           path: req.nextUrl?.pathname,
           requestId,
         });
