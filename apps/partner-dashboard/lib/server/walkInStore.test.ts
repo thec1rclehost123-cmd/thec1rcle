@@ -109,6 +109,75 @@ describe('WalkInStore Fallback Local Persistence', () => {
     expect(summaryAfterVoid.totalEntries).toBe(0); // active only
   });
 
+  // Regression: the fallback store did a plain read-modify-write against a
+  // module-level Map with no lock, so concurrent creates sharing an
+  // idempotencyKey could both pass the "already exists?" check before either
+  // wrote, producing duplicate door entries (and inflated revenue totals).
+  it('does not duplicate entries when concurrent creates share an idempotency key', async () => {
+    const payload = {
+      guestName: 'Race Guest',
+      contact: '+919111111111',
+      totalGuests: 2,
+      category: 'general' as const,
+      paymentMode: 'cash' as const,
+      amount: 100.0,
+      idempotencyKey: 'idemp-race',
+    };
+
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () => createWalkIn(eventId, venueId, payload, actor, true)),
+    );
+
+    // Every concurrent caller must observe the same single entry.
+    const uniqueIds = new Set(results.map((r) => r.id));
+    expect(uniqueIds.size).toBe(1);
+
+    const list = await listWalkIns({ eventId }, true);
+    expect(list.entries).toHaveLength(1);
+
+    // Totals must reflect one guest party, not eight.
+    const summary = await getWalkInEventSummary(eventId);
+    expect(summary.totalEntries).toBe(1);
+    expect(summary.totalPaise).toBe(10000);
+    expect(summary.totalPartySize).toBe(2);
+  });
+
+  // Regression: concurrent updates each did read → merge → persist with no
+  // lock, so a later writer could persist a snapshot taken before an earlier
+  // writer's change and silently drop it.
+  it('applies every concurrent update without losing writes', async () => {
+    const entry = await createWalkIn(
+      eventId,
+      venueId,
+      {
+        guestName: 'Concurrent Target',
+        contact: '+919222222222',
+        totalGuests: 1,
+        category: 'general',
+        paymentMode: 'cash',
+        amount: 10.0,
+        idempotencyKey: 'idemp-concurrent-update',
+      },
+      actor,
+      true,
+    );
+
+    await Promise.all([
+      updateWalkIn(eventId, entry.id, { guestName: 'Renamed' }, actor, true),
+      updateWalkIn(eventId, entry.id, { totalGuests: 6 }, actor, true),
+      updateWalkIn(eventId, entry.id, { note: 'checked' }, actor, true),
+    ]);
+
+    // Each update touches a distinct field; with the writes serialized, all
+    // three survive rather than the last snapshot clobbering the others.
+    __clearInMemoryCacheForTests();
+    const list = await listWalkIns({ eventId }, true);
+    expect(list.entries).toHaveLength(1);
+    expect(list.entries[0].guestName).toBe('Renamed');
+    expect(list.entries[0].totalGuests).toBe(6);
+    expect(list.entries[0].note).toBe('checked');
+  });
+
   it('persists data across cold starts (in-memory cache cleared)', async () => {
     // 1. Create walk-in entry
     const entry = await createWalkIn(
