@@ -94,6 +94,7 @@ export const TIER3_ACTIONS = [
   'PAYOUT_FREEZE',
   'IDENTITY_SUSPEND',
   'IDENTITY_REINSTATE',
+  'ADMIN_ROLE_UPDATE',
 ];
 
 export const adminStore = {
@@ -706,6 +707,19 @@ export const adminStore = {
   },
 
   async adminProvision({ email, name, role }, adminId, adminRole, reason) {
+    const VALID_ADMIN_ROLES = [
+      'super',
+      'admin',
+      'ops',
+      'finance',
+      'content',
+      'support',
+      'readonly',
+    ];
+    if (!VALID_ADMIN_ROLES.includes(role)) {
+      throw Object.assign(new Error('Invalid role specified'), { statusCode: 400 });
+    }
+
     const auth = getAdminAuth();
     const db = getAdminDb();
 
@@ -1591,6 +1605,19 @@ export const adminStore = {
   },
 
   async adminRoleUpdate(adminId, newRole, actingAdminId, reason) {
+    const VALID_ADMIN_ROLES = [
+      'super',
+      'admin',
+      'ops',
+      'finance',
+      'content',
+      'support',
+      'readonly',
+    ];
+    if (!VALID_ADMIN_ROLES.includes(newRole)) {
+      throw Object.assign(new Error('Invalid role specified'), { statusCode: 400 });
+    }
+
     const db = getAdminDb();
     const auth = getAdminAuth();
     const ref = db.collection('admins').doc(adminId);

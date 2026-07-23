@@ -102,6 +102,20 @@ async function inviteHandler(req) {
       return NextResponse.json({ error: 'Email address is required' }, { status: 400 });
     }
 
+    const resolvedRole = role || 'readonly';
+    const VALID_ADMIN_ROLES = [
+      'super',
+      'admin',
+      'ops',
+      'finance',
+      'content',
+      'support',
+      'readonly',
+    ];
+    if (!VALID_ADMIN_ROLES.includes(resolvedRole)) {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
+    }
+
     const db = getAdminDb();
     const cleanEmail = email.toLowerCase().trim();
 
@@ -162,7 +176,7 @@ async function inviteHandler(req) {
       email: cleanEmail,
       firstName: firstName || null,
       lastName: lastName || null,
-      role: role || 'readonly',
+      role: resolvedRole,
       status: 'pending',
       isNewAccount,
       inviteToken,
@@ -194,7 +208,7 @@ async function inviteHandler(req) {
       content: 'Content',
       readonly: 'Read Only',
     };
-    const roleLabel = roleLabels[role] || role || 'Admin';
+    const roleLabel = roleLabels[resolvedRole] || 'Admin';
 
     // 6. Send invitation email
     if (process.env.NODE_ENV === 'development') {
