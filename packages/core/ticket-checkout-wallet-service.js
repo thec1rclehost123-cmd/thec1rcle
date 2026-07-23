@@ -33,8 +33,6 @@ function signJwt(payload, secret = getQrSecret()) {
   return `${encodedHeader}.${encodedPayload}.${signature}`;
 }
 
-
-
 export function verifyTicketQrJwt(token, secret = getQrSecret()) {
   if (!token || typeof token !== 'string') return { valid: false, error: 'Missing token' };
   const parts = token.trim().split('.');

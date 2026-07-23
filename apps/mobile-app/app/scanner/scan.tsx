@@ -5,12 +5,7 @@ import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-ca
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useScannerStore } from '@/store/scannerStore';
 import { processQRScan, recordStaffDeny } from '@/lib/scanner';
 import { ScanResultData, ScanResultType } from '@/lib/scanner/types';
@@ -79,7 +74,7 @@ export default function ScanScreen() {
 
   const dismissResult = () => {
     if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-    resultScale.value = (0);
+    resultScale.value = 0;
     resultOpacity.value = withTiming(0, { duration: 200 });
     setTimeout(() => {
       setScanResult(null);

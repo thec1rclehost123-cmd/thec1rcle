@@ -12,10 +12,7 @@ import {
   SettingsRow,
 } from '@/components/settings/DittoSettings';
 import { typography } from '@/lib/design/theme';
-import {
-  checkNotificationSystemPermission,
-  showSettingsAlert,
-} from '@/lib/permissions';
+import { checkNotificationSystemPermission, showSettingsAlert } from '@/lib/permissions';
 import { registerPushToken } from '@/lib/notifications';
 import { useAuthStore } from '@/store/authStore';
 
@@ -79,9 +76,7 @@ export default function NotificationSettingsScreen() {
           {systemGranted ? (
             <Text style={styles.heroActionEnabled}>Notifications Enabled</Text>
           ) : (
-            <Pressable
-              onPress={enablePushNotifications}
-            >
+            <Pressable onPress={enablePushNotifications}>
               <Text style={styles.heroActionDisabled}>Enable in Settings →</Text>
             </Pressable>
           )}

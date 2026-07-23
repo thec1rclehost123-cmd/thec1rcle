@@ -17,7 +17,16 @@ import { ChatKeyboardAvoidingView } from '@/components/ui/ChatKeyboardAvoidingVi
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
-import { CalendarDays, Flag, Ban, ImagePlus, Images, LockKeyhole, Users, X } from 'lucide-react-native';
+import {
+  CalendarDays,
+  Flag,
+  Ban,
+  ImagePlus,
+  Images,
+  LockKeyhole,
+  Users,
+  X,
+} from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import {
   BrightCenterState,
@@ -72,14 +81,21 @@ function PhaseBadge({ phase }: { phase: EventPhase }) {
   const info = getPhaseInfo(phase);
 
   return (
-    <View style={[styles.phaseBadge, { backgroundColor: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.2)', borderWidth: 1 }]}>
+    <View
+      style={[
+        styles.phaseBadge,
+        {
+          backgroundColor: 'rgba(255,255,255,0.12)',
+          borderColor: 'rgba(255,255,255,0.2)',
+          borderWidth: 1,
+        },
+      ]}
+    >
       <Text style={styles.phaseIcon}>{info.icon}</Text>
       <Text style={[styles.phaseText, { color: '#FFFFFF' }]}>{info.label}</Text>
     </View>
   );
 }
-
-
 
 export default function EventGroupChatScreen() {
   const { eventId, eventTitle } = useLocalSearchParams<{
@@ -142,18 +158,20 @@ export default function EventGroupChatScreen() {
 
   const phaseColors: Record<string, string> = {
     'pre-event': '#8B5CF6',
-    'during': '#F59E0B',
+    during: '#F59E0B',
     'post-event': '#3B82F6',
-    'expired': '',
+    expired: '',
   };
   const moodColor = phaseColors[phase] || '';
   const phasePlaceholders: Record<string, string> = {
     'pre-event': 'Get the hype started…',
-    'during': 'Share the moment…',
+    during: 'Share the moment…',
     'post-event': 'Relive the night…',
-    'expired': 'Chat history is read-only',
+    expired: 'Chat history is read-only',
   };
-  const placeholder = isArchived ? 'Chat history is read-only' : (phasePlaceholders[phase] || 'Type a message');
+  const placeholder = isArchived
+    ? 'Chat history is read-only'
+    : phasePlaceholders[phase] || 'Type a message';
 
   const theme: ChatSurfaceTheme = {
     mode: 'event',
@@ -197,17 +215,22 @@ export default function EventGroupChatScreen() {
             checkEventEntitlement(user!.uid, eventId!),
             getEventGroupChat(eventId!),
             apiFetch<any>(`/api/v1/events/${eventId}`, { requireAuth: false }).catch(() => null),
-            apiFetch<any>(`/api/v1/social/chat/${eventId}?limit=50`, { requireAuth: true }).catch(() => null),
+            apiFetch<any>(`/api/v1/social/chat/${eventId}?limit=50`, { requireAuth: true }).catch(
+              () => null,
+            ),
           ]);
           if (!active) return;
 
-          const eventData = eventDetail?.event || eventDetail?.data?.event || eventDetail?.data || eventDetail;
+          const eventData =
+            eventDetail?.event || eventDetail?.data?.event || eventDetail?.data || eventDetail;
           if (eventData) {
             if (!eventTitleSafe) {
               setEventTitleSafe(eventData.title || eventData.name || eventTitle || '');
             }
             setEventHostId(eventData.createdBy || eventData.hostId || null);
-            setEventPoster(eventData.posterUrl || eventData.coverImage || eventData.imageUrl || null);
+            setEventPoster(
+              eventData.posterUrl || eventData.coverImage || eventData.imageUrl || null,
+            );
           }
 
           setPhase(chatInfo.phase);
@@ -224,51 +247,62 @@ export default function EventGroupChatScreen() {
           // Pre-populate messages if the parallel fetch succeeded
           let initialMessages: GroupMessage[] = [];
           if (initialChatResponse?.messages) {
-             const normalized = initialChatResponse.messages
-               .map((m: any) => ({
-                 id: String(m.id || m.messageId),
-                 eventId: String(m.eventId || eventId),
-                 senderId: String(m.senderId || m.userId || ''),
-                 senderName: String(m.senderName || m.userName || 'Attendee'),
-                 senderAvatar: m.senderAvatar || m.senderPhoto || m.metadata?.senderAvatar,
-                 senderBadge: m.senderBadge || m.metadata?.senderBadge,
-                 content: String(m.content || m.text || m.imageUrl || m.videoUrl || ''),
-                 type: m.type || (m.imageUrl ? 'image' : m.videoUrl ? 'image' : 'text'),
-                 createdAt: m.createdAt || new Date().toISOString(),
-                 isDeleted: m.isDeleted === true,
-                 deletedBy: m.deletedBy,
-                 replyTo: m.replyTo || m.replyToId,
-               }))
-               .filter((m: any) => Boolean(m.id));
+            const normalized = initialChatResponse.messages
+              .map((m: any) => ({
+                id: String(m.id || m.messageId),
+                eventId: String(m.eventId || eventId),
+                senderId: String(m.senderId || m.userId || ''),
+                senderName: String(m.senderName || m.userName || 'Attendee'),
+                senderAvatar: m.senderAvatar || m.senderPhoto || m.metadata?.senderAvatar,
+                senderBadge: m.senderBadge || m.metadata?.senderBadge,
+                content: String(m.content || m.text || m.imageUrl || m.videoUrl || ''),
+                type: m.type || (m.imageUrl ? 'image' : m.videoUrl ? 'image' : 'text'),
+                createdAt: m.createdAt || new Date().toISOString(),
+                isDeleted: m.isDeleted === true,
+                deletedBy: m.deletedBy,
+                replyTo: m.replyTo || m.replyToId,
+              }))
+              .filter((m: any) => Boolean(m.id));
 
-             // Sort and limit
-             const sorted = normalized.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-             initialMessages = sorted.slice(-50);
-             setMessages(initialMessages);
+            // Sort and limit
+            const sorted = normalized.sort(
+              (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+            );
+            initialMessages = sorted.slice(-50);
+            setMessages(initialMessages);
           }
 
           // Fetch side data asynchronously without blocking the UI
-          Promise.all([
-            getEventAttendees(eventId!, 10),
-            getEventMediaCount(eventId!),
-          ]).then(([eventAttendees, count]) => {
-            if (!active) return;
-            setAttendees(eventAttendees);
-            setMediaCount(count);
-          }).catch((err) => console.warn('Failed to load side data:', err));
+          Promise.all([getEventAttendees(eventId!, 10), getEventMediaCount(eventId!)])
+            .then(([eventAttendees, count]) => {
+              if (!active) return;
+              setAttendees(eventAttendees);
+              setMediaCount(count);
+            })
+            .catch((err) => console.warn('Failed to load side data:', err));
 
-          let lastSeenMessageId = initialMessages.length > 0 ? initialMessages[initialMessages.length - 1].id : null;
-          unsubscribeMessages = subscribeToGroupChat(eventId!, (newMessages) => {
-            if (!active) return;
-            if (newMessages.length > 0) {
-              const latestMsg = newMessages[newMessages.length - 1];
-              if (lastSeenMessageId && latestMsg.id !== lastSeenMessageId && latestMsg.senderId !== user!.uid) {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          let lastSeenMessageId =
+            initialMessages.length > 0 ? initialMessages[initialMessages.length - 1].id : null;
+          unsubscribeMessages = subscribeToGroupChat(
+            eventId!,
+            (newMessages) => {
+              if (!active) return;
+              if (newMessages.length > 0) {
+                const latestMsg = newMessages[newMessages.length - 1];
+                if (
+                  lastSeenMessageId &&
+                  latestMsg.id !== lastSeenMessageId &&
+                  latestMsg.senderId !== user!.uid
+                ) {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                }
+                lastSeenMessageId = latestMsg.id;
               }
-              lastSeenMessageId = latestMsg.id;
-            }
-            setMessages(newMessages);
-          }, 50, initialMessages);
+              setMessages(newMessages);
+            },
+            50,
+            initialMessages,
+          );
           if (chatInfo.phase !== 'expired') {
             unsubscribeTyping = subscribeToGroupTyping(eventId!, user!.uid, (status) => {
               if (active) setTypingStatus(status);
@@ -304,7 +338,9 @@ export default function EventGroupChatScreen() {
     setInputText('');
     setSending(true);
     typingHandler.onBlur();
-    setGroupTypingStatus(eventId, user.uid, user.displayName || 'Guest', false).catch(console.error);
+    setGroupTypingStatus(eventId, user.uid, user.displayName || 'Guest', false).catch(
+      console.error,
+    );
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -462,7 +498,12 @@ export default function EventGroupChatScreen() {
   const activeTyper = canCompose && typingStatus.isTyping ? typingStatus.users[0] : null;
 
   const flashListExtraData = useMemo(
-    () => ({ activeTyper, userId: user?.uid, likedMessageIds, messageCount: visibleMessages.length }),
+    () => ({
+      activeTyper,
+      userId: user?.uid,
+      likedMessageIds,
+      messageCount: visibleMessages.length,
+    }),
     [activeTyper, user?.uid, likedMessageIds, visibleMessages.length],
   );
 
@@ -471,8 +512,17 @@ export default function EventGroupChatScreen() {
       if (item.type === 'divider') {
         return (
           <View style={[styles.flip, { alignItems: 'center', marginVertical: 16 }]}>
-            <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600' }}>{item.text}</Text>
+            <View
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                paddingHorizontal: 12,
+                paddingVertical: 4,
+                borderRadius: 12,
+              }}
+            >
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600' }}>
+                {item.text}
+              </Text>
             </View>
           </View>
         );
@@ -506,13 +556,16 @@ export default function EventGroupChatScreen() {
         />
       );
 
-      return (
-        <View style={styles.flip}>
-          {message}
-        </View>
-      );
+      return <View style={styles.flip}>{message}</View>;
     },
-    [handleMessageOptions, toggleMessageLikeLocally, likedMessageIds, hideMessageLocally, handleReportMessage, user?.uid],
+    [
+      handleMessageOptions,
+      toggleMessageLikeLocally,
+      likedMessageIds,
+      hideMessageLocally,
+      handleReportMessage,
+      user?.uid,
+    ],
   );
 
   const messageListEmpty = useMemo(() => {
@@ -545,9 +598,7 @@ export default function EventGroupChatScreen() {
             <View style={styles.lockedIcon}>
               <LockKeyhole size={34} color="#FFFFFF" />
             </View>
-            <Text style={styles.lockedTitle}>
-              Access Required
-            </Text>
+            <Text style={styles.lockedTitle}>Access Required</Text>
             <Text style={styles.lockedCopy}>
               {accessError || 'You need a ticket to join this chat'}
             </Text>
@@ -600,7 +651,6 @@ export default function EventGroupChatScreen() {
 
         <SafeAreaView edges={['bottom']}>
           <BrightComposerDock error={isArchived ? archivedNotice : null}>
-
             <BrightTextInput
               value={inputText}
               onChangeText={handleTextChange}
@@ -646,13 +696,17 @@ export default function EventGroupChatScreen() {
               />
             )}
 
-            <Text style={styles.modalEventTitle}>{eventTitleSafe || eventTitle || demoEventChat?.eventTitle}</Text>
+            <Text style={styles.modalEventTitle}>
+              {eventTitleSafe || eventTitle || demoEventChat?.eventTitle}
+            </Text>
 
             <PhaseBadge phase={phase} />
 
             <View style={styles.modalInfoRow}>
               <Users size={16} color="rgba(255,255,255,0.5)" />
-              <Text style={styles.modalInfoText}>{attendeeCount || demoEventChat?.participantCount || 0} attendees</Text>
+              <Text style={styles.modalInfoText}>
+                {attendeeCount || demoEventChat?.participantCount || 0} attendees
+              </Text>
             </View>
 
             <View style={styles.sectionTitle}>
@@ -666,12 +720,19 @@ export default function EventGroupChatScreen() {
                   style={styles.attendeeRow}
                   onPress={() => {
                     setDetailsModalVisible(false);
-                    router.push({ pathname: '/social/profile/[id]', params: { id: a.userId, eventId } });
+                    router.push({
+                      pathname: '/social/profile/[id]',
+                      params: { id: a.userId, eventId },
+                    });
                   }}
                 >
                   <View style={styles.attendeeAvatar}>
                     {a.avatar ? (
-                      <Image source={{ uri: a.avatar }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      <Image
+                        source={{ uri: a.avatar }}
+                        style={{ width: '100%', height: '100%' }}
+                        resizeMode="cover"
+                      />
                     ) : (
                       <Text style={styles.attendeeInitial}>{a.name.slice(0, 1).toUpperCase()}</Text>
                     )}

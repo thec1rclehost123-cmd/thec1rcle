@@ -113,9 +113,7 @@ export default function AnthemPlayer({ anthem, onPress, showEdit, variant = 'def
           </Text>
         </View>
         <View style={styles.actions}>
-          {anthem.source === 'spotify' && (
-            <FontAwesome5 name="spotify" size={18} color="#1DB954" />
-          )}
+          {anthem.source === 'spotify' && <FontAwesome5 name="spotify" size={18} color="#1DB954" />}
           {anthem.previewUrl ? (
             <Pressable
               onPress={(e) => {

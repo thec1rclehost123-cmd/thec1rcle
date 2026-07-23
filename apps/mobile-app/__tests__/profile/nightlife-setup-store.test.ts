@@ -43,9 +43,7 @@ describe('Nightlife onboarding draft ownership', () => {
 
   it('replaces the draft when a different account starts onboarding', () => {
     useNightlifeSetupStore.getState().startForUser('user-a', {
-      prompts: [
-        { promptId: 'a', question: 'A?', answer: 'A', type: 'text' },
-      ],
+      prompts: [{ promptId: 'a', question: 'A?', answer: 'A', type: 'text' }],
       datingPhotos: ['https://cdn.example/user-a.jpg'],
     });
 

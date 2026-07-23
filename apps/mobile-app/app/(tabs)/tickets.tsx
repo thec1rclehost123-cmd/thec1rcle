@@ -685,19 +685,18 @@ function QRModal({
     if (eventEnded) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const next = flipProgress.value < 0.5;
-    flipProgress.value = withTiming(
-      next ? 1 : 0,
-      { duration: 400 },
-      (finished) => {
-        if (finished) runOnJS(setShowQR)(next);
-      },
-    );
+    flipProgress.value = withTiming(next ? 1 : 0, { duration: 400 }, (finished) => {
+      if (finished) runOnJS(setShowQR)(next);
+    });
   };
 
   const handleTransfer = () => {
     if (transferClosed) return;
     if (!activeTicketSlot?.transferTicketId) {
-      Alert.alert('Transfer unavailable', 'This ticket is missing its individual ticket reference.');
+      Alert.alert(
+        'Transfer unavailable',
+        'This ticket is missing its individual ticket reference.',
+      );
       return;
     }
     if (activeTicketSlot.isUsed) {
@@ -884,7 +883,6 @@ function QRModal({
                             />
                           )}
 
-
                           <View style={ms.ticketSlotBadge}>
                             <Text style={ms.ticketSlotBadgeText}>
                               {item.tierName || ticketType} {item.slotNumber}/{item.totalInTier}
@@ -1008,22 +1006,36 @@ function QRModal({
                         contentFit="cover"
                       />
                     ) : (
-                      <Text style={ms.ticketHolderAvatarText}>{ticketSlots[activeTicketIndex]?.claimInitials}</Text>
+                      <Text style={ms.ticketHolderAvatarText}>
+                        {ticketSlots[activeTicketIndex]?.claimInitials}
+                      </Text>
                     )}
                   </View>
                   <View style={{ marginLeft: 8, marginRight: 6, flex: 1, maxWidth: 172 }}>
-                    <Text style={[ms.ticketHolderName, { marginLeft: 0, marginRight: 0 }]} numberOfLines={1}>
+                    <Text
+                      style={[ms.ticketHolderName, { marginLeft: 0, marginRight: 0 }]}
+                      numberOfLines={1}
+                    >
                       {ticketSlots[activeTicketIndex]?.claimName}
                     </Text>
-                    <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '600', marginTop: 1 }}>
+                    <Text
+                      style={{
+                        color: 'rgba(255,255,255,0.5)',
+                        fontSize: 11,
+                        fontWeight: '600',
+                        marginTop: 1,
+                      }}
+                    >
                       {ticketSlots[activeTicketIndex]?.bookingLabel}
                     </Text>
                   </View>
                   <View
                     style={[
                       ms.ticketStatusPill,
-                      ticketSlots[activeTicketIndex]?.statusTone === 'available' && ms.ticketStatusPillAvailable,
-                      ticketSlots[activeTicketIndex]?.statusTone === 'used' && ms.ticketStatusPillUsed,
+                      ticketSlots[activeTicketIndex]?.statusTone === 'available' &&
+                        ms.ticketStatusPillAvailable,
+                      ticketSlots[activeTicketIndex]?.statusTone === 'used' &&
+                        ms.ticketStatusPillUsed,
                     ]}
                   >
                     <Text style={ms.ticketStatusPillText}>
@@ -2223,7 +2235,7 @@ function SegmentedHeader({
       scrollX.value,
       [0, windowWidth],
       [0, TICKET_FILTER_THUMB_WIDTH],
-      Extrapolation.CLAMP
+      Extrapolation.CLAMP,
     );
     return {
       transform: [{ translateX }],
@@ -2405,10 +2417,7 @@ export default function TicketsScreen() {
     const loadId = ++loadCountRef.current;
 
     const cached = await getCachedUserOrders(requestedUserId);
-    if (
-      loadId !== loadCountRef.current ||
-      useAuthStore.getState().user?.uid !== requestedUserId
-    ) {
+    if (loadId !== loadCountRef.current || useAuthStore.getState().user?.uid !== requestedUserId) {
       return;
     }
     if (cached.data && cached.data.length > 0) {
@@ -2472,19 +2481,24 @@ export default function TicketsScreen() {
       current.push(order);
       groups.set(label, current);
     });
-    return [...groups.entries()].map(([label, groupedOrders]) => ({
-      label,
-      orders: groupedOrders.sort((left, right) => {
-        const leftTime =
-          safeDate(left.eventDate || left.eventStartDate || left.createdAt)?.getTime() ?? 0;
-        const rightTime =
-          safeDate(right.eventDate || right.eventStartDate || right.createdAt)?.getTime() ?? 0;
-        return isUpcoming ? leftTime - rightTime : rightTime - leftTime;
-      }),
-    })).flatMap((g) => g.orders);
+    return [...groups.entries()]
+      .map(([label, groupedOrders]) => ({
+        label,
+        orders: groupedOrders.sort((left, right) => {
+          const leftTime =
+            safeDate(left.eventDate || left.eventStartDate || left.createdAt)?.getTime() ?? 0;
+          const rightTime =
+            safeDate(right.eventDate || right.eventStartDate || right.createdAt)?.getTime() ?? 0;
+          return isUpcoming ? leftTime - rightTime : rightTime - leftTime;
+        }),
+      }))
+      .flatMap((g) => g.orders);
   }, []);
 
-  const upcomingFlattened = useMemo(() => getFlattened(upcomingOrders, true), [getFlattened, upcomingOrders]);
+  const upcomingFlattened = useMemo(
+    () => getFlattened(upcomingOrders, true),
+    [getFlattened, upcomingOrders],
+  );
   const pastFlattened = useMemo(() => getFlattened(pastOrders, false), [getFlattened, pastOrders]);
 
   // If opened via deep link, auto-open the order sheet.
@@ -2629,111 +2643,56 @@ export default function TicketsScreen() {
       {loading && displayOrders.length === 0 && <SkeletonList count={3} />}
 
       {error && !loading && displayOrders.length === 0 && !isOffline && (
-        <ErrorState
-          message="Failed to load your tickets. Please try again."
-          onRetry={onRefresh}
-        />
+        <ErrorState message="Failed to load your tickets. Please try again." onRetry={onRefresh} />
       )}
 
-      {isOffline && displayOrders.length === 0 && !loading && (
-        <NetworkError onRetry={onRefresh} />
-      )}
+      {isOffline && displayOrders.length === 0 && !loading && <NetworkError onRetry={onRefresh} />}
 
       <GestureDetector gesture={ticketTabSwipeGesture}>
         <View style={{ flex: 1 }}>
           {activeTab === 'upcoming' ? (
-          <FlatList
-            data={upcomingFlattened}
-            keyExtractor={(item: any) => item.id}
-            renderItem={({ item, index }: any) => (
-              <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
-                <TicketCard
-                  order={item}
-                  onShowQR={() => {
-                    setSelectedOrder(item);
-                    setShowQRModal(true);
-                  }}
-                  index={index}
-                />
-              </View>
-            )}
-            style={styles.scrollView}
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-            overScrollMode="never"
-            contentContainerStyle={[
-              { paddingBottom: 120 },
-              upcomingFlattened.length === 0 && { flexGrow: 1 },
-            ]}
-            refreshControl={
-              <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.iris} />
-            }
-            ListEmptyComponent={
-              !loading && upcomingFlattened.length === 0 && !error ? (
-                <Animated.View entering={FadeIn.delay(200)} style={styles.emptyContainer}>
-                  <Text style={styles.emptyEmoji}>🎟️</Text>
-                  <Text style={styles.emptyTitle}>
-                    {walletIsEmpty ? 'Your wallet is empty.' : 'No Upcoming Tickets'}
-                  </Text>
-                  <Text style={styles.emptyText}>
-                    {walletIsEmpty ? 'Find your next party and grab a ticket.' : 'Your purchased tickets will appear here'}
-                  </Text>
-                  <Pressable
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      router.push('/(tabs)/explore');
+            <FlatList
+              data={upcomingFlattened}
+              keyExtractor={(item: any) => item.id}
+              renderItem={({ item, index }: any) => (
+                <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
+                  <TicketCard
+                    order={item}
+                    onShowQR={() => {
+                      setSelectedOrder(item);
+                      setShowQRModal(true);
                     }}
-                    style={styles.emptyButton}
-                  >
-                    <LinearGradient
-                      colors={gradients.primary as [string, string]}
-                      style={styles.emptyButtonGradient}
-                    >
-                      <Text style={styles.emptyButtonText}>Explore Events</Text>
-                    </LinearGradient>
-                  </Pressable>
-                </Animated.View>
-              ) : null
-            }
-          />
-          ) : (
-          <FlatList
-            data={pastFlattened}
-            keyExtractor={(item: any) => item.id}
-            renderItem={({ item, index }: any) => (
-              <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
-                <TicketCard
-                  order={item}
-                  onShowQR={() => {
-                    setSelectedOrder(item);
-                    setShowQRModal(true);
-                  }}
-                  index={index}
+                    index={index}
+                  />
+                </View>
+              )}
+              style={styles.scrollView}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              overScrollMode="never"
+              contentContainerStyle={[
+                { paddingBottom: 120 },
+                upcomingFlattened.length === 0 && { flexGrow: 1 },
+              ]}
+              refreshControl={
+                <RefreshControl
+                  refreshing={loading}
+                  onRefresh={onRefresh}
+                  tintColor={colors.iris}
                 />
-              </View>
-            )}
-            style={styles.scrollView}
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-            overScrollMode="never"
-            contentContainerStyle={[
-              { paddingBottom: 120 },
-              pastFlattened.length === 0 && { flexGrow: 1 },
-            ]}
-            refreshControl={
-              <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.iris} />
-            }
-            ListEmptyComponent={
-              !loading && pastFlattened.length === 0 && !error ? (
-                <Animated.View entering={FadeIn.delay(200)} style={styles.emptyContainer}>
-                  <Text style={styles.emptyEmoji}>🎟️</Text>
-                  <Text style={styles.emptyTitle}>
-                    {walletIsEmpty ? 'Your wallet is empty.' : 'No Past Tickets'}
-                  </Text>
-                  <Text style={styles.emptyText}>
-                    {walletIsEmpty ? 'Find your next party and grab a ticket.' : 'Your attended events will appear here'}
-                  </Text>
-                  {walletIsEmpty && (
+              }
+              ListEmptyComponent={
+                !loading && upcomingFlattened.length === 0 && !error ? (
+                  <Animated.View entering={FadeIn.delay(200)} style={styles.emptyContainer}>
+                    <Text style={styles.emptyEmoji}>🎟️</Text>
+                    <Text style={styles.emptyTitle}>
+                      {walletIsEmpty ? 'Your wallet is empty.' : 'No Upcoming Tickets'}
+                    </Text>
+                    <Text style={styles.emptyText}>
+                      {walletIsEmpty
+                        ? 'Find your next party and grab a ticket.'
+                        : 'Your purchased tickets will appear here'}
+                    </Text>
                     <Pressable
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -2748,11 +2707,73 @@ export default function TicketsScreen() {
                         <Text style={styles.emptyButtonText}>Explore Events</Text>
                       </LinearGradient>
                     </Pressable>
-                  )}
-                </Animated.View>
-              ) : null
-            }
-          />
+                  </Animated.View>
+                ) : null
+              }
+            />
+          ) : (
+            <FlatList
+              data={pastFlattened}
+              keyExtractor={(item: any) => item.id}
+              renderItem={({ item, index }: any) => (
+                <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
+                  <TicketCard
+                    order={item}
+                    onShowQR={() => {
+                      setSelectedOrder(item);
+                      setShowQRModal(true);
+                    }}
+                    index={index}
+                  />
+                </View>
+              )}
+              style={styles.scrollView}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              overScrollMode="never"
+              contentContainerStyle={[
+                { paddingBottom: 120 },
+                pastFlattened.length === 0 && { flexGrow: 1 },
+              ]}
+              refreshControl={
+                <RefreshControl
+                  refreshing={loading}
+                  onRefresh={onRefresh}
+                  tintColor={colors.iris}
+                />
+              }
+              ListEmptyComponent={
+                !loading && pastFlattened.length === 0 && !error ? (
+                  <Animated.View entering={FadeIn.delay(200)} style={styles.emptyContainer}>
+                    <Text style={styles.emptyEmoji}>🎟️</Text>
+                    <Text style={styles.emptyTitle}>
+                      {walletIsEmpty ? 'Your wallet is empty.' : 'No Past Tickets'}
+                    </Text>
+                    <Text style={styles.emptyText}>
+                      {walletIsEmpty
+                        ? 'Find your next party and grab a ticket.'
+                        : 'Your attended events will appear here'}
+                    </Text>
+                    {walletIsEmpty && (
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          router.push('/(tabs)/explore');
+                        }}
+                        style={styles.emptyButton}
+                      >
+                        <LinearGradient
+                          colors={gradients.primary as [string, string]}
+                          style={styles.emptyButtonGradient}
+                        >
+                          <Text style={styles.emptyButtonText}>Explore Events</Text>
+                        </LinearGradient>
+                      </Pressable>
+                    )}
+                  </Animated.View>
+                ) : null
+              }
+            />
           )}
         </View>
       </GestureDetector>

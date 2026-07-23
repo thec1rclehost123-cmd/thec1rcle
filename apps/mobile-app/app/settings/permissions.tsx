@@ -51,10 +51,7 @@ export default function PermissionsSettingsScreen() {
 
   const handleLocationPress = async () => {
     if (locationGranted) {
-      showSettingsAlert(
-        'Location Access',
-        'Revoke location permission in system settings.',
-      );
+      showSettingsAlert('Location Access', 'Revoke location permission in system settings.');
       return;
     }
 
@@ -95,13 +92,11 @@ export default function PermissionsSettingsScreen() {
   return (
     <DittoSettingsScreen title="Permissions">
       <SettingsGroup>
-        <SettingsRow
-          title="Contacts Syncing"
-          value="Not available"
-        />
+        <SettingsRow title="Contacts Syncing" value="Not available" />
       </SettingsGroup>
       <HelperText>
-        Contact access is not collected in this release. You can still invite friends with share links.
+        Contact access is not collected in this release. You can still invite friends with share
+        links.
       </HelperText>
 
       <SettingsGroup>

@@ -192,7 +192,19 @@ const PrivateChatRow = React.memo(function PrivateChatRow({ chat }: { chat: Dire
 
   return (
     <Animated.View style={containerStyle}>
-      <View style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 100, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.error, borderRadius: 16 }}>
+      <View
+        style={{
+          position: 'absolute',
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: 100,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.error,
+          borderRadius: 16,
+        }}
+      >
         <Animated.View style={archiveIconStyle}>
           <X size={24} color="#fff" />
         </Animated.View>
@@ -230,7 +242,10 @@ const PrivateChatRow = React.memo(function PrivateChatRow({ chat }: { chat: Dire
               </View>
               <View style={rowStyles.msgRow}>
                 <Text
-                  style={[rowStyles.lastMsg, (chat.unreadCount ?? 0) > 0 && rowStyles.lastMsgUnread]}
+                  style={[
+                    rowStyles.lastMsg,
+                    (chat.unreadCount ?? 0) > 0 && rowStyles.lastMsgUnread,
+                  ]}
                   numberOfLines={1}
                 >
                   {chat.lastMessage}
@@ -549,7 +564,7 @@ export default function InboxScreen() {
       scrollX.value,
       [0, windowWidth],
       [0, pillWidth + 4],
-      Extrapolation.CLAMP
+      Extrapolation.CLAMP,
     );
     return {
       transform: [{ translateX }],
@@ -610,7 +625,6 @@ export default function InboxScreen() {
   //   return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
   // }
 
-
   const handleInboxSwipe = useCallback(
     (direction: 'next' | 'previous') => {
       switchTab(direction === 'next' ? 'private' : 'events');
@@ -625,8 +639,7 @@ export default function InboxScreen() {
         .failOffsetY([-18, 18])
         .onEnd((event) => {
           const shouldSwitch =
-            Math.abs(event.translationX) >= 52 ||
-            Math.abs(event.velocityX) >= 650;
+            Math.abs(event.translationX) >= 52 || Math.abs(event.velocityX) >= 650;
 
           if (!shouldSwitch) return;
 
@@ -675,151 +688,151 @@ export default function InboxScreen() {
       </Animated.View>
 
       {/* ── Segment control ── */}
-        <Animated.View
-          entering={FadeIn.duration(160)}
-          style={styles.segmentWrap}
-        >
-          <View style={styles.segmentTrack}>
-            <Animated.View
-              style={[
-                {
-                  position: 'absolute',
-                  top: 4,
-                  bottom: 4,
-                  left: 4,
-                  width: (windowWidth - 44) / 2,
-                  backgroundColor: '#F44A22',
-                  borderRadius: 11,
-                },
-                animatedPillStyle,
-              ]}
+      <Animated.View entering={FadeIn.duration(160)} style={styles.segmentWrap}>
+        <View style={styles.segmentTrack}>
+          <Animated.View
+            style={[
+              {
+                position: 'absolute',
+                top: 4,
+                bottom: 4,
+                left: 4,
+                width: (windowWidth - 44) / 2,
+                backgroundColor: '#F44A22',
+                borderRadius: 11,
+              },
+              animatedPillStyle,
+            ]}
+          />
+          {/* Event Chats tab */}
+          <Pressable
+            style={styles.segmentPill}
+            onPress={() => switchTab('events')}
+            accessibilityRole="tab"
+            accessibilityLabel="Event Chats"
+            accessibilityState={{ selected: activeTab === 'events' }}
+          >
+            <MessageCircle
+              size={14}
+              color={activeTab === 'events' ? '#fff' : 'rgba(255,255,255,0.4)'}
+              strokeWidth={activeTab === 'events' ? 2.2 : 1.8}
             />
-            {/* Event Chats tab */}
-            <Pressable
-              style={styles.segmentPill}
-              onPress={() => switchTab('events')}
-              accessibilityRole="tab"
-              accessibilityLabel="Event Chats"
-              accessibilityState={{ selected: activeTab === 'events' }}
-            >
-              <MessageCircle
-                size={14}
-                color={activeTab === 'events' ? '#fff' : 'rgba(255,255,255,0.4)'}
-                strokeWidth={activeTab === 'events' ? 2.2 : 1.8}
-              />
-              <Text style={[styles.segmentText, activeTab === 'events' && styles.segmentTextActive]}>
-                Event Chats
-              </Text>
-            </Pressable>
+            <Text style={[styles.segmentText, activeTab === 'events' && styles.segmentTextActive]}>
+              Event Chats
+            </Text>
+          </Pressable>
 
-            {/* Private Chats tab */}
-            <Pressable
-              style={styles.segmentPill}
-              onPress={() => switchTab('private')}
-              accessibilityRole="tab"
-              accessibilityLabel="Private Chats"
-              accessibilityState={{ selected: activeTab === 'private' }}
-            >
-              <Heart
-                size={14}
-                color={activeTab === 'private' ? '#fff' : 'rgba(255,255,255,0.4)'}
-                strokeWidth={activeTab === 'private' ? 2.2 : 1.8}
-              />
-              <Text style={[styles.segmentText, activeTab === 'private' && styles.segmentTextActive]}>
-                Private Chats
-              </Text>
-              {/* Badge showing unread + new matches */}
-              {activeTab !== 'private' && newMatchCount + totalUnread > 0 && (
-                <View style={styles.tabBadge}>
-                  <Text style={styles.tabBadgeText}>{newMatchCount + totalUnread}</Text>
-                </View>
-              )}
-            </Pressable>
-          </View>
-        </Animated.View>
+          {/* Private Chats tab */}
+          <Pressable
+            style={styles.segmentPill}
+            onPress={() => switchTab('private')}
+            accessibilityRole="tab"
+            accessibilityLabel="Private Chats"
+            accessibilityState={{ selected: activeTab === 'private' }}
+          >
+            <Heart
+              size={14}
+              color={activeTab === 'private' ? '#fff' : 'rgba(255,255,255,0.4)'}
+              strokeWidth={activeTab === 'private' ? 2.2 : 1.8}
+            />
+            <Text style={[styles.segmentText, activeTab === 'private' && styles.segmentTextActive]}>
+              Private Chats
+            </Text>
+            {/* Badge showing unread + new matches */}
+            {activeTab !== 'private' && newMatchCount + totalUnread > 0 && (
+              <View style={styles.tabBadge}>
+                <Text style={styles.tabBadgeText}>{newMatchCount + totalUnread}</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
+      </Animated.View>
 
       <GestureDetector gesture={inboxSwipeGesture}>
         <View style={{ flex: 1 }}>
           {activeTab === 'events' ? (
             <>
-          {ambientColor !== 'transparent' && (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                {
-                  backgroundColor: ambientColor,
-                  opacity: 0.6,
-                },
-              ]}
-              pointerEvents="none"
-            />
-          )}
-          <ScrollView
-            key="event-chats"
-            style={{ flex: 1 }}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={colors.iris}
-              />
-            }
-          >
-            <Animated.View entering={FadeIn.duration(200)}>
-              {eventChats.length > 0 ? (
-                eventChats.map((chat: EventChat, i: number) => (
-                  <Animated.View key={chat.id} entering={FadeInDown.delay(i * 50).duration(400)}>
-                    <EventChatCard chat={chat} index={i} />
-                  </Animated.View>
-                ))
-              ) : loading ? (
-                <InboxEventCardSkeletonList count={3} />
-              ) : (
-                <View style={styles.emptyCard}>
-                  <Text style={styles.emptyTitle}>No event chats yet</Text>
-                  <Text style={styles.emptyBody}>
-                    Get a ticket to an event — its group chat unlocks automatically.
-                  </Text>
-                </View>
+              {ambientColor !== 'transparent' && (
+                <View
+                  style={[
+                    StyleSheet.absoluteFill,
+                    {
+                      backgroundColor: ambientColor,
+                      opacity: 0.6,
+                    },
+                  ]}
+                  pointerEvents="none"
+                />
               )}
-            </Animated.View>
-          </ScrollView>
+              <ScrollView
+                key="event-chats"
+                style={{ flex: 1 }}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor={colors.iris}
+                  />
+                }
+              >
+                <Animated.View entering={FadeIn.duration(200)}>
+                  {eventChats.length > 0 ? (
+                    eventChats.map((chat: EventChat, i: number) => (
+                      <Animated.View
+                        key={chat.id}
+                        entering={FadeInDown.delay(i * 50).duration(400)}
+                      >
+                        <EventChatCard chat={chat} index={i} />
+                      </Animated.View>
+                    ))
+                  ) : loading ? (
+                    <InboxEventCardSkeletonList count={3} />
+                  ) : (
+                    <View style={styles.emptyCard}>
+                      <Text style={styles.emptyTitle}>No event chats yet</Text>
+                      <Text style={styles.emptyBody}>
+                        Get a ticket to an event — its group chat unlocks automatically.
+                      </Text>
+                    </View>
+                  )}
+                </Animated.View>
+              </ScrollView>
             </>
           ) : (
-          <ScrollView
-            key="private-chats"
-            style={{ flex: 1 }}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={colors.iris}
-              />
-            }
-          >
-            <Animated.View entering={FadeIn.duration(200)}>
-              {privateChats.length > 0 ? (
-                privateChats.map((chat: DirectChat, i: number) => (
-                  <Animated.View key={chat.id} entering={FadeInDown.delay(i * 50).duration(400)}>
-                    <PrivateChatRow chat={chat} />
-                  </Animated.View>
-                ))
-              ) : loading ? (
-                <SkeletonChatCardList count={4} />
-              ) : (
-                <View style={styles.emptyCard}>
-                  <Text style={styles.emptyTitle}>No messages yet</Text>
-                  <Text style={styles.emptyBody}>
-                    Match with someone at an event to start a private conversation.
-                  </Text>
-                </View>
-              )}
-            </Animated.View>
-          </ScrollView>
+            <ScrollView
+              key="private-chats"
+              style={{ flex: 1 }}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor={colors.iris}
+                />
+              }
+            >
+              <Animated.View entering={FadeIn.duration(200)}>
+                {privateChats.length > 0 ? (
+                  privateChats.map((chat: DirectChat, i: number) => (
+                    <Animated.View key={chat.id} entering={FadeInDown.delay(i * 50).duration(400)}>
+                      <PrivateChatRow chat={chat} />
+                    </Animated.View>
+                  ))
+                ) : loading ? (
+                  <SkeletonChatCardList count={4} />
+                ) : (
+                  <View style={styles.emptyCard}>
+                    <Text style={styles.emptyTitle}>No messages yet</Text>
+                    <Text style={styles.emptyBody}>
+                      Match with someone at an event to start a private conversation.
+                    </Text>
+                  </View>
+                )}
+              </Animated.View>
+            </ScrollView>
           )}
         </View>
       </GestureDetector>

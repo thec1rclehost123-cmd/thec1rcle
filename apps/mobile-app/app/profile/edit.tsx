@@ -70,10 +70,7 @@ function PromptModal({
 
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onCancel}>
-      <KeyboardAvoidingView
-        style={styles.modalOverlay}
-        behavior="padding"
-      >
+      <KeyboardAvoidingView style={styles.modalOverlay} behavior="padding">
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>{title}</Text>
           <Text style={styles.modalMessage}>{message}</Text>
@@ -366,7 +363,12 @@ export default function EditProfileScreen() {
     const uploadUserId = user.uid;
 
     try {
-      const uploadedUrl = await uploadUserPhoto(uploadUserId, uri, `profile-${Date.now()}`, dimensions);
+      const uploadedUrl = await uploadUserPhoto(
+        uploadUserId,
+        uri,
+        `profile-${Date.now()}`,
+        dimensions,
+      );
       if (useAuthStore.getState().user?.uid !== uploadUserId) return;
       setPhotoURL(uploadedUrl);
       markDirty();
@@ -631,10 +633,7 @@ export default function EditProfileScreen() {
             <CitySelector value={city} onSelect={handleSelectCity} delay={400} />
 
             {/* Gender Selector */}
-            <Animated.View
-              entering={FadeInDown.delay(450)}
-              style={styles.fieldContainer}
-            >
+            <Animated.View entering={FadeInDown.delay(450)} style={styles.fieldContainer}>
               <Text style={styles.fieldLabel}>Gender</Text>
               {gender ? (
                 <View style={styles.genderReadonlyContainer}>
@@ -732,10 +731,7 @@ export default function EditProfileScreen() {
           </Animated.View>
 
           {/* Read-only info */}
-          <Animated.View
-            entering={FadeInDown.delay(500)}
-            style={styles.readOnlySection}
-          >
+          <Animated.View entering={FadeInDown.delay(500)} style={styles.readOnlySection}>
             <Text style={styles.sectionTitle}>Account Info</Text>
             <View style={styles.readOnlyItem}>
               <Text style={styles.readOnlyLabel}>Email</Text>

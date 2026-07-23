@@ -35,7 +35,8 @@ export function resolveBootState(input: BootInput): BootState {
 
   if (input.authSyncFailed) {
     if (!input.online && input.firstRunHydrated && input.stage) {
-      if (input.stage === 'complete') return { type: 'offline-ready', destination: '/(tabs)/explore' };
+      if (input.stage === 'complete')
+        return { type: 'offline-ready', destination: '/(tabs)/explore' };
       return {
         type: 'needs-onboarding',
         stage: input.stage,
@@ -43,13 +44,17 @@ export function resolveBootState(input: BootInput): BootState {
         offline: true,
       };
     }
-    return { type: 'recoverable-error', message: input.authSyncError || 'Unable to sync your account.' };
+    return {
+      type: 'recoverable-error',
+      message: input.authSyncError || 'Unable to sync your account.',
+    };
   }
   if (input.authSyncInProgress) return { type: 'syncing-auth' };
 
   if (!input.serverSynced) {
     if (!input.online && input.firstRunHydrated && input.stage) {
-      if (input.stage === 'complete') return { type: 'offline-ready', destination: '/(tabs)/explore' };
+      if (input.stage === 'complete')
+        return { type: 'offline-ready', destination: '/(tabs)/explore' };
       return {
         type: 'needs-onboarding',
         stage: input.stage,
@@ -60,7 +65,8 @@ export function resolveBootState(input: BootInput): BootState {
     return { type: 'syncing-auth' };
   }
 
-  if (!input.firstRunHydrated || !input.profileReady || !input.stage) return { type: 'syncing-auth' };
+  if (!input.firstRunHydrated || !input.profileReady || !input.stage)
+    return { type: 'syncing-auth' };
   if (input.stage !== 'complete') {
     return {
       type: 'needs-onboarding',

@@ -261,9 +261,7 @@ describe('profileStore', () => {
     it('ignores an old account dismissal hydration after the account changes', async () => {
       const AsyncStorage = require('@react-native-async-storage/async-storage');
       const userARead = deferred<string | null>();
-      AsyncStorage.getItem
-        .mockReturnValueOnce(userARead.promise)
-        .mockResolvedValueOnce(null);
+      AsyncStorage.getItem.mockReturnValueOnce(userARead.promise).mockResolvedValueOnce(null);
 
       const hydrateA = useProfileStore.getState().hydrateNightlifePromptDismissed('user-a');
       const hydrateB = useProfileStore.getState().hydrateNightlifePromptDismissed('user-b');

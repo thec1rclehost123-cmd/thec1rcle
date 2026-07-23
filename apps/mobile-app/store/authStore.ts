@@ -241,7 +241,12 @@ export function initAuthListener() {
     cancelRetry();
     retryCount += 1;
     if (retryCount >= 5) {
-      useAuthStore.setState({ authSyncFailed: true, initialized: true, loading: false, authSyncInProgress: false });
+      useAuthStore.setState({
+        authSyncFailed: true,
+        initialized: true,
+        loading: false,
+        authSyncInProgress: false,
+      });
       if (__DEV__) console.warn('[AuthStore] Server sync retries exhausted. authSyncFailed=true');
       return;
     }
@@ -284,14 +289,21 @@ export function initAuthListener() {
 
   const unsubscribe = subscribeToAuthState((user) => {
     if (user?.uid === currentAuthUserUid) {
-      if (__DEV__) console.log('[AuthStore] Ignoring redundant auth state change for same user UID');
+      if (__DEV__)
+        console.log('[AuthStore] Ignoring redundant auth state change for same user UID');
       return;
     }
     currentAuthUserUid = user?.uid || null;
 
     authGeneration += 1;
     const generation = authGeneration;
-    if (__DEV__) console.log('[AuthStore] subscribeToAuthState fired. User exists:', !!user, 'Generation:', generation);
+    if (__DEV__)
+      console.log(
+        '[AuthStore] subscribeToAuthState fired. User exists:',
+        !!user,
+        'Generation:',
+        generation,
+      );
 
     cancelRetry();
     retryCount = 0;

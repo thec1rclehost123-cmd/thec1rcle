@@ -11,7 +11,9 @@ jest.mock('../../lib/scanner/api', () => ({
 
 import { fetchWalletByPaymentQr, submitDebit } from '../../lib/scanner/api';
 
-const mockFetchWallet = fetchWalletByPaymentQr as jest.MockedFunction<typeof fetchWalletByPaymentQr>;
+const mockFetchWallet = fetchWalletByPaymentQr as jest.MockedFunction<
+  typeof fetchWalletByPaymentQr
+>;
 const mockSubmitDebit = submitDebit as jest.MockedFunction<typeof submitDebit>;
 
 const MOCK_WALLET = {

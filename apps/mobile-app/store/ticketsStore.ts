@@ -34,12 +34,7 @@ export interface Order {
   posterAccentColor?: string;
   dominantColor?: string;
   status:
-    | 'payment_pending'
-    | 'pending_payment'
-    | 'confirmed'
-    | 'checked_in'
-    | 'cancelled'
-    | 'refunded';
+    'payment_pending' | 'pending_payment' | 'confirmed' | 'checked_in' | 'cancelled' | 'refunded';
   tickets: OrderTicket[];
   totalAmount: number;
   currency?: string;

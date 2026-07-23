@@ -37,21 +37,28 @@ describe('recommendations v2 mobile contract', () => {
 
   it('selects the rollout contract and preserves the server-owned reason label', () => {
     expect(recommendationsRequestPath(true)).toBe('/api/v1/recommendations?limit=10&contract=v2');
-    expect(recommendationsRequestPath(false)).toBe('/api/v1/recommendations?limit=10&contract=legacy');
-    useRecommendationsStore.getState().setServerRecommendations([{
-      event: { id: 'evt-1', title: 'Night One', startDate: '2030-01-01T20:00:00Z' } as any,
-      reasonLabel: 'Because it matches your nightlife tastes',
-    }]);
-    expect(useRecommendationsStore.getState().reasonLabel).toBe('Because it matches your nightlife tastes');
+    expect(recommendationsRequestPath(false)).toBe(
+      '/api/v1/recommendations?limit=10&contract=legacy',
+    );
+    useRecommendationsStore.getState().setServerRecommendations([
+      {
+        event: { id: 'evt-1', title: 'Night One', startDate: '2030-01-01T20:00:00Z' } as any,
+        reasonLabel: 'Because it matches your nightlife tastes',
+      },
+    ]);
+    expect(useRecommendationsStore.getState().reasonLabel).toBe(
+      'Because it matches your nightlife tastes',
+    );
     expect(useRecommendationsStore.getState().source).toBe('server');
   });
 
   it('single-flights concurrent requests by user and exact query', async () => {
     let resolveRequest!: (value: unknown) => void;
     mockApiFetch.mockImplementationOnce(
-      () => new Promise((resolve) => {
-        resolveRequest = resolve;
-      }),
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        }),
     );
 
     const first = useRecommendationsStore.getState().loadServerRecommendations('user-1');
@@ -77,14 +84,16 @@ describe('recommendations v2 mobile contract', () => {
     let resolveUserTwo!: (value: unknown) => void;
     mockApiFetch
       .mockImplementationOnce(
-        () => new Promise((resolve) => {
-          resolveUserOne = resolve;
-        }),
+        () =>
+          new Promise((resolve) => {
+            resolveUserOne = resolve;
+          }),
       )
       .mockImplementationOnce(
-        () => new Promise((resolve) => {
-          resolveUserTwo = resolve;
-        }),
+        () =>
+          new Promise((resolve) => {
+            resolveUserTwo = resolve;
+          }),
       );
 
     const userOneRequest = useRecommendationsStore.getState().loadServerRecommendations('user-1');
@@ -105,9 +114,10 @@ describe('recommendations v2 mobile contract', () => {
   it('clears account-owned recommendations on logout and rejects the late response', async () => {
     let resolveRequest!: (value: unknown) => void;
     mockApiFetch.mockImplementationOnce(
-      () => new Promise((resolve) => {
-        resolveRequest = resolve;
-      }),
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        }),
     );
 
     const request = useRecommendationsStore.getState().loadServerRecommendations('user-1');

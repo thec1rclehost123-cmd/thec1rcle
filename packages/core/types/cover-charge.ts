@@ -108,12 +108,7 @@ export interface CoverWallet {
 // =============================================================================
 
 export type WalletTxnType =
-  | 'DEBIT'
-  | 'CREDIT'
-  | 'REVERSAL'
-  | 'EXPIRY_FORFEIT'
-  | 'EXPIRY_REFUND'
-  | 'TOP_UP';
+  'DEBIT' | 'CREDIT' | 'REVERSAL' | 'EXPIRY_FORFEIT' | 'EXPIRY_REFUND' | 'TOP_UP';
 
 export type WalletTxnStatus = 'COMMITTED' | 'REVERSED';
 

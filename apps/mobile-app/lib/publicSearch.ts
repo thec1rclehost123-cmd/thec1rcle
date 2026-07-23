@@ -48,7 +48,8 @@ export function mapPublicSearchResponse(
   response: Record<string, any> | null | undefined,
   filter: PublicSearchFilter,
 ): PublicSearchResult[] {
-  const payload = response?.data && typeof response.data === 'object' ? response.data : response || {};
+  const payload =
+    response?.data && typeof response.data === 'object' ? response.data : response || {};
   const results: PublicSearchResult[] = [];
 
   if (filter === 'all' || filter === 'events') {

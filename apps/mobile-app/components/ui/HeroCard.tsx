@@ -61,9 +61,7 @@ export function HeroCard({
 
   return (
     <AnimatedPressable
-      entering={FadeInRight.delay(index * 100)
-
-        }
+      entering={FadeInRight.delay(index * 100)}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={handlePress}

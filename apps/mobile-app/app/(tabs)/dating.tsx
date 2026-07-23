@@ -149,10 +149,7 @@ function PhotoBlock({
           <Text style={styles.photoCaptionText}>{photo.caption}</Text>
         </LinearGradient>
       ) : (
-        <LinearGradient
-          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.4)']}
-          style={styles.photoTapHint}
-        >
+        <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.4)']} style={styles.photoTapHint}>
           <MessageCircle size={14} color={colors.iris} />
           <Text style={styles.photoTapHintText}>Tap photo to reply</Text>
         </LinearGradient>
@@ -204,10 +201,20 @@ export default function DatingScreen() {
   const handleDismissMatch = useCallback(() => setMatchProfile(null), []);
 
   const VIBE_TAG_OPTIONS = [
-    'Music', 'Dancing', 'Casual', 'Vibing', 'Party', 'Chill', 'Luxury', 'Networking',
+    'Music',
+    'Dancing',
+    'Casual',
+    'Vibing',
+    'Party',
+    'Chill',
+    'Luxury',
+    'Networking',
   ];
   const INTENT_OPTIONS = [
-    'Casual Dating', 'Something Serious', 'Friends', 'Looking for Connections',
+    'Casual Dating',
+    'Something Serious',
+    'Friends',
+    'Looking for Connections',
   ];
   const HEIGHT_OPTIONS = [0, 150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200];
 
@@ -220,8 +227,7 @@ export default function DatingScreen() {
     () =>
       ownsCurrentDeck
         ? profiles.filter(
-            (candidate) =>
-              candidate.userId !== currentUserId && candidate.id !== currentUserId,
+            (candidate) => candidate.userId !== currentUserId && candidate.id !== currentUserId,
           )
         : [],
     [currentUserId, ownsCurrentDeck, profiles],
@@ -269,7 +275,7 @@ export default function DatingScreen() {
 
   useEffect(() => {
     if (nextProfile && nextProfile.photos) {
-      nextProfile.photos.forEach(photo => {
+      nextProfile.photos.forEach((photo) => {
         const uri = getPhotoUri(photo.source);
         if (uri) {
           Image.prefetch(uri);
@@ -323,7 +329,7 @@ export default function DatingScreen() {
             ? getPhotoUri(targetProfile.photos[0].source) || targetProfile.photoURL || ''
             : targetProfile.photoURL || '',
           myPhoto: currentUserProfile?.photoURL || '',
-        }
+        },
       });
     }
     setLikesSent((current) =>
@@ -368,7 +374,11 @@ export default function DatingScreen() {
     setReplyText('');
   };
 
-  const finalizeReply = async (userIdStr: string, target: NonNullable<ReplyTarget>, message: string) => {
+  const finalizeReply = async (
+    userIdStr: string,
+    target: NonNullable<ReplyTarget>,
+    message: string,
+  ) => {
     const result = await sendAskOut(userIdStr, target.profile, message);
     translateX.value = 0;
     opacity.value = 1;
@@ -384,7 +394,7 @@ export default function DatingScreen() {
             ? getPhotoUri(target.profile.photos[0].source) || target.profile.photoURL || ''
             : target.profile.photoURL || '',
           myPhoto: currentUserProfile?.photoURL || '',
-        }
+        },
       });
     }
     setLikesSent((current) =>
@@ -513,10 +523,7 @@ export default function DatingScreen() {
             contentContainerStyle={styles.profileScrollContent}
           >
             {/* Hero section — first photo + name/age + venue + tags */}
-            <Pressable
-              onPress={() => handleOpenReply(firstPrompt)}
-              style={styles.heroSection}
-            >
+            <Pressable onPress={() => handleOpenReply(firstPrompt)} style={styles.heroSection}>
               <Image
                 source={profile.photos[0].source}
                 style={styles.heroImage}
@@ -535,7 +542,8 @@ export default function DatingScreen() {
                 </View>
                 <View style={styles.heroNameRow}>
                   <Text style={styles.heroName}>
-                    {profile.name}{profile.age ? `, ${profile.age}` : ''}
+                    {profile.name}
+                    {profile.age ? `, ${profile.age}` : ''}
                   </Text>
                   <PremiumBadgeDot visible={profile.isPremium === true} />
                   <BadgeCheck size={23} color="#3CA4FF" fill="#3CA4FF" />
@@ -584,9 +592,7 @@ export default function DatingScreen() {
             </View>
 
             {/* Interleaved prompts + photos */}
-            {(profile as any).anthem ? (
-              <AnthemPlayer anthem={(profile as any).anthem} />
-            ) : null}
+            {(profile as any).anthem ? <AnthemPlayer anthem={(profile as any).anthem} /> : null}
 
             {profile.prompts[0] && (
               <PromptBlock
@@ -595,10 +601,7 @@ export default function DatingScreen() {
               />
             )}
             {profile.photos[1] && (
-              <PhotoBlock
-                photo={profile.photos[1]}
-                onReply={handleOpenPhotoReply}
-              />
+              <PhotoBlock photo={profile.photos[1]} onReply={handleOpenPhotoReply} />
             )}
             {profile.prompts[1] && (
               <PromptBlock
@@ -607,10 +610,7 @@ export default function DatingScreen() {
               />
             )}
             {profile.photos[2] && (
-              <PhotoBlock
-                photo={profile.photos[2]}
-                onReply={handleOpenPhotoReply}
-              />
+              <PhotoBlock photo={profile.photos[2]} onReply={handleOpenPhotoReply} />
             )}
             {profile.prompts[2] && (
               <PromptBlock
@@ -663,8 +663,6 @@ export default function DatingScreen() {
         onClose={() => setReplyTarget(null)}
         onSend={handleSendReply}
       />
-
-
 
       <Modal
         visible={showFilters}

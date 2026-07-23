@@ -89,7 +89,7 @@ export async function getExpoPushToken(
     const existingPermission = await Notifications.getPermissionsAsync();
     const hasPermission =
       existingPermission.status === 'granted' ||
-      (options.requestPermission === true && await requestNotificationPermissions());
+      (options.requestPermission === true && (await requestNotificationPermissions()));
     if (!hasPermission) return { error: 'permission_denied' };
 
     const projectId = getEasProjectId();

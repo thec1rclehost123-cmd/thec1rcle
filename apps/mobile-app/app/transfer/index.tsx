@@ -33,7 +33,9 @@ export default function TransferScreen() {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [transferCode, setTransferCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [transferResult, setTransferResult] = useState<{ code: string; expiresAt?: string } | null>(null);
+  const [transferResult, setTransferResult] = useState<{ code: string; expiresAt?: string } | null>(
+    null,
+  );
 
   const handleInitiateTransfer = async () => {
     Keyboard.dismiss();
@@ -132,8 +134,12 @@ export default function TransferScreen() {
             <Text style={styles.codeText}>{transferResult.code}</Text>
             {transferResult.expiresAt ? (
               <Text style={styles.codeExpiry}>
-                Expires {new Date(transferResult.expiresAt).toLocaleDateString('en-US', {
-                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+                Expires{' '}
+                {new Date(transferResult.expiresAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
                 })}
               </Text>
             ) : (
@@ -184,7 +190,9 @@ export default function TransferScreen() {
             onPress={() => setMode('receive')}
             style={[styles.modeButton, mode === 'receive' && styles.modeButtonActive]}
           >
-            <Text style={[styles.modeButtonText, mode === 'receive' && styles.modeButtonTextActive]}>
+            <Text
+              style={[styles.modeButtonText, mode === 'receive' && styles.modeButtonTextActive]}
+            >
               Receive Ticket
             </Text>
           </Pressable>

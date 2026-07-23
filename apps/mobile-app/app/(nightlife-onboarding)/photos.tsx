@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  Image,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -14,10 +23,9 @@ import * as ImagePicker from 'expo-image-picker';
 export default function NightlifePhotosScreen() {
   const { user } = useAuthStore();
   const { datingPhotos, setDatingPhotos, commitToProfile, reset } = useNightlifeSetupStore();
-  const [localPhotos, setLocalPhotos] = useState<(string | null)[]>([
-    ...datingPhotos,
-    ...Array(6 - datingPhotos.length).fill(null),
-  ].slice(0, 6));
+  const [localPhotos, setLocalPhotos] = useState<(string | null)[]>(
+    [...datingPhotos, ...Array(6 - datingPhotos.length).fill(null)].slice(0, 6),
+  );
   const [isUploading, setIsUploading] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
 
@@ -46,7 +54,7 @@ export default function NightlifePhotosScreen() {
         nextPhotos[index] = uploadUrl;
 
         // Push non-nulls to the front
-        const compacted = nextPhotos.filter(p => p !== null);
+        const compacted = nextPhotos.filter((p) => p !== null);
         const finalPhotos = [...compacted, ...Array(6 - compacted.length).fill(null)].slice(0, 6);
 
         setLocalPhotos(finalPhotos);
@@ -54,10 +62,7 @@ export default function NightlifePhotosScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (err) {
         if (__DEV__) console.log('Nightlife photo upload failed:', err);
-        Alert.alert(
-          'Upload failed',
-          err instanceof Error ? err.message : 'Please try again.',
-        );
+        Alert.alert('Upload failed', err instanceof Error ? err.message : 'Please try again.');
       } finally {
         setIsUploading(false);
       }
@@ -70,7 +75,7 @@ export default function NightlifePhotosScreen() {
     nextPhotos[index] = null;
 
     // Compact array
-    const compacted = nextPhotos.filter(p => p !== null);
+    const compacted = nextPhotos.filter((p) => p !== null);
     const finalPhotos = [...compacted, ...Array(6 - compacted.length).fill(null)].slice(0, 6);
 
     setLocalPhotos(finalPhotos);
@@ -99,9 +104,7 @@ export default function NightlifePhotosScreen() {
         router.dismissAll();
         router.replace('/(tabs)/dating');
       } else {
-        throw new Error(
-          useProfileStore.getState().error || 'Failed to save profile',
-        );
+        throw new Error(useProfileStore.getState().error || 'Failed to save profile');
       }
     } catch (err) {
       if (__DEV__) console.log('Nightlife profile creation failed:', err);
@@ -125,9 +128,7 @@ export default function NightlifePhotosScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Animated.View entering={FadeInDown.duration(600)}>
           <Text style={styles.title}>Show your face</Text>
-          <Text style={styles.subtitle}>
-            Add up to 6 photos that represent you.
-          </Text>
+          <Text style={styles.subtitle}>Add up to 6 photos that represent you.</Text>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(200).duration(600)} style={styles.grid}>
@@ -162,7 +163,7 @@ export default function NightlifePhotosScreen() {
           style={({ pressed }) => [
             styles.button,
             localPhotos[0] === null && styles.buttonDisabled,
-            pressed && styles.buttonPressed
+            pressed && styles.buttonPressed,
           ]}
         >
           {isFinishing ? (
@@ -184,7 +185,13 @@ const styles = StyleSheet.create({
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   scrollContent: { padding: 24 },
   title: { fontFamily: fonts.serif, fontSize: 32, color: colors.white, marginBottom: 12 },
-  subtitle: { fontFamily: fonts.sans, fontSize: 16, color: colors.gray300, lineHeight: 24, marginBottom: 40 },
+  subtitle: {
+    fontFamily: fonts.sans,
+    fontSize: 16,
+    color: colors.gray300,
+    lineHeight: 24,
+    marginBottom: 40,
+  },
 
   grid: {
     flexDirection: 'row',
@@ -194,7 +201,7 @@ const styles = StyleSheet.create({
   },
   photoSlot: {
     width: '47%',
-    aspectRatio: 3/4,
+    aspectRatio: 3 / 4,
     borderRadius: 16,
     borderWidth: 2,
     borderStyle: 'dashed',
@@ -238,7 +245,15 @@ const styles = StyleSheet.create({
   },
 
   footer: { padding: 24, paddingBottom: 40 },
-  button: { backgroundColor: colors.white, flexDirection: 'row', height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', gap: 8 },
+  button: {
+    backgroundColor: colors.white,
+    flexDirection: 'row',
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
   buttonDisabled: { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
   buttonPressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
   buttonText: { fontFamily: fonts.sansMedium, fontSize: 18, color: colors.midnight },

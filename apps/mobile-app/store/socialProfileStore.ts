@@ -176,17 +176,17 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
       state: 'complete',
       completedAt: new Date().toISOString(),
     };
-      await apiFetch('/api/v1/users/me', {
-        method: 'PUT',
-        body: JSON.stringify({
-          photoURL: profile.photos[profile.primaryPhotoIndex] ?? profile.photos[0],
-          photos: profile.photos,
-          socialProfile: profile,
-          socialSetupComplete: true,
-        }),
-      });
-      useProfileStore.getState().invalidateProfileCache();
-      set({ socialState: 'complete', socialProfile: profile });
+    await apiFetch('/api/v1/users/me', {
+      method: 'PUT',
+      body: JSON.stringify({
+        photoURL: profile.photos[profile.primaryPhotoIndex] ?? profile.photos[0],
+        photos: profile.photos,
+        socialProfile: profile,
+        socialSetupComplete: true,
+      }),
+    });
+    useProfileStore.getState().invalidateProfileCache();
+    set({ socialState: 'complete', socialProfile: profile });
   },
 
   // ── Verification (server-mediated upload) ─────────────────────────────────

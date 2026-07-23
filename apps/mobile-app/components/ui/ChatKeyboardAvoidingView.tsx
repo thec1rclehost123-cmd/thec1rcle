@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, KeyboardAvoidingViewProps, Keyboard, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  KeyboardAvoidingViewProps,
+  Keyboard,
+  View,
+} from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
 
 interface ChatKeyboardAvoidingViewProps extends KeyboardAvoidingViewProps {
@@ -26,7 +33,12 @@ function AndroidKeyboardSpacer() {
   return <View style={{ height: keyboardHeight }} />;
 }
 
-export function ChatKeyboardAvoidingView({ children, offset = 0, style, ...props }: ChatKeyboardAvoidingViewProps) {
+export function ChatKeyboardAvoidingView({
+  children,
+  offset = 0,
+  style,
+  ...props
+}: ChatKeyboardAvoidingViewProps) {
   let headerHeight = 0;
   try {
     headerHeight = useHeaderHeight();
@@ -36,7 +48,7 @@ export function ChatKeyboardAvoidingView({ children, offset = 0, style, ...props
 
   if (Platform.OS === 'android') {
     return (
-      <View style={[styles.container, style]} {...props as any}>
+      <View style={[styles.container, style]} {...(props as any)}>
         {children}
         <AndroidKeyboardSpacer />
       </View>

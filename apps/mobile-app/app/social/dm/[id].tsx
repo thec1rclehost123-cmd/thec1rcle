@@ -139,7 +139,11 @@ export default function DirectMessageScreen() {
         if (dateStr === today) text = 'Today';
         else if (dateStr === yesterday) text = 'Yesterday';
         else {
-          text = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+          text = d.toLocaleDateString(undefined, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+          });
         }
         withDividers.push({ id: `divider-${dateStr}`, type: 'divider', text });
         lastDateStr = dateStr;
@@ -210,7 +214,11 @@ export default function DirectMessageScreen() {
         if (!active) return;
         if (nextMessages.length > 0) {
           const latestMsg = nextMessages[nextMessages.length - 1];
-          if (lastSeenMessageId && latestMsg.id !== lastSeenMessageId && latestMsg.senderId !== user!.uid) {
+          if (
+            lastSeenMessageId &&
+            latestMsg.id !== lastSeenMessageId &&
+            latestMsg.senderId !== user!.uid
+          ) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
           }
           lastSeenMessageId = latestMsg.id;
@@ -240,7 +248,9 @@ export default function DirectMessageScreen() {
     setInputText('');
     setSending(true);
     typingHandler.onBlur();
-    setDMTypingStatus(conversationId, user.uid, user.displayName || 'Guest', false).catch(console.error);
+    setDMTypingStatus(conversationId, user.uid, user.displayName || 'Guest', false).catch(
+      console.error,
+    );
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -465,8 +475,17 @@ export default function DirectMessageScreen() {
       if (item.type === 'divider') {
         return (
           <View style={[styles.flip, { alignItems: 'center', marginVertical: 16 }]}>
-            <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600' }}>{item.text}</Text>
+            <View
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                paddingHorizontal: 12,
+                paddingVertical: 4,
+                borderRadius: 12,
+              }}
+            >
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600' }}>
+                {item.text}
+              </Text>
             </View>
           </View>
         );
@@ -499,7 +518,11 @@ export default function DirectMessageScreen() {
                           title: repliedTo.senderId === user?.uid ? 'You' : otherUserName,
                           answer: repliedTo.content,
                         }
-                      : { type: 'prompt', title: 'Deleted message', answer: 'This message was deleted' };
+                      : {
+                          type: 'prompt',
+                          title: 'Deleted message',
+                          answer: 'This message was deleted',
+                        };
                   })()
                 : undefined
             }
@@ -507,7 +530,17 @@ export default function DirectMessageScreen() {
         </View>
       );
     },
-    [avatarUrl, handleMessageOptions, toggleMessageLikeLocally, likedMessageIds, hideMessageLocally, handleReportMessage, user?.uid, messages, otherUserName],
+    [
+      avatarUrl,
+      handleMessageOptions,
+      toggleMessageLikeLocally,
+      likedMessageIds,
+      hideMessageLocally,
+      handleReportMessage,
+      user?.uid,
+      messages,
+      otherUserName,
+    ],
   );
 
   const messageListEmpty = useMemo(
@@ -551,16 +584,28 @@ export default function DirectMessageScreen() {
                 else router.replace('/(tabs)/inbox');
               }}
             />
-            <View style={[styles.conversation, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
+            <View
+              style={[
+                styles.conversation,
+                { alignItems: 'center', justifyContent: 'center', padding: 24 },
+              ]}
+            >
               <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
                 Failed to load conversation
               </Text>
-              <Text style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 16 }}>
+              <Text
+                style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 16 }}
+              >
                 This conversation may not exist or you may not have access.
               </Text>
               <Pressable
                 onPress={() => router.back()}
-                style={{ backgroundColor: colors.iris, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 }}
+                style={{
+                  backgroundColor: colors.iris,
+                  paddingHorizontal: 24,
+                  paddingVertical: 12,
+                  borderRadius: 24,
+                }}
               >
                 <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
               </Pressable>
@@ -658,12 +703,32 @@ export default function DirectMessageScreen() {
           <SafeAreaView edges={['bottom']}>
             {replyMessage ? (
               <View style={{ paddingHorizontal: 16, paddingBottom: 8, paddingTop: 4 }}>
-                <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', padding: 10, borderRadius: 12, borderLeftWidth: 3, borderLeftColor: colors.iris, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View
+                  style={{
+                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    padding: 10,
+                    borderRadius: 12,
+                    borderLeftWidth: 3,
+                    borderLeftColor: colors.iris,
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
                   <View style={{ flex: 1, paddingRight: 10 }}>
-                    <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 'bold', marginBottom: 2 }}>
+                    <Text
+                      style={{
+                        color: 'rgba(255,255,255,0.6)',
+                        fontSize: 11,
+                        fontWeight: 'bold',
+                        marginBottom: 2,
+                      }}
+                    >
                       Replying to {replyMessage.senderId === user?.uid ? 'You' : otherUserName}
                     </Text>
-                    <Text style={{ color: '#fff', fontSize: 14 }} numberOfLines={1}>{replyMessage.content}</Text>
+                    <Text style={{ color: '#fff', fontSize: 14 }} numberOfLines={1}>
+                      {replyMessage.content}
+                    </Text>
                   </View>
                   <Pressable onPress={() => setReplyMessageId(null)} style={{ padding: 4 }}>
                     <X size={16} color="rgba(255,255,255,0.5)" />

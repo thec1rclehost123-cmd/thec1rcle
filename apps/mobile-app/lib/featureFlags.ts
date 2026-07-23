@@ -28,7 +28,10 @@ function parsePercent(value: string | undefined): number {
 }
 
 function parsePlatforms(value: string | undefined): readonly string[] {
-  const platforms = (value || 'ios,android').split(',').map((item) => item.trim().toLowerCase()).filter(Boolean);
+  const platforms = (value || 'ios,android')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
   return Object.freeze([...new Set(platforms)]);
 }
 
@@ -36,8 +39,14 @@ export function readFirstRunFeatureFlags(): FirstRunFeatureFlags {
   return Object.freeze({
     firstRunV2Enabled: parseFeatureFlag(process.env.EXPO_PUBLIC_FIRST_RUN_V2_ENABLED, true),
     onboardingV2Required: parseFeatureFlag(process.env.EXPO_PUBLIC_ONBOARDING_V2_REQUIRED, true),
-    exploreRecommendationsV2: parseFeatureFlag(process.env.EXPO_PUBLIC_EXPLORE_RECOMMENDATIONS_V2, true),
-    contextualPermissionsEnabled: parseFeatureFlag(process.env.EXPO_PUBLIC_CONTEXTUAL_PERMISSIONS_ENABLED, true),
+    exploreRecommendationsV2: parseFeatureFlag(
+      process.env.EXPO_PUBLIC_EXPLORE_RECOMMENDATIONS_V2,
+      true,
+    ),
+    contextualPermissionsEnabled: parseFeatureFlag(
+      process.env.EXPO_PUBLIC_CONTEXTUAL_PERMISSIONS_ENABLED,
+      true,
+    ),
     rolloutPercent: parsePercent(process.env.EXPO_PUBLIC_FIRST_RUN_V2_PERCENT),
     rolloutPlatforms: parsePlatforms(process.env.EXPO_PUBLIC_FIRST_RUN_V2_PLATFORMS),
   });
@@ -68,7 +77,8 @@ export function shouldEnforceFirstRunV2(
 ): boolean {
   if (!flags.firstRunV2Enabled || !flags.onboardingV2Required) return false;
   if (context.internalAccount) return true;
-  if (context.platform && !flags.rolloutPlatforms.includes(context.platform.toLowerCase())) return false;
+  if (context.platform && !flags.rolloutPlatforms.includes(context.platform.toLowerCase()))
+    return false;
   if (flags.rolloutPercent <= 0) return false;
   if (flags.rolloutPercent >= 100) return true;
   if (!context.subjectId) return false;

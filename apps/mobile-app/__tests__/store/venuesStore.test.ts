@@ -58,9 +58,7 @@ describe('venuesStore discovery contract', () => {
   it('does not let a stale all-city response overwrite a newer city request', async () => {
     const allCities = deferred<any>();
     const pune = deferred<any>();
-    mockFetchPublicVenues
-      .mockReturnValueOnce(allCities.promise)
-      .mockReturnValueOnce(pune.promise);
+    mockFetchPublicVenues.mockReturnValueOnce(allCities.promise).mockReturnValueOnce(pune.promise);
 
     const first = useVenuesStore.getState().fetchVenues();
     const second = useVenuesStore.getState().fetchVenues({ city: 'Pune' });

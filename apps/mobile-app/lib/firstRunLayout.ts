@@ -25,9 +25,7 @@ export function resolveFirstRunContentBottomInset({
   platform: FirstRunPlatform;
   estimatedControlHeight: number;
 }): number {
-  const measured = Number.isFinite(measuredActionHeight)
-    ? Math.max(0, measuredActionHeight)
-    : 0;
+  const measured = Number.isFinite(measuredActionHeight) ? Math.max(0, measuredActionHeight) : 0;
   const estimatedActionHeight =
     Math.max(0, estimatedControlHeight) +
     ACTION_TOP_PADDING +

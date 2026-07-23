@@ -103,3 +103,49 @@ jest.mock(
   }),
   { virtual: true },
 );
+
+jest.mock(
+  '@react-native-firebase/auth',
+  () => ({
+    __esModule: true,
+    default: () => ({
+      currentUser: null,
+      onAuthStateChanged: jest.fn(),
+      signInWithCredential: jest.fn(),
+    }),
+    FirebaseAuthTypes: {},
+  }),
+  { virtual: true },
+);
+
+jest.mock(
+  '@react-native-firebase/app',
+  () => ({
+    __esModule: true,
+    default: {
+      app: jest.fn(),
+    },
+  }),
+  { virtual: true },
+);
+
+jest.mock(
+  'expo-notifications',
+  () => ({
+    getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+    requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+    getExpoPushTokenAsync: jest.fn().mockResolvedValue({ data: 'mock-push-token' }),
+    addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+    addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+    setNotificationHandler: jest.fn(),
+  }),
+  { virtual: true },
+);
+
+jest.mock(
+  'expo-device',
+  () => ({
+    isDevice: true,
+  }),
+  { virtual: true },
+);

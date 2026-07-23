@@ -2,10 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 describe('settings legal and account deletion access', () => {
-  const settingsSource = fs.readFileSync(
-    path.join(__dirname, '../../app/settings.tsx'),
-    'utf8',
-  );
+  const settingsSource = fs.readFileSync(path.join(__dirname, '../../app/settings.tsx'), 'utf8');
   const accountSource = fs.readFileSync(
     path.join(__dirname, '../../app/settings/account.tsx'),
     'utf8',

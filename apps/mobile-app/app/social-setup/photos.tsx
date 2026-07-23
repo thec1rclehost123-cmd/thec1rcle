@@ -238,18 +238,12 @@ export default function SocialSetupPhotos() {
         <Animated.Text entering={FadeInDown.delay(40)} style={styles.title}>
           Add your photos
         </Animated.Text>
-        <Animated.Text
-          entering={FadeInDown.delay(80)}
-          style={styles.subtitle}
-        >
+        <Animated.Text entering={FadeInDown.delay(80)} style={styles.subtitle}>
           First photo is your main pic. Add up to 6.
         </Animated.Text>
 
         {/* ── Top row: 1 large + 2 small stacked ── */}
-        <Animated.View
-          entering={FadeInDown.delay(140)}
-          style={styles.topRow}
-        >
+        <Animated.View entering={FadeInDown.delay(140)} style={styles.topRow}>
           <PhotoSlot {...slotProps(0)} width={LARGE_W} height={LARGE_H} />
           <View style={styles.smallStack}>
             <PhotoSlot {...slotProps(1)} width={SMALL_W} height={SMALL_H} />
@@ -258,10 +252,7 @@ export default function SocialSetupPhotos() {
         </Animated.View>
 
         {/* ── Bottom row: 3 equal ── */}
-        <Animated.View
-          entering={FadeInDown.delay(200)}
-          style={styles.bottomRow}
-        >
+        <Animated.View entering={FadeInDown.delay(200)} style={styles.bottomRow}>
           <PhotoSlot {...slotProps(3)} width={THIRD_W} height={THIRD_H} />
           <PhotoSlot {...slotProps(4)} width={THIRD_W} height={THIRD_H} />
           <PhotoSlot {...slotProps(5)} width={THIRD_W} height={THIRD_H} />

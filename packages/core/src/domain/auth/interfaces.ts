@@ -7,12 +7,7 @@ export interface DecodedUser {
 }
 
 export type TokenVerificationStatus =
-  | 'valid'
-  | 'expired'
-  | 'malformed'
-  | 'session_cookie_mismatch'
-  | 'invalid'
-  | 'error';
+  'valid' | 'expired' | 'malformed' | 'session_cookie_mismatch' | 'invalid' | 'error';
 
 export type TokenVerificationSource = 'id_token' | 'session_cookie';
 

@@ -66,10 +66,7 @@ export default function NightlifeVitalsScreen() {
           style={styles.sheetList}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <Pressable
-              style={styles.sheetItem}
-              onPress={() => handleSelect(item)}
-            >
+            <Pressable style={styles.sheetItem} onPress={() => handleSelect(item)}>
               <Text
                 style={[
                   styles.sheetItemText,
@@ -109,7 +106,6 @@ export default function NightlifeVitalsScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(200).duration(600)} style={styles.rows}>
-
           <Pressable style={styles.row} onPress={() => openSheet('height')}>
             <View style={styles.rowLeft}>
               <View style={styles.iconBox}>
@@ -148,7 +144,6 @@ export default function NightlifeVitalsScreen() {
               <ChevronRight size={18} color={colors.base[300]} />
             </View>
           </Pressable>
-
         </Animated.View>
       </ScrollView>
 
@@ -158,7 +153,7 @@ export default function NightlifeVitalsScreen() {
           style={({ pressed }) => [
             styles.button,
             pressed && styles.buttonPressed,
-            !isComplete && styles.buttonDisabled
+            !isComplete && styles.buttonDisabled,
           ]}
           disabled={!isComplete}
         >

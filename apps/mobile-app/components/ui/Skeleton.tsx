@@ -30,9 +30,9 @@ export function Skeleton({
     translateX.value = withRepeat(
       withSequence(
         withTiming(100, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
-        withTiming(-100, { duration: 0 })
+        withTiming(-100, { duration: 0 }),
       ),
-      -1
+      -1,
     );
   }, [translateX]);
 
@@ -150,7 +150,13 @@ export function InboxEventCardSkeleton({ style }: { style?: ViewStyle }) {
   );
 }
 
-export function InboxEventCardSkeletonList({ count = 3, style }: { count?: number; style?: ViewStyle }) {
+export function InboxEventCardSkeletonList({
+  count = 3,
+  style,
+}: {
+  count?: number;
+  style?: ViewStyle;
+}) {
   return (
     <View style={[styles.skeletonStack, style]}>
       {Array.from({ length: count }).map((_, index) => (
@@ -235,7 +241,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: '#1C1C1E',
   },
-
 });
 
 export const Shimmer = Skeleton;

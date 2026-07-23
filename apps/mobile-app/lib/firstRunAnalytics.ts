@@ -42,10 +42,16 @@ export type FirstRunAnalyticsProperties = {
   duration_ms?: number;
 };
 
-const BLOCKED_KEY = /(phone|email|dob|date.?of.?birth|coordinate|latitude|longitude|token|password|name|address|otp.?code|verification.?code|sms.?code)/i;
+const BLOCKED_KEY =
+  /(phone|email|dob|date.?of.?birth|coordinate|latitude|longitude|token|password|name|address|otp.?code|verification.?code|sms.?code)/i;
 const SAFE_METRICS = new Set<FirstRunMetric>([
-  'app_launch_to_login', 'auth_sync', 'onboarding_step_save', 'recommendation_request',
-  'onboarding_to_explore', 'explore_first_content', 'login_video_first_frame',
+  'app_launch_to_login',
+  'auth_sync',
+  'onboarding_step_save',
+  'recommendation_request',
+  'onboarding_to_explore',
+  'explore_first_content',
+  'login_video_first_frame',
 ]);
 
 /** Runtime guard protects analytics even if a future caller bypasses TypeScript. */
@@ -56,7 +62,12 @@ export function sanitizeFirstRunAnalyticsProperties(
   for (const [key, value] of Object.entries(properties)) {
     if (BLOCKED_KEY.test(key)) continue;
     if (typeof value === 'boolean') safe[key] = value;
-    else if (key === 'metric' && typeof value === 'string' && SAFE_METRICS.has(value as FirstRunMetric)) safe[key] = value;
+    else if (
+      key === 'metric' &&
+      typeof value === 'string' &&
+      SAFE_METRICS.has(value as FirstRunMetric)
+    )
+      safe[key] = value;
     else if (key !== 'metric' && typeof value === 'string' && value.length <= 64) safe[key] = value;
     else if (key === 'duration_ms' && typeof value === 'number' && Number.isFinite(value)) {
       safe[key] = Math.min(600_000, Math.max(0, Math.round(value)));

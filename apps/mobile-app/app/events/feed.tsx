@@ -23,7 +23,16 @@ import Animated, {
   useAnimatedScrollHandler,
   SharedValue,
 } from 'react-native-reanimated';
-import { ChevronLeft, Search, Share, Heart, Check, Filter, VolumeX, Bookmark } from 'lucide-react-native';
+import {
+  ChevronLeft,
+  Search,
+  Share,
+  Heart,
+  Check,
+  Filter,
+  VolumeX,
+  Bookmark,
+} from 'lucide-react-native';
 import { useEventsStore, type Event, getHeatScore } from '@/store/eventsStore';
 import { useRecommendationsStore } from '@/store/recommendationsStore';
 import { useEventInterestStore } from '@/store/eventInterestStore';
@@ -67,8 +76,14 @@ const attendeeAvatarImages = {
 };
 
 const AVATAR_COLORS = [
-  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
-  '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
+  '#FF6B6B',
+  '#4ECDC4',
+  '#45B7D1',
+  '#96CEB4',
+  '#FFEAA7',
+  '#DDA0DD',
+  '#98D8C8',
+  '#F7DC6F',
 ];
 
 function getFallbackInterestedUsers() {
@@ -192,7 +207,7 @@ function isViewerInterestedEntry(
 
   return Boolean(
     (viewerDisplayName && candidateName === normalizeIdentityString(viewerDisplayName)) ||
-      (viewerPhoto && candidatePhoto === viewerPhoto),
+    (viewerPhoto && candidatePhoto === viewerPhoto),
   );
 }
 
@@ -243,7 +258,9 @@ function DynamicBackground({ events, scrollY }: { events: Event[]; scrollY: Shar
           return <View key={`bg-empty-${index}`} style={StyleSheet.absoluteFillObject} />;
         }
 
-        return <DynamicBackgroundLayer key={layer.key} img={layer.img} index={index} scrollY={scrollY} />;
+        return (
+          <DynamicBackgroundLayer key={layer.key} img={layer.img} index={index} scrollY={scrollY} />
+        );
       })}
       <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.15)' }]} />
     </View>
@@ -425,17 +442,42 @@ function FeedCard({
                     </Text>
 
                     {/* Host Row */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, marginBottom: 6 }}>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        marginTop: 8,
+                        marginBottom: 6,
+                      }}
+                    >
                       {img && (
                         <Image
                           source={{ uri: img }}
                           style={{ width: 18, height: 18, borderRadius: 9, marginRight: 8 }}
                         />
                       )}
-                      <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700', textTransform: 'uppercase' }} numberOfLines={1}>
+                      <Text
+                        style={{
+                          color: '#FFFFFF',
+                          fontSize: 14,
+                          fontWeight: '700',
+                          textTransform: 'uppercase',
+                        }}
+                        numberOfLines={1}
+                      >
                         {event.hostName || (event as any)?.host?.name || 'THE C1RCLE'}
                       </Text>
-                      <View style={{ backgroundColor: '#FFD700', borderRadius: 8, width: 14, height: 14, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}>
+                      <View
+                        style={{
+                          backgroundColor: '#FFD700',
+                          borderRadius: 8,
+                          width: 14,
+                          height: 14,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginLeft: 6,
+                        }}
+                      >
                         <Check color="#000" size={10} strokeWidth={3} />
                       </View>
                     </View>
@@ -562,9 +604,12 @@ export default function ImmersiveFeedScreen() {
 
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const viewabilityConfig = useMemo(() => ({
-    itemVisiblePercentThreshold: 50,
-  }), []);
+  const viewabilityConfig = useMemo(
+    () => ({
+      itemVisiblePercentThreshold: 50,
+    }),
+    [],
+  );
 
   const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
     if (viewableItems.length > 0) {
@@ -704,7 +749,6 @@ export default function ImmersiveFeedScreen() {
           </Text>
         </Pressable>
       </View>
-
     </View>
   );
 }

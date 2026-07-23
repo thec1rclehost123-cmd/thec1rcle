@@ -71,7 +71,10 @@ interface DatingState {
 
   setOwnerUserId: (userId: string | null) => void;
   clearDatingState: () => void;
-  fetchProfiles: (userId: string, options?: { append?: boolean; filters?: DatingFilters }) => Promise<void>;
+  fetchProfiles: (
+    userId: string,
+    options?: { append?: boolean; filters?: DatingFilters },
+  ) => Promise<void>;
   fetchMatches: (userId: string) => Promise<void>;
   likeUser: (
     fromUserId: string,
@@ -163,7 +166,9 @@ function normalizePrompts(profile: any): Prompt[] {
   const prompts = rawPrompts
     .map((prompt: any, index: number) => ({
       id: String(prompt?.id || `${profile.userId || profile.id || 'prompt'}-${index}`),
-      title: String(prompt?.title || prompt?.question || NIGHTLIFE_PROMPTS[index % NIGHTLIFE_PROMPTS.length]),
+      title: String(
+        prompt?.title || prompt?.question || NIGHTLIFE_PROMPTS[index % NIGHTLIFE_PROMPTS.length],
+      ),
       answer: String(prompt?.answer || prompt?.response || ''),
     }))
     .filter((prompt: Prompt) => prompt.answer.trim().length > 0);
@@ -175,7 +180,7 @@ function normalizePrompts(profile: any): Prompt[] {
     return [
       {
         id: `${profile.userId || profile.id || 'profile'}-bio`,
-        title: "My nightlife vibe",
+        title: 'My nightlife vibe',
         answer: bio,
       },
     ];
@@ -260,9 +265,7 @@ function ownsProfileDeck(state: DatingState, userId: string): boolean {
 function ownsTargetProfile(state: DatingState, userId: string, targetUserId: string): boolean {
   return (
     ownsProfileDeck(state, userId) &&
-    state.profiles.some(
-      (profile) => profile.userId === targetUserId || profile.id === targetUserId,
-    )
+    state.profiles.some((profile) => profile.userId === targetUserId || profile.id === targetUserId)
   );
 }
 
@@ -542,9 +545,7 @@ export const useDatingStore = create<DatingState>((set, get) => ({
         if (!ownsProfileDeck(get(), actorUserId)) return { isMatch: false };
         if (error.code === 'PREMIUM_REQUIRED') {
           set((s) =>
-            ownsProfileDeck(s, actorUserId)
-              ? { profiles: [profile, ...s.profiles] }
-              : {},
+            ownsProfileDeck(s, actorUserId) ? { profiles: [profile, ...s.profiles] } : {},
           );
           useSubscriptionStore.getState().openPaywall('dailyLikes', error.message);
           return { isMatch: false, paywalled: true };
@@ -554,9 +555,7 @@ export const useDatingStore = create<DatingState>((set, get) => ({
       }
     }
 
-    set((s) =>
-      ownsProfileDeck(s, actorUserId) ? { profiles: [profile, ...s.profiles] } : {},
-    );
+    set((s) => (ownsProfileDeck(s, actorUserId) ? { profiles: [profile, ...s.profiles] } : {}));
     warnDatingStore('likeUser failed after 3 retries', lastError);
     return { isMatch: false };
   },
@@ -665,9 +664,7 @@ export const useDatingStore = create<DatingState>((set, get) => ({
 
     if (removedProfile) {
       set((s) =>
-        ownsProfileDeck(s, actorUserId)
-          ? { profiles: [removedProfile, ...s.profiles] }
-          : {},
+        ownsProfileDeck(s, actorUserId) ? { profiles: [removedProfile, ...s.profiles] } : {},
       );
     }
     warnDatingStore('passUser failed after 3 retries', lastError);
@@ -683,8 +680,7 @@ export const useDatingStore = create<DatingState>((set, get) => ({
         ? {
             profiles: state.profiles.filter(
               (profile) =>
-                profile.userId !== requestedTargetUserId &&
-                profile.id !== requestedTargetUserId,
+                profile.userId !== requestedTargetUserId && profile.id !== requestedTargetUserId,
             ),
           }
         : {},

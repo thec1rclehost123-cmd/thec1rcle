@@ -6,14 +6,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
@@ -63,7 +56,9 @@ function normalizePreview(data: any, mode: Mode) {
   const date = mode === 'transfer' ? event.date || event.startDate : data?.eventDate;
   const location = mode === 'transfer' ? event.location || event.venue : data?.eventLocation;
   const sender = mode === 'transfer' ? data?.senderName : data?.ownerName || data?.userName;
-  const availableSlots = Number(data?.availableSlots ?? data?.remainingSlots ?? data?.quantity ?? 1);
+  const availableSlots = Number(
+    data?.availableSlots ?? data?.remainingSlots ?? data?.quantity ?? 1,
+  );
   const totalSlots = Number(data?.totalSlots ?? data?.quantity ?? availableSlots);
   const genderRequirement = String(data?.genderRequirement || 'any').toLowerCase();
   const ticketName =
@@ -197,7 +192,8 @@ export default function ClaimOrTransferScreen() {
       }
 
       const errMsg =
-        res?.error || (mode === 'transfer' ? 'Failed to accept transfer.' : 'Failed to claim ticket.');
+        res?.error ||
+        (mode === 'transfer' ? 'Failed to accept transfer.' : 'Failed to claim ticket.');
       if (errMsg.includes('already been claimed') || errMsg.includes('already been accepted')) {
         await fetchUserOrders();
         setClaimed(true);
@@ -236,7 +232,11 @@ export default function ClaimOrTransferScreen() {
 
         <Animated.View entering={FadeInDown.delay(80)} style={styles.posterShell}>
           {preview.image ? (
-            <Image source={{ uri: preview.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
+            <Image
+              source={{ uri: preview.image }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+            />
           ) : (
             <LinearGradient colors={['#341610', '#111']} style={StyleSheet.absoluteFill} />
           )}
@@ -259,9 +259,7 @@ export default function ClaimOrTransferScreen() {
                 <Ionicons name="checkmark" size={38} color="#050506" />
               </View>
               <Text style={styles.panelTitle}>You're in</Text>
-              <Text style={styles.panelText}>
-                Your ticket has been added to your Tickets tab.
-              </Text>
+              <Text style={styles.panelText}>Your ticket has been added to your Tickets tab.</Text>
             </View>
           ) : (
             <>
@@ -335,14 +333,21 @@ export default function ClaimOrTransferScreen() {
                 <ActivityIndicator color="#050506" />
               ) : (
                 <Text style={styles.primaryButtonText}>
-                  {!user ? 'Log in to claim' : isUnavailable ? 'No tickets left' : 'Claim my ticket'}
+                  {!user
+                    ? 'Log in to claim'
+                    : isUnavailable
+                      ? 'No tickets left'
+                      : 'Claim my ticket'}
                 </Text>
               )}
             </Pressable>
           )}
 
           {!claimed ? (
-            <Pressable onPress={() => router.replace('/(tabs)/explore')} style={styles.secondaryButton}>
+            <Pressable
+              onPress={() => router.replace('/(tabs)/explore')}
+              style={styles.secondaryButton}
+            >
               <Text style={styles.secondaryButtonText}>Not now</Text>
             </Pressable>
           ) : null}

@@ -11,9 +11,7 @@ import { NIGHTLIFE_VIBE_OPTIONS } from '@/lib/nightlifeProfile';
 
 export default function NightlifeVibesScreen() {
   const vibeTags = useNightlifeSetupStore((state) => state.nightlifeVibeTags);
-  const setNightlifeVibeTags = useNightlifeSetupStore(
-    (state) => state.setNightlifeVibeTags,
-  );
+  const setNightlifeVibeTags = useNightlifeSetupStore((state) => state.setNightlifeVibeTags);
   const [selected, setSelected] = useState<Set<string>>(new Set(vibeTags));
 
   const toggleVibe = (vibe: string) => {
@@ -55,27 +53,16 @@ export default function NightlifeVibesScreen() {
           </Text>
         </Animated.View>
 
-        <Animated.View
-          entering={FadeInDown.delay(200).duration(600)}
-          style={styles.grid}
-        >
+        <Animated.View entering={FadeInDown.delay(200).duration(600)} style={styles.grid}>
           {NIGHTLIFE_VIBE_OPTIONS.map((vibe) => {
             const isSelected = selected.has(vibe);
             return (
               <Pressable
                 key={vibe}
                 onPress={() => toggleVibe(vibe)}
-                style={[
-                  styles.pill,
-                  isSelected && styles.pillSelected
-                ]}
+                style={[styles.pill, isSelected && styles.pillSelected]}
               >
-                <Text style={[
-                  styles.pillText,
-                  isSelected && styles.pillTextSelected
-                ]}>
-                  {vibe}
-                </Text>
+                <Text style={[styles.pillText, isSelected && styles.pillTextSelected]}>{vibe}</Text>
               </Pressable>
             );
           })}
@@ -89,13 +76,10 @@ export default function NightlifeVibesScreen() {
           style={({ pressed }) => [
             styles.button,
             selected.size === 0 && styles.buttonDisabled,
-            pressed && styles.buttonPressed
+            pressed && styles.buttonPressed,
           ]}
         >
-          <Text style={[
-            styles.buttonText,
-            selected.size === 0 && styles.buttonTextDisabled
-          ]}>
+          <Text style={[styles.buttonText, selected.size === 0 && styles.buttonTextDisabled]}>
             Next
           </Text>
           <ArrowRight size={20} color={selected.size === 0 ? colors.base[500] : colors.midnight} />

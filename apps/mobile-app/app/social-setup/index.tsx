@@ -105,9 +105,7 @@ export default function SocialSetupIndex() {
         {PERKS.map(({ icon: Icon, color, bg, label, desc }, i) => (
           <Animated.View
             key={label}
-            entering={FadeInDown.delay(120 + i * 55)
-
-              }
+            entering={FadeInDown.delay(120 + i * 55)}
             style={styles.perkRow}
           >
             <View style={[styles.perkIcon, { backgroundColor: bg }]}>
@@ -122,10 +120,7 @@ export default function SocialSetupIndex() {
       </View>
 
       {/* Steps preview */}
-      <Animated.View
-        entering={FadeInDown.delay(360)}
-        style={styles.stepsContainer}
-      >
+      <Animated.View entering={FadeInDown.delay(360)} style={styles.stepsContainer}>
         <Text style={styles.stepsHeading}>Takes 2 minutes</Text>
         <View style={styles.stepsRow}>
           {STEPS.map((step, i) => (

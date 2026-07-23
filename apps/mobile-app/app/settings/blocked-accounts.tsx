@@ -25,10 +25,9 @@ export default function BlockedAccountsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiFetch<{ blockedUsers?: BlockedUser[] }>(
-        '/api/v1/social/blocks',
-        { requireAuth: true },
-      );
+      const response = await apiFetch<{ blockedUsers?: BlockedUser[] }>('/api/v1/social/blocks', {
+        requireAuth: true,
+      });
       setUsers(response.blockedUsers || []);
     } catch (loadError: any) {
       setError(loadError?.message || 'Unable to load blocked accounts.');
@@ -42,20 +41,24 @@ export default function BlockedAccountsScreen() {
   }, [load]);
 
   const confirmUnblock = (user: BlockedUser) => {
-    Alert.alert('Unblock account?', `${user.displayName} will be able to interact with you again.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Unblock',
-        onPress: async () => {
-          const result = await unblockUser('', user.uid);
-          if (!result.success) {
-            Alert.alert('Could not unblock', result.error || 'Please try again.');
-            return;
-          }
-          setUsers((current) => current.filter((item) => item.uid !== user.uid));
+    Alert.alert(
+      'Unblock account?',
+      `${user.displayName} will be able to interact with you again.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unblock',
+          onPress: async () => {
+            const result = await unblockUser('', user.uid);
+            if (!result.success) {
+              Alert.alert('Could not unblock', result.error || 'Please try again.');
+              return;
+            }
+            setUsers((current) => current.filter((item) => item.uid !== user.uid));
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   return (

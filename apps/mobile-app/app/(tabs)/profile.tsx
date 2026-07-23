@@ -289,10 +289,7 @@ export default function ProfileScreen() {
     if (!userId) return;
     setRefreshing(true);
     setErrorDismissed(false);
-    Promise.allSettled([
-      fetchUserOrders(),
-      loadProfile(userId),
-    ]).finally(() => {
+    Promise.allSettled([fetchUserOrders(), loadProfile(userId)]).finally(() => {
       setRefreshing(false);
     });
   }, [userId, fetchUserOrders, loadProfile]);
@@ -318,18 +315,15 @@ export default function ProfileScreen() {
       const eventTime = getOrderEventTime(order);
       return eventTime !== null && eventTime < nowMs;
     })
-    .sort(
-      (a, b) => (getOrderEventTime(b) ?? 0) - (getOrderEventTime(a) ?? 0),
-    );
+    .sort((a, b) => (getOrderEventTime(b) ?? 0) - (getOrderEventTime(a) ?? 0));
   const hasProfileEvents = upcomingOrders.length > 0 || pastOrders.length > 0;
 
   const profilePhotos = Array.from(
     new Set([profile?.photoURL, ...(profile?.photos ?? []), ...(profile?.datingPhotos ?? [])]),
   ).filter((photo): photo is string => Boolean(photo && !photo.includes('img=68')));
   const displayName = profile?.displayName?.trim() || 'Your profile';
-  const walletAttendedCount = new Set(
-    pastOrders.map((order) => order.eventId).filter(Boolean),
-  ).size;
+  const walletAttendedCount = new Set(pastOrders.map((order) => order.eventId).filter(Boolean))
+    .size;
   const attendedCount = Math.max(Number(profile?.eventsAttended ?? 0), walletAttendedCount);
   const displayPhoto = profilePhotos[0] || '';
   const isDefaultMockPhoto = !displayPhoto || displayPhoto.includes('img=68');
@@ -358,9 +352,20 @@ export default function ProfileScreen() {
 
   if (!userId) {
     return (
-      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
+      <View
+        style={[styles.container, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}
+      >
         <View style={{ marginBottom: 32, alignItems: 'center' }}>
-          <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center' }}>
+          <View
+            style={{
+              width: 120,
+              height: 120,
+              borderRadius: 60,
+              backgroundColor: 'rgba(255,255,255,0.05)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
             <Ionicons name="person" size={60} color="rgba(255,255,255,0.2)" />
           </View>
           <Text style={[styles.userName, { fontSize: 28, marginTop: 16 }]}>Welcome Guest</Text>
@@ -408,7 +413,9 @@ export default function ProfileScreen() {
           >
             <Ionicons name="chevron-back" size={26} color="#fff" />
           </Pressable>
-        ) : <View style={{ width: 44 }} />}
+        ) : (
+          <View style={{ width: 44 }} />
+        )}
 
         <View style={styles.topRightActions}>
           <Pressable
@@ -529,10 +536,7 @@ export default function ProfileScreen() {
           </View>
 
           {shouldShowNightlifePrompt ? (
-            <Animated.View
-              entering={FadeInDown.delay(120)}
-              style={styles.nightlifePromptShell}
-            >
+            <Animated.View entering={FadeInDown.delay(120)} style={styles.nightlifePromptShell}>
               <View style={styles.nightlifePromptCard}>
                 <Pressable
                   onPress={() => userId && void dismissNightlifePrompt(userId)}

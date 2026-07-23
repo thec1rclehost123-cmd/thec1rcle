@@ -32,14 +32,11 @@ export const NIGHTLIFE_LIFESTYLE_OPTIONS = [
   'Prefer not to say',
 ] as const;
 
-export const NIGHTLIFE_HEIGHT_OPTIONS = Array.from(
-  { length: (7 - 4) * 12 + 1 },
-  (_, index) => {
-    const feet = Math.floor(index / 12) + 4;
-    const inches = index % 12;
-    return `${feet}'${inches}"`;
-  },
-);
+export const NIGHTLIFE_HEIGHT_OPTIONS = Array.from({ length: (7 - 4) * 12 + 1 }, (_, index) => {
+  const feet = Math.floor(index / 12) + 4;
+  const inches = index % 12;
+  return `${feet}'${inches}"`;
+});
 
 export const NIGHTLIFE_EDITOR_MODE_EDIT = 'edit' as const;
 
@@ -79,9 +76,7 @@ type PauseNightlifeProfileOptions = {
   getStoreError?: () => string | null;
 };
 
-export type PauseNightlifeProfileResult =
-  | { ok: true }
-  | { ok: false; error: string };
+export type PauseNightlifeProfileResult = { ok: true } | { ok: false; error: string };
 
 const PAUSE_NIGHTLIFE_FALLBACK_ERROR =
   'Your Nightlife profile could not be paused. Please check your connection and try again.';
@@ -110,9 +105,7 @@ export async function pauseActiveNightlifeProfile({
     return {
       ok: false,
       error:
-        error instanceof Error && error.message
-          ? error.message
-          : PAUSE_NIGHTLIFE_FALLBACK_ERROR,
+        error instanceof Error && error.message ? error.message : PAUSE_NIGHTLIFE_FALLBACK_ERROR,
     };
   }
 }

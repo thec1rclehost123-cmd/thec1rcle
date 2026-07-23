@@ -9,7 +9,6 @@ import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-
   withRepeat,
   withSequence,
   withTiming,

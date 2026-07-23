@@ -64,9 +64,10 @@ describe('ticketsStore wallet sync', () => {
   it('does not repopulate cleared orders when an in-flight request resolves after sign out', async () => {
     let resolveRequest!: (value: any) => void;
     mockedApiFetch.mockImplementationOnce(
-      () => new Promise((resolve) => {
-        resolveRequest = resolve;
-      }),
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        }),
     );
 
     const pendingFetch = useTicketsStore.getState().fetchUserOrders();

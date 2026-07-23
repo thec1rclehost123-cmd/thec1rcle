@@ -4,13 +4,7 @@ import { motion } from 'framer-motion';
 import { Check, AlertCircle } from 'lucide-react';
 
 export type WizardStep =
-  | 'identity'
-  | 'experience'
-  | 'ticketing'
-  | 'tables'
-  | 'promoters'
-  | 'media'
-  | 'review';
+  'identity' | 'experience' | 'ticketing' | 'tables' | 'promoters' | 'media' | 'review';
 
 export interface StepConfig {
   id: WizardStep;

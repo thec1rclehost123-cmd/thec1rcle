@@ -35,7 +35,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   useAnimatedScrollHandler,
-
   withTiming,
   withSpring,
   withRepeat,
@@ -220,8 +219,6 @@ function HeaderProfileAvatar() {
   );
 }
 
-
-
 // ── Animated filter pill ───────────────────────────────────────────────────────
 function FilterPill({
   label,
@@ -325,7 +322,6 @@ function CategoryFilterRow({
   );
 }
 
-
 // ── Main screen ────────────────────────────────────────────────────────────────
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
@@ -333,7 +329,15 @@ export default function ExploreScreen() {
   const params = useLocalSearchParams<{ firstRun?: string }>();
 
   const { events, loading, fetchEvents } = useEventsStore();
-  const { recommendations, reasonLabel, source: recommendationSource, score, loadBrowsed, loadServerRecommendations, setRecommendationsOwner } = useRecommendationsStore();
+  const {
+    recommendations,
+    reasonLabel,
+    source: recommendationSource,
+    score,
+    loadBrowsed,
+    loadServerRecommendations,
+    setRecommendationsOwner,
+  } = useRecommendationsStore();
   const ticketsStore = useTicketsStore();
   const { user } = useAuth();
   const { loadUserInterests } = useEventInterestStore();
@@ -399,8 +403,11 @@ export default function ExploreScreen() {
     ];
   }, [allEvents]);
 
-  const activeCityLabel = cityOptions.find((o) => o.value === cityFilter)?.label ??
-    (cityFilter === 'all' ? 'Choose a city' : cityFilter.replace(/\b\w/g, (letter) => letter.toUpperCase()));
+  const activeCityLabel =
+    cityOptions.find((o) => o.value === cityFilter)?.label ??
+    (cityFilter === 'all'
+      ? 'Choose a city'
+      : cityFilter.replace(/\b\w/g, (letter) => letter.toUpperCase()));
 
   // Derived featured events — eliminates separate API call
   const featuredSlides = useMemo(() => {
@@ -493,24 +500,27 @@ export default function ExploreScreen() {
     );
   }, [ticketsStore.orders]);
 
-  const loadData = useCallback(async (city?: string, force = false) => {
-    const cached = await getCachedEvents();
-    if (cached.data?.length) setCachedEvents(cached.data);
+  const loadData = useCallback(
+    async (city?: string, force = false) => {
+      const cached = await getCachedEvents();
+      if (cached.data?.length) setCachedEvents(cached.data);
 
-    try {
-      const cityParam = city && city !== 'all' ? city : undefined;
-      await fetchEvents(cityParam, undefined, force);
-      const store = useEventsStore.getState();
-      setCachedEvents(store.events);
-      await cacheEvents(store.events);
-      if (store.events.length > 0) {
-        await updateLastSyncTime();
+      try {
+        const cityParam = city && city !== 'all' ? city : undefined;
+        await fetchEvents(cityParam, undefined, force);
+        const store = useEventsStore.getState();
+        setCachedEvents(store.events);
+        await cacheEvents(store.events);
+        if (store.events.length > 0) {
+          await updateLastSyncTime();
+        }
+        setIsOffline(false);
+      } catch {
+        setIsOffline(true);
       }
-      setIsOffline(false);
-    } catch {
-      setIsOffline(true);
-    }
-  }, [fetchEvents]);
+    },
+    [fetchEvents],
+  );
 
   useEffect(() => {
     setRecommendationsOwner(user?.uid ?? null);
@@ -541,10 +551,19 @@ export default function ExploreScreen() {
     void loadBrowsed();
     void loadData(initialCity);
     if (user?.uid) void loadUserInterests(user.uid);
-  }, [isFocused, user?.uid, loadedProfileUserId, profileCity, cityFilter, loadData, loadServerRecommendations]);
+  }, [
+    isFocused,
+    user?.uid,
+    loadedProfileUserId,
+    profileCity,
+    cityFilter,
+    loadData,
+    loadServerRecommendations,
+  ]);
 
   useEffect(() => {
-    if (allEvents.length > 0 && recommendationSource !== 'server') score(allEvents, pastOrderCategories);
+    if (allEvents.length > 0 && recommendationSource !== 'server')
+      score(allEvents, pastOrderCategories);
   }, [allEvents, pastOrderCategories, recommendationSource, score]);
 
   useEffect(() => {
@@ -569,33 +588,37 @@ export default function ExploreScreen() {
     });
   }, [user?.uid]);
 
-  const chooseCity = useCallback(async (value: string, label: string) => {
-    void Haptics.selectionAsync();
-    setShowCityModal(false);
-    citySelectionTouched.current = true;
+  const chooseCity = useCallback(
+    async (value: string, label: string) => {
+      void Haptics.selectionAsync();
+      setShowCityModal(false);
+      citySelectionTouched.current = true;
 
-    const snapshot = useFirstRunStore.getState().snapshot;
-    const isCompletedUser = Boolean(
-      user && resolveFirstRunStage(user, useProfileStore.getState().profile, snapshot) === 'complete',
-    );
+      const snapshot = useFirstRunStore.getState().snapshot;
+      const isCompletedUser = Boolean(
+        user &&
+        resolveFirstRunStage(user, useProfileStore.getState().profile, snapshot) === 'complete',
+      );
 
-    // Guest browsing and the "all cities" filter are session-local by design.
-    if (!user?.uid || value === 'all' || !isCompletedUser) {
+      // Guest browsing and the "all cities" filter are session-local by design.
+      if (!user?.uid || value === 'all' || !isCompletedUser) {
+        setCityFilter(value);
+        await loadData(value);
+        return;
+      }
+
+      const saved = await saveCanonicalCity(value.replace(/\s+/g, '-'), label, 'manual');
+      if (!saved) return;
       setCityFilter(value);
-      await loadData(value);
-      return;
-    }
-
-    const saved = await saveCanonicalCity(value.replace(/\s+/g, '-'), label, 'manual');
-    if (!saved) return;
-    setCityFilter(value);
-    useProfileStore.getState().invalidateProfileCache();
-    await Promise.all([
-      useProfileStore.getState().loadProfile(user.uid),
-      loadServerRecommendations(user.uid),
-      loadData(value),
-    ]);
-  }, [loadData, loadServerRecommendations, saveCanonicalCity, user]);
+      useProfileStore.getState().invalidateProfileCache();
+      await Promise.all([
+        useProfileStore.getState().loadProfile(user.uid),
+        loadServerRecommendations(user.uid),
+        loadData(value),
+      ]);
+    },
+    [loadData, loadServerRecommendations, saveCanonicalCity, user],
+  );
 
   const onRefresh = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -611,7 +634,7 @@ export default function ExploreScreen() {
   useFocusEffect(
     useCallback(() => {
       setGreeting(getGreeting());
-    }, [])
+    }, []),
   );
 
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -633,7 +656,10 @@ export default function ExploreScreen() {
           <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
             <View style={styles.headerRow}>
               <Pressable onPress={() => setShowCityModal(true)} style={styles.locationBlock}>
-                <Text style={styles.greetingText}>{greeting}{profile?.displayName ? `, ${profile.displayName.split(' ')[0]}` : ''}</Text>
+                <Text style={styles.greetingText}>
+                  {greeting}
+                  {profile?.displayName ? `, ${profile.displayName.split(' ')[0]}` : ''}
+                </Text>
                 <View style={styles.cityRow}>
                   <MapPin size={22} color="#F44A22" strokeWidth={2.5} style={{ marginRight: 6 }} />
                   <Text style={styles.cityName}>{activeCityLabel}</Text>
@@ -661,12 +687,15 @@ export default function ExploreScreen() {
       },
       {
         key: 'first-run-reveal',
-        render: () => params.firstRun === 'complete' ? (
-          <Animated.View entering={FadeInDown.duration(450)} style={styles.revealBanner}>
-            <Text style={styles.revealTitle}>Your C1RCLE is taking shape.</Text>
-            <Text style={styles.revealSubtitle}>These picks are tuned to your city and your nights.</Text>
-          </Animated.View>
-        ) : null,
+        render: () =>
+          params.firstRun === 'complete' ? (
+            <Animated.View entering={FadeInDown.duration(450)} style={styles.revealBanner}>
+              <Text style={styles.revealTitle}>Your C1RCLE is taking shape.</Text>
+              <Text style={styles.revealSubtitle}>
+                These picks are tuned to your city and your nights.
+              </Text>
+            </Animated.View>
+          ) : null,
       },
       {
         key: 'filters',
@@ -691,9 +720,7 @@ export default function ExploreScreen() {
           showLocationNudge ? (
             <Animated.View entering={FadeIn} style={styles.locationBanner}>
               <MapPin size={18} color="#F44A22" strokeWidth={2.5} />
-              <Text style={styles.locationBannerText}>
-                Enable location to see events near you
-              </Text>
+              <Text style={styles.locationBannerText}>Enable location to see events near you</Text>
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -753,11 +780,10 @@ export default function ExploreScreen() {
       },
       {
         key: 'top-venues',
-        render: () => (
+        render: () =>
           quickFilter === 'all' ? (
             <TopVenues city={cityFilter === 'all' ? undefined : activeCityLabel} />
-          ) : null
-        ),
+          ) : null,
       },
       {
         key: 'editors-picks',
@@ -853,7 +879,6 @@ export default function ExploreScreen() {
         pointerEvents="none"
       />
       <FlashList
-
         style={styles.scrollLayer}
         ref={mainScrollRef}
         bounces={false}
@@ -1039,7 +1064,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,170,0,0.25)',
   },
-  revealBanner: { marginHorizontal: 16, marginBottom: 12, padding: 16, borderRadius: 16, backgroundColor: 'rgba(244,74,34,0.12)', borderWidth: 1, borderColor: 'rgba(244,74,34,0.28)' },
+  revealBanner: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: 'rgba(244,74,34,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(244,74,34,0.28)',
+  },
   revealTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
   revealSubtitle: { color: 'rgba(255,255,255,0.62)', fontSize: 13, lineHeight: 19, marginTop: 4 },
   offlineText: { color: '#FFAA00', fontSize: typography.fontSize.sm, fontWeight: '500' },

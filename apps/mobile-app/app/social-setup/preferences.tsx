@@ -276,18 +276,12 @@ export default function SocialSetupPreferences() {
         <Animated.Text entering={FadeInDown.delay(60)} style={styles.title}>
           Your preferences
         </Animated.Text>
-        <Animated.Text
-          entering={FadeInDown.delay(100)}
-          style={styles.subtitle}
-        >
+        <Animated.Text entering={FadeInDown.delay(100)} style={styles.subtitle}>
           Help us find the right people at your events.
         </Animated.Text>
 
         {/* City */}
-        <Animated.View
-          entering={FadeInDown.delay(140)}
-          style={styles.fieldGroup}
-        >
+        <Animated.View entering={FadeInDown.delay(140)} style={styles.fieldGroup}>
           <Text style={styles.fieldLabel}>Your City</Text>
           <TextInput
             style={styles.textInput}

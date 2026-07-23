@@ -47,8 +47,7 @@ export const useNightlifeSetupStore = create<NightlifeSetupState>()(
             nightlifeVibeTags: seed.nightlifeVibeTags ?? [],
           };
         }),
-      setVitals: (updates) =>
-        set((state) => ({ vitals: { ...state.vitals, ...updates } })),
+      setVitals: (updates) => set((state) => ({ vitals: { ...state.vitals, ...updates } })),
       setPrompts: (prompts) => set({ prompts: prompts.slice(0, 3) }),
       setDatingPhotos: (photos) => set({ datingPhotos: photos.slice(0, 6) }),
       setNightlifeVibeTags: (vibes) => set({ nightlifeVibeTags: vibes.slice(0, 5) }),

@@ -4,7 +4,16 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, StyleSheet, Keyboard, InteractionManager } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  TextInput,
+  StyleSheet,
+  Keyboard,
+  InteractionManager,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
@@ -238,10 +247,7 @@ export default function SearchScreen() {
   };
 
   const performSearch = useCallback(
-    async (
-      searchQuery: string,
-      overrides: { filter?: PublicSearchFilter; city?: string } = {},
-    ) => {
+    async (searchQuery: string, overrides: { filter?: PublicSearchFilter; city?: string } = {}) => {
       if (!searchQuery.trim()) {
         searchIdRef.current += 1;
         setResults([]);
@@ -845,5 +851,4 @@ const styles = StyleSheet.create({
     color: colors.goldMetallic,
     fontSize: 14,
   },
-
 });

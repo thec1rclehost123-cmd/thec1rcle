@@ -11,9 +11,7 @@ export default function NightlifeOnboardingLayout() {
   const userId = useAuthStore((state) => state.user?.uid);
   const ownerUserId = useNightlifeSetupStore((state) => state.ownerUserId);
   const datingActive = useProfileStore((state) => state.profile?.datingActive === true);
-  const [draftHydrated, setDraftHydrated] = useState(
-    useNightlifeSetupStore.persist.hasHydrated(),
-  );
+  const [draftHydrated, setDraftHydrated] = useState(useNightlifeSetupStore.persist.hasHydrated());
 
   useEffect(() => {
     if (useNightlifeSetupStore.persist.hasHydrated()) {

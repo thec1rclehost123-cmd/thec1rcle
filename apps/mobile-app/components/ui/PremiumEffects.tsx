@@ -10,7 +10,6 @@ import Animated, {
   useAnimatedStyle,
   withRepeat,
   withTiming,
-
   withSequence,
   withDelay,
   interpolate,
@@ -229,31 +228,19 @@ export function AuroraBackground({
   return (
     <View style={[styles.auroraContainer, { opacity }]}>
       <Animated.View style={[styles.auroraBlob, styles.auroraBlob1, blob1Style]}>
-        <BlurView
-          blurMethod="dimezisBlurView"
-          intensity={100}
-          style={StyleSheet.absoluteFill}
-        >
+        <BlurView blurMethod="dimezisBlurView" intensity={100} style={StyleSheet.absoluteFill}>
           <View style={[StyleSheet.absoluteFill, { backgroundColor: auroraColors[0] }]} />
         </BlurView>
       </Animated.View>
 
       <Animated.View style={[styles.auroraBlob, styles.auroraBlob2, blob2Style]}>
-        <BlurView
-          blurMethod="dimezisBlurView"
-          intensity={100}
-          style={StyleSheet.absoluteFill}
-        >
+        <BlurView blurMethod="dimezisBlurView" intensity={100} style={StyleSheet.absoluteFill}>
           <View style={[StyleSheet.absoluteFill, { backgroundColor: auroraColors[1] }]} />
         </BlurView>
       </Animated.View>
 
       <Animated.View style={[styles.auroraBlob, styles.auroraBlob3, blob3Style]}>
-        <BlurView
-          blurMethod="dimezisBlurView"
-          intensity={100}
-          style={StyleSheet.absoluteFill}
-        >
+        <BlurView blurMethod="dimezisBlurView" intensity={100} style={StyleSheet.absoluteFill}>
           <View style={[StyleSheet.absoluteFill, { backgroundColor: auroraColors[2] }]} />
         </BlurView>
       </Animated.View>
@@ -440,11 +427,7 @@ export function FloatingOrb({
         style as any,
       ]}
     >
-      <BlurView
-        blurMethod="dimezisBlurView"
-        intensity={60}
-        style={StyleSheet.absoluteFill}
-      />
+      <BlurView blurMethod="dimezisBlurView" intensity={60} style={StyleSheet.absoluteFill} />
     </Animated.View>
   );
 }

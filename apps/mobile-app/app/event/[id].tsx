@@ -26,7 +26,6 @@ import Animated, {
   useAnimatedStyle,
   interpolate,
   useAnimatedScrollHandler,
-
   withTiming,
   withRepeat,
   withSequence,
@@ -127,7 +126,7 @@ function isViewerInterestedEntry(
 
   return Boolean(
     (viewerDisplayName && candidateName === normalizeIdentityString(viewerDisplayName)) ||
-      (viewerPhoto && candidatePhoto === viewerPhoto),
+    (viewerPhoto && candidatePhoto === viewerPhoto),
   );
 }
 
@@ -171,7 +170,10 @@ function formatGoingDate(value?: string, timeZone = DEFAULT_EVENT_TIME_ZONE) {
   const date = safeDate(value);
   if (!date) return 'Date TBA';
   const resolvedTimeZone = resolveEventTimeZone(timeZone);
-  const weekday = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: resolvedTimeZone });
+  const weekday = date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    timeZone: resolvedTimeZone,
+  });
   const month = date.toLocaleDateString('en-US', { month: 'short', timeZone: resolvedTimeZone });
   const day = date.toLocaleDateString('en-US', { day: 'numeric', timeZone: resolvedTimeZone });
   const time = date
@@ -222,9 +224,9 @@ function TicketOriginEventView({
 
   const handleCopyLink = async () => {
     Haptics.selectionAsync();
-const eventLink = `https://thec1rcle.com/event/${encodeURIComponent(eventId)}`;
-      await Clipboard.setStringAsync(eventLink);
-      Alert.alert('Link Copied!', 'The event link has been copied to your clipboard.');
+    const eventLink = `https://thec1rcle.com/event/${encodeURIComponent(eventId)}`;
+    await Clipboard.setStringAsync(eventLink);
+    Alert.alert('Link Copied!', 'The event link has been copied to your clipboard.');
     setShowShare(false);
   };
 
@@ -246,7 +248,7 @@ const eventLink = `https://thec1rcle.com/event/${encodeURIComponent(eventId)}`;
   const handleSystemShare = async () => {
     Haptics.selectionAsync();
     const eventLink = `https://thec1rcle.com/event/${encodeURIComponent(eventId)}`;
-      await shareEventLink(
+    await shareEventLink(
       eventId,
       title,
       `I'm going to ${title} on THE C1RCLE.\n\nJoin me there:\n${eventLink}`,
@@ -461,22 +463,25 @@ const TicketTierCard = memo(function TicketTierCard({
     transform: [{ scale: scale.value }],
   }));
 
-  const handleQuantityChange = useCallback((delta: number) => {
-    if (isGenderRestricted || isGenderUnknown) {
-      Alert.alert(
-        'Restricted Ticket',
-        genderRestriction === 'female'
-          ? 'This ticket is restricted to female attendees only.'
-          : `This ticket is restricted to ${genderRestriction} attendees only.`,
-      );
-      return;
-    }
-    Haptics.selectionAsync();
-    setQuantity((prev) => {
-      const next = delta > 0 ? prev + 1 : prev - 1;
-      return Math.max(1, next);
-    });
-  }, [isGenderRestricted, isGenderUnknown, genderRestriction]);
+  const handleQuantityChange = useCallback(
+    (delta: number) => {
+      if (isGenderRestricted || isGenderUnknown) {
+        Alert.alert(
+          'Restricted Ticket',
+          genderRestriction === 'female'
+            ? 'This ticket is restricted to female attendees only.'
+            : `This ticket is restricted to ${genderRestriction} attendees only.`,
+        );
+        return;
+      }
+      Haptics.selectionAsync();
+      setQuantity((prev) => {
+        const next = delta > 0 ? prev + 1 : prev - 1;
+        return Math.max(1, next);
+      });
+    },
+    [isGenderRestricted, isGenderUnknown, genderRestriction],
+  );
 
   const handleAddToCart = useCallback(() => {
     if (isGenderRestricted || isGenderUnknown) {
@@ -514,10 +519,19 @@ const TicketTierCard = memo(function TicketTierCard({
 
     resetTimerRef.current = setTimeout(() => {
       resetTimerRef.current = null;
-      scale.value = (1);
+      scale.value = 1;
       setAdded(false);
     }, 2000);
-  }, [isGenderRestricted, isGenderUnknown, genderRestriction, addItem, event, tier, quantity, promoterCode]);
+  }, [
+    isGenderRestricted,
+    isGenderUnknown,
+    genderRestriction,
+    addItem,
+    event,
+    tier,
+    quantity,
+    promoterCode,
+  ]);
 
   return (
     <Animated.View
@@ -652,7 +666,7 @@ function CopyLinkButton({ eventLink }: { eventLink: string }) {
     position: 'absolute',
     transform: [
       { perspective: 400 },
-      { rotateY: `${interpolate(flip.value, [0, 1], [0, 180])}deg` }
+      { rotateY: `${interpolate(flip.value, [0, 1], [0, 180])}deg` },
     ],
     opacity: interpolate(flip.value, [0, 0.5, 1], [1, 0, 0]),
   }));
@@ -661,7 +675,7 @@ function CopyLinkButton({ eventLink }: { eventLink: string }) {
     position: 'absolute',
     transform: [
       { perspective: 400 },
-      { rotateY: `${interpolate(flip.value, [0, 1], [-180, 0])}deg` }
+      { rotateY: `${interpolate(flip.value, [0, 1], [-180, 0])}deg` },
     ],
     opacity: interpolate(flip.value, [0, 0.5, 1], [0, 0, 1]),
   }));
@@ -679,7 +693,10 @@ function CopyLinkButton({ eventLink }: { eventLink: string }) {
   };
 
   return (
-    <Pressable onPress={handleCopy} style={[styles.detailControlButton, { justifyContent: 'center', alignItems: 'center' }]}>
+    <Pressable
+      onPress={handleCopy}
+      style={[styles.detailControlButton, { justifyContent: 'center', alignItems: 'center' }]}
+    >
       <Animated.View style={iconStyle1}>
         <Ionicons name="link-outline" size={21} color="#fff" />
       </Animated.View>
@@ -708,7 +725,8 @@ export default memo(function EventDetailScreen() {
   const getEventById = useEventsStore((s) => s.getEventById);
   const initialEventRef = useRef<Event | null>(null);
   const initialEvent = useEventsStore((s) => {
-    const found = s.events.find((e) => e.id === id) || s.featuredEvents.find((e) => e.id === id) || null;
+    const found =
+      s.events.find((e) => e.id === id) || s.featuredEvents.find((e) => e.id === id) || null;
     if (found && found.id === initialEventRef.current?.id) {
       return initialEventRef.current;
     }
@@ -791,12 +809,8 @@ export default memo(function EventDetailScreen() {
           ),
         ]
       : sourceUsers;
-    const count = Math.max(
-      Number((event as any).interestedData?.count || 0),
-      users.length,
-    );
-    const leadName =
-      (users[0]?.displayName || users[0]?.name || '').split(' ')[0] || '';
+    const count = Math.max(Number((event as any).interestedData?.count || 0), users.length);
+    const leadName = (users[0]?.displayName || users[0]?.name || '').split(' ')[0] || '';
     const othersCount = Math.max(count - 1, 0);
     const summary =
       count <= 0
@@ -836,7 +850,8 @@ export default memo(function EventDetailScreen() {
     if (!confirmedOrder || !event) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const accentColor = resolveEventAccentColor(confirmedOrder as any) || resolveEventAccentColor(event as any);
+    const accentColor =
+      resolveEventAccentColor(confirmedOrder as any) || resolveEventAccentColor(event as any);
 
     router.push({
       pathname: '/event/[id]',
@@ -1091,10 +1106,7 @@ export default memo(function EventDetailScreen() {
   };
 
   const eventCutoff = safeDate(
-    (event as any)?.endDate ||
-      (event as any)?.endAt ||
-      (event as any)?.endsAt ||
-      event?.startDate,
+    (event as any)?.endDate || (event as any)?.endAt || (event as any)?.endsAt || event?.startDate,
   );
   const eventLifecycle = String((event as any)?.lifecycle || (event as any)?.status || '')
     .trim()
@@ -1166,9 +1178,7 @@ export default memo(function EventDetailScreen() {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <Text style={styles.errorEmoji}>{loadError ? '📡' : '😕'}</Text>
-        <Text style={styles.errorTitle}>
-          {loadError ? 'Connection Issue' : 'Event Not Found'}
-        </Text>
+        <Text style={styles.errorTitle}>{loadError ? 'Connection Issue' : 'Event Not Found'}</Text>
         <Text style={styles.errorText}>
           {loadError || 'This event may have been removed or is no longer available.'}
         </Text>
@@ -1198,10 +1208,9 @@ export default memo(function EventDetailScreen() {
   const lowestPrice =
     availableTicketPrices.length > 0 ? Math.min(...availableTicketPrices) : event.minPrice || 0;
   const hasAvailableTickets = availableTicketPrices.length > 0;
-  const floatingTicketLabel =
-    isEventEnded
-      ? 'Event Ended'
-      : cartCount > 0
+  const floatingTicketLabel = isEventEnded
+    ? 'Event Ended'
+    : cartCount > 0
       ? `Checkout (${cartCount})`
       : hasAvailableTickets
         ? lowestPrice > 0
@@ -1377,7 +1386,9 @@ export default memo(function EventDetailScreen() {
           </Text>
         </Animated.View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <CopyLinkButton eventLink={`https://thec1rcle.com/event/${encodeURIComponent(id || '')}`} />
+          <CopyLinkButton
+            eventLink={`https://thec1rcle.com/event/${encodeURIComponent(id || '')}`}
+          />
           <AnimatedPressable
             onPress={() => handleLike('top')}
             style={[styles.detailControlButton, heartButtonAnimatedStyle]}
@@ -1517,8 +1528,8 @@ export default memo(function EventDetailScreen() {
                   const avatarSource = (userInfo as any).photoSource
                     ? (userInfo as any).photoSource
                     : typeof photoStr === 'string' &&
-                      photoStr.length > 0 &&
-                      (photoStr.startsWith('http') || photoStr.startsWith('https'))
+                        photoStr.length > 0 &&
+                        (photoStr.startsWith('http') || photoStr.startsWith('https'))
                       ? { uri: photoStr }
                       : null;
                   return (
@@ -1552,10 +1563,7 @@ export default memo(function EventDetailScreen() {
           </Animated.View>
 
           {event.description && (
-            <Animated.View
-              entering={FadeInDown.delay(210)}
-              style={styles.detailSection}
-            >
+            <Animated.View entering={FadeInDown.delay(210)} style={styles.detailSection}>
               <Text style={[styles.detailSectionLabel, { color: '#fff' }]}>Details</Text>
               <Text
                 style={[styles.detailDescription, { color: 'rgba(255,255,255,0.72)' }]}
@@ -1574,10 +1582,7 @@ export default memo(function EventDetailScreen() {
             </Animated.View>
           )}
 
-          <Animated.View
-            entering={FadeInDown.delay(240)}
-            style={styles.locationSection}
-          >
+          <Animated.View entering={FadeInDown.delay(240)} style={styles.locationSection}>
             <Text style={styles.locationTitle}>Location</Text>
             <Text style={styles.locationAddress} numberOfLines={2}>
               {addressLabel}
@@ -1646,7 +1651,10 @@ export default memo(function EventDetailScreen() {
                   onPress={handleGetDirections}
                   style={[
                     styles.mapDirectionsButton,
-                    { backgroundColor: hexToRgba(accent, 0.25), borderColor: hexToRgba(accent, 0.4) },
+                    {
+                      backgroundColor: hexToRgba(accent, 0.25),
+                      borderColor: hexToRgba(accent, 0.4),
+                    },
                   ]}
                 >
                   <Ionicons name="navigate-outline" size={16} color="#fff" />
@@ -1656,10 +1664,7 @@ export default memo(function EventDetailScreen() {
             </Pressable>
           </Animated.View>
 
-          <Animated.View
-            entering={FadeInDown.delay(270)}
-            style={styles.venueProfileHero}
-          >
+          <Animated.View entering={FadeInDown.delay(270)} style={styles.venueProfileHero}>
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

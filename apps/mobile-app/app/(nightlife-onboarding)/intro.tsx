@@ -20,7 +20,7 @@ export default function NightlifeIntroScreen() {
   const profile = useProfileStore((state) => state.profile);
   const startForUser = useNightlifeSetupStore((state) => state.startForUser);
 
-  const player = useVideoPlayer(videoAsset, player => {
+  const player = useVideoPlayer(videoAsset, (player) => {
     player.loop = true;
     player.muted = true;
     player.play();
@@ -68,10 +68,7 @@ export default function NightlifeIntroScreen() {
       <View style={[styles.fabWrap, { bottom: Math.max(insets.bottom, 16) + 16 }]}>
         <Pressable
           onPress={handleContinue}
-          style={({ pressed }) => [
-            styles.fab,
-            pressed && styles.fabPressed,
-          ]}
+          style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
         >
           <LinearGradient
             colors={[colors.irisGlow, colors.iris]}

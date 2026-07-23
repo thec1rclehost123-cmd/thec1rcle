@@ -10,7 +10,6 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-
   withTiming,
   withRepeat,
   withSequence,
@@ -129,9 +128,7 @@ export function PremiumHeroCard({
 
   return (
     <AnimatedPressable
-      entering={SlideInUp.delay(index * 120)
-
-        }
+      entering={SlideInUp.delay(index * 120)}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={handlePress}
@@ -207,12 +204,7 @@ export function PremiumHeroCard({
       <View style={styles.content}>
         {/* Date chip with frosted glass */}
         <View style={styles.dateChip}>
-          <BlurView
-            blurMethod="dimezisBlurView"
-            intensity={50}
-            tint="dark"
-            style={styles.dateBlur}
-          >
+          <BlurView blurMethod="dimezisBlurView" intensity={50} tint="dark" style={styles.dateBlur}>
             <Text style={styles.dateIcon}>📅</Text>
             <Text style={styles.dateText}>{date}</Text>
           </BlurView>

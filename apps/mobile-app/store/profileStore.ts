@@ -98,8 +98,19 @@ export interface UserProfile {
   onboardingComplete?: boolean;
   intents?: UserIntent[];
   identity?: { displayName?: string; dateOfBirth?: string };
-  discoveryProfile?: { cityId?: string; cityName?: string; citySource?: 'manual' | 'location'; vibeTags?: NightlifeTaste[]; intents?: UserIntent[] };
-  onboarding?: { version?: number; currentStage?: FirstRunStage; completedAt?: string; emailPromptStatus?: string };
+  discoveryProfile?: {
+    cityId?: string;
+    cityName?: string;
+    citySource?: 'manual' | 'location';
+    vibeTags?: NightlifeTaste[];
+    intents?: UserIntent[];
+  };
+  onboarding?: {
+    version?: number;
+    currentStage?: FirstRunStage;
+    completedAt?: string;
+    emailPromptStatus?: string;
+  };
   socialSetupComplete?: boolean;
 
   // Status
@@ -143,7 +154,8 @@ function normalizeDatingVitals(value: unknown): DatingVitals | undefined {
     gender: typeof raw.gender === 'string' || raw.gender === null ? raw.gender : undefined,
     location: typeof raw.location === 'string' || raw.location === null ? raw.location : undefined,
     pronouns: typeof raw.pronouns === 'string' || raw.pronouns === null ? raw.pronouns : undefined,
-    lifestyle: typeof raw.lifestyle === 'string' || raw.lifestyle === null ? raw.lifestyle : undefined,
+    lifestyle:
+      typeof raw.lifestyle === 'string' || raw.lifestyle === null ? raw.lifestyle : undefined,
   };
 }
 
@@ -210,9 +222,7 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
     eventsAttended: data?.eventsAttended,
     connections: data?.connections,
     vibeTags: data?.vibeTags,
-    nightlifeVibeTags: Array.isArray(rawData.nightlifeVibeTags)
-      ? rawData.nightlifeVibeTags
-      : [],
+    nightlifeVibeTags: Array.isArray(rawData.nightlifeVibeTags) ? rawData.nightlifeVibeTags : [],
     prompts: data?.prompts,
     isVerified: data?.isVerified,
     subscription: normalizeSubscription(rawData.subscription, rawData.isPremium === true),

@@ -101,9 +101,7 @@ describe('notification permission consent', () => {
   it('can retry gateway registration when system permission is already granted', async () => {
     mockGetPermissions.mockResolvedValue({ status: 'granted', canAskAgain: true });
 
-    await expect(
-      registerPushToken('user-1', { requestPermission: false }),
-    ).resolves.toBe(true);
+    await expect(registerPushToken('user-1', { requestPermission: false })).resolves.toBe(true);
 
     expect(mockRequestPermissions).not.toHaveBeenCalled();
     expect(mockGetExpoPushToken).toHaveBeenCalledWith({ projectId: 'test-project' });

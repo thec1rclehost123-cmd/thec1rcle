@@ -19,7 +19,12 @@ import { ArrowLeft, MessageCircle } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, spacing } from '@/lib/design/theme';
 import { useAuthStore } from '@/store/authStore';
-import { useDatingStore, type DatingProfile, type Prompt, type DatingPhoto } from '@/store/datingStore';
+import {
+  useDatingStore,
+  type DatingProfile,
+  type Prompt,
+  type DatingPhoto,
+} from '@/store/datingStore';
 import AnthemPlayer from '@/components/ui/AnthemPlayer';
 import { PremiumBadgeDot } from '@/components/ui/PremiumBadge';
 
@@ -57,7 +62,9 @@ function PhotoSection({ photo, onReply }: { photo: DatingPhoto; onReply: () => v
           colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.4)']}
           style={styles.captionGradient}
         >
-          <Text style={[styles.captionText, { fontSize: 13, fontWeight: '700' }]}>Tap photo to reply</Text>
+          <Text style={[styles.captionText, { fontSize: 13, fontWeight: '700' }]}>
+            Tap photo to reply
+          </Text>
         </LinearGradient>
       )}
     </Pressable>
@@ -129,16 +136,12 @@ export default function DatingProfileScreen() {
   const [replyTarget, setReplyTarget] = useState<ReplyTarget>(null);
   const [replyText, setReplyText] = useState('');
   const storeProfile =
-    currentUserId &&
-    ownerUserId === currentUserId &&
-    profilesOwnerUserId === currentUserId
+    currentUserId && ownerUserId === currentUserId && profilesOwnerUserId === currentUserId
       ? profiles.find(
-      (candidate) =>
+          (candidate) =>
             candidate.userId !== currentUserId &&
             candidate.id !== currentUserId &&
-            (candidate.id === id ||
-              candidate.userId === id ||
-              candidate.profileRouteId === id),
+            (candidate.id === id || candidate.userId === id || candidate.profileRouteId === id),
         )
       : undefined;
 
@@ -238,7 +241,8 @@ export default function DatingProfileScreen() {
           <View style={styles.heroInfo}>
             <View style={styles.heroNameRow}>
               <Text style={styles.heroName}>
-                {profile.name}{profile.age ? `, ${profile.age}` : ''}
+                {profile.name}
+                {profile.age ? `, ${profile.age}` : ''}
               </Text>
               <PremiumBadgeDot visible={(profile as any).isPremium === true} />
             </View>
@@ -261,9 +265,7 @@ export default function DatingProfileScreen() {
             ))}
           </View>
 
-          {(profile as any).anthem ? (
-            <AnthemPlayer anthem={(profile as any).anthem} />
-          ) : null}
+          {(profile as any).anthem ? <AnthemPlayer anthem={(profile as any).anthem} /> : null}
 
           {profile.prompts[0] && (
             <PromptBlock
@@ -271,14 +273,18 @@ export default function DatingProfileScreen() {
               onReply={() => handleOpenReply(profile.prompts[0])}
             />
           )}
-          {profile.photos[1] && <PhotoSection photo={profile.photos[1]} onReply={handleOpenPhotoReply} />}
+          {profile.photos[1] && (
+            <PhotoSection photo={profile.photos[1]} onReply={handleOpenPhotoReply} />
+          )}
           {profile.prompts[1] && (
             <PromptBlock
               prompt={profile.prompts[1]}
               onReply={() => handleOpenReply(profile.prompts[1])}
             />
           )}
-          {profile.photos[2] && <PhotoSection photo={profile.photos[2]} onReply={handleOpenPhotoReply} />}
+          {profile.photos[2] && (
+            <PhotoSection photo={profile.photos[2]} onReply={handleOpenPhotoReply} />
+          )}
           {profile.prompts[2] && (
             <PromptBlock
               prompt={profile.prompts[2]}

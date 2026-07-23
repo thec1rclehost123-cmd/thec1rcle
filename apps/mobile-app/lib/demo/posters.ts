@@ -1,6 +1,8 @@
 import { Image } from 'react-native';
 
-const assetUri = (source: number) => Image.resolveAssetSource(source).uri;
+const assetUri = (source: number) =>
+  (Image?.resolveAssetSource ? Image.resolveAssetSource(source)?.uri : String(source)) ||
+  String(source);
 
 export const DEMO_POSTERS = {
   afterhours: assetUri(require('../../assets/posters/afterhours.jpg')),

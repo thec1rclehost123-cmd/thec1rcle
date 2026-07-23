@@ -19,7 +19,6 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-
   withTiming,
   withRepeat,
   withSequence,

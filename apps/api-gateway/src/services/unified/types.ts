@@ -32,21 +32,10 @@ export interface PaginatedResult<T> {
 // ─── Event ────────────────────────────────────────────────────────────────────
 
 export type EventStatus =
-  | 'draft'
-  | 'pending_approval'
-  | 'approved'
-  | 'published'
-  | 'live'
-  | 'completed'
-  | 'cancelled';
+  'draft' | 'pending_approval' | 'approved' | 'published' | 'live' | 'completed' | 'cancelled';
 
 export type SubmissionStatus =
-  | 'not_submitted'
-  | 'submitted'
-  | 'under_review'
-  | 'approved'
-  | 'rejected'
-  | 'resubmitted';
+  'not_submitted' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'resubmitted';
 
 export interface EventSummary {
   eventId: string;

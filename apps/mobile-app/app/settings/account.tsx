@@ -103,11 +103,7 @@ export default function AccountSettingsScreen() {
         </HelperText>
 
         <SettingsGroup>
-          <SettingsRow
-            title="Delete Account"
-            danger
-            onPress={handleDeleteAccount}
-          />
+          <SettingsRow title="Delete Account" danger onPress={handleDeleteAccount} />
         </SettingsGroup>
       </DittoSettingsScreen>
 
@@ -127,5 +123,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 999,
-  }
+  },
 });

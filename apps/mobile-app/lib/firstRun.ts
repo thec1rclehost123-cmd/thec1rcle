@@ -18,19 +18,17 @@ export const USER_INTENTS = [
   { id: 'discover', label: 'Discover events', description: 'Find the best plans around you' },
   { id: 'friends', label: 'Go out with friends', description: 'Make plans with your crew' },
   { id: 'meet_people', label: 'Meet people', description: 'Find social nights and new circles' },
-  { id: 'host_promote', label: 'Host or promote', description: 'Build an audience for your events' },
+  {
+    id: 'host_promote',
+    label: 'Host or promote',
+    description: 'Build an audience for your events',
+  },
 ] as const;
 
 export type NightlifeTaste = (typeof NIGHTLIFE_TASTES)[number]['id'];
 export type UserIntent = (typeof USER_INTENTS)[number]['id'];
 export type FirstRunStage =
-  | 'phone_required'
-  | 'email_optional'
-  | 'identity'
-  | 'city'
-  | 'tastes'
-  | 'intent'
-  | 'complete';
+  'phone_required' | 'email_optional' | 'identity' | 'city' | 'tastes' | 'intent' | 'complete';
 
 export type FirstRunSnapshot = {
   version?: number;
@@ -80,9 +78,11 @@ type ProfileLike = Record<string, any> | null | undefined;
 
 export function isPhoneFirstUser(user: FirebaseAuthTypes.User): boolean {
   const providerIds = user.providerData.map((provider) => provider.providerId);
-  return providerIds.includes('phone') &&
+  return (
+    providerIds.includes('phone') &&
     !providerIds.includes('google.com') &&
-    !providerIds.includes('apple.com');
+    !providerIds.includes('apple.com')
+  );
 }
 
 export function resolveFirstRunStage(
@@ -106,12 +106,18 @@ export function resolveFirstRunStage(
 
   // Compatibility window for already-completed v1 accounts. The backend migration
   // will make this unnecessary once all profiles carry onboarding.version >= 2.
-  if (profile?.onboardingComplete === true &&
-    (profile?.basicSetupComplete === true || profile?.profileSetupComplete === true)) {
+  if (
+    profile?.onboardingComplete === true &&
+    (profile?.basicSetupComplete === true || profile?.profileSetupComplete === true)
+  ) {
     return 'complete';
   }
 
-  if (isPhoneFirstUser(user) && !user.email && !['skipped', 'pending_verification', 'verified'].includes(emailPromptStatus)) {
+  if (
+    isPhoneFirstUser(user) &&
+    !user.email &&
+    !['skipped', 'pending_verification', 'verified'].includes(emailPromptStatus)
+  ) {
     return 'email_optional';
   }
 
@@ -119,7 +125,8 @@ export function resolveFirstRunStage(
   const dateOfBirth = server?.dateOfBirth ?? identity.dateOfBirth ?? profile?.dateOfBirth;
   if (!displayName || !dateOfBirth) return 'identity';
 
-  const city = server?.cityId ?? server?.cityName ?? discovery.cityId ?? discovery.cityName ?? profile?.city;
+  const city =
+    server?.cityId ?? server?.cityName ?? discovery.cityId ?? discovery.cityName ?? profile?.city;
   if (!city) return 'city';
 
   const tastes = server?.vibeTags ?? discovery.vibeTags ?? profile?.vibeTags ?? [];
@@ -146,7 +153,8 @@ export function firstRunRoute(stage: FirstRunStage): string {
 
 export function calculateAge(date: Date, now = new Date()): number {
   let age = now.getFullYear() - date.getFullYear();
-  const beforeBirthday = now.getMonth() < date.getMonth() ||
+  const beforeBirthday =
+    now.getMonth() < date.getMonth() ||
     (now.getMonth() === date.getMonth() && now.getDate() < date.getDate());
   if (beforeBirthday) age -= 1;
   return age;

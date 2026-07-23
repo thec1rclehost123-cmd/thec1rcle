@@ -7,7 +7,10 @@ export function startFirstRunMetric(metric: FirstRunMetric) {
   starts.set(metric, clock());
 }
 
-export function finishFirstRunMetric(metric: FirstRunMetric, outcome: 'success' | 'failure' = 'success') {
+export function finishFirstRunMetric(
+  metric: FirstRunMetric,
+  outcome: 'success' | 'failure' = 'success',
+) {
   const startedAt = starts.get(metric);
   if (startedAt === undefined) return null;
   starts.delete(metric);

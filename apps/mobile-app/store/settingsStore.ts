@@ -235,7 +235,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const response = await apiFetch<SettingsApiResponse>('/api/v1/users/me/settings', {
         method: 'PATCH',
         body: JSON.stringify(partial),
-        headers: { 'Idempotency-Key': `settings_${userId}_${Date.now()}_${Math.random()}` }
+        headers: { 'Idempotency-Key': `settings_${userId}_${Date.now()}_${Math.random()}` },
       });
       const savedSettings = extractSettings(response);
       const confirmedSettings = savedSettings ? normalizeSettings(savedSettings) : get().settings;
@@ -314,7 +314,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           const response = await apiFetch<SettingsApiResponse>('/api/v1/users/me/settings', {
             method: 'PATCH',
             body: JSON.stringify(settings),
-            headers: { 'Idempotency-Key': `settings_sync_${userId}_${Date.now()}` }
+            headers: { 'Idempotency-Key': `settings_sync_${userId}_${Date.now()}` },
           });
           const savedSettings = extractSettings(response);
           const confirmedSettings = savedSettings ? normalizeSettings(savedSettings) : settings;

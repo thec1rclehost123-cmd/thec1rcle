@@ -131,7 +131,8 @@ export function useAuth() {
       await resetPassword(email);
       return { success: true };
     } catch (err: any) {
-      const message = getErrorMessage(err.code) || err.message || 'Something went wrong. Please try again';
+      const message =
+        getErrorMessage(err.code) || err.message || 'Something went wrong. Please try again';
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -199,24 +200,35 @@ export function useAuth() {
     }
   }, []);
 
-  const sendPhoneCode = useCallback(async (phoneNumber: string, mode: 'sign_in' | 'link' = 'sign_in') => {
-    setAuthLoading(true);
-    setError(null);
-    try {
-      if (mode === 'link') {
-        const confirmation = await sendPhoneLinkVerificationCode(phoneNumber);
-        return { success: true, verificationId: confirmation.verificationId, expectedUid: confirmation.expectedUid };
+  const sendPhoneCode = useCallback(
+    async (phoneNumber: string, mode: 'sign_in' | 'link' = 'sign_in') => {
+      setAuthLoading(true);
+      setError(null);
+      try {
+        if (mode === 'link') {
+          const confirmation = await sendPhoneLinkVerificationCode(phoneNumber);
+          return {
+            success: true,
+            verificationId: confirmation.verificationId,
+            expectedUid: confirmation.expectedUid,
+          };
+        }
+        const confirmation = await sendPhoneVerificationCode(phoneNumber);
+        return {
+          success: true,
+          verificationId: confirmation.verificationId,
+          expectedUid: undefined,
+        };
+      } catch (err: any) {
+        const message = getActionErrorMessage(err);
+        setError(message);
+        return { success: false, error: message };
+      } finally {
+        setAuthLoading(false);
       }
-      const confirmation = await sendPhoneVerificationCode(phoneNumber);
-      return { success: true, verificationId: confirmation.verificationId, expectedUid: undefined };
-    } catch (err: any) {
-      const message = getActionErrorMessage(err);
-      setError(message);
-      return { success: false, error: message };
-    } finally {
-      setAuthLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const confirmPhoneCode = useCallback(async (verificationId: string, code: string) => {
     setAuthLoading(true);
@@ -234,21 +246,24 @@ export function useAuth() {
     }
   }, []);
 
-  const linkPhoneCode = useCallback(async (verificationId: string, code: string, expectedUid: string) => {
-    setAuthLoading(true);
-    setError(null);
-    try {
-      const result = await linkWithPhoneVerificationCode(verificationId, code, expectedUid);
-      await completeServerHandshake(result.user);
-      return { success: true };
-    } catch (err: any) {
-      const message = getActionErrorMessage(err);
-      setError(message);
-      return { success: false, error: message, code: err?.code };
-    } finally {
-      setAuthLoading(false);
-    }
-  }, []);
+  const linkPhoneCode = useCallback(
+    async (verificationId: string, code: string, expectedUid: string) => {
+      setAuthLoading(true);
+      setError(null);
+      try {
+        const result = await linkWithPhoneVerificationCode(verificationId, code, expectedUid);
+        await completeServerHandshake(result.user);
+        return { success: true };
+      } catch (err: any) {
+        const message = getActionErrorMessage(err);
+        setError(message);
+        return { success: false, error: message, code: err?.code };
+      } finally {
+        setAuthLoading(false);
+      }
+    },
+    [],
+  );
 
   const linkEmail = useCallback(async (email: string) => {
     setAuthLoading(true);
@@ -272,7 +287,9 @@ export function useAuth() {
   // Surface server-sync failure as a persistent error when no action-level error is set
   const displayError =
     error ||
-    (authSyncFailed && authSyncError ? 'Connection issue. Please check your network and try again.' : null);
+    (authSyncFailed && authSyncError
+      ? 'Connection issue. Please check your network and try again.'
+      : null);
 
   return {
     user,

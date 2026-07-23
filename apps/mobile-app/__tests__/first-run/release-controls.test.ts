@@ -3,9 +3,7 @@ import {
   readFirstRunFeatureFlags,
   shouldEnforceFirstRunV2,
 } from '@/lib/featureFlags';
-import {
-  sanitizeFirstRunAnalyticsProperties,
-} from '@/lib/firstRunAnalytics';
+import { sanitizeFirstRunAnalyticsProperties } from '@/lib/firstRunAnalytics';
 
 describe('first-run release controls', () => {
   const originalEnv = { ...process.env };
@@ -49,18 +47,33 @@ describe('first-run release controls', () => {
     const base = readFirstRunFeatureFlags();
     const partial = { ...base, rolloutPercent: 50, rolloutPlatforms: ['ios'] };
     const first = shouldEnforceFirstRunV2(partial, { subjectId: 'opaque-user-1', platform: 'ios' });
-    expect(shouldEnforceFirstRunV2(partial, { subjectId: 'opaque-user-1', platform: 'ios' })).toBe(first);
-    expect(shouldEnforceFirstRunV2(partial, { subjectId: 'opaque-user-1', platform: 'android' })).toBe(false);
-    expect(shouldEnforceFirstRunV2({ ...partial, rolloutPercent: 0 }, { internalAccount: true, platform: 'android' })).toBe(true);
-    expect(shouldEnforceFirstRunV2({ ...partial, firstRunV2Enabled: false }, { internalAccount: true })).toBe(false);
+    expect(shouldEnforceFirstRunV2(partial, { subjectId: 'opaque-user-1', platform: 'ios' })).toBe(
+      first,
+    );
+    expect(
+      shouldEnforceFirstRunV2(partial, { subjectId: 'opaque-user-1', platform: 'android' }),
+    ).toBe(false);
+    expect(
+      shouldEnforceFirstRunV2(
+        { ...partial, rolloutPercent: 0 },
+        { internalAccount: true, platform: 'android' },
+      ),
+    ).toBe(true);
+    expect(
+      shouldEnforceFirstRunV2({ ...partial, firstRunV2Enabled: false }, { internalAccount: true }),
+    ).toBe(false);
   });
 
   it('allows only bounded rounded performance duration values', () => {
-    expect(sanitizeFirstRunAnalyticsProperties({ metric: 'auth_sync', duration_ms: 10.6 })).toEqual({
-      metric: 'auth_sync',
-      duration_ms: 11,
-    });
-    expect(sanitizeFirstRunAnalyticsProperties({ metric: 'auth_sync', duration_ms: 999_999 })).toEqual({
+    expect(sanitizeFirstRunAnalyticsProperties({ metric: 'auth_sync', duration_ms: 10.6 })).toEqual(
+      {
+        metric: 'auth_sync',
+        duration_ms: 11,
+      },
+    );
+    expect(
+      sanitizeFirstRunAnalyticsProperties({ metric: 'auth_sync', duration_ms: 999_999 }),
+    ).toEqual({
       metric: 'auth_sync',
       duration_ms: 600_000,
     });

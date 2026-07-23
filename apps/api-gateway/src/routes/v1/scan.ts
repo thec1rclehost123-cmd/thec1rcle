@@ -358,14 +358,15 @@ export default async function scanRoutes(fastify: FastifyInstance) {
             { qrData: qrData.substring(0, 60), requestId: request.id },
             'Bare ENT- ID presented to scanner (no QR signature envelope) — rejecting',
           );
-          return reply.status(400).send({ error: 'Bare entitlement ID not accepted', result: 'invalid' });
+          return reply
+            .status(400)
+            .send({ error: 'Bare entitlement ID not accepted', result: 'invalid' });
         } else if (
           typeof qrData === 'string' &&
           (qrData.includes('.') || qrData.trim().startsWith('eyJ'))
         ) {
-          const { verifyTicketQrJwt } = await import(
-            '../../../../../packages/core/ticket-checkout-wallet-service.js'
-          );
+          const { verifyTicketQrJwt } =
+            await import('../../../../../packages/core/ticket-checkout-wallet-service.js');
           const verified = verifyTicketQrJwt(qrData.trim());
           if (verified && verified.valid && verified.payload) {
             payload = {
@@ -520,8 +521,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
       const operator = getOperatorDetails(scannedBy);
       const liveEventId = eventId || payload.e;
 
-      const isSignatureValid =
-        payload.sig === 'jwt_verified' ? true : verifyScanSignature(payload);
+      const isSignatureValid = payload.sig === 'jwt_verified' ? true : verifyScanSignature(payload);
       if (!isSignatureValid) {
         await recordScanAttempt(fastify.db, {
           orderId: payload.o,
@@ -661,8 +661,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         const now = new Date().toISOString();
         const totalTickets = Number(order?.ticketCount || order?.quantity || 1);
         const newCheckedInCount = (Number(order?.checkedInCount) || 0) + 1;
-        const newStatus =
-          newCheckedInCount >= totalTickets ? 'checked_in' : 'partially_checked_in';
+        const newStatus = newCheckedInCount >= totalTickets ? 'checked_in' : 'partially_checked_in';
 
         tx.set(scanRef, {
           orderId: payload.o,

@@ -66,7 +66,6 @@ export default function LoginScreen() {
 
   const { login, loginApple, loginGoogle, loading, error, setError, clearError } = useAuth();
 
-
   // Animated values for staggered layout slide & fade-in
   const fadeLogo = useRef(new Animated.Value(1)).current;
   const slideLogo = useRef(new Animated.Value(0)).current;
@@ -162,9 +161,8 @@ export default function LoginScreen() {
 
   const [verificationSent, setVerificationSent] = useState(false);
   const isAuthFormOpen = showEmailForm;
-  const returnTo = typeof params.returnTo === 'string' && params.returnTo.startsWith('/')
-    ? params.returnTo
-    : '/';
+  const returnTo =
+    typeof params.returnTo === 'string' && params.returnTo.startsWith('/') ? params.returnTo : '/';
 
   const finishAuthNavigation = () => {
     if (authNavigationStarted.current) return;
@@ -181,31 +179,59 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     Keyboard.dismiss();
     const trimmedEmail = email.trim();
-    if (!trimmedEmail) { setError('Please enter your email'); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) { setError('Please enter a valid email address'); return; }
-    if (!password) { setError('Please enter your password'); return; }
+    if (!trimmedEmail) {
+      setError('Please enter your email');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password');
+      return;
+    }
     trackFirstRun('first_run_auth_started', { provider: 'email', mode: 'sign_in' });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const result = await login(trimmedEmail, password);
     if (result.success) {
-      trackFirstRun('first_run_auth_succeeded', { provider: 'email', mode: 'sign_in', outcome: 'success' });
+      trackFirstRun('first_run_auth_succeeded', {
+        provider: 'email',
+        mode: 'sign_in',
+        outcome: 'success',
+      });
       if ((result as any).action === 'signup_verification_sent') {
         setVerificationSent(true);
       } else {
         finishAuthNavigation();
       }
-    } else trackFirstRun('first_run_auth_failed', { provider: 'email', mode: 'sign_in', outcome: 'failure', reason_code: 'provider_error' });
+    } else
+      trackFirstRun('first_run_auth_failed', {
+        provider: 'email',
+        mode: 'sign_in',
+        outcome: 'failure',
+        reason_code: 'provider_error',
+      });
   };
 
   const handleApple = async () => {
     trackFirstRun('first_run_auth_started', { provider: 'apple', mode: 'sign_in' });
     const result = await loginApple();
     if (result.success) {
-      trackFirstRun('first_run_auth_succeeded', { provider: 'apple', mode: 'sign_in', outcome: 'success' });
+      trackFirstRun('first_run_auth_succeeded', {
+        provider: 'apple',
+        mode: 'sign_in',
+        outcome: 'success',
+      });
       finishAuthNavigation();
       return;
     }
-    trackFirstRun('first_run_auth_failed', { provider: 'apple', mode: 'sign_in', outcome: result.error ? 'failure' : 'cancelled', reason_code: result.error ? 'provider_error' : undefined });
+    trackFirstRun('first_run_auth_failed', {
+      provider: 'apple',
+      mode: 'sign_in',
+      outcome: result.error ? 'failure' : 'cancelled',
+      reason_code: result.error ? 'provider_error' : undefined,
+    });
     if ((result as any).requiresPasswordLink && (result as any).email) {
       setEmail((result as any).email);
       setPassword('');
@@ -217,11 +243,20 @@ export default function LoginScreen() {
     trackFirstRun('first_run_auth_started', { provider: 'google', mode: 'sign_in' });
     const result = await loginGoogle();
     if (result.success) {
-      trackFirstRun('first_run_auth_succeeded', { provider: 'google', mode: 'sign_in', outcome: 'success' });
+      trackFirstRun('first_run_auth_succeeded', {
+        provider: 'google',
+        mode: 'sign_in',
+        outcome: 'success',
+      });
       finishAuthNavigation();
       return;
     }
-    trackFirstRun('first_run_auth_failed', { provider: 'google', mode: 'sign_in', outcome: result.error ? 'failure' : 'cancelled', reason_code: result.error ? 'provider_error' : undefined });
+    trackFirstRun('first_run_auth_failed', {
+      provider: 'google',
+      mode: 'sign_in',
+      outcome: result.error ? 'failure' : 'cancelled',
+      reason_code: result.error ? 'provider_error' : undefined,
+    });
     if ((result as any).requiresPasswordLink && (result as any).email) {
       setEmail((result as any).email);
       setPassword('');
@@ -233,7 +268,12 @@ export default function LoginScreen() {
 
   return (
     <View style={s.container}>
-      <Image source={require('../../assets/09f5dd049312a8bf3c50ea656e1a203b.jpg')} style={StyleSheet.absoluteFillObject} contentFit="cover" accessibilityIgnoresInvertColors />
+      <Image
+        source={require('../../assets/09f5dd049312a8bf3c50ea656e1a203b.jpg')}
+        style={StyleSheet.absoluteFillObject}
+        contentFit="cover"
+        accessibilityIgnoresInvertColors
+      />
       {player && !reducedMotion && (
         <VideoView
           player={player}
@@ -254,7 +294,6 @@ export default function LoginScreen() {
       />
 
       <SafeAreaView style={s.safeArea}>
-
         <KeyboardAwareScrollView
           style={s.kav}
           contentContainerStyle={s.scrollContent}
@@ -265,7 +304,7 @@ export default function LoginScreen() {
           extraScrollHeight={20}
         >
           <View style={s.content}>
-              {/* Header Section */}
+            {/* Header Section */}
             <Animated.View
               style={[
                 s.header,
@@ -289,18 +328,35 @@ export default function LoginScreen() {
               <View style={s.form}>
                 <View style={{ alignItems: 'center', marginBottom: 20 }}>
                   <Mail size={48} color="#ffffff" style={{ opacity: 0.8, marginBottom: 16 }} />
-                  <Text style={{ color: '#fff', fontSize: 24, fontWeight: '700', marginBottom: 8 }}>Check your email</Text>
-                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, textAlign: 'center', lineHeight: 22 }}>
-                    We couldn't find an account for <Text style={{ fontWeight: '600', color: '#fff' }}>{email}</Text>, so we're creating one for you!
+                  <Text style={{ color: '#fff', fontSize: 24, fontWeight: '700', marginBottom: 8 }}>
+                    Check your email
                   </Text>
-                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, textAlign: 'center', marginTop: 12, lineHeight: 22 }}>
-                    Click the secure link we just sent you to verify your email and finish setting up your account.
+                  <Text
+                    style={{
+                      color: 'rgba(255,255,255,0.7)',
+                      fontSize: 16,
+                      textAlign: 'center',
+                      lineHeight: 22,
+                    }}
+                  >
+                    We couldn't find an account for{' '}
+                    <Text style={{ fontWeight: '600', color: '#fff' }}>{email}</Text>, so we're
+                    creating one for you!
+                  </Text>
+                  <Text
+                    style={{
+                      color: 'rgba(255,255,255,0.7)',
+                      fontSize: 16,
+                      textAlign: 'center',
+                      marginTop: 12,
+                      lineHeight: 22,
+                    }}
+                  >
+                    Click the secure link we just sent you to verify your email and finish setting
+                    up your account.
                   </Text>
                 </View>
-                <Pressable
-                  onPress={() => setVerificationSent(false)}
-                  style={s.backBtn}
-                >
+                <Pressable onPress={() => setVerificationSent(false)} style={s.backBtn}>
                   <Text style={s.backText}>Back to Login</Text>
                 </Pressable>
               </View>
@@ -339,7 +395,10 @@ export default function LoginScreen() {
                     style={s.emailBtn}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      router.push({ pathname: '/(auth)/phone', params: { mode: 'sign_in', returnTo } });
+                      router.push({
+                        pathname: '/(auth)/phone',
+                        params: { mode: 'sign_in', returnTo },
+                      });
                     }}
                     disabled={loading}
                   >
@@ -356,7 +415,11 @@ export default function LoginScreen() {
                   <Pressable
                     style={s.guestBtn}
                     onPress={() => {
-                      trackFirstRun('first_run_auth_succeeded', { provider: 'guest', mode: 'sign_in', outcome: 'skipped' });
+                      trackFirstRun('first_run_auth_succeeded', {
+                        provider: 'guest',
+                        mode: 'sign_in',
+                        outcome: 'skipped',
+                      });
                       useAuthStore.getState().setGuestMode(true);
                       router.replace('/(tabs)/explore');
                     }}
@@ -367,9 +430,14 @@ export default function LoginScreen() {
                 </Animated.View>
               </View>
             ) : (
-              <Animated.View style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}>
+              <Animated.View
+                style={[s.form, { opacity: fadeForm, transform: [{ translateY: slideForm }] }]}
+              >
                 <Text style={s.recoveryTitle}>Confirm your existing account</Text>
-                <Text style={s.recoveryCopy}>Enter the password for {email}. We’ll securely connect it to the provider you just chose.</Text>
+                <Text style={s.recoveryCopy}>
+                  Enter the password for {email}. We’ll securely connect it to the provider you just
+                  chose.
+                </Text>
                 <TextInput
                   style={s.input}
                   value={email}
@@ -382,25 +450,34 @@ export default function LoginScreen() {
                     ref={emailInputRef}
                     style={[s.input, { paddingRight: 52 }]}
                     value={password}
-                    onChangeText={(value) => { setPassword(value); clearError(); }}
+                    onChangeText={(value) => {
+                      setPassword(value);
+                      clearError();
+                    }}
                     placeholder="Password"
                     placeholderTextColor="rgba(255,255,255,0.4)"
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     autoComplete="current-password"
                   />
-                  <Pressable onPress={() => setShowPassword((value) => !value)} style={s.eyeIcon} accessibilityRole="button" accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}>
-                    {showPassword ? <EyeOff size={20} color="rgba(255,255,255,0.7)" /> : <Eye size={20} color="rgba(255,255,255,0.7)" />}
+                  <Pressable
+                    onPress={() => setShowPassword((value) => !value)}
+                    style={s.eyeIcon}
+                    accessibilityRole="button"
+                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <EyeOff size={20} color="rgba(255,255,255,0.7)" />
+                    ) : (
+                      <Eye size={20} color="rgba(255,255,255,0.7)" />
+                    )}
                   </Pressable>
                 </View>
 
                 <Pressable
                   onPress={() => void handleLogin()}
                   disabled={!canSubmit}
-                  style={[
-                    s.submitBtn,
-                    !canSubmit && s.submitBtnDisabled,
-                  ]}
+                  style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]}
                 >
                   {loading ? (
                     <ActivityIndicator color="#000" />
@@ -409,7 +486,10 @@ export default function LoginScreen() {
                   )}
                 </Pressable>
 
-                <Pressable onPress={() => router.push('/(auth)/forgot-password')} style={s.forgotBtn}>
+                <Pressable
+                  onPress={() => router.push('/(auth)/forgot-password')}
+                  style={s.forgotBtn}
+                >
                   <Text style={s.forgotText}>Forgot password?</Text>
                 </Pressable>
 
@@ -439,7 +519,7 @@ export default function LoginScreen() {
               </View>
             </Animated.View>
           </View>
-          </KeyboardAwareScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

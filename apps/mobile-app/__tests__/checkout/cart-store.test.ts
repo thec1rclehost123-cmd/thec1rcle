@@ -57,7 +57,8 @@ describe('cartStore checkout state', () => {
     expect(result).toEqual({ success: true });
     expect(validatePromoCode).toHaveBeenCalledWith({
       eventId: 'event_1',
-      items: [{ tierId: 'general', quantity: 2, price: 1200, subtotal: 2400 }],
+      code: 'HOST20',
+      items: [{ tierId: 'general', quantity: 2 }],
     });
     expect(useCartStore.getState().promo).toEqual({
       code: 'HOST20',

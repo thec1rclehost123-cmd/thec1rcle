@@ -113,7 +113,14 @@ export default function WaitlistScreen() {
               <Text style={styles.errorEmoji}>⚠️</Text>
               <Text style={styles.cardTitle}>Something went wrong</Text>
               <Text style={styles.cardSubtitle}>{error}</Text>
-              <Pressable onPress={() => { setError(null); setChecking(true); checkWaitlistStatus(); }} style={styles.retryBtn}>
+              <Pressable
+                onPress={() => {
+                  setError(null);
+                  setChecking(true);
+                  checkWaitlistStatus();
+                }}
+                style={styles.retryBtn}
+              >
                 <Text style={styles.retryText}>Try Again</Text>
               </Pressable>
             </View>

@@ -3,7 +3,17 @@ import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
-import Animated, { FadeIn, FadeInDown, ZoomIn, useAnimatedStyle, useSharedValue, withRepeat, withTiming, withSequence, Easing } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  ZoomIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { MessageCircle, X } from 'lucide-react-native';
 import { typography } from '@/lib/design/theme';
@@ -13,13 +23,14 @@ const { width } = Dimensions.get('window');
 const AVATAR_SIZE = width * 0.35;
 
 export default function MatchScreen() {
-  const { matchId, matchedUserId, matchedUserName, matchedUserPhoto, myPhoto } = useLocalSearchParams<{
-    matchId: string;
-    matchedUserId: string;
-    matchedUserName: string;
-    matchedUserPhoto: string;
-    myPhoto: string;
-  }>();
+  const { matchId, matchedUserId, matchedUserName, matchedUserPhoto, myPhoto } =
+    useLocalSearchParams<{
+      matchId: string;
+      matchedUserId: string;
+      matchedUserName: string;
+      matchedUserPhoto: string;
+      myPhoto: string;
+    }>();
 
   // Floating animation for avatars
   const floatY = useSharedValue(0);
@@ -31,19 +42,19 @@ export default function MatchScreen() {
     floatY.value = withRepeat(
       withSequence(
         withTiming(-10, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(10, { duration: 2000, easing: Easing.inOut(Easing.ease) })
+        withTiming(10, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
       ),
       -1,
-      true
+      true,
     );
 
     glowOpacity.value = withRepeat(
       withSequence(
         withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.4, { duration: 1500, easing: Easing.inOut(Easing.ease) })
+        withTiming(0.4, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
       ),
       -1,
-      true
+      true,
     );
   }, []);
 
@@ -88,11 +99,17 @@ export default function MatchScreen() {
       <View style={styles.content}>
         {/* Avatars */}
         <View style={styles.avatarsContainer}>
-          <Animated.View entering={ZoomIn.duration(800)} style={[styles.avatarWrapper, styles.myAvatar, animatedAvatarStyle1]}>
+          <Animated.View
+            entering={ZoomIn.duration(800)}
+            style={[styles.avatarWrapper, styles.myAvatar, animatedAvatarStyle1]}
+          >
             <Image source={{ uri: myPhoto }} style={styles.avatar} contentFit="cover" />
           </Animated.View>
 
-          <Animated.View entering={ZoomIn.delay(200).duration(800)} style={[styles.avatarWrapper, styles.matchAvatar, animatedAvatarStyle2]}>
+          <Animated.View
+            entering={ZoomIn.delay(200).duration(800)}
+            style={[styles.avatarWrapper, styles.matchAvatar, animatedAvatarStyle2]}
+          >
             <Image source={{ uri: matchedUserPhoto }} style={styles.avatar} contentFit="cover" />
           </Animated.View>
         </View>
@@ -106,7 +123,10 @@ export default function MatchScreen() {
         </Animated.View>
 
         {/* Actions */}
-        <Animated.View entering={FadeInDown.delay(800).duration(800)} style={styles.actionsContainer}>
+        <Animated.View
+          entering={FadeInDown.delay(800).duration(800)}
+          style={styles.actionsContainer}
+        >
           <Pressable
             style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
             onPress={handleSendMessage}

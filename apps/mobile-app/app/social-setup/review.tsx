@@ -137,18 +137,12 @@ export default function SocialSetupReview() {
         <Animated.Text entering={FadeInDown.delay(60)} style={styles.title}>
           Looking good!
         </Animated.Text>
-        <Animated.Text
-          entering={FadeInDown.delay(100)}
-          style={styles.subtitle}
-        >
+        <Animated.Text entering={FadeInDown.delay(100)} style={styles.subtitle}>
           Here's how your profile will appear to others.
         </Animated.Text>
 
         {/* Profile card preview */}
-        <Animated.View
-          entering={FadeInDown.delay(160)}
-          style={styles.previewCard}
-        >
+        <Animated.View entering={FadeInDown.delay(160)} style={styles.previewCard}>
           {/* Photo */}
           <View style={styles.photoContainer}>
             {primaryPhoto ? (
@@ -181,10 +175,7 @@ export default function SocialSetupReview() {
         </Animated.View>
 
         {/* Visibility toggle */}
-        <Animated.View
-          entering={FadeInDown.delay(220)}
-          style={styles.visibilityRow}
-        >
+        <Animated.View entering={FadeInDown.delay(220)} style={styles.visibilityRow}>
           <View style={styles.visibilityLeft}>
             {isVisible ? (
               <Eye size={20} color={colors.iris} strokeWidth={1.8} />
@@ -214,10 +205,7 @@ export default function SocialSetupReview() {
         </Animated.View>
 
         {/* Verification nudge */}
-        <Animated.View
-          entering={FadeInDown.delay(280)}
-          style={styles.verifyNudge}
-        >
+        <Animated.View entering={FadeInDown.delay(280)} style={styles.verifyNudge}>
           <ShieldCheck size={18} color={colors.iris} strokeWidth={1.8} />
           <Text style={styles.verifyNudgeText}>
             You can verify your profile later to unlock dating and messaging.

@@ -12,12 +12,13 @@ export default function EditNightlifeScreen() {
 
   if (!profile) return null;
 
-  const [activeSheet, setActiveSheet] = React.useState<'height' | 'pronouns' | 'lifestyle' | null>(null);
+  const [activeSheet, setActiveSheet] = React.useState<'height' | 'pronouns' | 'lifestyle' | null>(
+    null,
+  );
   const vitals = profile.datingVitals || {};
 
   const photos = [...(profile.datingPhotos || []), ...Array(6).fill(null)].slice(0, 6);
   const prompts = profile.prompts || [];
-
 
   const handleRemovePhoto = async (index: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -31,11 +32,18 @@ export default function EditNightlifeScreen() {
     await updateProfile(profile.uid, { prompts: newPrompts });
   };
 
-
-
   const PRONOUNS = ['He/Him', 'She/Her', 'They/Them', 'Other', 'Prefer not to say'];
-  const LIFESTYLES = ['Social Drinker', 'Drinks & Smokes', 'Sober', '420 Friendly', 'Prefer not to say'];
-  const HEIGHTS = Array.from({ length: (7 - 4) * 12 + 1 }, (_, i) => `${Math.floor(i / 12) + 4}'${i % 12}"`);
+  const LIFESTYLES = [
+    'Social Drinker',
+    'Drinks & Smokes',
+    'Sober',
+    '420 Friendly',
+    'Prefer not to say',
+  ];
+  const HEIGHTS = Array.from(
+    { length: (7 - 4) * 12 + 1 },
+    (_, i) => `${Math.floor(i / 12) + 4}'${i % 12}"`,
+  );
 
   const handleUpdateVital = async (key: string, value: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -47,9 +55,16 @@ export default function EditNightlifeScreen() {
     if (!activeSheet) return null;
     let options: string[] = [];
     let title = '';
-    if (activeSheet === 'height') { options = HEIGHTS; title = 'Height'; }
-    else if (activeSheet === 'pronouns') { options = PRONOUNS; title = 'Pronouns'; }
-    else if (activeSheet === 'lifestyle') { options = LIFESTYLES; title = 'Lifestyle'; }
+    if (activeSheet === 'height') {
+      options = HEIGHTS;
+      title = 'Height';
+    } else if (activeSheet === 'pronouns') {
+      options = PRONOUNS;
+      title = 'Pronouns';
+    } else if (activeSheet === 'lifestyle') {
+      options = LIFESTYLES;
+      title = 'Lifestyle';
+    }
 
     return (
       <View style={styles.sheetContent}>
@@ -61,8 +76,18 @@ export default function EditNightlifeScreen() {
         </View>
         <ScrollView style={styles.sheetList}>
           {options.map((item) => (
-            <Pressable key={item} style={styles.sheetItem} onPress={() => handleUpdateVital(activeSheet, item)}>
-              <Text style={[styles.sheetItemText, vitals[activeSheet as keyof typeof vitals] === item && styles.sheetItemTextSelected]}>
+            <Pressable
+              key={item}
+              style={styles.sheetItem}
+              onPress={() => handleUpdateVital(activeSheet, item)}
+            >
+              <Text
+                style={[
+                  styles.sheetItemText,
+                  vitals[activeSheet as keyof typeof vitals] === item &&
+                    styles.sheetItemTextSelected,
+                ]}
+              >
                 {item}
               </Text>
             </Pressable>
@@ -75,11 +100,15 @@ export default function EditNightlifeScreen() {
   const deactivateProfile = () => {
     Alert.alert('Pause Profile?', 'You will no longer be visible in the Nightlife feed.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Pause', style: 'destructive', onPress: async () => {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        await updateProfile(profile.uid, { datingActive: false });
-        router.back();
-      }}
+      {
+        text: 'Pause',
+        style: 'destructive',
+        onPress: async () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          await updateProfile(profile.uid, { datingActive: false });
+          router.back();
+        },
+      },
     ]);
   };
 
@@ -98,7 +127,9 @@ export default function EditNightlifeScreen() {
         <View style={styles.rows}>
           <Pressable style={styles.row} onPress={() => setActiveSheet('height')}>
             <View style={styles.rowLeft}>
-              <View style={styles.iconBox}><Ruler size={18} color={colors.goldLight} /></View>
+              <View style={styles.iconBox}>
+                <Ruler size={18} color={colors.goldLight} />
+              </View>
               <Text style={styles.rowLabel}>Height</Text>
             </View>
             <View style={styles.rowRight}>
@@ -108,7 +139,9 @@ export default function EditNightlifeScreen() {
           </Pressable>
           <Pressable style={styles.row} onPress={() => setActiveSheet('pronouns')}>
             <View style={styles.rowLeft}>
-              <View style={styles.iconBox}><UserCircle2 size={18} color={colors.goldLight} /></View>
+              <View style={styles.iconBox}>
+                <UserCircle2 size={18} color={colors.goldLight} />
+              </View>
               <Text style={styles.rowLabel}>Pronouns</Text>
             </View>
             <View style={styles.rowRight}>
@@ -118,7 +151,9 @@ export default function EditNightlifeScreen() {
           </Pressable>
           <Pressable style={styles.row} onPress={() => setActiveSheet('lifestyle')}>
             <View style={styles.rowLeft}>
-              <View style={styles.iconBox}><Wine size={18} color={colors.goldLight} /></View>
+              <View style={styles.iconBox}>
+                <Wine size={18} color={colors.goldLight} />
+              </View>
               <Text style={styles.rowLabel}>Lifestyle</Text>
             </View>
             <View style={styles.rowRight}>
@@ -150,8 +185,6 @@ export default function EditNightlifeScreen() {
             </View>
           ))}
         </View>
-
-
 
         {/* Prompts */}
         <View style={styles.sectionHeader}>
@@ -192,48 +225,164 @@ export default function EditNightlifeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.midnight },
-  header: { height: 56, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  header: {
+    height: 56,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
   backButton: { width: 40, height: 40, justifyContent: 'center' },
-  headerTitle: { fontFamily: typography.fontFamily.sansMedium, fontSize: 18, color: colors.goldLight },
+  headerTitle: {
+    fontFamily: typography.fontFamily.sansMedium,
+    fontSize: 18,
+    color: colors.goldLight,
+  },
   scrollContent: { padding: 24, paddingBottom: 60 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 32, marginBottom: 16 },
-  sectionTitle: { fontFamily: typography.fontFamily.serif, fontSize: 22, color: colors.goldLight, marginBottom: 16 },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 32,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontFamily: typography.fontFamily.serif,
+    fontSize: 22,
+    color: colors.goldLight,
+    marginBottom: 16,
+  },
 
   rows: { gap: 16, marginBottom: 24 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)' },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBox: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255, 215, 0, 0.1)', justifyContent: 'center', alignItems: 'center' },
+  iconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   rowLabel: { fontFamily: typography.fontFamily.sansMedium, fontSize: 16, color: colors.goldLight },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   rowValue: { fontFamily: typography.fontFamily.sans, fontSize: 16, color: colors.goldMetallic },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, justifyContent: 'space-between' },
-  photoSlot: { width: '47%', aspectRatio: 3/4, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.02)', overflow: 'hidden' },
+  photoSlot: {
+    width: '47%',
+    aspectRatio: 3 / 4,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    overflow: 'hidden',
+  },
   photoSlotFilled: { borderStyle: 'solid', borderColor: 'transparent' },
   image: { width: '100%', height: '100%', resizeMode: 'cover' },
-  addBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
-  removeBtn: { position: 'absolute', bottom: 8, right: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.goldLight, justifyContent: 'center', alignItems: 'center' },
+  addBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeBtn: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.goldLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
   tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, backgroundColor: colors.goldLight },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: colors.goldLight,
+  },
   pillText: { fontFamily: typography.fontFamily.sansMedium, fontSize: 14, color: colors.midnight },
 
-  promptCard: { backgroundColor: colors.goldLight, borderRadius: 16, padding: 20, marginBottom: 16 },
-  promptHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  promptQuestion: { fontFamily: typography.fontFamily.sansMedium, fontSize: 14, color: colors.base[500] },
+  promptCard: {
+    backgroundColor: colors.goldLight,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+  },
+  promptHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  promptQuestion: {
+    fontFamily: typography.fontFamily.sansMedium,
+    fontSize: 14,
+    color: colors.base[500],
+  },
   promptAnswer: { fontFamily: typography.fontFamily.serif, fontSize: 24, color: colors.midnight },
 
-  dangerZone: { marginTop: 60, padding: 20, backgroundColor: 'rgba(255, 60, 60, 0.1)', borderRadius: 16, alignItems: 'center' },
+  dangerZone: {
+    marginTop: 60,
+    padding: 20,
+    backgroundColor: 'rgba(255, 60, 60, 0.1)',
+    borderRadius: 16,
+    alignItems: 'center',
+  },
   dangerText: { fontFamily: typography.fontFamily.sansMedium, fontSize: 16, color: '#FF4444' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.6)', justifyContent: 'flex-end' },
-  sheetContainer: { backgroundColor: colors.midnight, borderTopLeftRadius: 24, borderTopRightRadius: 24, minHeight: 400, maxHeight: '80%' },
+  sheetContainer: {
+    backgroundColor: colors.midnight,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    minHeight: 400,
+    maxHeight: '80%',
+  },
   sheetContent: { flex: 1 },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.1)' },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
   sheetTitle: { fontFamily: typography.fontFamily.serif, fontSize: 24, color: colors.goldMetallic },
   sheetClose: { padding: 4 },
   sheetList: { padding: 16 },
-  sheetItem: { paddingVertical: 16, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)' },
+  sheetItem: {
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
   sheetItemText: { fontFamily: typography.fontFamily.sans, fontSize: 18, color: colors.goldLight },
-  sheetItemTextSelected: { fontFamily: typography.fontFamily.sansMedium, color: colors.goldMetallic },
+  sheetItemTextSelected: {
+    fontFamily: typography.fontFamily.sansMedium,
+    color: colors.goldMetallic,
+  },
 });

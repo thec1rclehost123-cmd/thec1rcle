@@ -72,12 +72,7 @@ export const VenueCard = React.memo(function VenueCard({
             </BlurView>
           )}
           {venue.venueType ? (
-            <BlurView
-              blurMethod="dimezisBlurView"
-              intensity={30}
-              tint="dark"
-              style={styles.badge}
-            >
+            <BlurView blurMethod="dimezisBlurView" intensity={30} tint="dark" style={styles.badge}>
               <Text style={styles.badgeText}>{venue.venueType}</Text>
             </BlurView>
           ) : null}

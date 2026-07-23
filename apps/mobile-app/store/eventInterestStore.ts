@@ -201,9 +201,7 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
       set((state) => ({
         interestedUsers: {
           ...state.interestedUsers,
-          [eventId]: (state.interestedUsers[eventId] ?? []).filter(
-            (u) => u.userId !== userId,
-          ),
+          [eventId]: (state.interestedUsers[eventId] ?? []).filter((u) => u.userId !== userId),
         },
       }));
     } else {

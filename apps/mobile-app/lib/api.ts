@@ -62,7 +62,7 @@ function getApiBase(): string {
 
     const host =
       hostCandidates.find((candidate) => !isLoopbackHost(candidate)) ??
-      (Platform.OS === 'android' ? '10.0.2.2' : hostCandidates[0]);
+      (Platform?.OS === 'android' ? '10.0.2.2' : hostCandidates[0]);
 
     if (host) {
       const devUrl = `http://${host}:4000`;

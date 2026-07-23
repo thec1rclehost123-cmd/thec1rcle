@@ -66,11 +66,7 @@ export function resolveBuildIdentity(input: BuildIdentityInput): BuildIdentity {
           : 'Development client',
     status,
     statusLabel:
-      status === 'verified'
-        ? 'Verified'
-        : status === 'mismatch'
-          ? 'Mismatch'
-          : 'Development',
+      status === 'verified' ? 'Verified' : status === 'mismatch' ? 'Mismatch' : 'Development',
     issues,
   };
 }

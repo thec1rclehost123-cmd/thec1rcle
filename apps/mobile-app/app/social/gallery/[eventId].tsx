@@ -446,7 +446,12 @@ export default function MediaGalleryScreen() {
       />
 
       {/* Caption Input Modal */}
-      <Modal visible={showCaptionModal} transparent animationType="fade" onRequestClose={handleCaptionSkip}>
+      <Modal
+        visible={showCaptionModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCaptionSkip}
+      >
         <View className="flex-1 bg-black/70 items-center justify-center">
           <View className="bg-[#1C1C1E] rounded-2xl p-6 w-[85%]" style={{ maxWidth: 400 }}>
             <Text className="text-gold text-lg font-semibold mb-4 text-center">Add Caption</Text>

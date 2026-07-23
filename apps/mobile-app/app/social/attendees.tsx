@@ -192,18 +192,53 @@ export default function AttendeesScreen() {
 
             {/* Paywall Overlay */}
             {!isPremium && !loading && attendees.length > 0 && (
-              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', borderRadius: 24 }}>
-                <BlurView intensity={40} tint="dark" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  overflow: 'hidden',
+                  borderRadius: 24,
+                }}
+              >
+                <BlurView
+                  intensity={40}
+                  tint="dark"
+                  style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}
+                >
                   <Text style={{ fontSize: 40, marginBottom: 16 }}>👀</Text>
-                  <Text style={{ color: '#F2DC55', fontSize: 20, fontWeight: '700', marginBottom: 8, textAlign: 'center' }}>
+                  <Text
+                    style={{
+                      color: '#F2DC55',
+                      fontSize: 20,
+                      fontWeight: '700',
+                      marginBottom: 8,
+                      textAlign: 'center',
+                    }}
+                  >
                     See Who's Going
                   </Text>
-                  <Text style={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginBottom: 24, lineHeight: 22 }}>
-                    C1RCLE Premium reveals everyone attending this event so you can start connecting early.
+                  <Text
+                    style={{
+                      color: 'rgba(255,255,255,0.7)',
+                      textAlign: 'center',
+                      marginBottom: 24,
+                      lineHeight: 22,
+                    }}
+                  >
+                    C1RCLE Premium reveals everyone attending this event so you can start connecting
+                    early.
                   </Text>
                   <Pressable
                     onPress={() => openPaywall('premiumOnlyEvent')}
-                    style={{ backgroundColor: '#F2DC55', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 30 }}
+                    style={{
+                      backgroundColor: '#F2DC55',
+                      paddingHorizontal: 24,
+                      paddingVertical: 14,
+                      borderRadius: 30,
+                    }}
                   >
                     <Text style={{ color: '#0A0A0A', fontSize: 16, fontWeight: '700' }}>
                       Reveal Attendees

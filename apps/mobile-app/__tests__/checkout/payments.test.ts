@@ -1,11 +1,25 @@
 import { __setRazorpayCheckoutForTests, processFullCheckout } from '../../lib/payments';
 import { useCartStore } from '../../store/cartStore';
+import { useAuthStore } from '../../store/authStore';
 import { initiateCheckout, reserveTickets, verifyPayment } from '../../lib/api';
 
 jest.mock('../../lib/api', () => ({
   reserveTickets: jest.fn(),
   initiateCheckout: jest.fn(),
   verifyPayment: jest.fn(),
+  cancelReservation: jest.fn().mockResolvedValue({ success: true }),
+  cancelOrder: jest.fn().mockResolvedValue({ success: true }),
+  getOrder: jest.fn().mockResolvedValue(null),
+}));
+
+jest.mock('../../lib/firebase', () => ({
+  getFirebaseAuth: () => ({
+    currentUser: {
+      uid: 'user_1',
+      email: 'aayush@example.com',
+      getIdToken: jest.fn().mockResolvedValue('token_1'),
+    },
+  }),
 }));
 
 const mockOpen = jest.fn();
@@ -26,6 +40,7 @@ describe('processFullCheckout', () => {
     process.env.EXPO_PUBLIC_RAZORPAY_KEY = 'rzp_test_public';
     __setRazorpayCheckoutForTests({ open: mockOpen });
     useCartStore.getState().clearCart();
+    useAuthStore.setState({ user: { uid: 'user_1', email: 'aayush@example.com' } as any });
   });
 
   it('reserves inventory, opens Razorpay, verifies payment, and clears recovery state', async () => {

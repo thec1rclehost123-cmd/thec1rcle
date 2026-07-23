@@ -90,9 +90,7 @@ export function PremiumPaywallModal() {
   const slideUp = useSharedValue(0);
 
   const sheetAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: withTiming(slideUp.value === 0 ? 300 : 0, { duration: 250 }) },
-    ],
+    transform: [{ translateY: withTiming(slideUp.value === 0 ? 300 : 0, { duration: 250 }) }],
     opacity: withTiming(slideUp.value === 0 ? 0 : 1, { duration: 250 }),
   }));
 
