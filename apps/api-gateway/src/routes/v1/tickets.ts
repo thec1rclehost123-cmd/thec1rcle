@@ -1049,62 +1049,118 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
     },
   );
 
+  // Public ticket view / share endpoint.
+  //
+  // The `:entitlementId` path segment carries one of two very different things:
+  //
+  //   1. A public share TOKEN (`stk_…`) — an unguessable, per-ticket capability.
+  //      Possession of the token is the authorisation, so this path is reachable
+  //      anonymously: that is exactly the "share my ticket" link.
+  //
+  //   2. A raw entitlement ID (`ENT-…`) — deterministic and therefore ENUMERABLE
+  //      (`ENT-{orderId}-{tierId}-{index}`). Anyone who can guess an order ID can
+  //      derive every ticket ID under it, so a raw ID grants NO anonymous access:
+  //      it is honoured only for the authenticated owner of that entitlement.
+  //      Everyone else gets an indistinguishable 404, which is what closes the
+  //      IDOR — enumeration by ID can no longer confirm a ticket exists, read its
+  //      state, or harvest attendance.
+  //
+  // Holder-specific data (live door state + a scannable QR) is additionally gated
+  // to the authenticated owner regardless of how the ticket was located, so a
+  // valid share token lets a friend see the ticket but never a working credential.
   fastify.get('/tickets/public/:entitlementId', async (request: any, reply) => {
-    const { entitlementId } = request.params;
+    const { entitlementId: idOrToken } = request.params;
+    const requesterId = request.user?.uid || null;
+
+    // Uniform 404 for "not found" and "found but you may not see it" — never leak
+    // which one it was.
+    const notFound = () =>
+      reply.status(404).send(
+        buildErrorResponse({
+          code: 'NOT_FOUND',
+          message: 'Ticket not found',
+          requestId: request.id,
+        }),
+      );
+
     try {
-      const entDoc = await fastify.db.collection('entitlements').doc(entitlementId).get();
-      if (!entDoc.exists) {
-        return reply.status(404).send(
-          buildErrorResponse({
-            code: 'NOT_FOUND',
-            message: 'Ticket not found',
-            requestId: request.id,
-          }),
-        );
+      const { PUBLIC_TOKEN_PREFIX } = await import('@c1rcle/core/entitlement-engine');
+
+      let entRef: any = null;
+      let entitlement: any = null;
+
+      if (typeof idOrToken === 'string' && idOrToken.startsWith(PUBLIC_TOKEN_PREFIX)) {
+        // Token path: the token itself authorises the read. Anonymous is fine.
+        const snap = await fastify.db
+          .collection('entitlements')
+          .where('publicToken', '==', idOrToken)
+          .limit(1)
+          .get();
+        if (!snap.empty) {
+          entRef = snap.docs[0].ref;
+          entitlement = snap.docs[0].data();
+        }
+      } else {
+        // Raw entitlement ID path: enumerable, so owner-only. We fetch first, then
+        // require ownership — a non-owner (or anonymous) request 404s exactly like
+        // a miss, so probing an ID reveals nothing about whether it exists.
+        const doc = await fastify.db.collection('entitlements').doc(idOrToken).get();
+        if (doc.exists) {
+          const data = doc.data();
+          if (requesterId && data?.ownerUserId === requesterId) {
+            entRef = doc.ref;
+            entitlement = data;
+          }
+        }
       }
-      const entitlement = entDoc.data();
-      if (!entitlement) {
-        return reply.status(404).send(
-          buildErrorResponse({
-            code: 'NOT_FOUND',
-            message: 'Ticket not found',
-            requestId: request.id,
-          }),
-        );
-      }
+
+      if (!entitlement) return notFound();
+
       const eventDoc = await fastify.db.collection('events').doc(entitlement.eventId).get();
       const event = eventDoc.exists ? eventDoc.data() : null;
 
-      // This route is intentionally reachable without login (share links,
-      // "view my ticket" from a fresh device), so it never requires auth.
-      // But a *scannable* entry credential is a different matter than
-      // viewing ticket details -- generateEntitlementQR mints a fresh
-      // valid signature for whatever entitlementId it's given, with no
-      // proof of ownership baked in, so it must only run for the request
-      // that's actually authenticated as the entitlement's owner. Anyone
-      // else viewing this link sees the ticket, not a working door credential.
-      const requesterId = request.user?.uid || null;
-      const isOwner = Boolean(requesterId) && requesterId === entitlement.userId;
+      const isOwner = Boolean(requesterId) && requesterId === entitlement.ownerUserId;
 
+      // generateEntitlementQR mints a fresh valid signature for whatever ID it is
+      // given, with no ownership baked in — so it runs only for the owner, and is
+      // signed over the real entitlement ID (never the share token).
       let qrPayload: string | null = null;
       if (isOwner) {
         const { generateEntitlementQR } = await import('@c1rcle/core/entitlement-engine');
-        qrPayload = JSON.stringify(generateEntitlementQR(entitlementId));
+        qrPayload = JSON.stringify(generateEntitlementQR(entitlement.id));
       }
+
+      // Give the owner a share token to build the shareable link from. Tickets
+      // issued before this field existed are lazily backfilled on first owner
+      // view (best-effort — a failed write just means we retry next time).
+      let shareToken: string | null = isOwner ? (entitlement.publicToken ?? null) : null;
+      if (isOwner && !shareToken && entRef) {
+        const { generatePublicToken } = await import('@c1rcle/core/entitlement-engine');
+        shareToken = generatePublicToken();
+        entRef.update({ publicToken: shareToken }).catch(() => {});
+      }
+
+      // Never let a shared cache serve one guest's ticket state to another.
+      reply.header('Cache-Control', 'private, no-store');
 
       return {
         success: true,
         ticket: {
           entitlementId: entitlement.id,
-          checkedIn:
-            entitlement.checkedIn === true ||
-            entitlement.state === 'CONSUMED' ||
-            (typeof entitlement.scanCountUsed === 'number' && entitlement.scanCountUsed > 0),
-          state: entitlement.state,
+          // Live door status is owner-only — a share-token viewer must not be able
+          // to see whether the holder has already checked in.
+          checkedIn: isOwner
+            ? entitlement.checkedIn === true ||
+              entitlement.state === 'CONSUMED' ||
+              (typeof entitlement.scanCountUsed === 'number' && entitlement.scanCountUsed > 0)
+            : false,
+          state: isOwner ? entitlement.state : null,
           ticketType: entitlement.metadata?.tierName || entitlement.ticketType || 'Entry',
           entryType: entitlement.metadata?.entryType || 'general',
           quantity: entitlement.scanCountAllowed || 1,
           qrPayload,
+          // Only the owner receives the share capability.
+          shareToken,
           eventTitle: event?.title || entitlement.eventSummary?.title || 'Event',
           eventStartAt:
             event?.startDate || event?.startAt || entitlement.eventSummary?.startAt || null,
@@ -1120,7 +1176,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       };
     } catch (error: any) {
       fastify.log.error(
-        { requestId: request.id, entitlementId, error: error.message },
+        { requestId: request.id, idOrToken, error: error.message },
         'GET /tickets/public/:entitlementId failed',
       );
       return reply.status(500).send(
