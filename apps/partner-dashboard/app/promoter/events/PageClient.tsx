@@ -273,13 +273,12 @@ export default function PromoterEventsPage() {
     fetchPageData();
   }, [fetchPageData]);
 
-  useEffect(() => {
-    const handleOutsideClick = () => {
-      setOpenCommissionEventId(null);
-    };
-    window.addEventListener('click', handleOutsideClick);
-    return () => window.removeEventListener('click', handleOutsideClick);
-  }, []);
+  // NOTE: A previous window-level "click closes the commission modal" listener was
+  // removed. It fired on *every* click in the document, including clicks inside the
+  // modal itself, so the modal closed the instant you interacted with it (even its
+  // own controls). CommissionDetailsModal already handles dismissal correctly via
+  // its full-screen backdrop onClick and its explicit close (X) button, so no
+  // document-level listener is needed.
 
   const getActiveLink = useCallback(
     (eventId: string) => {
