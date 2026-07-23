@@ -366,7 +366,8 @@ export default async function scanRoutes(fastify: FastifyInstance) {
           (qrData.includes('.') || qrData.trim().startsWith('eyJ'))
         ) {
           const { verifyTicketQrJwt } =
-            await import('../../../../../packages/core/ticket-checkout-wallet-service.js');
+            // @ts-ignore — JS-only core module, no .d.ts yet
+            await import('@c1rcle/core/ticket-checkout-wallet-service');
           const verified = verifyTicketQrJwt(qrData.trim());
           if (verified && verified.valid && verified.payload) {
             payload = {
