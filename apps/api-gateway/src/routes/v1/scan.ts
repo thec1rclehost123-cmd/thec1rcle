@@ -337,12 +337,17 @@ export default async function scanRoutes(fastify: FastifyInstance) {
 
       let payload: any;
       try {
-        if (typeof qrData === 'string' && qrData.trim().startsWith('ENT-')) {
-          const { generateEntitlementQR } = await import('@c1rcle/core/entitlement-engine');
-          payload = generateEntitlementQR(qrData.trim());
-        } else {
-          payload = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
-        }
+        // A real ticket QR always encodes the full signed payload
+        // (JSON.stringify({ eid, ts, sig }) -- see generateEntitlementQR's
+        // callers). There is no legitimate format where the scanner is
+        // handed a bare "ENT-..." entitlement ID with no signature: that
+        // string is also the entitlement's own document ID, so treating it
+        // as scannable input let anyone who merely *knew* an entitlement ID
+        // get the scanner to mint a fresh valid signature for it on the
+        // spot, with no proof they ever held the real ticket. Bare IDs are
+        // parsed as JSON like everything else, which correctly fails below
+        // and is denied as invalid input.
+        payload = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
       } catch (e) {
         return reply.status(400).send({ error: 'Invalid QR format', result: 'invalid' });
       }
