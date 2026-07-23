@@ -364,6 +364,10 @@ async function main() {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptimeSeconds: process.uptime(),
+      environment: {
+        firebaseProjectId: process.env.FIREBASE_PROJECT_ID || process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || 'thec1rcle-india',
+        nodeEnv: process.env.NODE_ENV || 'development',
+      },
       services: {
         firestore: 'unknown',
         redis: 'unknown',

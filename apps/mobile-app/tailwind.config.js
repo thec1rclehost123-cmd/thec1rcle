@@ -1,13 +1,18 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ['./app/**/*.{js,jsx,ts,tsx}', './components/**/*.{js,jsx,ts,tsx}'],
+  content: [
+    './app/**/*.{js,jsx,ts,tsx}',
+    './components/**/*.{js,jsx,ts,tsx}',
+    './lib/**/*.{js,jsx,ts,tsx}',
+    './store/**/*.{js,jsx,ts,tsx}',
+  ],
   presets: [require('nativewind/preset')],
   theme: {
     extend: {
       colors: {
         // Base Colors (Midnight Dark Mode) - EXACT MATCH TO WEBSITE
         base: {
-          DEFAULT: '#161616',
+          DEFAULT: '#000000',
           50: '#1F1F1F',
           100: '#292929',
           200: '#3D3D3D',
@@ -45,7 +50,7 @@ module.exports = {
         },
 
         // Legacy aliases - EXACT MATCH
-        midnight: '#161616',
+        midnight: '#000000',
         silver: '#FEF8E8',
         grey: '#E4E2E3',
         stone: '#A8AAAC',
@@ -85,14 +90,6 @@ module.exports = {
         display: ['System', 'sans-serif'],
         brand: ['System', 'sans-serif'],
         'brand-accent': ['System', 'sans-serif'],
-        satoshi: ['System', 'sans-serif'],
-        'satoshi-medium': ['System', 'sans-serif'],
-        'satoshi-bold': ['System', 'sans-serif'],
-        'satoshi-black': ['System', 'sans-serif'],
-        inter: ['System', 'sans-serif'],
-        'inter-medium': ['System', 'sans-serif'],
-        'inter-semibold': ['System', 'sans-serif'],
-        'inter-bold': ['System', 'sans-serif'],
       },
 
       fontWeight: {
@@ -106,22 +103,12 @@ module.exports = {
 
       // EXACT MATCH to website
       borderRadius: {
-        bubble: '32px',
-        dash: '40px',
-        pill: '999px',
-        xl: '24px',
-        '2xl': '32px',
-        '3xl': '48px',
-      },
-
-      // EXACT MATCH to website shadows
-      boxShadow: {
-        glow: '0 0 40px rgba(244, 74, 34, 0.3)',
-        'glow-lg': '0 0 80px rgba(244, 74, 34, 0.45)',
-        card: '0 8px 32px rgba(0, 0, 0, 0.4)',
-        elevate: '0 20px 60px rgba(0, 0, 0, 0.6)',
-        floating: '0 30px 100px rgba(0, 0, 0, 0.8)',
-        glass: 'inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
+        bubble: 32,
+        dash: 40,
+        pill: 999,
+        xl: 24,
+        '2xl': 32,
+        '3xl': 48,
       },
 
       // EXACT MATCH to website animations

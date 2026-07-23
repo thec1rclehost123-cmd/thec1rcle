@@ -33,6 +33,38 @@ function signJwt(payload, secret = getQrSecret()) {
   return `${encodedHeader}.${encodedPayload}.${signature}`;
 }
 
+
+
+export function verifyTicketQrJwt(token, secret = getQrSecret()) {
+  if (!token || typeof token !== 'string') return { valid: false, error: 'Missing token' };
+  const parts = token.trim().split('.');
+  if (parts.length !== 3) return { valid: false, error: 'Malformed JWT format' };
+
+  const [encodedHeader, encodedPayload, signature] = parts;
+  const expectedSignature = createHmac('sha256', secret)
+    .update(`${encodedHeader}.${encodedPayload}`)
+    .digest('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+
+  if (signature !== expectedSignature) {
+    return { valid: false, error: 'Invalid JWT signature' };
+  }
+
+  try {
+    const payloadStr = Buffer.from(encodedPayload, 'base64').toString('utf8');
+    const payload = JSON.parse(payloadStr);
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (payload.exp && nowSec > payload.exp) {
+      return { valid: false, error: 'Ticket QR code has expired', payload };
+    }
+    return { valid: true, payload };
+  } catch (err) {
+    return { valid: false, error: 'Failed to parse JWT payload' };
+  }
+}
+
 function safeDocSegment(value) {
   return String(value || 'GEN')
     .replace(/[^a-zA-Z0-9_-]/g, '-')

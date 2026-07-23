@@ -22,13 +22,17 @@ export class PaymentService {
       keyId: string;
       keySecret: string;
       allowMockPayment?: boolean;
+      forceMockPayment?: boolean;
     };
   }): Promise<any> {
     const { order, userId, config } = params;
-    const { keyId, keySecret, allowMockPayment } = config;
+    const { keyId, keySecret, allowMockPayment, forceMockPayment } = config;
     const reusableRecord = await this.orderRepo.getLatestPendingPaymentRecord(order.id);
 
-    if (this.canReusePaymentRecord(reusableRecord, order, userId)) {
+    if (
+      this.canReusePaymentRecord(reusableRecord, order, userId) &&
+      (!forceMockPayment || String(reusableRecord!.razorpayOrderId || '').startsWith('order_mock_'))
+    ) {
       const isMockOrder = String(reusableRecord!.razorpayOrderId || '').startsWith('order_mock_');
       if (isMockOrder && !allowMockPayment) {
         throw new Error('Mock payments are disabled');
@@ -45,7 +49,7 @@ export class PaymentService {
       };
     }
 
-    if (!keyId || !keySecret) {
+    if (!keyId || !keySecret || forceMockPayment) {
       if (!allowMockPayment) {
         throw new Error('Payment gateway is not configured');
       }

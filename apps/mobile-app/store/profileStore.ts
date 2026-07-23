@@ -4,16 +4,55 @@
  */
 
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // @c1rcle/types provides the canonical Profile shape. The local UserProfile interface below
 // extends it with mobile-specific fields (gender, vibeTags, isPremium, etc.).
 // When harmonizing: import type { Profile as BaseProfile } from '@c1rcle/types';
-import { getFirebaseAuth } from '@/lib/firebase';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, deduplicateRequest } from '@/lib/api';
+import type { FirstRunStage, NightlifeTaste, UserIntent } from '@/lib/firstRun';
 
-function getDb() {
-  return getFirestore(getFirebaseApp());
+const NIGHTLIFE_PROFILE_PROMPT_DISMISSED_KEY = 'c1rcle_nightlife_profile_prompt_dismissed';
+
+function nightlifePromptDismissedKey(userId: string) {
+  return `${NIGHTLIFE_PROFILE_PROMPT_DISMISSED_KEY}:${userId}`;
+}
+
+export interface DatingVitals {
+  height?: string | null;
+  gender?: string | null;
+  location?: string | null;
+  pronouns?: string | null;
+  lifestyle?: string | null;
+}
+
+export interface ProfilePrompt {
+  promptId: string;
+  question: string;
+  answer: string;
+  type: 'text';
+}
+
+export interface ProfileAnthem {
+  trackId?: string;
+  trackName: string;
+  artistName: string;
+  artworkUrl?: string | null;
+  previewUrl?: string | null;
+  source?: 'itunes' | 'spotify';
+  externalUrl?: string | null;
+}
+
+export interface SpotifyProfile {
+  id: string;
+  displayName: string;
+  avatarUrl: string;
+  profileUrl: string;
+}
+
+export interface UserSubscription {
+  tier: 'free' | 'premium';
+  status?: string | null;
+  expiresAt?: string | null;
 }
 
 export interface UserProfile {
@@ -34,18 +73,40 @@ export interface UserProfile {
   connections?: number;
   instagram?: string;
   spotify?: string;
+  spotifyConnected?: boolean;
+  spotifyProfile?: SpotifyProfile | null;
+  datingActive?: boolean;
   datingPhotos?: string[];
+  datingVitals?: DatingVitals;
+  anthem?: ProfileAnthem | null;
   photos?: string[];
+  socialProfile?: { state?: string } & Record<string, unknown>;
   notificationPreferences?: Record<string, boolean>;
   pushNewMatches?: boolean;
   pushEventUpdates?: boolean;
 
   // Personalisation
   vibeTags?: string[];
+  nightlifeVibeTags?: string[];
+  prompts?: ProfilePrompt[];
+
+  // Onboarding funnel
+  basicSetupComplete?: boolean;
+  profileSetupComplete?: boolean;
+  profileComplete?: boolean;
+  nightlifeProfileComplete?: boolean;
+  onboardingComplete?: boolean;
+  intents?: UserIntent[];
+  identity?: { displayName?: string; dateOfBirth?: string };
+  discoveryProfile?: { cityId?: string; cityName?: string; citySource?: 'manual' | 'location'; vibeTags?: NightlifeTaste[]; intents?: UserIntent[] };
+  onboarding?: { version?: number; currentStage?: FirstRunStage; completedAt?: string; emailPromptStatus?: string };
+  socialSetupComplete?: boolean;
 
   // Status
   isVerified?: boolean;
   isPremium?: boolean;
+  subscription?: UserSubscription;
+  supportQueue?: 'standard' | 'priority';
 }
 
 interface ProfileState {
@@ -53,131 +114,296 @@ interface ProfileState {
   loading: boolean;
   error: string | null;
   _unsubscribe: (() => void) | null;
+  _loadPromise: Promise<void> | null;
+  nightlifePromptDismissed: boolean;
+  /** Tracks loaded userId to prevent redundant re-fetches */
+  _loadedUserId: string | null;
 
   // Actions
   loadProfile: (userId: string) => Promise<void>;
   updateProfile: (userId: string, updates: Partial<UserProfile>) => Promise<boolean>;
+  hydrateNightlifePromptDismissed: (userId: string) => Promise<void>;
+  dismissNightlifePrompt: (userId: string) => Promise<void>;
+  setProfileFromGateway: (userId: string, profile: Partial<UserProfile>) => void;
   subscribeToProfile: (userId: string) => () => void;
   clearProfile: () => void;
+  /** Called by socialProfileStore after mutations to invalidate cached profile */
+  invalidateProfileCache: () => void;
 }
 
 function omitUndefined<T extends Record<string, any>>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
 }
 
+function normalizeDatingVitals(value: unknown): DatingVitals | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  return {
+    height: typeof raw.height === 'string' || raw.height === null ? raw.height : undefined,
+    gender: typeof raw.gender === 'string' || raw.gender === null ? raw.gender : undefined,
+    location: typeof raw.location === 'string' || raw.location === null ? raw.location : undefined,
+    pronouns: typeof raw.pronouns === 'string' || raw.pronouns === null ? raw.pronouns : undefined,
+    lifestyle: typeof raw.lifestyle === 'string' || raw.lifestyle === null ? raw.lifestyle : undefined,
+  };
+}
+
+function normalizeAnthem(value: unknown): ProfileAnthem | null | undefined {
+  if (value === null) return null;
+  if (!value || typeof value !== 'object') return undefined;
+
+  const raw = value as Record<string, unknown>;
+  const trackName = typeof raw.trackName === 'string' ? raw.trackName : '';
+  const artistName = typeof raw.artistName === 'string' ? raw.artistName : '';
+  if (!trackName || !artistName) return undefined;
+
+  return {
+    trackId: typeof raw.trackId === 'string' ? raw.trackId : undefined,
+    trackName,
+    artistName,
+    artworkUrl:
+      typeof raw.artworkUrl === 'string' || raw.artworkUrl === null ? raw.artworkUrl : undefined,
+    previewUrl:
+      typeof raw.previewUrl === 'string' || raw.previewUrl === null ? raw.previewUrl : undefined,
+    source: raw.source === 'spotify' || raw.source === 'itunes' ? raw.source : undefined,
+    externalUrl:
+      typeof raw.externalUrl === 'string' || raw.externalUrl === null ? raw.externalUrl : undefined,
+  };
+}
+
+function normalizeSubscription(value: unknown, legacyPremium?: boolean): UserSubscription {
+  const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const tier = raw.tier === 'premium' || legacyPremium === true ? 'premium' : 'free';
+  return {
+    tier,
+    status:
+      typeof raw.status === 'string' ? raw.status : tier === 'premium' ? 'active' : 'inactive',
+    expiresAt:
+      typeof raw.expiresAt === 'string' || raw.expiresAt === null ? raw.expiresAt : undefined,
+  };
+}
+
 function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProfile {
-  const authUser = getFirebaseAuth().currentUser;
   const now = new Date().toISOString();
   const rawData = (data ?? {}) as Record<string, any>;
+  const socialState = rawData.socialProfile?.state;
+  const socialSetupComplete =
+    rawData.socialSetupComplete === true ||
+    socialState === 'complete' ||
+    socialState === 'verified';
+  const basicSetupComplete =
+    rawData.basicSetupComplete === true ||
+    rawData.profileSetupComplete === true ||
+    rawData.profileComplete === true;
 
   return {
     uid: userId,
-    email: rawData.email ?? authUser?.email ?? '',
-    displayName: rawData.displayName ?? rawData.name ?? authUser?.displayName ?? '',
-    photoURL: rawData.photoURL ?? rawData.avatar ?? authUser?.photoURL ?? '',
+    email: rawData.email ?? '',
+    displayName: rawData.displayName ?? rawData.name ?? '',
+    photoURL: rawData.photoURL ?? rawData.avatar ?? '',
     bio: rawData.bio ?? '',
     city: rawData.city ?? '',
-    phone: rawData.phone ?? rawData.phoneNumber ?? authUser?.phoneNumber ?? '',
+    phone: rawData.phone ?? rawData.phoneNumber ?? '',
     gender: data?.gender,
     dateOfBirth: data?.dateOfBirth,
-    createdAt: rawData.createdAt ?? authUser?.metadata.creationTime ?? now,
+    createdAt: rawData.createdAt ?? now,
     updatedAt: rawData.updatedAt ?? now,
     eventsAttended: data?.eventsAttended,
     connections: data?.connections,
     vibeTags: data?.vibeTags,
+    nightlifeVibeTags: Array.isArray(rawData.nightlifeVibeTags)
+      ? rawData.nightlifeVibeTags
+      : [],
+    prompts: data?.prompts,
     isVerified: data?.isVerified,
-    isPremium: data?.isPremium,
+    subscription: normalizeSubscription(rawData.subscription, rawData.isPremium === true),
+    isPremium:
+      rawData.isPremium === true ||
+      rawData.subscription?.tier === 'premium' ||
+      rawData.subscriptionTier === 'premium',
+    supportQueue:
+      rawData.supportQueue === 'priority' || rawData.subscription?.tier === 'premium'
+        ? 'priority'
+        : 'standard',
     instagram: data?.instagram ?? '',
     spotify: data?.spotify ?? '',
-    datingPhotos: Array.isArray(rawData.datingPhotos)
-      ? rawData.datingPhotos
-      : Array.isArray(rawData.photos)
-        ? rawData.photos
-        : [],
-    photos: Array.isArray(rawData.photos)
-      ? rawData.photos
-      : Array.isArray(rawData.datingPhotos)
-        ? rawData.datingPhotos
-        : [],
+    spotifyConnected: rawData.spotify?.connected === true,
+    spotifyProfile: rawData.spotify?.profile ?? null,
+    datingActive: rawData.datingActive === true,
+    datingVitals: normalizeDatingVitals(rawData.datingVitals),
+    anthem: normalizeAnthem(rawData.anthem),
+    datingPhotos: Array.isArray(rawData.datingPhotos) ? rawData.datingPhotos : [],
+    photos: Array.isArray(rawData.photos) ? rawData.photos : [],
     notificationPreferences:
       typeof rawData.notificationPreferences === 'object' && rawData.notificationPreferences
         ? rawData.notificationPreferences
         : {},
     pushNewMatches: rawData.pushNewMatches,
     pushEventUpdates: rawData.pushEventUpdates,
+    socialProfile:
+      typeof rawData.socialProfile === 'object' && rawData.socialProfile
+        ? rawData.socialProfile
+        : undefined,
+    basicSetupComplete,
+    profileSetupComplete: rawData.profileSetupComplete === true || basicSetupComplete,
+    profileComplete: rawData.profileComplete === true,
+    nightlifeProfileComplete: rawData.nightlifeProfileComplete === true,
+    onboardingComplete: rawData.onboardingComplete === true,
+    intents: Array.isArray(rawData.intents) ? rawData.intents : rawData.discoveryProfile?.intents,
+    identity: rawData.identity,
+    discoveryProfile: rawData.discoveryProfile,
+    onboarding: rawData.onboarding,
+    socialSetupComplete,
   };
 }
+
+let profileRequestGeneration = 0;
+let profileLoadUserId: string | null = null;
+let nightlifePromptGeneration = 0;
 
 export const useProfileStore = create<ProfileState>((set, get) => ({
   profile: null,
   loading: false,
   error: null,
   _unsubscribe: null,
+  _loadPromise: null,
+  nightlifePromptDismissed: false,
+  _loadedUserId: null,
 
   loadProfile: async (userId: string) => {
-    set({ loading: true, error: null });
+    // If already loaded for this user, return without re-fetching
+    if (get()._loadedUserId === userId && get().profile) return;
 
-    try {
-      const docSnap = await getDoc(doc(getDb(), 'users', userId));
-      const data = docSnap.exists() ? docSnap.data() : undefined;
-      const profile = normalizeProfile(userId, data);
-
-      if (!docSnap.exists()) {
-        // First-time user: write initial profile to Firestore
-        await setDoc(doc(getDb(), 'users', userId), omitUndefined(profile), { merge: true });
-      }
-
-      set({ profile, loading: false });
-    } catch (error: any) {
-      console.warn('Unable to load Firestore profile; using auth-derived profile.', error);
-      // Fallback to auth-derived profile so the app stays usable
-      set({ profile: normalizeProfile(userId), error: error.message, loading: false });
+    const existing = get()._loadPromise;
+    if (existing && profileLoadUserId === userId) return existing;
+    if (existing) {
+      profileRequestGeneration += 1;
+      profileLoadUserId = null;
+      set({ _loadPromise: null });
     }
+
+    const requestGeneration = profileRequestGeneration;
+    let promise!: Promise<void>;
+    promise = (async () => {
+      set({ loading: true, error: null });
+
+      try {
+        const key = `/api/v1/users/me:GET:${userId}`;
+        const response = await deduplicateRequest<{
+          profile?: Partial<UserProfile>;
+          data?: { profile?: Partial<UserProfile> };
+        }>(key, () =>
+          apiFetch<{ profile?: Partial<UserProfile>; data?: { profile?: Partial<UserProfile> } }>(
+            '/api/v1/users/me',
+            { requireAuth: true },
+          ),
+        );
+        if (requestGeneration !== profileRequestGeneration) return;
+        const data = response.profile || response.data?.profile;
+        const profile = normalizeProfile(userId, data);
+        set({ profile, loading: false, _loadedUserId: userId });
+      } catch (error: any) {
+        if (requestGeneration !== profileRequestGeneration) return;
+        console.warn('Unable to load profile through gateway.', error);
+        set({ profile: get().profile, error: error.message, loading: false });
+      } finally {
+        if (get()._loadPromise === promise) {
+          profileLoadUserId = null;
+          set({ _loadPromise: null });
+        }
+      }
+    })();
+
+    profileLoadUserId = userId;
+    set({ _loadPromise: promise });
+    return promise;
   },
 
   updateProfile: async (userId: string, updates: Partial<UserProfile>) => {
-    const { profile } = get();
+    profileRequestGeneration += 1;
+    const requestGeneration = profileRequestGeneration;
+    profileLoadUserId = null;
     const now = new Date().toISOString();
+    const { profile: prevProfile } = get();
     const nextProfile = normalizeProfile(userId, {
-      ...(profile ?? {}),
+      ...(prevProfile ?? {}),
       ...updates,
       updatedAt: now,
     });
 
     // Optimistic update
-    set({ profile: nextProfile, error: null });
+    set({ profile: nextProfile, error: null, _loadPromise: null });
 
     try {
-      await setDoc(
-        doc(getDb(), 'users', userId),
-        omitUndefined({ uid: userId, ...updates, updatedAt: serverTimestamp() }),
-        { merge: true },
-      );
-
-      apiFetch<{
+      const response = await apiFetch<{
         profile?: Partial<UserProfile>;
         data?: { profile?: Partial<UserProfile> };
       }>('/api/v1/users/me/settings', {
         method: 'PATCH',
         body: JSON.stringify(omitUndefined(updates)),
-      })
-        .then((response) => {
-          const savedProfile = response.profile || response.data?.profile;
-          if (savedProfile) {
-            set({ profile: normalizeProfile(userId, savedProfile) });
-          }
-        })
-        .catch((error) => {
-          console.warn('Profile API sync failed after Firestore save:', error);
+      });
+      if (requestGeneration !== profileRequestGeneration) return false;
+      const savedProfile = response.profile || response.data?.profile;
+      if (savedProfile) {
+        const currentProfile = get().profile;
+        set({
+          profile: normalizeProfile(userId, {
+            ...(currentProfile?.uid === userId ? currentProfile : {}),
+            ...savedProfile,
+          }),
         });
+      }
 
       return true;
     } catch (error: any) {
-      console.warn('Error updating profile:', error);
-      set({ error: error.message });
-      if (profile) set({ profile }); // revert
+      if (requestGeneration !== profileRequestGeneration) return false;
+      if (__DEV__) console.warn('Error updating profile:', error);
+      set({
+        profile: prevProfile,
+        error: error.message || 'Failed to update profile',
+        _loadedUserId: null,
+      });
       return false;
     }
+  },
+
+  hydrateNightlifePromptDismissed: async (userId) => {
+    nightlifePromptGeneration += 1;
+    const generation = nightlifePromptGeneration;
+    try {
+      const dismissed = await AsyncStorage.getItem(nightlifePromptDismissedKey(userId));
+      if (generation !== nightlifePromptGeneration) return;
+      set({ nightlifePromptDismissed: dismissed === 'true' });
+    } catch {
+      if (generation !== nightlifePromptGeneration) return;
+      set({ nightlifePromptDismissed: false });
+    }
+  },
+
+  dismissNightlifePrompt: async (userId) => {
+    nightlifePromptGeneration += 1;
+    set({ nightlifePromptDismissed: true });
+    try {
+      await AsyncStorage.setItem(nightlifePromptDismissedKey(userId), 'true');
+    } catch {
+      // Keep the in-memory dismissal for this session even if local storage is unavailable.
+    }
+  },
+
+  setProfileFromGateway: (userId: string, profile: Partial<UserProfile>) => {
+    profileRequestGeneration += 1;
+    profileLoadUserId = null;
+    set((state) => ({
+      profile: normalizeProfile(userId, {
+        ...(state.profile?.uid === userId ? state.profile : {}),
+        ...profile,
+      }),
+      loading: false,
+      error: null,
+      // Auth sync returns a canonical but intentionally partial profile. Keep it
+      // for immediate routing, then allow /users/me to hydrate private fields.
+      _loadedUserId: null,
+      _loadPromise: null,
+    }));
   },
 
   subscribeToProfile: (userId: string) => {
@@ -194,10 +420,26 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     return unsubscribe;
   },
 
+  invalidateProfileCache: () => {
+    profileRequestGeneration += 1;
+    profileLoadUserId = null;
+    set({ _loadedUserId: null, _loadPromise: null });
+  },
+
   clearProfile: () => {
-    // Unsubscribe from Firestore before clearing state
+    profileRequestGeneration += 1;
+    nightlifePromptGeneration += 1;
+    profileLoadUserId = null;
     get()._unsubscribe?.();
-    set({ profile: null, loading: false, error: null, _unsubscribe: null });
+    set({
+      profile: null,
+      loading: false,
+      error: null,
+      _unsubscribe: null,
+      _loadPromise: null,
+      _loadedUserId: null,
+      nightlifePromptDismissed: false,
+    });
   },
 }));
 

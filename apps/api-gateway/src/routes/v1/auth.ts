@@ -623,10 +623,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
         const body = request.body;
         const email = String(body.email).trim().toLowerCase();
         const displayName = body.displayName || 'Member';
+        const e164Phone = body.phone ? toE164(body.phone) : null;
         const userRecord = await fastify.auth.createUser({
           email,
           password: body.password,
           displayName,
+          ...(e164Phone && { phoneNumber: e164Phone }),
         });
 
         const profileDoc = buildGuestProfileCreatePayload(

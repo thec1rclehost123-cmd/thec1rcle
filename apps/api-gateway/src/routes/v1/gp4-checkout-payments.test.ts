@@ -363,6 +363,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
           keyId: 'rzp_test_key',
           keySecret: 'rzp_test_secret',
           allowMockPayment: false,
+          forceMockPayment: false,
         },
       }),
     );

@@ -66,6 +66,17 @@ export default [
         RequestInit: 'readonly',
         crypto: 'readonly',
         document: 'readonly',
+        // Jest/Testing Globals
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        jest: 'readonly',
+        fail: 'readonly',
+        global: 'readonly',
       },
     },
     rules: {

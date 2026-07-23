@@ -93,7 +93,7 @@ export function HostSheet({ visible, onClose, hostName, hostId, hostAvatar }: Ho
             contentContainerStyle={styles.content}
           >
             {/* Cover + Avatar hero */}
-            <Animated.View entering={FadeInDown.springify()} style={styles.hero}>
+            <Animated.View entering={FadeInDown} style={styles.hero}>
               {host?.coverImage ? (
                 <Image
                   source={{ uri: host.coverImage }}
@@ -127,7 +127,7 @@ export function HostSheet({ visible, onClose, hostName, hostId, hostAvatar }: Ho
             </Animated.View>
 
             {/* Name + verified */}
-            <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.nameRow}>
+            <Animated.View entering={FadeInDown.delay(80)} style={styles.nameRow}>
               <View style={styles.nameBlock}>
                 <Text style={styles.hostName}>{displayName}</Text>
                 {(host?.isVerified ?? true) && (
@@ -147,7 +147,7 @@ export function HostSheet({ visible, onClose, hostName, hostId, hostAvatar }: Ho
             </Animated.View>
 
             {/* Stats */}
-            <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.statsRow}>
+            <Animated.View entering={FadeInDown.delay(100)} style={styles.statsRow}>
               <View style={styles.stat}>
                 <Text style={styles.statValue}>{eventsHosted}</Text>
                 <Text style={styles.statLabel}>Events</Text>
@@ -172,7 +172,7 @@ export function HostSheet({ visible, onClose, hostName, hostId, hostAvatar }: Ho
 
             {/* Bio */}
             {host?.bio && (
-              <Animated.View entering={FadeInDown.delay(120).springify()} style={styles.section}>
+              <Animated.View entering={FadeInDown.delay(120)} style={styles.section}>
                 <Text style={styles.sectionTitle}>About</Text>
                 <Text style={styles.bioText}>{host.bio}</Text>
               </Animated.View>
@@ -180,7 +180,7 @@ export function HostSheet({ visible, onClose, hostName, hostId, hostAvatar }: Ho
 
             {/* Upcoming events */}
             {(host?.upcomingEvents?.length ?? 0) > 0 && (
-              <Animated.View entering={FadeInDown.delay(160).springify()} style={styles.section}>
+              <Animated.View entering={FadeInDown.delay(160)} style={styles.section}>
                 <Text style={styles.sectionTitle}>Upcoming Events</Text>
                 {host!.upcomingEvents!.map((ev) => (
                   <View key={ev.id} style={styles.eventRow}>

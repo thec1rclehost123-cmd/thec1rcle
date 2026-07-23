@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  withTiming,
   FadeInRight,
 } from 'react-native-reanimated';
 import { colors, radii, gradients } from '@/lib/design/theme';
@@ -47,11 +47,11 @@ export function HeroCard({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.97, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.97, { duration: 250 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(1, { duration: 250 });
   };
 
   const handlePress = () => {
@@ -62,8 +62,8 @@ export function HeroCard({
   return (
     <AnimatedPressable
       entering={FadeInRight.delay(index * 100)
-        .springify()
-        .damping(15)}
+
+        }
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={handlePress}

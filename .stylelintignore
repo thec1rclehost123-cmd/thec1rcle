@@ -1,2 +1,17 @@
-coverage/
+# Dependencies & node_modules
+node_modules/
+node_modules*/
+*.nosync/
+thec1rcle*/
+.archive/
+.codex*/
+_*
+qa-artifacts/
+
+# Build outputs
+.next/
+.expo/
 dist/
+build/
+out/
+coverage/

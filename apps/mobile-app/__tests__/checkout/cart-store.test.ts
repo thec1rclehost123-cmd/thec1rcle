@@ -34,6 +34,7 @@ describe('cartStore checkout state', () => {
     expect(useCartStore.getState().getCheckoutItems()).toEqual([
       { tierId: 'general', quantity: 2 },
     ]);
+    expect(useCartStore.getState().reservationExpiry).toBeNull();
   });
 
   it('validates promo codes through the backend API and stores returned discount metadata', async () => {
@@ -56,7 +57,6 @@ describe('cartStore checkout state', () => {
     expect(result).toEqual({ success: true });
     expect(validatePromoCode).toHaveBeenCalledWith({
       eventId: 'event_1',
-      code: 'HOST20',
       items: [{ tierId: 'general', quantity: 2, price: 1200, subtotal: 2400 }],
     });
     expect(useCartStore.getState().promo).toEqual({

@@ -2,36 +2,71 @@
  * THE C1RCLE - Mobile API Client
  * Connects mobile app to the SAME guest-portal backend APIs
  * ensuring full sync with web checkout, payments, and inventory.
+ *
+ * In DEMO_MODE, delegates to apiFetchMock so every screen works without a backend.
+ * Screens no longer need `if (DEMO_MODE)` branches — the mock is transparent.
  */
 
 import Constants from 'expo-constants';
 import { getFirebaseAuth } from './firebase';
+import { DEMO_MODE } from './demo';
+import { apiFetchMock } from './api-mock';
+import { Platform } from 'react-native';
+// In-flight request deduplication cache
+// Deduplicates concurrent requests to the same path+method across stores/components.
+const inFlightRequests = new Map<string, Promise<any>>();
 
-// Fastify API Gateway base URL
-// In development, dynamically derive the gateway URL from the Expo dev server host.
-// This means it works on any machine/IP without needing to hardcode the env var.
-// The API Gateway runs on port 4000, same machine as the Metro bundler.
-function getApiBase(): string {
-  // Explicit override via env var always wins
-  if (process.env.EXPO_PUBLIC_API_BASE_URL) {
-    return process.env.EXPO_PUBLIC_API_BASE_URL;
+export function deduplicateRequest<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  const inFlight = inFlightRequests.get(key);
+  if (inFlight) return inFlight as Promise<T>;
+
+  const promise = fetcher().finally(() => {
+    inFlightRequests.delete(key);
+  });
+  inFlightRequests.set(key, promise);
+  return promise;
+}
+
+function hostFromUri(value?: string | null): string | null {
+  if (!value) return null;
+  try {
+    const uri = value.includes('://') ? value : `http://${value}`;
+    return new URL(uri).hostname.replace(/^\[|\]$/g, '') || null;
+  } catch {
+    return null;
   }
+}
 
-  // In development, derive host from Expo's manifest
+function isLoopbackHost(host: string): boolean {
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+}
+
+// Fastify API Gateway base URL.
+// An explicit URL is authoritative. This lets physical Android development use
+// 127.0.0.1 safely with `adb reverse`, while EAS production builds use the URL
+// supplied by their build profile. Only derive a host when no URL was configured.
+function getApiBase(): string {
+  const explicitBase = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_GATEWAY_URL;
+  if (explicitBase) return explicitBase;
+
   if (__DEV__) {
-    const debuggerHost =
-      Constants.expoConfig?.hostUri ||
-      (Constants.manifest2 as any)?.extra?.expoClient?.hostUri ||
-      (Constants.manifest as any)?.debuggerHost;
+    const hostCandidates = [
+      Constants.expoConfig?.hostUri,
+      (Constants as any).linkingUri,
+      (Constants as any).expoGoConfig?.debuggerHost,
+      (Constants.manifest2 as any)?.extra?.expoClient?.hostUri,
+      (Constants.manifest as any)?.debuggerHost,
+    ]
+      .map(hostFromUri)
+      .filter((host): host is string => Boolean(host));
 
-    if (debuggerHost) {
-      // debuggerHost is "10.x.x.x:8081" — strip the port
-      const host = debuggerHost.split(':')[0];
+    const host =
+      hostCandidates.find((candidate) => !isLoopbackHost(candidate)) ??
+      (Platform.OS === 'android' ? '10.0.2.2' : hostCandidates[0]);
 
-      // 🛡️ ENHANCEMENT: If we have an explicit base URL from ENV, use it.
-      // Otherwise default to the host machine on the standard dev port (4000).
-      const devUrl = process.env.EXPO_PUBLIC_API_BASE_URL || `http://${host}:4000`;
-      console.log(`[API] Dev mode — using gateway: ${devUrl}`);
+    if (host) {
+      const devUrl = `http://${host}:4000`;
+      if (__DEV__) console.log(`[API] Dev mode - using gateway: ${devUrl}`);
       return devUrl;
     }
   }
@@ -43,6 +78,23 @@ const API_BASE = getApiBase();
 
 // All mobile HTTP calls go through the versioned gateway prefix
 const API_PREFIX = '/api/v1';
+
+type AuthSyncResponse = {
+  user?: any;
+  profile?: any;
+  claims?: Record<string, any>;
+  requiresTokenRefresh?: boolean;
+  onboarding?: import('./firstRun').FirstRunSnapshot;
+  snapshot?: import('./firstRun').FirstRunSnapshot;
+  requirements?: { minimumAccountAge?: number; minimumTastes?: number };
+  data?: {
+    user?: any;
+    profile?: any;
+    onboarding?: import('./firstRun').FirstRunSnapshot;
+    snapshot?: import('./firstRun').FirstRunSnapshot;
+    requirements?: { minimumAccountAge?: number; minimumTastes?: number };
+  };
+};
 
 /**
  * Get the current user's Firebase ID token for authenticated requests.
@@ -56,30 +108,51 @@ async function getAuthToken(): Promise<string | null> {
 
 /**
  * Core fetch wrapper with auth, error handling, and retries.
+ * In DEMO_MODE, transparently returns mock data.
  */
 async function apiFetch<T = any>(
   path: string,
   options: RequestInit & { requireAuth?: boolean; _retry?: boolean } = {},
 ): Promise<T> {
+  // In demo mode, delegate to mock API
+  if (DEMO_MODE) {
+    return apiFetchMock<T>(path, options);
+  }
   const { requireAuth = true, _retry = false, ...fetchOptions } = options;
 
   const appVersion = Constants.expoConfig?.version ?? 'unknown';
   const isFormData = fetchOptions.body instanceof FormData;
+  const hasBody = fetchOptions.body !== undefined && fetchOptions.body !== null;
   const headers: Record<string, string> = {
-    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(isFormData || !hasBody ? {} : { 'Content-Type': 'application/json' }),
     'X-App-Version': appVersion,
     ...(fetchOptions.headers as Record<string, string>),
   };
 
   if (requireAuth) {
-    // Pass forceRefresh=true if this is a retry
     const auth = getFirebaseAuth();
     const user = auth.currentUser;
     if (!user) {
       throw new Error('Authentication required. Please sign in.');
     }
 
-    const token = await user.getIdToken(_retry);
+    let token;
+    try {
+      token = await user.getIdToken(_retry);
+    } catch (error: any) {
+      const isDisabled =
+        error.code === 'auth/user-disabled' ||
+        error.code === 'auth/user-not-found' ||
+        error.message?.includes('auth/user-disabled') ||
+        error.message?.includes('auth/user-not-found');
+      if (isDisabled) {
+        getFirebaseAuth()
+          .signOut()
+          .catch(() => {});
+        throw new Error('Your account has been disabled or deleted. Please contact support.');
+      }
+      throw error;
+    }
     headers['Authorization'] = `Bearer ${token}`;
   }
 
@@ -92,12 +165,27 @@ async function apiFetch<T = any>(
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
+    if (__DEV__) console.log(`[API] Fetching ${url}...`);
     const response = await fetch(url, {
       ...fetchOptions,
       headers,
       signal: controller.signal,
     });
+    if (__DEV__) console.log(`[API] Fetch complete for ${url}. Status:`, response.status);
     clearTimeout(timeoutId);
+
+    // Handle 429 Too Many Requests — rate limited
+    if (response.status === 429) {
+      const retryAfter = response.headers.get('Retry-After') || response.headers.get('retry-after');
+      const waitSeconds = retryAfter ? parseInt(retryAfter, 10) : 60;
+      const rateError = new Error(
+        `Too many requests. Please wait ${waitSeconds} second${waitSeconds === 1 ? '' : 's'} before trying again.`,
+      );
+      (rateError as any).code = 'RATE_LIMITED';
+      (rateError as any).retryAfter = waitSeconds;
+      (rateError as any).status = 429;
+      throw rateError;
+    }
 
     // Handle 401 Unauthorized — potentially expired token
     if (response.status === 401 && requireAuth && !_retry) {
@@ -108,7 +196,15 @@ async function apiFetch<T = any>(
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || data.message || `Request failed (${response.status})`);
+      const errorMsg =
+        typeof data.error === 'string'
+          ? data.error
+          : data.error?.message || data.message || `Request failed (${response.status})`;
+      const requestError = new Error(errorMsg);
+      (requestError as any).code = data.error?.code || data.code || null;
+      (requestError as any).details = data.error?.details || data.details || null;
+      (requestError as any).status = response.status;
+      throw requestError;
     }
 
     return data as T;
@@ -197,6 +293,13 @@ export interface PricingResult {
       paymentFee?: number;
       gst?: number;
       total?: number;
+      waived?: boolean;
+      waivedBreakdown?: Record<string, number>;
+    };
+    subscription?: {
+      tier?: 'free' | 'premium';
+      bookingFeesWaived?: boolean;
+      bookingFeesSaved?: number;
     };
     platformFee?: number;
     grandTotal: number;
@@ -212,7 +315,6 @@ export interface PricingResult {
 export async function calculatePricing(payload: CalculateRequest): Promise<PricingResult> {
   return apiFetch<PricingResult>(`${API_PREFIX}/checkout/calculate`, {
     method: 'POST',
-    requireAuth: false,
     body: JSON.stringify(payload),
   });
 }
@@ -224,6 +326,7 @@ export interface InitiateCheckoutRequest {
   userPhone?: string;
   promoCode?: string | null;
   promoterCode?: string | null;
+  hostUpdatesOptIn?: boolean;
 }
 
 export interface InitiateCheckoutResponse {
@@ -238,7 +341,10 @@ export interface InitiateCheckoutResponse {
   };
   razorpay?: {
     orderId: string;
+    /** Human-readable amount in rupees, retained for API compatibility. */
     amount: number;
+    /** Authoritative Razorpay SDK amount in paise. */
+    amountPaise?: number;
     currency: string;
     key?: string;
   };
@@ -261,7 +367,7 @@ export async function initiateCheckout(
 }
 
 export interface VerifyPaymentRequest {
-  orderId: string;
+  orderId?: string;
   razorpay_order_id: string;
   razorpay_payment_id: string;
   razorpay_signature: string;
@@ -275,16 +381,17 @@ export interface VerifyPaymentResponse {
 
 /**
  * Step 4: Verify payment signature with backend
- * Uses: PATCH /api/payments
+ * Uses: POST /api/v1/checkout/verify
  */
 export async function verifyPayment(
   payload: VerifyPaymentRequest,
   options: ApiRequestOptions = {},
 ): Promise<VerifyPaymentResponse> {
-  return apiFetch<VerifyPaymentResponse>(`${API_PREFIX}/payments/verify`, {
-    method: 'PATCH',
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = payload;
+  return apiFetch<VerifyPaymentResponse>(`${API_PREFIX}/checkout/verify`, {
+    method: 'POST',
     headers: options.headers,
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ razorpay_order_id, razorpay_payment_id, razorpay_signature }),
   });
 }
 
@@ -296,6 +403,17 @@ export async function cancelOrder(orderId: string): Promise<{ success: boolean }
   return apiFetch(`${API_PREFIX}/checkout/cancel`, {
     method: 'POST',
     body: JSON.stringify({ orderId }),
+  });
+}
+
+/**
+ * Release an inventory reservation that has not become an order yet.
+ * Uses: POST /api/checkout/cancel
+ */
+export async function cancelReservation(reservationId: string): Promise<{ success: boolean }> {
+  return apiFetch(`${API_PREFIX}/checkout/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({ reservationId }),
   });
 }
 
@@ -379,6 +497,46 @@ export async function fetchEvents(params?: {
   const query = searchParams.toString();
   return apiFetch(`${API_PREFIX}/events${query ? `?${query}` : ''}`, {
     requireAuth: false,
+  });
+}
+
+export async function fetchPublicVenues(params?: {
+  city?: string;
+  area?: string;
+  search?: string;
+  tablesOnly?: boolean;
+  limit?: number;
+}): Promise<{ venues: any[]; items: any[]; nextCursor?: string | null; hasMore?: boolean }> {
+  const searchParams = new URLSearchParams();
+  if (params?.city) searchParams.set('city', params.city);
+  if (params?.area) searchParams.set('area', params.area);
+  if (params?.search) searchParams.set('search', params.search);
+  if (params?.tablesOnly) searchParams.set('tablesOnly', 'true');
+  searchParams.set('limit', String(params?.limit ?? 100));
+
+  const query = searchParams.toString();
+  const response = await apiFetch<{
+    items?: any[];
+    venues?: any[];
+    nextCursor?: string | null;
+    hasMore?: boolean;
+  }>(`${API_PREFIX}/public/venues${query ? `?${query}` : ''}`, {
+    requireAuth: false,
+  });
+  const items = response.items || response.venues || [];
+  return { ...response, items, venues: items };
+}
+
+export async function syncAuthSession(): Promise<AuthSyncResponse> {
+  const uid = getFirebaseAuth().currentUser?.uid;
+  if (!uid) {
+    throw new Error('Authentication required. Please sign in.');
+  }
+
+  return apiFetch<AuthSyncResponse>(`${API_PREFIX}/auth/sync`, {
+    method: 'POST',
+    requireAuth: true,
+    body: JSON.stringify({}),
   });
 }
 
@@ -527,6 +685,20 @@ export async function reclaimSharedTicket(payload: {
 export async function cancelShareBundle(payload: { bundleId: string }): Promise<any> {
   return apiFetch(`${API_PREFIX}/tickets/share`, {
     method: 'DELETE',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Revoke an already-claimed ticket from a share bundle (host only).
+ * Uses: POST /api/v1/tickets/share/revoke
+ */
+export async function revokeSharedTicket(payload: {
+  bundleId: string;
+  slotIndex: number;
+}): Promise<any> {
+  return apiFetch(`${API_PREFIX}/tickets/share/revoke`, {
+    method: 'POST',
     body: JSON.stringify(payload),
   });
 }

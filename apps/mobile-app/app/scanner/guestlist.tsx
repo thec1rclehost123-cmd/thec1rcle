@@ -211,7 +211,6 @@ export default function GuestListScreen() {
         </View>
       </View>
 
-      {/* M9: FlashList replaces FlatList — O(viewport) vs O(n) layout */}
       <FlashList
         bounces={false}
         overScrollMode="never"

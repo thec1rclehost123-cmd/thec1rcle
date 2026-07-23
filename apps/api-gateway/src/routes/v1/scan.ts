@@ -358,8 +358,33 @@ export default async function scanRoutes(fastify: FastifyInstance) {
             { qrData: qrData.substring(0, 60), requestId: request.id },
             'Bare ENT- ID presented to scanner (no QR signature envelope) — rejecting',
           );
+          return reply.status(400).send({ error: 'Bare entitlement ID not accepted', result: 'invalid' });
+        } else if (
+          typeof qrData === 'string' &&
+          (qrData.includes('.') || qrData.trim().startsWith('eyJ'))
+        ) {
+          const { verifyTicketQrJwt } = await import(
+            '../../../../../packages/core/ticket-checkout-wallet-service.js'
+          );
+          const verified = verifyTicketQrJwt(qrData.trim());
+          if (verified && verified.valid && verified.payload) {
+            payload = {
+              o: verified.payload.o || verified.payload.orderId,
+              t: verified.payload.t || verified.payload.ticketId,
+              e: verified.payload.e || verified.payload.eventId,
+              u: verified.payload.u || verified.payload.userId,
+              q: verified.payload.q || 1,
+              sig: 'jwt_verified',
+            };
+          } else {
+            return reply.status(400).send({
+              error: verified?.error || 'Expired or invalid ticket QR code',
+              result: 'invalid',
+            });
+          }
+        } else {
+          payload = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
         }
-        payload = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
       } catch (e) {
         return reply.status(400).send({ error: 'Invalid QR format', result: 'invalid' });
       }
@@ -495,7 +520,8 @@ export default async function scanRoutes(fastify: FastifyInstance) {
       const operator = getOperatorDetails(scannedBy);
       const liveEventId = eventId || payload.e;
 
-      const isSignatureValid = verifyScanSignature(payload);
+      const isSignatureValid =
+        payload.sig === 'jwt_verified' ? true : verifyScanSignature(payload);
       if (!isSignatureValid) {
         await recordScanAttempt(fastify.db, {
           orderId: payload.o,
@@ -633,6 +659,11 @@ export default async function scanRoutes(fastify: FastifyInstance) {
           return;
         }
         const now = new Date().toISOString();
+        const totalTickets = Number(order?.ticketCount || order?.quantity || 1);
+        const newCheckedInCount = (Number(order?.checkedInCount) || 0) + 1;
+        const newStatus =
+          newCheckedInCount >= totalTickets ? 'checked_in' : 'partially_checked_in';
+
         tx.set(scanRef, {
           orderId: payload.o,
           eventId: payload.e,
@@ -647,8 +678,14 @@ export default async function scanRoutes(fastify: FastifyInstance) {
           scannedAt: now,
           createdAt: now,
         });
-        if (order?.status === 'confirmed') {
-          tx.update(orderRef, { status: 'checked_in', checkedInAt: now, lastScanId: scanDocId });
+
+        if (order?.status === 'confirmed' || order?.status === 'partially_checked_in') {
+          tx.update(orderRef, {
+            status: newStatus,
+            checkedInCount: newCheckedInCount,
+            checkedInAt: now,
+            lastScanId: scanDocId,
+          });
         }
       });
 

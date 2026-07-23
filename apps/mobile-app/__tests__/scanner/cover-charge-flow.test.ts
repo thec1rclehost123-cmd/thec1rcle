@@ -5,13 +5,13 @@
 
 // Mocks must be before imports
 jest.mock('../../lib/scanner/api', () => ({
-  fetchWalletByOrder: jest.fn(),
+  fetchWalletByPaymentQr: jest.fn(),
   submitDebit: jest.fn(),
 }));
 
-import { fetchWalletByOrder, submitDebit } from '../../lib/scanner/api';
+import { fetchWalletByPaymentQr, submitDebit } from '../../lib/scanner/api';
 
-const mockFetchWallet = fetchWalletByOrder as jest.MockedFunction<typeof fetchWalletByOrder>;
+const mockFetchWallet = fetchWalletByPaymentQr as jest.MockedFunction<typeof fetchWalletByPaymentQr>;
 const mockSubmitDebit = submitDebit as jest.MockedFunction<typeof submitDebit>;
 
 const MOCK_WALLET = {
@@ -23,6 +23,7 @@ const MOCK_WALLET = {
   guestFirstName: 'Arjun',
   state: 'ACTIVE',
   terminationTime: null,
+  paymentQrJwt: 'wallet.jwt.token',
   rules: {
     allowedPresetItems: [
       { id: 'item_1', name: 'Beer', amountPaise: 40000, isAvailable: true, sortOrder: 1 },
@@ -43,9 +44,9 @@ beforeEach(() => {
 // ── Wallet loading ────────────────────────────────────────────────────────
 
 describe('wallet loading flow', () => {
-  it('SCANNING → WALLET_LOADED on successful fetchWalletByOrder', async () => {
+  it('SCANNING → WALLET_LOADED on successful fetchWalletByPaymentQr', async () => {
     mockFetchWallet.mockResolvedValueOnce({ wallet: MOCK_WALLET });
-    const result = await fetchWalletByOrder('order_1', SESSION_TOKEN);
+    const result = await fetchWalletByPaymentQr('wallet.jwt.token', SESSION_TOKEN);
     expect('wallet' in result).toBe(true);
     if ('wallet' in result) {
       expect(result.wallet.guestFirstName).toBe('Arjun');
@@ -54,13 +55,13 @@ describe('wallet loading flow', () => {
 
   it('SCANNING → DEBIT_ERROR on 404 wallet response', async () => {
     mockFetchWallet.mockResolvedValueOnce({ error: 'No active wallet for this order' });
-    const result = await fetchWalletByOrder('missing_order', SESSION_TOKEN);
+    const result = await fetchWalletByPaymentQr('expired.jwt.token', SESSION_TOKEN);
     expect('error' in result).toBe(true);
   });
 
   it('SCANNING → DEBIT_ERROR on network failure', async () => {
     mockFetchWallet.mockRejectedValueOnce(new Error('Network error'));
-    await expect(fetchWalletByOrder('order_1', SESSION_TOKEN)).rejects.toThrow();
+    await expect(fetchWalletByPaymentQr('wallet.jwt.token', SESSION_TOKEN)).rejects.toThrow();
   });
 });
 
@@ -72,12 +73,12 @@ describe('debit flow', () => {
     const result = await submitDebit(
       {
         walletId: 'wallet_1',
+        paymentQrJwt: 'wallet.jwt.token',
         presetItemId: 'item_1',
         quantity: 1,
         idempotencyKey: 'key_1',
         operatorId: 'scanner_code',
         operatorName: 'Scanner',
-        operatorRole: 'door_staff',
         deviceId: 'test_device',
         eventCodeId: 'code_1',
         isOnline: true,
@@ -93,12 +94,12 @@ describe('debit flow', () => {
     const result = await submitDebit(
       {
         walletId: 'wallet_1',
+        paymentQrJwt: 'wallet.jwt.token',
         presetItemId: 'item_1',
         quantity: 1,
         idempotencyKey: 'key_1',
         operatorId: 'scanner_code',
         operatorName: 'Scanner',
-        operatorRole: 'door_staff',
         deviceId: 'test_device',
         eventCodeId: 'code_1',
         isOnline: true,
@@ -117,12 +118,12 @@ describe('debit flow', () => {
     await submitDebit(
       {
         walletId: 'w1',
+        paymentQrJwt: 'wallet.jwt.token',
         presetItemId: 'i1',
         quantity: 1,
         idempotencyKey: key,
         operatorId: 'op',
         operatorName: 'S',
-        operatorRole: 'staff',
         deviceId: 'd1',
         eventCodeId: 'c1',
         isOnline: true,
@@ -135,12 +136,12 @@ describe('debit flow', () => {
     await submitDebit(
       {
         walletId: 'w1',
+        paymentQrJwt: 'wallet.jwt.token',
         presetItemId: 'i1',
         quantity: 1,
         idempotencyKey: key,
         operatorId: 'op',
         operatorName: 'S',
-        operatorRole: 'staff',
         deviceId: 'd1',
         eventCodeId: 'c1',
         isOnline: true,

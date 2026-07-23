@@ -27,7 +27,6 @@ export function useDiscoverProfiles() {
       }
       return response.data.profiles;
     },
-    // Prevent immediate refetching since this represents a deck of users
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }

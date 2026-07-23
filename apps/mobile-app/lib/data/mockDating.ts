@@ -15,7 +15,7 @@ export type DatingProfile = {
   name: string;
   age: number;
   headline: string;
-  sharedEvent: string;
+  sharedEventTitle: string;
   venue: string;
   distance: string;
   profileRouteId: string;
@@ -30,7 +30,7 @@ export const MOCK_PROFILES: DatingProfile[] = [
     name: 'Arya',
     age: 26,
     headline: 'House, rooftop sets, and leaving right before the encore ends.',
-    sharedEvent: 'Aqua Sundays',
+    sharedEventTitle: 'Aqua Sundays',
     venue: 'The Bund, Pune',
     distance: '2 km away',
     profileRouteId: 'fallback-arya',
@@ -75,7 +75,7 @@ export const MOCK_PROFILES: DatingProfile[] = [
     name: 'Neil',
     age: 28,
     headline: 'Table host by accident, playlist critic by choice.',
-    sharedEvent: 'Midnight Club',
+    sharedEventTitle: 'Midnight Club',
     venue: 'District Club, Pune',
     distance: '4 km away',
     profileRouteId: 'fallback-neil',
@@ -120,7 +120,7 @@ export const MOCK_PROFILES: DatingProfile[] = [
     name: 'Riya',
     age: 25,
     headline: 'Here for sundowners, sharp fits, and people who actually read the invite.',
-    sharedEvent: 'Velvet Nights',
+    sharedEventTitle: 'Velvet Nights',
     venue: 'Anjuna Beach, Goa',
     distance: '9 km away',
     profileRouteId: 'fallback-riya',

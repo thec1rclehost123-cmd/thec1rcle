@@ -15,7 +15,6 @@ export default function SocialLayout() {
       <Stack.Screen name="report" options={{ presentation: 'modal' }} />
       <Stack.Screen name="profile/[id]" />
       <Stack.Screen name="requests" />
-      <Stack.Screen name="contacts" />
       <Stack.Screen name="gallery/[eventId]" />
       <Stack.Screen name="matches" />
     </Stack>

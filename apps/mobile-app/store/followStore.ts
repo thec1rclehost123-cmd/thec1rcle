@@ -1,68 +1,81 @@
 /**
  * followStore.ts
  * Tracks which venues and hosts the signed-in user follows.
- *
- * Firestore layout:
- *   userFollows/{userId}/venues/{venueId}  — user-centric lookup (Set source)
- *   userFollows/{userId}/hosts/{hostId}    — user-centric lookup
- *   venueFollowers/{venueId}/followers/{userId}  — venue-centric mirror
- *   hostFollowers/{hostId}/followers/{userId}    — host-centric mirror
  */
 import { create } from 'zustand';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  deleteDoc,
-  getDocs,
-  collection,
-  serverTimestamp,
-} from 'firebase/firestore';
-import { apiFetch } from '@/lib/api';
-
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
+import { apiFetch, deduplicateRequest } from '@/lib/api';
+import { createLatestRequestGuard } from '@/lib/requestGuard';
 
 interface FollowState {
   followedVenueIds: Set<string>;
   followedHostIds: Set<string>;
   /** true once fetchFollows() has completed at least once for the current user */
   loaded: boolean;
+  loadedUserId: string | null;
+  loadingUserId: string | null;
 
   fetchFollows: (userId: string) => Promise<void>;
   toggleVenueFollow: (venueId: string, venueName: string, userId: string) => Promise<void>;
   toggleHostFollow: (hostId: string, hostName: string, userId: string) => Promise<void>;
-  isFollowingVenue: (venueId: string) => boolean;
-  isFollowingHost: (hostId: string) => boolean;
+  isFollowingVenue: (venueId: string, userId?: string | null) => boolean;
+  isFollowingHost: (hostId: string, userId?: string | null) => boolean;
+  clearFollows: () => void;
 }
+
+const followRequestGuard = createLatestRequestGuard();
 
 export const useFollowStore = create<FollowState>((set, get) => ({
   followedVenueIds: new Set(),
   followedHostIds: new Set(),
   loaded: false,
+  loadedUserId: null,
+  loadingUserId: null,
 
   fetchFollows: async (userId) => {
-    if (!userId) return;
-    try {
-      const db = getDb();
-      const [venueSnap, hostSnap] = await Promise.all([
-        getDocs(collection(db, 'userFollows', userId, 'venues')),
-        getDocs(collection(db, 'userFollows', userId, 'hosts')),
-      ]);
+    const requestedUserId = userId.trim();
+    if (!requestedUserId) return;
+
+    const current = get();
+    if (current.loaded && current.loadedUserId === requestedUserId) return;
+
+    const requestToken = followRequestGuard.begin(requestedUserId);
+    if (current.loadedUserId !== requestedUserId) {
       set({
-        followedVenueIds: new Set(venueSnap.docs.map((d) => d.id)),
-        followedHostIds: new Set(hostSnap.docs.map((d) => d.id)),
+        followedVenueIds: new Set(),
+        followedHostIds: new Set(),
+        loaded: false,
+        loadedUserId: null,
+        loadingUserId: requestedUserId,
+      });
+    } else {
+      set({ loadingUserId: requestedUserId });
+    }
+
+    try {
+      const response = await deduplicateRequest<{
+        data?: { follows?: { venueIds?: string[]; hostIds?: string[] } };
+        follows?: { venueIds?: string[]; hostIds?: string[] };
+      }>(`followStore:follows:${requestedUserId}`, () => apiFetch('/api/v1/users/me/follows'));
+      if (!followRequestGuard.isCurrent(requestToken)) return;
+      const follows = response.data?.follows ?? response.follows ?? {};
+      set({
+        followedVenueIds: new Set(follows.venueIds ?? []),
+        followedHostIds: new Set(follows.hostIds ?? []),
         loaded: true,
+        loadedUserId: requestedUserId,
+        loadingUserId: null,
       });
     } catch (e) {
+      if (!followRequestGuard.isCurrent(requestToken)) return;
+      set({ loadingUserId: null });
       console.error('[FollowStore] fetchFollows error', e);
     }
   },
 
   toggleVenueFollow: async (venueId, venueName, userId) => {
     if (!userId) return;
+    if (get().loadedUserId !== userId) await get().fetchFollows(userId);
+    if (get().loadedUserId !== userId) return;
     const { followedVenueIds } = get();
     const isFollowing = followedVenueIds.has(venueId);
 
@@ -79,13 +92,15 @@ export const useFollowStore = create<FollowState>((set, get) => ({
       });
     } catch (e) {
       // Rollback
-      set({ followedVenueIds });
+      if (get().loadedUserId === userId) set({ followedVenueIds });
       console.error('[FollowStore] toggleVenueFollow error', e);
     }
   },
 
   toggleHostFollow: async (hostId, hostName, userId) => {
     if (!userId) return;
+    if (get().loadedUserId !== userId) await get().fetchFollows(userId);
+    if (get().loadedUserId !== userId) return;
     const { followedHostIds } = get();
     const isFollowing = followedHostIds.has(hostId);
 
@@ -95,24 +110,28 @@ export const useFollowStore = create<FollowState>((set, get) => ({
     set({ followedHostIds: next });
 
     try {
-      const db = getDb();
-      const userRef = doc(db, 'userFollows', userId, 'hosts', hostId);
-      const hostRef = doc(db, 'hostFollowers', hostId, 'followers', userId);
-      if (isFollowing) {
-        await Promise.all([deleteDoc(userRef), deleteDoc(hostRef)]);
-      } else {
-        const ts = { followedAt: serverTimestamp() };
-        await Promise.all([
-          setDoc(userRef, { ...ts, hostId, hostName }),
-          setDoc(hostRef, { ...ts, userId }),
-        ]);
-      }
+      await apiFetch(`/api/v1/hosts/${encodeURIComponent(hostId)}/follow`, {
+        method: isFollowing ? 'DELETE' : 'POST',
+        body: isFollowing ? undefined : JSON.stringify({ hostName }),
+      });
     } catch (e) {
-      set({ followedHostIds });
+      if (get().loadedUserId === userId) set({ followedHostIds });
       console.error('[FollowStore] toggleHostFollow error', e);
     }
   },
 
-  isFollowingVenue: (venueId) => get().followedVenueIds.has(venueId),
-  isFollowingHost: (hostId) => get().followedHostIds.has(hostId),
+  isFollowingVenue: (venueId, userId) =>
+    Boolean(userId && get().loadedUserId === userId && get().followedVenueIds.has(venueId)),
+  isFollowingHost: (hostId, userId) =>
+    Boolean(userId && get().loadedUserId === userId && get().followedHostIds.has(hostId)),
+  clearFollows: () => {
+    followRequestGuard.invalidate();
+    set({
+      followedVenueIds: new Set(),
+      followedHostIds: new Set(),
+      loaded: false,
+      loadedUserId: null,
+      loadingUserId: null,
+    });
+  },
 }));

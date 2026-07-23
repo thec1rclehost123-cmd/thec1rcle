@@ -1,0 +1,98 @@
+{
+  "project_info": {
+    "project_number": "281421756463",
+    "project_id": "c1rcle-staging",
+    "storage_bucket": "c1rcle-staging.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:281421756463:android:9de4b2437e5e124c5ceeda",
+        "android_client_info": {
+          "package_name": "com.c1rcle.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "281421756463-v433qo9viklstd5rutnph9gp9501al02.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.c1rcle.app",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "281421756463-6kqvsvkl2sbdu2ls4c0q9sp8mroij0dh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC3u4zlmRENNDaUeOo3CC5PGSw0URzW9nI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "281421756463-6kqvsvkl2sbdu2ls4c0q9sp8mroij0dh.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "281421756463-0dganqqnatehgidijr5n40cmdgmg3699.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.c1rcle.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:281421756463:android:744858430d256b325ceeda",
+        "android_client_info": {
+          "package_name": "com.example.circlestaging"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "281421756463-6rmrt16i1aujmhvp4m2n2gon80oui17o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.circlestaging",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "281421756463-6kqvsvkl2sbdu2ls4c0q9sp8mroij0dh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC3u4zlmRENNDaUeOo3CC5PGSw0URzW9nI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "281421756463-6kqvsvkl2sbdu2ls4c0q9sp8mroij0dh.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "281421756463-0dganqqnatehgidijr5n40cmdgmg3699.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.c1rcle.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

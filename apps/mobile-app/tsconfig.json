@@ -1,6 +1,18 @@
 {
-  "extends": "expo/tsconfig.base",
   "compilerOptions": {
+    "allowJs": true,
+    "esModuleInterop": true,
+    "lib": [
+      "DOM",
+      "ESNext"
+    ],
+    "moduleDetection": "force",
+    "customConditions": [
+      "react-native"
+    ],
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "target": "ESNext",
     "strict": true,
     "skipLibCheck": true,
     "module": "esnext",
@@ -24,7 +36,10 @@
         "./store/*"
       ]
     },
-    "typeRoots": ["./node_modules/@types", "../../node_modules/@types"]
+    "typeRoots": [
+      "./node_modules/@types",
+      "../../node_modules/@types"
+    ]
   },
   "include": [
     "**/*.ts",
@@ -42,5 +57,6 @@
     ".turbo",
     "functions",
     "coverage"
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }

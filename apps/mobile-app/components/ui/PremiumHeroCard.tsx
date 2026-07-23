@@ -10,7 +10,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+
   withTiming,
   withRepeat,
   withSequence,
@@ -112,14 +112,14 @@ export function PremiumHeroCard({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
-    rotateX.value = withSpring(2, { damping: 20 });
+    scale.value = withTiming(0.96, { duration: 250 });
+    rotateX.value = withTiming(2, { duration: 250 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 12, stiffness: 300 });
-    rotateX.value = withSpring(0, { damping: 15 });
-    rotateY.value = withSpring(0, { damping: 15 });
+    scale.value = withTiming(1, { duration: 250 });
+    rotateX.value = withTiming(0, { duration: 250 });
+    rotateY.value = withTiming(0, { duration: 250 });
   };
 
   const handlePress = () => {
@@ -130,8 +130,8 @@ export function PremiumHeroCard({
   return (
     <AnimatedPressable
       entering={SlideInUp.delay(index * 120)
-        .springify()
-        .damping(14)}
+
+        }
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={handlePress}
@@ -176,7 +176,12 @@ export function PremiumHeroCard({
         {/* Category badge with glass effect */}
         {category && (
           <Animated.View entering={FadeIn.delay(300)} style={styles.categoryBadge}>
-            <BlurView intensity={40} tint="dark" style={styles.categoryBlur}>
+            <BlurView
+              blurMethod="dimezisBlurView"
+              intensity={40}
+              tint="dark"
+              style={styles.categoryBlur}
+            >
               <LinearGradient
                 colors={['rgba(244,74,34,0.9)', 'rgba(255,107,74,0.9)']}
                 start={{ x: 0, y: 0 }}
@@ -202,7 +207,12 @@ export function PremiumHeroCard({
       <View style={styles.content}>
         {/* Date chip with frosted glass */}
         <View style={styles.dateChip}>
-          <BlurView intensity={50} tint="dark" style={styles.dateBlur}>
+          <BlurView
+            blurMethod="dimezisBlurView"
+            intensity={50}
+            tint="dark"
+            style={styles.dateBlur}
+          >
             <Text style={styles.dateIcon}>📅</Text>
             <Text style={styles.dateText}>{date}</Text>
           </BlurView>

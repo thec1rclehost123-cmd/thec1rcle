@@ -88,6 +88,7 @@ export class CheckoutService {
       keyId?: string;
       keySecret?: string;
       allowMockPayment?: boolean;
+      forceMockPayment?: boolean;
     };
   }): Promise<any> {
     const { eventId, tierId, quantity, user, workspaceId = null } = params;
@@ -208,6 +209,7 @@ export class CheckoutService {
           keyId: params.paymentGatewayConfig.keyId || '',
           keySecret: params.paymentGatewayConfig.keySecret || '',
           allowMockPayment: params.paymentGatewayConfig.allowMockPayment,
+          forceMockPayment: params.paymentGatewayConfig.forceMockPayment,
         },
       });
 
