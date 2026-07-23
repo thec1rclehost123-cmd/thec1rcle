@@ -1,2 +1,13 @@
-coverage/
+# Dependencies & node_modules
+node_modules/
+node_modules_*/
+*.nosync/
+.archive/
+
+# Build outputs
+.next/
+.expo/
 dist/
+build/
+out/
+coverage/

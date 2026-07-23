@@ -5,7 +5,6 @@
   "type": "module",
   "workspaces": [
     "apps/*",
-    "!apps/mobile-app-backup",
     "packages/*"
   ],
   "scripts": {
