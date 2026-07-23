@@ -7,28 +7,38 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Keyboard,
   Share,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useTicketsStore } from '@/store/ticketsStore';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
 import { initiateTransfer, acceptTransfer } from '@/lib/transfers';
 import * as Haptics from 'expo-haptics';
+import { colors, typography } from '@/lib/design/theme';
 
 export default function TransferScreen() {
-  const { orderId, ticketName } = useLocalSearchParams<{ orderId?: string; ticketName?: string }>();
+  const { ticketId, ticketName } = useLocalSearchParams<{
+    ticketId?: string;
+    ticketName?: string;
+  }>();
   const { user } = useAuthStore();
   const { fetchUserOrders } = useTicketsStore();
+  const openPaywall = useSubscriptionStore((state) => state.openPaywall);
 
   const [mode, setMode] = useState<'send' | 'receive'>('send');
   const [recipientEmail, setRecipientEmail] = useState('');
   const [transferCode, setTransferCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [transferResult, setTransferResult] = useState<{ code: string } | null>(null);
+  const [transferResult, setTransferResult] = useState<{ code: string; expiresAt?: string } | null>(null);
 
   const handleInitiateTransfer = async () => {
-    if (!orderId || !user?.uid || !recipientEmail.trim()) {
+    Keyboard.dismiss();
+
+    if (!ticketId || !user?.uid || !recipientEmail.trim()) {
       Alert.alert('Error', 'Please enter recipient email');
       return;
     }
@@ -37,7 +47,7 @@ export default function TransferScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const result = await initiateTransfer(
-      orderId,
+      ticketId,
       user.uid,
       { tierName: ticketName || 'Ticket', quantity: 1 },
       recipientEmail.trim(),
@@ -46,13 +56,21 @@ export default function TransferScreen() {
     setLoading(false);
 
     if (result.success && result.transferCode) {
-      setTransferResult({ code: result.transferCode });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTransferResult({ code: result.transferCode, expiresAt: result.expiresAt });
     } else {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (result.premiumRequired) {
+        openPaywall('ticketTransfers', result.error);
+        return;
+      }
       Alert.alert('Error', result.error || 'Failed to initiate transfer');
     }
   };
 
   const handleAcceptTransfer = async () => {
+    Keyboard.dismiss();
+
     if (!user?.uid || !transferCode.trim()) {
       Alert.alert('Error', 'Please enter transfer code');
       return;
@@ -67,7 +85,7 @@ export default function TransferScreen() {
 
     if (result.success) {
       if (user?.uid) {
-        await fetchUserOrders(user.uid).catch(() => {});
+        await fetchUserOrders().catch(() => {});
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Success! 🎉', 'Ticket transferred successfully! Check your My Tickets.', [
@@ -82,8 +100,11 @@ export default function TransferScreen() {
     if (!transferResult?.code) return;
 
     try {
+      const expiryText = transferResult.expiresAt
+        ? `Expires ${new Date(transferResult.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`
+        : 'Code expires in 24 hours.';
       await Share.share({
-        message: `🎟️ I'm sending you a ticket!\n\nUse this code in THE C1RCLE app to claim it:\n\n${transferResult.code}\n\nCode expires in 24 hours.`,
+        message: `I'm sending you a ticket!\n\nUse this code in THE C1RCLE app to claim it:\n\n${transferResult.code}\n\n${expiryText}`,
       });
     } catch (error) {
       console.error('Error sharing:', error);
@@ -93,33 +114,39 @@ export default function TransferScreen() {
   // Success state after initiating transfer
   if (transferResult) {
     return (
-      <SafeAreaView className="flex-1 bg-midnight">
-        <View className="flex-row items-center px-4 py-4 border-b border-white/10">
-          <Pressable onPress={() => router.back()} className="mr-4">
-            <Text className="text-gold text-lg">← Back</Text>
+      <SafeAreaView style={styles.screen}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backButtonText}>← Back</Text>
           </Pressable>
-          <Text className="text-gold font-satoshi-bold text-xl">Transfer Ticket</Text>
+          <Text style={styles.headerTitle}>Transfer Ticket</Text>
         </View>
 
-        <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-6xl mb-4">✅</Text>
-          <Text className="text-gold font-satoshi-bold text-2xl mb-2">Transfer Initiated!</Text>
-          <Text className="text-gold-stone text-center mb-8">Share this code with your friend</Text>
+        <View style={styles.successContent}>
+          <Text style={styles.successIcon}>✅</Text>
+          <Text style={styles.successTitle}>Transfer Initiated!</Text>
+          <Text style={styles.successSubtitle}>Share this code with your friend</Text>
 
-          <View className="bg-midnight-100 rounded-bubble border border-iris p-6 mb-6 w-full items-center">
-            <Text className="text-gold-stone text-sm mb-2">Transfer Code</Text>
-            <Text className="text-iris font-satoshi-black text-4xl tracking-widest">
-              {transferResult.code}
-            </Text>
-            <Text className="text-gold-stone text-xs mt-3">Expires in 24 hours</Text>
+          <View style={styles.codeBox}>
+            <Text style={styles.codeLabel}>Transfer Code</Text>
+            <Text style={styles.codeText}>{transferResult.code}</Text>
+            {transferResult.expiresAt ? (
+              <Text style={styles.codeExpiry}>
+                Expires {new Date(transferResult.expiresAt).toLocaleDateString('en-US', {
+                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+                })}
+              </Text>
+            ) : (
+              <Text style={styles.codeExpiry}>Expires in 24 hours</Text>
+            )}
           </View>
 
-          <Pressable onPress={handleShareCode} className="bg-iris py-4 px-8 rounded-pill mb-4">
-            <Text className="text-white font-semibold">Share Code 📤</Text>
+          <Pressable onPress={handleShareCode} style={styles.shareButton}>
+            <Text style={styles.shareButtonText}>Share Code 📤</Text>
           </Pressable>
 
-          <Pressable onPress={() => router.back()} className="py-3">
-            <Text className="text-gold-stone">Done</Text>
+          <Pressable onPress={() => router.back()} style={styles.doneButton}>
+            <Text style={styles.doneButtonText}>Done</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -127,37 +154,37 @@ export default function TransferScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-midnight">
+    <SafeAreaView style={styles.screen}>
       {/* Header */}
-      <View className="flex-row items-center px-4 py-4 border-b border-white/10">
-        <Pressable onPress={() => router.back()} className="mr-4">
-          <Text className="text-gold text-lg">← Back</Text>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Text style={styles.backButtonText}>← Back</Text>
         </Pressable>
-        <Text className="text-gold font-satoshi-bold text-xl">Transfer Ticket</Text>
+        <Text style={styles.headerTitle}>Transfer Ticket</Text>
       </View>
 
       <ScrollView
         bounces={false}
         overScrollMode="never"
-        className="flex-1 px-4"
-        contentContainerStyle={{ paddingVertical: 20 }}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Mode Selector */}
-        <View className="flex-row bg-surface rounded-pill p-1 mb-6 border border-white/10">
+        <View style={styles.modeSelector}>
           <Pressable
             onPress={() => setMode('send')}
-            className={`flex-1 py-3 rounded-pill items-center ${mode === 'send' ? 'bg-iris' : ''}`}
+            style={[styles.modeButton, mode === 'send' && styles.modeButtonActive]}
           >
-            <Text className={mode === 'send' ? 'text-white font-semibold' : 'text-gold-stone'}>
+            <Text style={[styles.modeButtonText, mode === 'send' && styles.modeButtonTextActive]}>
               Send Ticket
             </Text>
           </Pressable>
           <Pressable
             onPress={() => setMode('receive')}
-            className={`flex-1 py-3 rounded-pill items-center ${mode === 'receive' ? 'bg-iris' : ''}`}
+            style={[styles.modeButton, mode === 'receive' && styles.modeButtonActive]}
           >
-            <Text className={mode === 'receive' ? 'text-white font-semibold' : 'text-gold-stone'}>
+            <Text style={[styles.modeButtonText, mode === 'receive' && styles.modeButtonTextActive]}>
               Receive Ticket
             </Text>
           </Pressable>
@@ -166,12 +193,12 @@ export default function TransferScreen() {
         {mode === 'send' ? (
           <>
             {/* Send Ticket Mode */}
-            <View className="bg-midnight-100 rounded-bubble border border-white/10 p-4 mb-6">
-              <Text className="text-gold font-semibold mb-1">📤 Sending</Text>
-              <Text className="text-iris">{ticketName || '1 Ticket'}</Text>
+            <View style={styles.sendingCard}>
+              <Text style={styles.sendingLabel}>📤 Sending</Text>
+              <Text style={styles.sendingValue}>{ticketName || '1 Ticket'}</Text>
             </View>
 
-            <Text className="text-gold-stone text-sm mb-2">Recipient's Email</Text>
+            <Text style={styles.inputLabel}>Recipient's Email</Text>
             <TextInput
               placeholder="friend@email.com"
               placeholderTextColor="#666"
@@ -179,36 +206,35 @@ export default function TransferScreen() {
               autoCapitalize="none"
               value={recipientEmail}
               onChangeText={setRecipientEmail}
-              className="bg-surface border border-white/10 rounded-bubble px-4 py-4 text-gold mb-6"
+              style={styles.textInput}
             />
 
             <Pressable
               onPress={handleInitiateTransfer}
               disabled={loading || !recipientEmail.trim()}
-              className={`py-4 rounded-pill items-center ${
-                loading || !recipientEmail.trim() ? 'bg-iris/50' : 'bg-iris'
-              }`}
+              style={[
+                styles.primaryButton,
+                (loading || !recipientEmail.trim()) && styles.primaryButtonDisabled,
+              ]}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text className="text-white font-semibold text-lg">Generate Transfer Code</Text>
+                <Text style={styles.primaryButtonText}>Generate Transfer Code</Text>
               )}
             </Pressable>
 
-            <Text className="text-gold-stone text-xs text-center mt-4">
+            <Text style={styles.helperText}>
               The recipient will need to enter the code in the app to receive the ticket
             </Text>
           </>
         ) : (
           <>
             {/* Receive Ticket Mode */}
-            <View className="items-center mb-6">
-              <Text className="text-6xl mb-4">🎟️</Text>
-              <Text className="text-gold font-semibold text-lg">Enter Transfer Code</Text>
-              <Text className="text-gold-stone text-center mt-2">
-                Ask your friend for the 6-character code
-              </Text>
+            <View style={styles.receiveHeader}>
+              <Text style={styles.receiveIcon}>🎟️</Text>
+              <Text style={styles.receiveTitle}>Enter Transfer Code</Text>
+              <Text style={styles.receiveSubtitle}>Ask your friend for the 6-character code</Text>
             </View>
 
             <TextInput
@@ -218,20 +244,21 @@ export default function TransferScreen() {
               maxLength={6}
               value={transferCode}
               onChangeText={setTransferCode}
-              className="bg-surface border border-white/10 rounded-bubble px-4 py-4 text-gold text-center text-2xl font-bold tracking-widest mb-6"
+              style={styles.codeInput}
             />
 
             <Pressable
               onPress={handleAcceptTransfer}
               disabled={loading || transferCode.length !== 6}
-              className={`py-4 rounded-pill items-center ${
-                loading || transferCode.length !== 6 ? 'bg-iris/50' : 'bg-iris'
-              }`}
+              style={[
+                styles.primaryButton,
+                (loading || transferCode.length !== 6) && styles.primaryButtonDisabled,
+              ]}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text className="text-white font-semibold text-lg">Claim Ticket</Text>
+                <Text style={styles.primaryButtonText}>Claim Ticket</Text>
               )}
             </Pressable>
           </>
@@ -240,3 +267,209 @@ export default function TransferScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: colors.base.DEFAULT,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  backButton: {
+    marginRight: 16,
+  },
+  backButtonText: {
+    color: colors.gold,
+    fontSize: 18,
+  },
+  headerTitle: {
+    color: colors.gold,
+    fontFamily: typography.fontFamily.heading,
+    fontSize: 20,
+  },
+  successContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  successIcon: {
+    fontSize: 60,
+    marginBottom: 16,
+  },
+  successTitle: {
+    color: colors.gold,
+    fontFamily: typography.fontFamily.heading,
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  successSubtitle: {
+    color: colors.goldStone,
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  codeBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.iris,
+    padding: 24,
+    marginBottom: 24,
+    width: '100%',
+    alignItems: 'center',
+  },
+  codeLabel: {
+    color: colors.goldStone,
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  codeText: {
+    color: colors.iris,
+    fontFamily: typography.fontFamily.brandAccent,
+    fontSize: 36,
+    letterSpacing: 4,
+  },
+  codeExpiry: {
+    color: colors.goldStone,
+    fontSize: 12,
+    marginTop: 12,
+  },
+  shareButton: {
+    backgroundColor: colors.iris,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 999,
+    marginBottom: 16,
+  },
+  shareButtonText: {
+    color: '#fff',
+    fontFamily: typography.fontFamily.heading,
+  },
+  doneButton: {
+    paddingVertical: 12,
+  },
+  doneButtonText: {
+    color: colors.goldStone,
+  },
+  scrollView: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  scrollContent: {
+    paddingVertical: 20,
+  },
+  modeSelector: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 999,
+    padding: 4,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modeButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  modeButtonActive: {
+    backgroundColor: colors.iris,
+  },
+  modeButtonText: {
+    color: colors.goldStone,
+  },
+  modeButtonTextActive: {
+    color: '#fff',
+    fontFamily: typography.fontFamily.heading,
+  },
+  sendingCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 16,
+    marginBottom: 24,
+  },
+  sendingLabel: {
+    color: colors.gold,
+    fontFamily: typography.fontFamily.heading,
+    marginBottom: 4,
+  },
+  sendingValue: {
+    color: colors.iris,
+  },
+  inputLabel: {
+    color: colors.goldStone,
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  textInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    color: colors.gold,
+    marginBottom: 24,
+  },
+  primaryButton: {
+    backgroundColor: colors.iris,
+    paddingVertical: 16,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  primaryButtonDisabled: {
+    backgroundColor: 'rgba(244, 74, 34, 0.5)', // iris/50
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontFamily: typography.fontFamily.heading,
+    fontSize: 18,
+  },
+  helperText: {
+    color: colors.goldStone,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 16,
+  },
+  receiveHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  receiveIcon: {
+    fontSize: 60,
+    marginBottom: 16,
+  },
+  receiveTitle: {
+    color: colors.gold,
+    fontFamily: typography.fontFamily.heading,
+    fontSize: 18,
+  },
+  receiveSubtitle: {
+    color: colors.goldStone,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  codeInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    color: colors.gold,
+    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: 'bold',
+    letterSpacing: 4,
+    marginBottom: 24,
+  },
+});

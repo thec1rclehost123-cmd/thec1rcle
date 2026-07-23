@@ -1,10 +1,13 @@
 // UI Components Index
+export { GuestAuthPrompt } from './GuestAuthPrompt';
 export { Button } from './Button';
 export { Card } from './Card';
 export { Input } from './Input';
 export {
+  Skeleton,
   Shimmer,
   EventCardSkeleton,
+  EventCardSkeletonList,
   HeroCardSkeleton,
   TicketCardSkeleton,
   ChatSkeleton,
@@ -21,6 +24,8 @@ export { EmptyState, ErrorState, NetworkError } from './EmptyState';
 export { NotificationBell } from './NotificationBell';
 export { GlobalHeader, CompactHeader, SearchHeader as GlobalSearchHeader } from './GlobalHeader';
 export { OfflineBanner, useNetworkStatus } from './OfflineBanner';
+
+export { default as AnthemPlayer } from './AnthemPlayer';
 
 // Premium UI Components ✨
 export { PremiumHeroCard } from './PremiumHeroCard';

@@ -17,8 +17,10 @@ export interface CartItem {
   eventId: string;
   eventTitle: string;
   eventDate: string;
+  eventTimezone?: string;
   eventVenue: string;
   eventCoverImage?: string;
+  eventAccentColor?: string;
   tier: TicketTier;
   quantity: number;
   priceTotal?: number;
@@ -79,6 +81,9 @@ interface CartState {
 
   // For checkout — returns items in the format the API expects
   getCheckoutItems: () => { tierId: string; quantity: number }[];
+
+  // Reservation expiry
+  isReservationExpired: () => boolean;
 }
 
 export const useCartStore = create<CartState>()(
@@ -100,7 +105,7 @@ export const useCartStore = create<CartState>()(
           set({
             items: [item],
             promo: null,
-            reservationExpiry: Date.now() + 10 * 60 * 1000,
+            reservationExpiry: null,
             pendingReservation: null,
             pendingPaymentOrderId: null,
           });
@@ -119,12 +124,16 @@ export const useCartStore = create<CartState>()(
           updatedItems[existingIndex].quantity += item.quantity;
           set({
             items: updatedItems,
-            reservationExpiry: Date.now() + 10 * 60 * 1000,
+            reservationExpiry: null,
+            pendingReservation: null,
+            pendingPaymentOrderId: null,
           });
         } else {
           set({
             items: [...items, item],
-            reservationExpiry: Date.now() + 10 * 60 * 1000,
+            reservationExpiry: null,
+            pendingReservation: null,
+            pendingPaymentOrderId: null,
           });
         }
       },
@@ -135,7 +144,7 @@ export const useCartStore = create<CartState>()(
         set({
           items: nextItems,
           promo: nextItems.length > 0 ? get().promo : null,
-          reservationExpiry: nextItems.length > 0 ? get().reservationExpiry : null,
+          reservationExpiry: null,
           pendingReservation: null,
           pendingPaymentOrderId: null,
         });
@@ -154,6 +163,7 @@ export const useCartStore = create<CartState>()(
         set({
           items: nextItems,
           promo: nextItems.length > 0 ? get().promo : null,
+          reservationExpiry: null,
           pendingReservation: null,
           pendingPaymentOrderId: null,
         });
@@ -173,8 +183,6 @@ export const useCartStore = create<CartState>()(
             items: items.map((i) => ({
               tierId: i.tier.id,
               quantity: i.quantity,
-              price: i.tier.price,
-              subtotal: i.tier.price * i.quantity,
             })),
           });
 
@@ -190,6 +198,7 @@ export const useCartStore = create<CartState>()(
                 discountPercent,
                 label: result.label,
               },
+              reservationExpiry: null,
               pendingReservation: null,
               pendingPaymentOrderId: null,
             });
@@ -208,6 +217,7 @@ export const useCartStore = create<CartState>()(
       clearPromoCode: () => {
         set({
           promo: null,
+          reservationExpiry: null,
           pendingReservation: null,
           pendingPaymentOrderId: null,
         });
@@ -269,6 +279,12 @@ export const useCartStore = create<CartState>()(
           tierId: i.tier.id,
           quantity: i.quantity,
         }));
+      },
+
+      isReservationExpired: () => {
+        const expiry = get().reservationExpiry;
+        if (!expiry) return false;
+        return Date.now() > expiry;
       },
     }),
     {

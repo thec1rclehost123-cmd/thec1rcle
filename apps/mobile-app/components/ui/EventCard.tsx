@@ -1,10 +1,11 @@
+import React from 'react';
 import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  withTiming,
   FadeInDown,
 } from 'react-native-reanimated';
 import { colors, radii, gradients } from '@/lib/design/theme';
@@ -31,7 +32,7 @@ interface EventCardProps {
   variant?: 'default' | 'compact' | 'featured';
 }
 
-export function EventCard({
+export const EventCard = React.memo(function EventCard({
   id,
   title,
   venue,
@@ -53,11 +54,11 @@ export function EventCard({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.97, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.96, { duration: 150 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(1, { duration: 150 });
   };
 
   const handlePress = () => {
@@ -69,7 +70,7 @@ export function EventCard({
   if (variant === 'compact') {
     return (
       <AnimatedPressable
-        entering={FadeInDown.delay(animationDelay).springify().damping(15)}
+        entering={FadeInDown.delay(animationDelay)}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         onPress={handlePress}
@@ -101,7 +102,7 @@ export function EventCard({
   if (variant === 'featured' || isFeatured) {
     return (
       <AnimatedPressable
-        entering={FadeInDown.delay(animationDelay).springify().damping(15)}
+        entering={FadeInDown.delay(animationDelay)}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         onPress={handlePress}
@@ -161,7 +162,7 @@ export function EventCard({
   // Default variant
   return (
     <AnimatedPressable
-      entering={FadeInDown.delay(animationDelay).springify().damping(15)}
+      entering={FadeInDown.delay(animationDelay)}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={handlePress}
@@ -209,7 +210,7 @@ export function EventCard({
       </View>
     </AnimatedPressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   // Default Card

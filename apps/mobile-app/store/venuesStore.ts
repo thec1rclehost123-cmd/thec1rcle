@@ -2,10 +2,8 @@ import { create } from 'zustand';
 // @c1rcle/types provides the canonical Venue shape. The local Venue interface below
 // extends it with mobile-specific fields (coordinates, popularityScore, etc.).
 // When harmonizing: import type { Venue as BaseVenue } from '@c1rcle/types';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { type Coordinates } from '@/lib/venueDiscovery';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, fetchPublicVenues } from '@/lib/api';
 
 export interface Venue {
   id: string;
@@ -49,9 +47,11 @@ interface VenuesState {
   loading: boolean;
   error: string | null;
   fetchVenues: (filters?: {
+    city?: string;
     area?: string;
     search?: string;
     tablesOnly?: boolean;
+    force?: boolean;
   }) => Promise<void>;
   setFollowedVenueIds: (venueIds: string[]) => void;
   toggleVenueFollow: (
@@ -61,6 +61,27 @@ interface VenuesState {
   ) => Promise<boolean>;
 }
 
+let venueRequestGeneration = 0;
+let venueRequestKey: string | null = null;
+let venueRequestPromise: Promise<void> | null = null;
+let lastSuccessfulVenueRequestKey: string | null = null;
+let lastSuccessfulVenueRequestAt = 0;
+const VENUE_DISCOVERY_CACHE_MS = 2 * 60 * 1000;
+
+function buildVenueRequestKey(filters: {
+  city?: string;
+  area?: string;
+  search?: string;
+  tablesOnly?: boolean;
+}) {
+  return JSON.stringify({
+    city: filters.city || null,
+    area: filters.area || null,
+    search: filters.search || null,
+    tablesOnly: filters.tablesOnly === true,
+  });
+}
+
 export const useVenuesStore = create<VenuesState>((set, get) => ({
   venues: [],
   followedVenueIds: new Set(),
@@ -68,48 +89,44 @@ export const useVenuesStore = create<VenuesState>((set, get) => ({
   loading: false,
   error: null,
 
-  fetchVenues: async (filters = {}) => {
-    set({ loading: true, error: null });
-    try {
-      const db = getFirestore(getFirebaseApp());
-      const snap = await getDocs(collection(db, 'venues'));
-      let venues: Venue[] = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Venue);
-
-      if (filters.tablesOnly) {
-        venues = venues.filter((v: Venue) => v.tablesAvailable);
-      }
-      if (filters.area) {
-        const clean = filters.area.toLowerCase().trim();
-        venues = venues.filter((v: Venue) => {
-          const a = (v.area || '').toLowerCase();
-          const n = (v.neighborhood || '').toLowerCase();
-          const addr = (v.address || '').toLowerCase();
-          const c = (v.city || '').toLowerCase();
-          return (
-            a.includes(clean) || n.includes(clean) || addr.includes(clean) || c.includes(clean)
-          );
-        });
-      }
-      if (filters.search) {
-        const s = filters.search.toLowerCase().trim();
-        venues = venues.filter((v: Venue) => {
-          const name = (v.displayName || v.name || '').toLowerCase();
-          const tags = [...(v.tags || []), ...(v.genres || []), ...(v.vibes || [])]
-            .join(' ')
-            .toLowerCase();
-          return (
-            name.includes(s) ||
-            (v.area || '').toLowerCase().includes(s) ||
-            (v.city || '').toLowerCase().includes(s) ||
-            tags.includes(s)
-          );
-        });
-      }
-
-      set({ venues, loading: false });
-    } catch (e: any) {
-      set({ error: e?.message || 'Failed to fetch venues', loading: false });
+  fetchVenues: (filters = {}) => {
+    const { force = false, ...requestFilters } = filters;
+    const requestKey = buildVenueRequestKey(requestFilters);
+    if (venueRequestKey === requestKey && venueRequestPromise) return venueRequestPromise;
+    if (
+      !force &&
+      lastSuccessfulVenueRequestKey === requestKey &&
+      Date.now() - lastSuccessfulVenueRequestAt < VENUE_DISCOVERY_CACHE_MS &&
+      get().venues.length > 0
+    ) {
+      return Promise.resolve();
     }
+
+    const requestGeneration = ++venueRequestGeneration;
+    let request!: Promise<void>;
+    request = (async () => {
+      set({ loading: true, error: null });
+      try {
+        const response = await fetchPublicVenues({ ...requestFilters, limit: 100 });
+        if (requestGeneration !== venueRequestGeneration) return;
+        const venues = (response.venues || response.items || []) as Venue[];
+        lastSuccessfulVenueRequestKey = requestKey;
+        lastSuccessfulVenueRequestAt = Date.now();
+        set({ venues, loading: false });
+      } catch (e: any) {
+        if (requestGeneration !== venueRequestGeneration) return;
+        set({ error: e?.message || 'Failed to fetch venues', loading: false });
+      } finally {
+        if (venueRequestPromise === request) {
+          venueRequestKey = null;
+          venueRequestPromise = null;
+        }
+      }
+    })();
+
+    venueRequestKey = requestKey;
+    venueRequestPromise = request;
+    return request;
   },
 
   setFollowedVenueIds: (venueIds) => {

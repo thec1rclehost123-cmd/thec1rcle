@@ -2,4 +2,6 @@ if (typeof document !== 'undefined') {
   document.documentElement.classList.add('dark');
 }
 
-export {};
+export default function DarkInit() {
+  return null;
+}

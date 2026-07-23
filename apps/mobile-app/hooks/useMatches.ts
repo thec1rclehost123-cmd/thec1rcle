@@ -26,5 +26,6 @@ export function useMatches() {
       }
       return response.data.matches;
     },
+    staleTime: 60 * 1000, // 1 min — matches change at moderate pace
   });
 }

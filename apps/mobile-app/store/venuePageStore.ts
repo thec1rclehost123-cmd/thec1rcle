@@ -1,15 +1,11 @@
 import { create } from 'zustand';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import { getFirestore, doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import {
   type Coordinates,
   findKnownVenueCoordinates,
   resolveVenueCoordinates,
 } from '@/lib/venueDiscovery';
-
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
+import { fetchPublicVenuePage } from '@/lib/publicDetailRequests';
+import { createLatestRequestGuard } from '@/lib/requestGuard';
 
 export interface VenueHighlight {
   id: string;
@@ -88,6 +84,8 @@ interface VenuePageState {
   clearVenuePage: () => void;
 }
 
+const venuePageRequestGuard = createLatestRequestGuard();
+
 export const useVenuePageStore = create<VenuePageState>((set) => ({
   venue: null,
   highlights: [],
@@ -98,7 +96,8 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
   loading: false,
   error: null,
 
-  clearVenuePage: () =>
+  clearVenuePage: () => {
+    venuePageRequestGuard.invalidate();
     set({
       venue: null,
       highlights: [],
@@ -106,90 +105,38 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
       menu: [],
       facilities: [],
       upcomingEvents: [],
+      loading: false,
       error: null,
-    }),
+    });
+  },
 
   fetchVenuePage: async (venueIdOrSlug: string) => {
+    const requestToken = venuePageRequestGuard.begin(venueIdOrSlug);
     set({ loading: true, error: null });
 
     try {
-      const db = getDb();
-      let venueDoc: any = null;
-      let venueId = venueIdOrSlug;
-
-      // 1. Try fetch by doc ID first
-      const directSnap = await getDoc(doc(db, 'venues', venueIdOrSlug));
-      if (directSnap.exists()) {
-        venueDoc = { id: directSnap.id, ...directSnap.data() };
-      } else {
-        // 2. Fall back to slug query
-        const slugSnap = await getDocs(
-          query(collection(db, 'venues'), where('slug', '==', venueIdOrSlug)),
-        );
-        if (!slugSnap.empty) {
-          const d = slugSnap.docs[0];
-          venueDoc = { id: d.id, ...d.data() };
-          venueId = d.id;
-        }
-      }
+      const response = await fetchPublicVenuePage<any>(venueIdOrSlug);
+      if (!venuePageRequestGuard.isCurrent(requestToken)) return;
+      const venueDoc = response.venue || response.profile || response;
 
       if (!venueDoc) {
         set({ loading: false, error: 'Venue not found' });
         return;
       }
 
-      // 3. Fetch all sub-data in parallel — sort client-side to avoid composite index requirements
-      const now = new Date().toISOString();
-
-      const [highlightsSnap, gallerySnap, menuSnap, facilitiesSnap, eventsSnap] = await Promise.all(
-        [
-          getDocs(
-            query(
-              collection(db, 'venue_highlights'),
-              where('venueId', '==', venueId),
-              where('isActive', '==', true),
-            ),
-          ).catch(() => null),
-          getDocs(query(collection(db, 'venue_gallery'), where('venueId', '==', venueId))).catch(
-            () => null,
-          ),
-          getDocs(query(collection(db, 'venue_menu'), where('venueId', '==', venueId))).catch(
-            () => null,
-          ),
-          getDocs(
-            query(
-              collection(db, 'venue_facilities'),
-              where('venueId', '==', venueId),
-              where('isEnabled', '==', true),
-            ),
-          ).catch(() => null),
-          getDocs(query(collection(db, 'events'), where('venueId', '==', venueId))).catch(
-            () => null,
-          ),
-        ],
-      );
-
-      const toItems = (snap: any) =>
-        snap ? snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) : [];
-
-      const highlights: VenueHighlight[] = toItems(highlightsSnap).sort(
+      const highlights: VenueHighlight[] = (response.highlights || venueDoc.highlights || []).sort(
         (a: any, b: any) => (a.order ?? 0) - (b.order ?? 0),
       );
-      const gallery: VenueGalleryPhoto[] = toItems(gallerySnap)
+      const gallery: VenueGalleryPhoto[] = (response.gallery || venueDoc.gallery || [])
         .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
         .slice(0, 9);
-      const menu: VenueMenuItem[] = toItems(menuSnap).sort(
+      const menu: VenueMenuItem[] = (response.menu || venueDoc.menu || []).sort(
         (a: any, b: any) => (a.order ?? 0) - (b.order ?? 0),
       );
-      const facilities: VenueFacility[] = toItems(facilitiesSnap).sort(
+      const facilities: VenueFacility[] = (response.facilities || venueDoc.facilities || []).sort(
         (a: any, b: any) => (a.order ?? 0) - (b.order ?? 0),
       );
-      const upcomingEvents: any[] = toItems(eventsSnap)
-        .filter((e: any) => {
-          const end = e.endDate || e.startDate;
-          const normalized = end && end.length === 10 ? end + 'T23:59:59.999Z' : end;
-          return normalized && normalized >= now && !e.isDeleted;
-        })
+      const upcomingEvents: any[] = (response.upcomingEvents || venueDoc.upcomingEvents || [])
         .sort((a: any, b: any) => {
           const aDate = a.startDate ?? '';
           const bDate = b.startDate ?? '';
@@ -233,6 +180,7 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
         loading: false,
       });
     } catch (error: any) {
+      if (!venuePageRequestGuard.isCurrent(requestToken)) return;
       console.error('[VenuePageStore] Failed to fetch venue page:', error);
       set({ loading: false, error: error?.message || 'Failed to load venue page' });
     }

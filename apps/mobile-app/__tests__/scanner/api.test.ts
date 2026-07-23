@@ -10,6 +10,7 @@ import {
   cacheAdd,
   cacheClear,
   fetchWalletByOrder,
+  fetchWalletByPaymentQr,
   submitDebit,
   manualCheckIn,
 } from '../../lib/scanner/api';
@@ -62,6 +63,24 @@ describe('validateEventCode', () => {
     const result = await validateEventCode('BAD-CODE');
     expect(result.valid).toBe(false);
     expect(result.error).toBe('Invalid event code');
+  });
+
+  it('converts a structured gateway error into render-safe text', async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Invalid event code',
+          requestId: 'req_scanner_1',
+        },
+      }),
+      { status: 404 },
+    );
+
+    const result = await validateEventCode('BAD-CODE');
+
+    expect(result).toMatchObject({ valid: false, error: 'Invalid event code' });
+    expect(typeof result.error).toBe('string');
   });
 
   it('returns valid=false on 403 (revoked code)', async () => {
@@ -171,12 +190,15 @@ describe('cache operations', () => {
 const MOCK_WALLET = {
   id: 'wallet_1',
   orderId: 'order_1',
+  eventId: 'evt_123',
+  venueId: 'venue_123',
   currentBalancePaise: 50000,
   openingBalancePaise: 100000,
   totalDebitedPaise: 50000,
   guestFirstName: 'Arjun',
   state: 'ACTIVE',
   terminationTime: null,
+  paymentQrJwt: 'wallet.jwt.token',
   rules: {
     allowedPresetItems: [],
     showBalanceToGuest: true,
@@ -222,16 +244,44 @@ describe('fetchWalletByOrder', () => {
   });
 });
 
+describe('fetchWalletByPaymentQr', () => {
+  it('posts the rotating payment QR to /scan/wallet-qr', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ wallet: MOCK_WALLET }), { status: 200 });
+    await fetchWalletByPaymentQr('wallet.jwt.token', MOCK_SESSION_TOKEN, {
+      eventId: 'evt_123',
+      eventCode: 'TEST-CODE',
+      venueId: 'venue_123',
+    });
+    const [url, options] = fetchMock.mock.calls[0];
+    const body = JSON.parse(options.body);
+    expect(url).toContain('/scan/wallet-qr');
+    expect(options.headers.Authorization).toBe(`Bearer ${MOCK_SESSION_TOKEN}`);
+    expect(body.qrData).toBe('wallet.jwt.token');
+    expect(body.eventId).toBe('evt_123');
+  });
+
+  it('normalizes the returned wallet context', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ wallet: MOCK_WALLET }), { status: 200 });
+    const result = await fetchWalletByPaymentQr('wallet.jwt.token', MOCK_SESSION_TOKEN);
+    if ('wallet' in result) {
+      expect(result.wallet.paymentQrJwt).toBe('wallet.jwt.token');
+      expect(result.wallet.guestFirstName).toBe('Arjun');
+    } else {
+      fail('Expected wallet result');
+    }
+  });
+});
+
 // ── submitDebit ───────────────────────────────────────────────────────────
 
 const MOCK_DEBIT_REQ = {
   walletId: 'wallet_1',
+  paymentQrJwt: 'wallet.jwt.token',
   presetItemId: 'item_1',
   quantity: 1,
   idempotencyKey: 'test-uuid-1234',
   operatorId: 'scanner_code',
   operatorName: 'Scanner',
-  operatorRole: 'door_staff',
   deviceId: 'ios-test-device',
   eventCodeId: 'code_123',
   isOnline: true as const,

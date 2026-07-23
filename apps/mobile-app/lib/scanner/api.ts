@@ -20,6 +20,16 @@ const SCAN_API = `${GATEWAY_URL}/api/v1/scan`;
 const WALLET_API = `${GATEWAY_URL}/api/v1/cover-charge`;
 const DEVICE_ID_KEY = 'c1rcle_scanner_device_id';
 
+export function scannerErrorMessage(value: unknown, fallback: string): string {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (value && typeof value === 'object') {
+    const error = value as Record<string, unknown>;
+    if (typeof error.message === 'string' && error.message.trim()) return error.message.trim();
+    if (typeof error.code === 'string' && error.code.trim()) return error.code.trim();
+  }
+  return fallback;
+}
+
 // ── Timeout helper ─────────────────────────────────────────────────────────
 function makeAbort(ms: number): { signal: AbortSignal; cleanup: () => void } {
   const ctrl = new AbortController();
@@ -169,7 +179,7 @@ export async function validateEventCode(code: string): Promise<ScannerEventData>
         event: {} as any,
         permissions: { canScan: false, canDoorEntry: false, canWalkIn: false, canCharge: false },
         tiers: [],
-        error: data.error || 'Invalid code',
+        error: scannerErrorMessage(data.error ?? data.message, 'Invalid code'),
       };
     }
     return { valid: true, code, ...data };
@@ -353,6 +363,59 @@ export async function fetchWalletByOrder(
   }
 }
 
+export async function fetchWalletByPaymentQr(
+  qrData: string,
+  sessionToken: string,
+  context: { eventId?: string; eventCode?: string; venueId?: string; gate?: string } = {},
+): Promise<{ wallet: WalletContext } | { error: string }> {
+  const { signal, cleanup } = makeAbort(10000);
+  try {
+    const res = await fetch(`${SCAN_API}/wallet-qr`, {
+      method: 'POST',
+      headers: withScannerAuth(sessionToken, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        qrData,
+        eventId: context.eventId,
+        eventCode: context.eventCode,
+        venueId: context.venueId,
+        gate: context.gate,
+      }),
+      signal,
+    });
+    cleanup();
+    const data = await res.json();
+    const sessionError = buildSessionError(res.status, data);
+    if (sessionError) return { error: sessionError.error || 'Scanner session expired' };
+    if (!res.ok || !data.wallet) return { error: data.error || 'Wallet not found' };
+
+    const wallet = data.wallet;
+    return {
+      wallet: {
+        id: wallet.id,
+        orderId: wallet.orderId,
+        eventId: wallet.eventId,
+        venueId: wallet.venueId,
+        currentBalancePaise: wallet.currentBalancePaise || 0,
+        openingBalancePaise: wallet.openingBalancePaise || 0,
+        totalDebitedPaise: wallet.totalDebitedPaise || 0,
+        guestFirstName: wallet.guestFirstName || wallet.guestName || 'Guest',
+        state: wallet.state,
+        terminationTime: wallet.terminationTime || null,
+        paymentQrJwt: wallet.paymentQrJwt || qrData,
+        rules: {
+          allowedPresetItems: wallet.rules?.allowedPresetItems || [],
+          showBalanceToGuest: wallet.rules?.showBalanceToGuest ?? true,
+          maxChargeAmountPaise: wallet.rules?.maxChargeAmountPaise || 0,
+          minChargeAmountPaise: wallet.rules?.minChargeAmountPaise || 0,
+        },
+      },
+    };
+  } catch (err: any) {
+    cleanup();
+    return { error: err.name === 'AbortError' ? 'Wallet QR lookup timed out' : 'Network error' };
+  }
+}
+
 // ── Debit ──────────────────────────────────────────────────────────────────
 export async function submitDebit(
   request: DebitRequest,
@@ -453,7 +516,7 @@ export async function fetchWalkIns(
     return data.walkIns || [];
   } catch (err) {
     cleanup();
-    console.error('[fetchWalkIns] Error:', err);
+    if (__DEV__) console.error('[fetchWalkIns] Error:', err);
     if (__DEV__) {
       return getMockWalkIns();
     }

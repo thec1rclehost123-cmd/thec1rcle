@@ -40,7 +40,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSpring,
   interpolate,
   Extrapolation,
 } from 'react-native-reanimated';
@@ -104,7 +103,7 @@ function SegmentedTabs({ active, onChange }: { active: TabId; onChange: (t: TabI
 
   useEffect(() => {
     const idx = TABS.findIndex((t) => t.id === active);
-    slideX.value = withSpring(idx * tabWidth, { damping: 18, stiffness: 280 });
+    slideX.value = withTiming(idx * tabWidth, { duration: 250 });
   }, [active, tabWidth]);
 
   const thumbStyle = useAnimatedStyle(() => ({
@@ -240,7 +239,6 @@ export default function VenuePageScreen() {
     loading,
     error,
     fetchVenuePage,
-    clearVenuePage,
   } = useVenuePageStore();
 
   const [activeTab, setActiveTab] = useState<TabId>('events');
@@ -252,12 +250,12 @@ export default function VenuePageScreen() {
   const [galleryImage, setGalleryImage] = useState<string | null>(null);
 
   const { user } = useAuth();
-  const { isFollowingVenue, toggleVenueFollow, fetchFollows, loaded } = useFollowStore();
-  const isFollowing = venue ? isFollowingVenue(venue.id) : false;
+  const { isFollowingVenue, toggleVenueFollow, fetchFollows, loadedUserId } = useFollowStore();
+  const isFollowing = venue ? isFollowingVenue(venue.id, user?.uid) : false;
 
   useEffect(() => {
-    if (user?.uid && !loaded) void fetchFollows(user.uid);
-  }, [user?.uid, loaded, fetchFollows]);
+    if (user?.uid && loadedUserId !== user.uid) void fetchFollows(user.uid);
+  }, [user?.uid, loadedUserId, fetchFollows]);
 
   const handleFollow = useCallback(() => {
     if (!user?.uid || !venue) return;
@@ -269,8 +267,7 @@ export default function VenuePageScreen() {
   useEffect(() => {
     if (!id) return;
     void fetchVenuePage(id);
-    return () => clearVenuePage();
-  }, [clearVenuePage, fetchVenuePage, id]);
+  }, [fetchVenuePage, id]);
 
   const venueName = venue?.displayName || venue?.name || 'Venue';
   const bannerUrl = venue?.bannerImage || venue?.coverURL || venue?.photoURL;
@@ -624,7 +621,7 @@ export default function VenuePageScreen() {
                       onPress={() =>
                         router.push({
                           pathname: '/event/[id]',
-                          params: { id: event.id },
+                          params: { id: event.id, posterTransitionTag: `poster-${event.id}` },
                         })
                       }
                     />

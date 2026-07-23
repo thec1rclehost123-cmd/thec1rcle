@@ -1,11 +1,12 @@
+import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { useAuthStore } from '@/store/authStore';
-import { getSavedContacts } from '@/lib/social';
-import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { getSavedContacts } from '@/lib/social';
+import { useAuthStore } from '@/store/authStore';
 
 // Contact card
 function ContactCard({
@@ -31,7 +32,7 @@ function ContactCard({
     : '';
 
   return (
-    <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
+    <Animated.View entering={FadeInDown.delay(index * 50)}>
       <Pressable
         onPress={onPress}
         className="flex-row items-center bg-midnight-100 rounded-bubble p-4 mb-3 border border-white/10 active:bg-surface"
@@ -59,13 +60,13 @@ export default function SavedContactsScreen() {
   const { user } = useAuthStore();
 
   const [contacts, setContacts] = useState<
-    Array<{
+    {
       contactUserId: string;
       contactName: string;
       contactAvatar?: string;
       eventTitle: string;
       savedAt: any;
-    }>
+    }[]
   >([]);
   const [loading, setLoading] = useState(true);
 
@@ -112,8 +113,6 @@ export default function SavedContactsScreen() {
       </View>
 
       <ScrollView
-        bounces={false}
-        overScrollMode="never"
         className="flex-1 px-4"
         contentContainerStyle={{ paddingVertical: 16 }}
         showsVerticalScrollIndicator={false}

@@ -1,3 +1,4 @@
+/* eslint-disable no-misleading-character-class */
 /**
  * CoverDeductionOverlay
  *
@@ -31,6 +32,7 @@ import { WalletContext, PresetItem } from '@/lib/scanner/types';
 interface Props {
   wallet: WalletContext;
   sessionToken: string;
+  paymentQrJwt: string;
   deviceId: string;
   eventCodeId: string;
   operatorId: string;
@@ -53,6 +55,7 @@ function randomKey(): string {
 export function CoverDeductionOverlay({
   wallet,
   sessionToken,
+  paymentQrJwt,
   deviceId,
   eventCodeId,
   operatorId,
@@ -76,7 +79,8 @@ export function CoverDeductionOverlay({
   const balance = wallet.currentBalancePaise;
   const deficit = selectedAmountPaise - balance;
   const isInsufficientBalance = selectedAmountPaise > 0 && deficit > 0;
-  const canProcess = selectedAmountPaise > 0 && !isInsufficientBalance && !isProcessing;
+  const canProcess =
+    selectedAmountPaise > 0 && Boolean(paymentQrJwt) && !isInsufficientBalance && !isProcessing;
 
   const handleProcess = useCallback(async () => {
     if (!canProcess) return;
@@ -99,12 +103,14 @@ export function CoverDeductionOverlay({
       const result = await submitDebit(
         {
           walletId: wallet.id,
-          presetItemId: showCustom ? 'custom' : (selectedPreset?.id ?? 'custom'),
+          paymentQrJwt,
+          ...(showCustom
+            ? { customAmountPaise: selectedAmountPaise }
+            : { presetItemId: selectedPreset?.id }),
           quantity: 1,
           idempotencyKey,
           operatorId,
           operatorName,
-          operatorRole: 'staff',
           deviceId,
           eventCodeId,
           isOnline: true,
@@ -132,6 +138,7 @@ export function CoverDeductionOverlay({
     selectedPreset,
     showCustom,
     wallet.id,
+    paymentQrJwt,
     sessionToken,
     deviceId,
     eventCodeId,

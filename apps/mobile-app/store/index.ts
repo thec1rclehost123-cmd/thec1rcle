@@ -14,3 +14,5 @@ export { useSettingsStore, useHapticsEnabled, useReduceMotion } from './settings
 export type { UserSettings } from './settingsStore';
 export { useProfileStore } from './profileStore';
 export type { UserProfile } from './profileStore';
+export { useSubscriptionStore } from './subscriptionStore';
+export type { SubscriptionTier, PremiumFeature, DailyUsage } from './subscriptionStore';

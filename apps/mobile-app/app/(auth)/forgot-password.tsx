@@ -1,140 +1,359 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   Pressable,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
+  StyleSheet,
+  Keyboard,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { Mail } from 'lucide-react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { BlurView } from 'expo-blur';
 import { useAuth } from '@/hooks/useAuth';
+import { colors } from '@/lib/design/theme';
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const { sendResetEmail, loading, error, clearError } = useAuth();
 
-  const handleSendReset = async () => {
-    if (!email.trim()) return;
+  const player = useVideoPlayer(require('../../assets/review-video.mp4'), (player) => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
 
-    const result = await sendResetEmail(email.trim());
+  useEffect(() => {
+    return () => {
+      try {
+        player.pause();
+      } catch (e) {}
+    };
+  }, [player]);
+
+  const handleSendReset = async () => {
+    Keyboard.dismiss();
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) return;
+
+    const result = await sendResetEmail(trimmedEmail);
     if (result.success) {
       setSent(true);
     }
   };
 
-  if (sent) {
-    return (
-      <SafeAreaView className="flex-1 bg-midnight">
-        <LinearGradient
-          colors={['rgba(244, 74, 34, 0.15)', 'transparent']}
-          className="absolute top-0 left-0 right-0 h-96"
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-        />
-
-        <View className="flex-1 px-6 justify-center items-center">
-          <Text className="text-6xl mb-6">✉️</Text>
-          <Text className="text-gold font-satoshi-black text-2xl text-center mb-4">
-            Check Your Email
-          </Text>
-          <Text className="text-gold-stone text-center mb-8">
-            We've sent a password reset link to{'\n'}
-            <Text className="text-iris">{email}</Text>
-          </Text>
-          <Pressable
-            onPress={() => router.push('/(auth)/login')}
-            className="bg-iris px-8 py-4 rounded-pill"
-          >
-            <Text className="text-white font-semibold text-lg">Back to Login</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <SafeAreaView className="flex-1 bg-midnight">
-      {/* Background Gradient */}
+    <View style={styles.container}>
+      <VideoView
+        player={player}
+        style={StyleSheet.absoluteFillObject}
+        contentFit="cover"
+        nativeControls={false}
+      />
       <LinearGradient
-        colors={['rgba(244, 74, 34, 0.15)', 'transparent']}
-        className="absolute top-0 left-0 right-0 h-96"
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
+        colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.8)', colors.base.DEFAULT]}
+        locations={[0, 0.4, 1]}
+        style={StyleSheet.absoluteFillObject}
       />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1 px-6"
-      >
-        {/* Back Button */}
-        <Pressable onPress={() => router.back()} className="mt-4 mb-10">
-          <Text className="text-gold text-lg">← Back</Text>
-        </Pressable>
-
-        {/* Header */}
-        <View className="mb-8">
-          <Text className="text-gold font-satoshi-black text-3xl mb-2">Reset Password</Text>
-          <Text className="text-gold-stone">
-            Enter your email and we'll send you a link to reset your password
-          </Text>
-        </View>
-
-        {/* Error Message */}
-        {error && (
-          <View className="bg-red-500/20 border border-red-500/50 rounded-bubble px-4 py-3 mb-4">
-            <Text className="text-red-400 text-center">{error}</Text>
+      <SafeAreaView style={styles.safeArea}>
+        {sent ? (
+          <View style={styles.successContent}>
+            <View style={styles.iconContainer}>
+              <Mail size={48} color="#FFF" strokeWidth={1.5} />
+            </View>
+            <Text style={styles.successTitle}>CHECK YOUR EMAIL</Text>
+            <Text style={styles.successSubtitle}>
+              We've sent a password reset link to{'\n'}
+              <Text style={styles.successEmail}>{email}</Text>
+            </Text>
+            <Pressable onPress={() => router.back()} style={styles.primaryBtn}>
+              <Text style={styles.primaryBtnText}>BACK TO LOGIN</Text>
+            </Pressable>
           </View>
-        )}
-
-        {/* Form */}
-        <View className="mb-6">
-          {/* Email Input */}
-          <View className="bg-surface border border-white/10 rounded-bubble px-4 py-4 mb-6">
-            <Text className="text-gold-stone text-xs mb-1">EMAIL</Text>
-            <TextInput
-              placeholder="your@email.com"
-              placeholderTextColor="#666"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                clearError();
-              }}
-              className="text-gold text-base"
-            />
-          </View>
-
-          {/* Send Link Button */}
-          <Pressable
-            onPress={handleSendReset}
-            disabled={loading || !email.trim()}
-            className={`py-4 rounded-pill items-center mb-4 ${
-              loading || !email.trim() ? 'bg-iris/50' : 'bg-iris'
-            }`}
+        ) : (
+          <KeyboardAwareScrollView
+            contentContainerStyle={styles.content}
+            enableOnAndroid={true}
+            extraScrollHeight={20}
+            bounces={false}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-white font-semibold text-lg">Send Reset Link</Text>
-            )}
-          </Pressable>
-        </View>
+            {/* Back */}
+            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+              <Text style={styles.backArrow}>‹</Text>
+              <Text style={styles.backText}>BACK</Text>
+            </Pressable>
 
-        {/* Back to Login Link */}
-        <View className="flex-row justify-center">
-          <Text className="text-gold-stone">Remember your password? </Text>
-          <Pressable onPress={() => router.push('/(auth)/login')}>
-            <Text className="text-iris font-semibold">Login</Text>
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.title}>RESET PASSWORD</Text>
+              <Text style={styles.subtitle}>
+                Enter your email and we'll send you a link to reset your password
+              </Text>
+            </View>
+
+            {/* Error */}
+            {error ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            {/* Form */}
+            <View style={styles.form}>
+              <View style={styles.fieldWrap}>
+                <Text style={styles.fieldLabel}>EMAIL</Text>
+                <BlurView
+                  blurMethod="dimezisBlurView"
+                  intensity={40}
+                  tint="dark"
+                  style={styles.fieldBox}
+                >
+                  <TextInput
+                    style={styles.input}
+                    placeholder="your@email.com"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    value={email}
+                    onChangeText={(t) => {
+                      setEmail(t);
+                      clearError();
+                    }}
+                    returnKeyType="done"
+                    onSubmitEditing={handleSendReset}
+                  />
+                </BlurView>
+              </View>
+
+              {/* Create Account CTA */}
+              <Pressable
+                onPress={handleSendReset}
+                disabled={loading || !email.trim()}
+                style={[styles.primaryBtn, (loading || !email.trim()) && styles.primaryBtnDisabled]}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>SEND RESET LINK</Text>
+                )}
+              </Pressable>
+            </View>
+
+            {/* Login link */}
+            <View style={styles.linkRow}>
+              <Text style={styles.linkMuted}>Remember your password? </Text>
+              <Pressable onPress={() => router.push('/(auth)/login')}>
+                <Text style={styles.linkAccent}>Login</Text>
+              </Pressable>
+            </View>
+          </KeyboardAwareScrollView>
+        )}
+      </SafeAreaView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.base.DEFAULT,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 48,
+    justifyContent: 'center',
+  },
+
+  // Success State
+  successContent: {
+    flex: 1,
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  successTitle: {
+    color: '#FFFFFF',
+    fontFamily: 'System',
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  successSubtitle: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 16,
+    fontWeight: '500',
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 40,
+  },
+  successEmail: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+
+  // Back button
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 28,
+    alignSelf: 'flex-start',
+    marginTop: -40,
+  },
+  backArrow: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 26,
+    lineHeight: 28,
+    fontWeight: '400',
+  },
+  backText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+
+  // Header
+  header: {
+    marginBottom: 36,
+  },
+  title: {
+    color: '#FFFFFF',
+    fontFamily: 'System',
+    fontSize: 32,
+    fontWeight: '900',
+    letterSpacing: 2,
+    marginBottom: 12,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
+  subtitle: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 1,
+    lineHeight: 22,
+  },
+
+  // Error
+  errorBox: {
+    backgroundColor: 'rgba(239,68,68,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.5)',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 24,
+  },
+  errorText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+
+  // Form
+  form: { gap: 0 },
+
+  // Field (Glassmorphic)
+  fieldWrap: { marginBottom: 18 },
+  fieldLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    paddingLeft: 4,
+  },
+  fieldBox: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    overflow: 'hidden',
+  },
+  input: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    padding: 0,
+    margin: 0,
+  },
+
+  // Primary button
+  primaryBtn: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    marginBottom: 24,
+    shadowColor: '#FFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
+    width: '100%',
+  },
+  primaryBtnDisabled: {
+    opacity: 0.5,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  primaryBtnText: {
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+
+  // Link row
+  linkRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  linkMuted: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  linkAccent: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textDecorationLine: 'underline',
+  },
+});
