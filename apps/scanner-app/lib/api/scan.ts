@@ -44,7 +44,7 @@ export async function processQRScan(request: ScanRequest): Promise<ScanResponse>
       }),
     });
 
-    if (data.success || data.status === 'approved' || data.result === 'valid') {
+    if (data.success === true) {
       return {
         success: true,
         result: 'valid',
