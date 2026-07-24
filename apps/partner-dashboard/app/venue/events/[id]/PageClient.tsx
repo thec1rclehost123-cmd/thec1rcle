@@ -886,34 +886,6 @@ export default function VenueEventWorkspacePage() {
     },
   });
 
-  const cancelOrderMutation = useMutation({
-    mutationFn: async ({
-      orderId,
-      mode,
-    }: {
-      orderId: string;
-      mode: 'cancel' | 'cancel_and_relist';
-    }) => {
-      return authedJson(`/api/partners/venues/orders/${orderId}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode }),
-      });
-    },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['venue-event-attendees', eventId] }),
-        queryClient.invalidateQueries({
-          queryKey: ['venue-event-attendee-detail', eventId, selectedAttendeeId],
-        }),
-        queryClient.invalidateQueries({ queryKey: ['venue-event-tickets', eventId] }),
-        queryClient.invalidateQueries({ queryKey: ['venue-event-overview', eventId] }),
-        queryClient.invalidateQueries({ queryKey: ['venue-event-finance', eventId] }),
-      ]);
-      setAttendeesRefreshedAt(new Date());
-    },
-  });
-
   const savePromotersMutation = useMutation({
     mutationFn: async (payload: { enabled: boolean; allowedPromoterIds: string[] }) => {
       return authedJson(`/api/partners/venues/events/${eventId}/promoters`, {
@@ -947,8 +919,6 @@ export default function VenueEventWorkspacePage() {
     null;
   const canEditFoundation = FOUNDATION_EDITABLE.has(String(event?.lifecycle || '').toLowerCase());
   const canResendReceipt = Boolean(actionPermissions?.['orders_resendReceipt'] ?? true);
-  const canCancelOrder = Boolean(actionPermissions?.['orders_refund'] ?? true);
-  const canCancelAndRelist = Boolean(actionPermissions?.['orders_refundResell'] ?? true);
 
   useEffect(() => {
     if (ticketsQuery.data && !ticketsRefreshedAt) setTicketsRefreshedAt(new Date());
@@ -2172,12 +2142,8 @@ export default function VenueEventWorkspacePage() {
                 onClose={clearAttendeeProfileSelection}
                 isLoading={attendeeDetailQuery.isFetching}
                 isSendingReceipt={resendReceiptMutation.isPending}
-                isUpdatingOrder={cancelOrderMutation.isPending}
                 canResendReceipt={canResendReceipt}
-                canCancelOrder={canCancelOrder}
-                canCancelAndRelist={canCancelAndRelist}
                 onResendReceipt={(orderId) => resendReceiptMutation.mutate(orderId)}
-                onCancelOrder={(orderId, mode) => cancelOrderMutation.mutate({ orderId, mode })}
               />
             )}
           </section>
@@ -3723,12 +3689,8 @@ function AttendeeTrackingPanel({
   onClose,
   isLoading,
   isSendingReceipt,
-  isUpdatingOrder,
   canResendReceipt,
-  canCancelOrder,
-  canCancelAndRelist,
   onResendReceipt,
-  onCancelOrder,
 }: {
   attendeeDetail?: AttendeeTrackingResponse;
   selectedOrder?: AttendeeTrackedOrder | null;
@@ -3737,18 +3699,9 @@ function AttendeeTrackingPanel({
   onClose: () => void;
   isLoading: boolean;
   isSendingReceipt: boolean;
-  isUpdatingOrder: boolean;
   canResendReceipt: boolean;
-  canCancelOrder: boolean;
-  canCancelAndRelist: boolean;
   onResendReceipt: (orderId: string) => void;
-  onCancelOrder: (orderId: string, mode: 'cancel' | 'cancel_and_relist') => void;
 }) {
-  const [cancelIntent, setCancelIntent] = useState<{
-    orderId: string;
-    mode: 'cancel' | 'cancel_and_relist';
-  } | null>(null);
-
   if (isLoading && !attendeeDetail) {
     return (
       <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
@@ -3764,10 +3717,6 @@ function AttendeeTrackingPanel({
 
   const attendee = attendeeDetail.attendee;
   const orders = attendeeDetail.orders || [];
-  const cancellingSelectedOrder = Boolean(
-    selectedOrder && cancelIntent?.orderId === selectedOrder.id,
-  );
-
   return (
     <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
       <aside className="rounded-[28px] border border-white/10 bg-[#0E0E10] p-6">
@@ -3965,84 +3914,7 @@ function AttendeeTrackingPanel({
                   >
                     {isSendingReceipt ? 'Sending...' : 'Resend Receipt'}
                   </button>
-                  <button
-                    type="button"
-                    disabled={
-                      !canCancelOrder ||
-                      isUpdatingOrder ||
-                      ['cancelled', 'refunded'].includes(selectedOrder.status)
-                    }
-                    onClick={() => setCancelIntent({ orderId: selectedOrder.id, mode: 'cancel' })}
-                    className="rounded-full bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isUpdatingOrder ? 'Updating...' : 'Cancel'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={
-                      !canCancelAndRelist ||
-                      isUpdatingOrder ||
-                      ['cancelled', 'refunded'].includes(selectedOrder.status)
-                    }
-                    onClick={() =>
-                      setCancelIntent({ orderId: selectedOrder.id, mode: 'cancel_and_relist' })
-                    }
-                    className="rounded-full bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isUpdatingOrder ? 'Updating...' : 'Cancel & Relist'}
-                  </button>
                 </div>
-
-                {cancellingSelectedOrder ? (
-                  <div className="rounded-[22px] border border-amber-500/25 bg-amber-500/10 p-5 text-white">
-                    <div className="flex items-start gap-3">
-                      <Info className="mt-0.5 h-5 w-5 text-amber-300" />
-                      <div className="space-y-3">
-                        <div>
-                          <h4 className="text-sm font-semibold text-white">
-                            {cancelIntent?.mode === 'cancel_and_relist'
-                              ? 'Cancel and relist this order?'
-                              : 'Cancel this order?'}
-                          </h4>
-                          <p className="mt-1 text-sm text-white/78">
-                            {cancelIntent?.mode === 'cancel_and_relist'
-                              ? 'This will mark the order as cancelled, revoke its entitlements, and return its ticket quantity back to inventory.'
-                              : 'This will mark the order as cancelled and revoke its entitlements. Inventory is not relisted in this mode.'}
-                          </p>
-                        </div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-amber-200/90">
-                          {selectedOrder.orderNumber} · {selectedOrder.eventName}
-                        </p>
-                        <div className="flex flex-wrap gap-3">
-                          <button
-                            type="button"
-                            onClick={() => setCancelIntent(null)}
-                            disabled={isUpdatingOrder}
-                            className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Keep Order
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!cancelIntent) return;
-                              onCancelOrder(cancelIntent.orderId, cancelIntent.mode);
-                              setCancelIntent(null);
-                            }}
-                            disabled={isUpdatingOrder}
-                            className="rounded-full bg-[#F97316] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {isUpdatingOrder
-                              ? 'Updating...'
-                              : cancelIntent?.mode === 'cancel_and_relist'
-                                ? 'Confirm Cancel & Relist'
-                                : 'Confirm Cancel'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
               </div>
             ) : (
               <EmptyPanelCopy copy="Select an order to inspect line items and run operational actions." />

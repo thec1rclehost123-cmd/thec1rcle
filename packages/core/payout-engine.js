@@ -1,133 +1,32 @@
-import { randomUUID } from 'node:crypto';
+/**
+ * Legacy payout compatibility surface.
+ *
+ * partner_ledger is the only financial authority. All payout mutations stay
+ * fail-closed until the provider-backed, idempotent payout workflow is launch
+ * approved. The split calculator remains read-only for legacy previews/tests;
+ * it must never be used to post ledger rows.
+ */
+
 import { getAdminDb } from './admin.js';
-import {
-  MONEY_STATES,
-  transitionMoneyState,
-  allocateToPayable,
-  recordPayout,
-  ACCOUNTS,
-} from './ledger-engine.js';
 
-/**
- * THE C1RCLE - Payout Engine
- * Responsible for settling event revenue and distributing to partners.
- */
+function disabledError(operation) {
+  const error = new Error(
+    `LEGACY_PAYOUT_ENGINE_DISABLED: ${operation} must use the canonical partner_ledger payout workflow`,
+  );
+  error.code = 'LEGACY_PAYOUT_ENGINE_DISABLED';
+  return error;
+}
 
-/**
- * Automates settlement for an event.
- * 1. Moves all HELD orders to SETTLED.
- * 2. Calculates splits.
- * 3. Allocates to PAYABLE.
- */
-export async function settleEvent(eventId) {
-  const db = getAdminDb();
-  const eventRef = db.collection('events').doc(eventId);
-  const eventDoc = await eventRef.get();
-
-  if (!eventDoc.exists) throw new Error('Event not found');
-  const event = eventDoc.data();
-
-  // MANDATORY ELIGIBILITY CHECKS
-  if (event.lifecycle !== 'completed') {
-    throw new Error(`Event ${eventId} is not in COMPLETED state. Current: ${event.lifecycle}`);
-  }
-
-  // Check for audit block (if we have an audit log status)
-  if (event.settlementStatus === 'blocked') {
-    throw new Error(`Settlement is BLOCKED for event ${eventId} due to audit flags.`);
-  }
-
-  // 1. Get all confirmed orders for this event
-  const ordersSnapshot = await db
-    .collection('orders')
-    .where('eventId', '==', eventId)
-    .where('status', '==', 'confirmed')
-    .get();
-
-  const orders = ordersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-
-  let processedCount = 0;
-
-  for (const order of orders) {
-    // Deterministic check: Skip if already settled or contested
-    if (order.ledgerState === MONEY_STATES.SETTLED) continue;
-
-    try {
-      await db.runTransaction(async (transaction) => {
-        // Fetch latest ledger state to ensure no dispute
-        const ledgerSnapshot = await transaction.get(
-          db
-            .collection('ledger_entries')
-            .where('entityId', '==', order.id)
-            .where('metadata.isFrozen', '==', true),
-        );
-
-        if (!ledgerSnapshot.empty) {
-          console.log(`[PayoutEngine] Skipping frozen order: ${order.id}`);
-          return;
-        }
-
-        // Move to SETTLED
-        await transitionMoneyState(
-          order.id,
-          MONEY_STATES.HELD,
-          MONEY_STATES.SETTLED,
-          order.totalAmount,
-          {
-            entityType: 'order',
-            eventId: eventId,
-          },
-          transaction,
-        );
-
-        // Calculate splits for this order
-        let resolvedPromoterCommission = null;
-        if (order.promoterLinkId) {
-          const commSnapshot = await transaction.get(
-            db.collection('promoter_commissions').where('orderId', '==', order.id).limit(1),
-          );
-          if (!commSnapshot.empty) {
-            const commData = commSnapshot.docs[0].data();
-            resolvedPromoterCommission = {
-              amount: Number(commData.commissionAmount) || 0,
-              promoterId: commData.promoterId || 'UNKNOWN_PROMOTER',
-            };
-          }
-        }
-
-        const splits = calculateOrderSplits(order, event, resolvedPromoterCommission);
-
-        // Distribute to PAYABLE (writes explicit split entries)
-        await allocateToPayable(order, splits, transaction);
-
-        // Mark order as settled in its own document for fast lookups
-        transaction.update(db.collection('orders').doc(order.id), {
-          ledgerState: MONEY_STATES.SETTLED,
-          settledAt: new Date().toISOString(),
-        });
-      });
-
-      processedCount++;
-    } catch (err) {
-      console.error(`[PayoutEngine] Failed to settle order ${order.id}:`, err.message);
-    }
-  }
-
-  return { processedCount, totalOrders: orders.length };
+export async function settleEvent() {
+  throw disabledError('event settlement');
 }
 
 export async function getEligibleEventsForSettlement(options = {}) {
-  const {
-    minDaysSinceCompletion = 3, // Default T+3 for refund window
-    limit = 20,
-  } = options;
-
+  const { minDaysSinceCompletion = 3, limit = 20 } = options;
   const db = getAdminDb();
-  const now = new Date();
   const threshold = new Date(
-    now.getTime() - minDaysSinceCompletion * 24 * 60 * 60 * 1000,
+    Date.now() - minDaysSinceCompletion * 24 * 60 * 60 * 1000,
   ).toISOString();
-
   const snapshot = await db
     .collection('events')
     .where('lifecycle', '==', 'completed')
@@ -135,12 +34,12 @@ export async function getEligibleEventsForSettlement(options = {}) {
     .where('settlementStatus', '==', 'pending')
     .limit(limit)
     .get();
-
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 }
 
 /**
- * Internal logic to determine who gets what from an order
+ * @deprecated Preview-only legacy calculator. Atomic sale posting uses the
+ * immutable split snapshot stored on the order and partner-ledger-service.
  */
 export function calculateOrderSplits(order, event, resolvedPromoterCommission = null) {
   const total = Number(order.totalAmount);
@@ -148,18 +47,13 @@ export function calculateOrderSplits(order, event, resolvedPromoterCommission = 
 
   const splits = [];
   let remaining = total;
-
-  // 1. Promoter Commission
   if (order.promoterLinkId) {
-    // Commission logic: In Phase 1, we might have a fixed commission or percentage
-    // For now, let's assume 10% or use attribution details if present
     const commissionAmount = resolvedPromoterCommission
       ? resolvedPromoterCommission.amount
       : order.promoterAttribution?.commissionAmount || Math.round(total * 0.1);
     const promoterId = resolvedPromoterCommission
       ? resolvedPromoterCommission.promoterId
       : order.promoterAttribution?.promoterId || 'UNKNOWN_PROMOTER';
-
     if (commissionAmount > 0) {
       splits.push({
         actorId: promoterId,
@@ -171,157 +65,65 @@ export function calculateOrderSplits(order, event, resolvedPromoterCommission = 
     }
   }
 
-  // 2. Platform Fee (THE C1RCLE)
-  const platformFeePercent = 0.05; // 5% flat fee
-  const platformFee = Math.round(total * platformFeePercent);
+  const platformFee = Math.round(total * 0.05);
   splits.push({
-    actorId: ACCOUNTS.PLATFORM_FEE,
+    actorId: 'C1RCLE_OVERHEAD',
     actorType: 'system',
     amount: Math.min(platformFee, remaining),
-    description: `Platform Service Fee (5%)`,
+    description: 'Platform Service Fee (5%)',
   });
   remaining -= splits[splits.length - 1].amount;
-
-  // 3. Partner Revenue (Host & Club)
-  // Partnership logic: If Host created, they might split with Club.
-  // Default: Club gets 70% of what's left, Host gets 30%.
-  // If Club event: Club gets 100% of what's left.
 
   const isHostEvent = event.creatorRole === 'host';
   const venueId = event.venueId || event.clubId;
   const hostId = event.creatorId;
-
   if (isHostEvent && hostId && venueId) {
     const hostShare = Math.round(remaining * 0.3);
-    const clubShare = remaining - hostShare;
-
     splits.push({
       actorId: hostId,
       actorType: 'host',
       amount: hostShare,
-      description: `Host Revenue Share (30% of Net)`,
+      description: 'Host Revenue Share (30% of Net)',
     });
-
     splits.push({
       actorId: venueId,
       actorType: 'venue',
-      amount: clubShare,
-      description: `Club Revenue Share (70% of Net)`,
+      amount: remaining - hostShare,
+      description: 'Club Revenue Share (70% of Net)',
     });
   } else {
-    // Club Event or direct
-    const finalId = venueId || hostId || 'UNKNOWN_PARTNER';
     splits.push({
-      actorId: finalId,
+      actorId: venueId || hostId || 'UNKNOWN_PARTNER',
       actorType: event.creatorRole || 'venue',
       amount: remaining,
-      description: `Final Revenue Settlement`,
+      description: 'Final Revenue Settlement',
     });
   }
-
   return splits;
 }
 
-/**
- * Batch Payout Execution
- */
-export async function processPartnerPayout(partnerId, partnerType) {
-  const db = getAdminDb();
-
-  // 1. Calculate how much is PAYABLE for this partner
-  const ledgerSnapshot = await db
-    .collection('ledger_entries')
-    .where('actorId', '==', partnerId)
-    .where('state', '==', MONEY_STATES.PAYABLE)
-    .get();
-
-  const payableBalance = ledgerSnapshot.docs.reduce(
-    (sum, doc) => sum + (doc.data().amount || 0),
-    0,
-  );
-
-  if (payableBalance <= 0) {
-    return { message: 'No funds available for payout', amount: 0 };
-  }
-
-  // 2. record payout in ledger
-  const payoutId = `PAYOUT-${randomUUID().substring(0, 8).toUpperCase()}`;
-  const bankRef = `BANK-${randomUUID().substring(0, 12).toUpperCase()}`;
-
-  await recordPayout(payoutId, partnerId, partnerType, payableBalance, bankRef);
-
-  // 3. Create a payout record for tracking
-  await db.collection('payouts').doc(payoutId).set({
-    id: payoutId,
-    partnerId,
-    partnerType,
-    amount: payableBalance,
-    status: 'completed',
-    bankReference: bankRef,
-    timestamp: new Date().toISOString(),
-  });
-
-  return { payoutId, amount: payableBalance, reference: bankRef };
+export async function processPartnerPayout() {
+  throw disabledError('partner payout');
 }
 
-/**
- * Gets the payout-ready balance for a promoter
- */
 export async function getPromoterPayoutBalance(promoterId) {
   const db = getAdminDb();
-
-  // Get total earned (PAYABLE ledger entries)
-  const ledgerSnapshot = await db
-    .collection('ledger_entries')
-    .where('actorId', '==', promoterId)
-    .where('state', '==', MONEY_STATES.PAYABLE)
-    .get();
-
-  const totalEarned = ledgerSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
-
-  // Get pending payouts
-  const pendingSnapshot = await db
-    .collection('payouts')
-    .where('partnerId', '==', promoterId)
-    .where('status', '==', 'pending')
-    .get();
-
-  const pending = pendingSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
-
+  const doc = await db.collection('partner_finance_aggregates').doc(promoterId).get();
+  const balances = doc.exists ? doc.data()?.balances || {} : {};
+  const availablePaise = Number(balances.settled || 0);
+  const pendingPaise = Number(balances.pending || 0);
   return {
-    available: totalEarned - pending,
-    pending,
-    totalEarned,
+    available: availablePaise / 100,
+    pending: pendingPaise / 100,
+    totalEarned: (availablePaise + pendingPaise) / 100,
+    availablePaise,
+    pendingPaise,
+    totalEarnedPaise: availablePaise + pendingPaise,
+    currency: 'INR',
+    source: 'partner_ledger',
   };
 }
 
-/**
- * Requests a payout for a promoter
- */
-export async function requestPromoterPayout({ promoterId, amount, paymentMethod, paymentDetails }) {
-  const db = getAdminDb();
-
-  const balance = await getPromoterPayoutBalance(promoterId);
-  if (amount > balance.available) {
-    throw new Error(`Insufficient balance. Available: ₹${balance.available}`);
-  }
-
-  if (amount < 100) {
-    throw new Error('Minimum payout amount is ₹100');
-  }
-
-  const payoutId = `REQ-${randomUUID().substring(0, 8).toUpperCase()}`;
-  const payout = {
-    id: payoutId,
-    partnerId: promoterId,
-    partnerType: 'promoter',
-    amount,
-    paymentMethod,
-    paymentDetails,
-    status: 'pending',
-    requestedAt: new Date().toISOString(),
-  };
-
-  await db.collection('payouts').doc(payoutId).set(payout);
-  return payout;
+export async function requestPromoterPayout() {
+  throw disabledError('promoter payout request');
 }

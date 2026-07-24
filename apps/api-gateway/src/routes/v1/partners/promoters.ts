@@ -2917,16 +2917,14 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         const limit = Math.min(query.limit || 50, 100);
 
         let q = fastify.db
-          .collection('promoter_commissions')
-          .where('promoterId', '==', ctx.partnerId)
+          .collection('partner_ledger')
+          .where('toPartnerId', '==', ctx.partnerId)
+          .where('type', '==', 'promoter_commission')
           .orderBy('createdAt', 'desc')
           .limit(limit + 1);
 
         if (query.cursor) {
-          const cursorDoc = await fastify.db
-            .collection('promoter_commissions')
-            .doc(query.cursor)
-            .get();
+          const cursorDoc = await fastify.db.collection('partner_ledger').doc(query.cursor).get();
           if (cursorDoc.exists) q = q.startAfter(cursorDoc);
         }
 
@@ -2935,7 +2933,24 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         const hasMore = allDocs.length > limit;
         const docsToReturn = allDocs.slice(0, limit);
 
-        const commissions = docsToReturn.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }));
+        const commissions = docsToReturn.map((doc: any) => {
+          const data = doc.data() || {};
+          const amountPaise = Number(data.amountPaise || 0);
+          return {
+            id: doc.id,
+            orderId: data.orderId || data.referenceId || null,
+            eventId: data.eventId || null,
+            promoterId: ctx.partnerId,
+            promoterLinkId: data.promoterLinkId || null,
+            commissionAmount: amountPaise / 100,
+            amount: amountPaise / 100,
+            amountPaise,
+            currency: data.currency || 'INR',
+            status: data.status || 'pending',
+            createdAt: data.createdAt || null,
+            source: 'partner_ledger',
+          };
+        });
         const nextCursor = hasMore ? (commissions[commissions.length - 1]?.id ?? null) : null;
 
         return reply.send({ commissions, nextCursor, hasMore });
@@ -3225,6 +3240,15 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/payouts',
     { preHandler: [fastify.requireAuth] },
     async (request: any, reply: any) => {
+      if (process.env.C1RCLE_PAYOUT_MUTATIONS_ENABLED !== 'true') {
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'PAYOUTS_NOT_LAUNCH_ENABLED',
+            message: 'Payout withdrawals are unavailable during launch verification',
+            requestId: request.id,
+          }),
+        );
+      }
       try {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
@@ -3253,7 +3277,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             displayName: ctx.displayName || 'Promoter',
           };
           const balances = await financeService.getBalances(promoterCtx);
-          if (amountPaise > balances.available) {
+          if (amountPaise > balances.availablePaise) {
             throw Object.assign(new Error('Insufficient balance'), {
               statusCode: 400,
               code: 'INSUFFICIENT_FUNDS',
@@ -3328,6 +3352,15 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/payouts',
     { preHandler: [fastify.requireAuth] },
     async (request: any, reply: any) => {
+      if (process.env.C1RCLE_PAYOUT_MUTATIONS_ENABLED !== 'true') {
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'PAYOUTS_NOT_LAUNCH_ENABLED',
+            message: 'Payout withdrawals are unavailable during launch verification',
+            requestId: request.id,
+          }),
+        );
+      }
       try {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;

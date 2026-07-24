@@ -2135,88 +2135,14 @@ export const adminStore = {
   },
 
   async approveRefundRequest(refundId, admin) {
-    const db = getAdminDb();
-    const refundRef = db.collection('refund_requests').doc(refundId);
-    let result;
-    // Use a transaction to prevent concurrent double-approval race conditions
-    await db.runTransaction(async (tx) => {
-      const refundDoc = await tx.get(refundRef);
-      if (!refundDoc.exists) throw new Error('Refund request not found');
-      const refundData = refundDoc.data();
-      if (refundData.status !== 'pending')
-        throw new Error(`Refund is already ${refundData.status}`);
-      if (refundData.approvers?.some((a) => a.uid === admin.uid))
-        throw new Error('You have already approved this refund');
-      const now = new Date().toISOString();
-      const newApprovers = [
-        ...(refundData.approvers || []),
-        { uid: admin.uid, name: admin.name || admin.email, role: admin.role, at: now },
-      ];
-      const isFullyApproved = newApprovers.length >= (refundData.approversRequired || 1);
-      tx.update(refundRef, {
-        approvers: newApprovers,
-        status: isFullyApproved ? 'approved' : 'pending',
-        updatedAt: now,
-        ...(isFullyApproved && { approvedAt: now }),
-      });
-      if (isFullyApproved)
-        tx.update(db.collection('orders').doc(refundData.orderId), {
-          status: 'refunded',
-          refundedAt: now,
-          refundAmount: refundData.amount,
-        });
-      result = {
-        isFullyApproved,
-        pendingApprovals: isFullyApproved ? 0 : refundData.approversRequired - newApprovers.length,
-        orderId: refundData.orderId,
-        amount: refundData.amount,
-      };
-    });
-    await this.logAdminAction({
-      action: 'refund_approved',
-      targetType: 'refund_request',
-      targetId: refundId,
-      adminId: admin.uid,
-      reason: 'Admin approval',
-      after: {
-        orderId: result.orderId,
-        amount: result.amount,
-        fullyApproved: result.isFullyApproved,
-      },
-    });
-    return { isFullyApproved: result.isFullyApproved, pendingApprovals: result.pendingApprovals };
+    throw new Error(
+      `DIRECT_ADMIN_REFUND_MUTATION_DISABLED: approve ${refundId} through the API Gateway`,
+    );
   },
 
   async rejectRefundRequest(refundId, reason, admin) {
-    const db = getAdminDb();
-    const refundRef = db.collection('refund_requests').doc(refundId);
-    const refundDoc = await refundRef.get();
-    if (!refundDoc.exists) throw new Error('Refund request not found');
-    const refundData = refundDoc.data();
-    if (refundData.status !== 'pending') throw new Error(`Refund is already ${refundData.status}`);
-    const now = new Date().toISOString();
-    const batch = db.batch();
-    batch.update(refundRef, {
-      status: 'rejected',
-      rejectedBy: { uid: admin.uid, name: admin.name || admin.email, role: admin.role },
-      rejectionReason: reason,
-      rejectedAt: now,
-      updatedAt: now,
-    });
-    batch.update(db.collection('orders').doc(refundData.orderId), {
-      status: 'confirmed',
-      refundRejected: true,
-      refundRejectionReason: reason,
-      updatedAt: now,
-    });
-    await batch.commit();
-    await this.logAdminAction({
-      action: 'refund_rejected',
-      targetType: 'refund_request',
-      targetId: refundId,
-      adminId: admin.uid,
-      reason,
-      after: { orderId: refundData.orderId, amount: refundData.amount },
-    });
+    throw new Error(
+      `DIRECT_ADMIN_REFUND_MUTATION_DISABLED: reject ${refundId} through the API Gateway`,
+    );
   },
 };

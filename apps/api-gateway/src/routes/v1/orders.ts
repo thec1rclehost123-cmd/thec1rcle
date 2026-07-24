@@ -3,6 +3,8 @@ import { hasStaffPermission } from '@c1rcle/core/staff-engine';
 import { z } from 'zod';
 import { logPaymentEvent } from '../../lib/securityLogger';
 import { buildErrorResponse } from '../../lib/api-contracts';
+import { getEventCommerceMetrics } from '../../lib/canonicalCommerceMetrics';
+import { finalizeProcessedRefund } from '../../lib/refundLedger';
 
 const OrderEventParam = z
   .object({
@@ -61,6 +63,35 @@ async function resolveOrderAccess(
   }
 
   return { order, event, allowed: false as const };
+}
+
+async function revokeCancelledOrderAdmission(
+  fastify: FastifyInstance,
+  orderId: string,
+  revokedAt: string,
+) {
+  await fastify.db.runTransaction(async (transaction: any) => {
+    const [ticketsSnapshot, entitlementsSnapshot] = await Promise.all([
+      transaction.get(fastify.db.collection('tickets').where('orderId', '==', orderId)),
+      transaction.get(fastify.db.collection('entitlements').where('orderId', '==', orderId)),
+    ]);
+    for (const ticket of ticketsSnapshot.docs) {
+      transaction.update(ticket.ref, {
+        status: 'cancelled',
+        revokedAt,
+        revokedReason: 'ORDER_CANCELLED',
+        updatedAt: revokedAt,
+      });
+    }
+    for (const entitlement of entitlementsSnapshot.docs) {
+      transaction.update(entitlement.ref, {
+        state: 'REVOKED',
+        revokedAt,
+        revokedReason: 'ORDER_CANCELLED',
+        updatedAt: revokedAt,
+      });
+    }
+  });
 }
 
 export default async function orderRoutes(fastify: FastifyInstance) {
@@ -301,8 +332,61 @@ export default async function orderRoutes(fastify: FastifyInstance) {
               refundAmount: number;
             }) => {
               if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-                return { id: `refund_mock_${Date.now()}`, status: 'processing' };
+                throw Object.assign(new Error('Razorpay refund configuration is unavailable'), {
+                  code: 'REFUND_PROVIDER_UNAVAILABLE',
+                });
               }
+
+              const refundId = `cancel_${refundOrderId}`;
+              const refundRef = fastify.db.collection('refund_requests').doc(refundId);
+              const claimed = await fastify.db.runTransaction(async (transaction: any) => {
+                const existing = await transaction.get(refundRef);
+                if (existing.exists) {
+                  const data = existing.data() as any;
+                  if (data.razorpayRefundId) {
+                    return {
+                      claimed: false,
+                      existing: {
+                        id: data.razorpayRefundId,
+                        status: data.providerStatus || data.status,
+                        refundRequestId: refundId,
+                      },
+                    };
+                  }
+                  if (data.status === 'settling') {
+                    throw Object.assign(new Error('Refund is already being processed'), {
+                      code: 'REFUND_ALREADY_PROCESSING',
+                    });
+                  }
+                }
+                const amountPaise = Math.round(Number(refundAmount || 0) * 100);
+                transaction.set(
+                  refundRef,
+                  {
+                    id: refundId,
+                    orderId: refundOrderId,
+                    eventId,
+                    customerId: userId,
+                    amount: refundAmount,
+                    amountPaise,
+                    fullyRefunded: refundPercentage === 100,
+                    revokeAdmission: true,
+                    terminalOrderStatus: 'cancelled',
+                    reason,
+                    source: 'order_cancellation',
+                    requestedBy: { uid: userId, role: request.user?.role || 'guest' },
+                    previousStatus: order.status,
+                    paymentDetails: { originalPaymentId: order.paymentId },
+                    status: 'settling',
+                    idempotencyKey: `refund:${refundOrderId}:cancellation`,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  },
+                  { merge: true },
+                );
+                return { claimed: true, existing: null };
+              });
+              if (!claimed.claimed && claimed.existing) return claimed.existing;
 
               const authHeader = Buffer.from(
                 `${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`,
@@ -324,17 +408,32 @@ export default async function orderRoutes(fastify: FastifyInstance) {
                       reason,
                       refundPercentage,
                       initiatedBy: 'guest',
+                      refundRequestId: refundId,
                     },
                   }),
                 },
               );
 
               if (response.ok) {
-                return response.json();
+                const providerRefund = (await response.json()) as any;
+                await refundRef.update({
+                  status: providerRefund.status === 'processed' ? 'approved' : 'processing',
+                  providerStatus: providerRefund.status,
+                  razorpayRefundId: providerRefund.id,
+                  updatedAt: new Date().toISOString(),
+                });
+                return { ...providerRefund, refundRequestId: refundId };
               }
 
               const refundError = await response.text();
-              return { status: 'failed', error: refundError };
+              await refundRef.update({
+                status: 'failed',
+                failureReason: refundError,
+                updatedAt: new Date().toISOString(),
+              });
+              throw Object.assign(new Error('Razorpay refund failed'), {
+                code: 'REFUND_PROVIDER_ERROR',
+              });
             },
           },
         );
@@ -350,7 +449,19 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         }
 
         // Bust cached order list for this user
+        await revokeCancelledOrderAdmission(fastify, orderId, new Date().toISOString());
         await fastify.cache.delete('orders', userId);
+        if (
+          result.refund?.providerStatus === 'processed' &&
+          result.refund?.refundRequestId &&
+          result.refund?.razorpayRefundId
+        ) {
+          await finalizeProcessedRefund({
+            db: fastify.db,
+            refundId: result.refund.refundRequestId,
+            providerRefundId: result.refund.razorpayRefundId,
+          });
+        }
         logPaymentEvent(request, 'ORDER_CANCELLED', {
           orderId,
           userId,
@@ -568,25 +679,13 @@ export default async function orderRoutes(fastify: FastifyInstance) {
           }),
         );
 
-      const ordersSnapshot = await fastify.db
-        .collection('orders')
-        .where('eventId', '==', eventId)
-        .where('status', '==', 'confirmed')
-        .get();
-
+      const commerce = await getEventCommerceMetrics(fastify.db, eventId);
       const stats = {
-        totalOrders: ordersSnapshot.size,
-        totalRevenue: 0,
-        ticketsSold: 0,
+        totalOrders: commerce.orderCount,
+        totalRevenue: commerce.netRevenue,
+        totalRevenuePaise: commerce.netRevenuePaise,
+        ticketsSold: commerce.ticketsSold,
       };
-
-      ordersSnapshot.docs.forEach((doc: any) => {
-        const order = doc.data();
-        stats.totalRevenue += order.totalAmount || 0;
-        (order.tickets || []).forEach((t: any) => {
-          stats.ticketsSold += t.quantity || 0;
-        });
-      });
 
       return { success: true, stats };
     },

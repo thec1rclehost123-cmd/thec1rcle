@@ -1,7 +1,7 @@
 const PLACEHOLDER_PATTERN = /(your[_-]|placeholder|replace[_-]?me|xxxx|example\.com|localhost|127\.0\.0\.1)/i;
 const NON_PRODUCTION_PATTERN = /(^|[._/-])(test|testing|stage|staging|demo|development|local)([._/-]|$)/i;
 
-function validateProductionEnvironment(env) {
+function validateReleaseEnvironment(env, profile = 'production') {
   const errors = [];
   const required = [
     'EXPO_PUBLIC_API_BASE_URL',
@@ -27,31 +27,58 @@ function validateProductionEnvironment(env) {
     }
   }
 
-  if (env.EXPO_PUBLIC_APP_ENV !== 'production') {
-    errors.push('EXPO_PUBLIC_APP_ENV must equal production');
+  const expectedAppEnvironment = profile === 'production' ? 'production' : 'preview';
+  if (env.EXPO_PUBLIC_APP_ENV !== expectedAppEnvironment) {
+    errors.push(`EXPO_PUBLIC_APP_ENV must equal ${expectedAppEnvironment}`);
   }
   if (env.EXPO_PUBLIC_DEMO_MODE !== 'false') {
     errors.push('EXPO_PUBLIC_DEMO_MODE must equal false');
+  }
+  if (env.EXPO_PUBLIC_PUBLIC_DEMO_MODE !== 'false') {
+    errors.push('EXPO_PUBLIC_PUBLIC_DEMO_MODE must equal false');
+  }
+  if (env.EXPO_PUBLIC_SHOWCASE_EVENTS !== 'false') {
+    errors.push('EXPO_PUBLIC_SHOWCASE_EVENTS must equal false');
   }
 
   const apiUrl = String(env.EXPO_PUBLIC_API_BASE_URL || '');
   try {
     const parsed = new URL(apiUrl);
-    if (parsed.protocol !== 'https:' || parsed.hostname !== 'api.thec1rcle.com') {
-      errors.push('EXPO_PUBLIC_API_BASE_URL must use https://api.thec1rcle.com');
+    const approvedGateway = String(env.C1RCLE_APPROVED_GATEWAY_ORIGIN || '').trim();
+    if (parsed.protocol !== 'https:' || parsed.hostname === 'localhost') {
+      errors.push('EXPO_PUBLIC_API_BASE_URL must use a non-loopback HTTPS gateway');
+    }
+    if (!approvedGateway) {
+      errors.push('C1RCLE_APPROVED_GATEWAY_ORIGIN is missing');
+    } else if (parsed.origin !== new URL(approvedGateway).origin) {
+      errors.push('EXPO_PUBLIC_API_BASE_URL does not match C1RCLE_APPROVED_GATEWAY_ORIGIN');
     }
   } catch {
     if (apiUrl) errors.push('EXPO_PUBLIC_API_BASE_URL is not a valid URL');
   }
 
   const razorpayKey = String(env.EXPO_PUBLIC_RAZORPAY_KEY || '');
-  if (razorpayKey && !/^rzp_live_[A-Za-z0-9]{8,}$/.test(razorpayKey)) {
-    errors.push('EXPO_PUBLIC_RAZORPAY_KEY must be a Razorpay live client key');
+  const razorpayPattern =
+    profile === 'production' ? /^rzp_live_[A-Za-z0-9]{8,}$/ : /^rzp_test_[A-Za-z0-9]{8,}$/;
+  if (razorpayKey && !razorpayPattern.test(razorpayKey)) {
+    errors.push(
+      `EXPO_PUBLIC_RAZORPAY_KEY must be a Razorpay ${profile === 'production' ? 'live' : 'test'} client key`,
+    );
   }
 
   const firebaseProjectId = String(env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || '');
-  if (firebaseProjectId && NON_PRODUCTION_PATTERN.test(firebaseProjectId)) {
+  if (profile === 'production' && firebaseProjectId && NON_PRODUCTION_PATTERN.test(firebaseProjectId)) {
     errors.push('EXPO_PUBLIC_FIREBASE_PROJECT_ID identifies a non-production project');
+  }
+  const approvedFirebaseProjectId = String(
+    env.C1RCLE_APPROVED_FIREBASE_PROJECT_ID || '',
+  ).trim();
+  if (!approvedFirebaseProjectId) {
+    errors.push('C1RCLE_APPROVED_FIREBASE_PROJECT_ID is missing');
+  } else if (firebaseProjectId !== approvedFirebaseProjectId) {
+    errors.push(
+      'EXPO_PUBLIC_FIREBASE_PROJECT_ID does not match C1RCLE_APPROVED_FIREBASE_PROJECT_ID',
+    );
   }
 
   const sentryDsn = String(env.EXPO_PUBLIC_SENTRY_DSN || '');
@@ -72,13 +99,18 @@ function validateProductionEnvironment(env) {
   return errors;
 }
 
+function validateProductionEnvironment(env) {
+  return validateReleaseEnvironment(env, 'production');
+}
+
 function run(env = process.env) {
-  if (env.EAS_BUILD !== 'true' || env.EAS_BUILD_PROFILE !== 'production') {
-    console.log('SKIP production environment guard (not an EAS production build)');
+  const profile = env.EAS_BUILD_PROFILE;
+  if (env.EAS_BUILD !== 'true' || !['preview', 'production'].includes(profile)) {
+    console.log('SKIP signed release environment guard (not an EAS preview/production build)');
     return 0;
   }
 
-  const errors = validateProductionEnvironment(env);
+  const errors = validateReleaseEnvironment(env, profile);
   if (errors.length > 0) {
     for (const error of errors) console.error(`FAIL ${error}`);
     console.error('Production build rejected: configure the production EAS environment and retry.');
@@ -90,7 +122,7 @@ function run(env = process.env) {
   return 0;
 }
 
-module.exports = { run, validateProductionEnvironment };
+module.exports = { run, validateProductionEnvironment, validateReleaseEnvironment };
 
 if (require.main === module) {
   process.exitCode = run();

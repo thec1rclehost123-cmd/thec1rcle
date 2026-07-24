@@ -123,23 +123,98 @@ export function buildGoogleWalletPassPreview(order, event = {}, env = process.en
 export async function buildGuestPassPreview({
   orderId,
   platform,
+  userId,
+  db,
   resolveEvent,
   env = process.env,
 } = {}) {
+  if (!userId) {
+    return { statusCode: 401, body: { success: false, code: 'unauthorized' } };
+  }
+
   if (!orderId) {
-    return { statusCode: 400, body: { error: 'Missing orderId' } };
+    return { statusCode: 400, body: { success: false, error: 'Missing orderId' } };
+  }
+
+  let isAuthorized = false;
+  if (db && typeof db.collection === 'function') {
+    const snap = await db
+      .collection('entitlements')
+      .where('orderId', '==', orderId)
+      .limit(50)
+      .get();
+    const entitlements = snap.docs ? snap.docs.map((d) => d.data()) : [];
+    const activeOwned = entitlements.find((e) => e.ownerUserId === userId && e.state === 'ACTIVE');
+    if (activeOwned) {
+      isAuthorized = true;
+    }
   }
 
   const order = await getOrderById(orderId);
   if (!order) {
-    return { statusCode: 404, body: { error: 'Order not found' } };
+    return { statusCode: 404, body: { success: false, error: 'Order not found' } };
+  }
+
+  if (!isAuthorized && order.userId === userId) {
+    if (db && typeof db.collection === 'function') {
+      const snap = await db
+        .collection('entitlements')
+        .where('orderId', '==', orderId)
+        .limit(50)
+        .get();
+      const entitlements = snap.docs ? snap.docs.map((d) => d.data()) : [];
+      const hasTransferredActive = entitlements.some(
+        (e) => e.ownerUserId !== userId && e.state === 'ACTIVE',
+      );
+      if (!hasTransferredActive) {
+        isAuthorized = true;
+      }
+    } else {
+      isAuthorized = true;
+    }
+  }
+
+  if (!isAuthorized) {
+    return { statusCode: 403, body: { success: false, code: 'forbidden' } };
   }
 
   const event = order.eventId && resolveEvent ? (await resolveEvent(order.eventId)) || {} : {};
-  const body =
-    platform === 'google'
-      ? buildGoogleWalletPassPreview(order, event, env)
-      : buildAppleWalletPassPreview(order, event, env);
+
+  const isApple = platform === 'apple';
+  const isEnabled = isApple ? env.APPLE_WALLET_ENABLED === 'true' : env.GOOGLE_WALLET_ENABLED === 'true';
+  const template = isApple ? env.APPLE_WALLET_PASS_URL_TEMPLATE : env.GOOGLE_WALLET_SAVE_URL_TEMPLATE;
+
+  if (template && !isEnabled) {
+    return {
+      statusCode: 503,
+      body: { success: false, code: 'feature_disabled', provider: platform, fallback: 'pdf' },
+    };
+  }
+
+  if (isEnabled) {
+    if (!template || !template.startsWith('https://')) {
+      return {
+        statusCode: 503,
+        body: { success: false, code: 'invalid_configuration', provider: platform },
+      };
+    }
+    const resolvedUrl = template
+      .replace('{orderId}', order.id)
+      .replace('{eventId}', order.eventId || '')
+      .replace('{userId}', userId);
+
+    if (isApple) {
+      return { statusCode: 302, headers: { Location: resolvedUrl }, body: null };
+    }
+    return {
+      statusCode: 200,
+      body: { success: true, provider: 'google', saveUrl: resolvedUrl },
+    };
+  }
+
+  const body = isApple
+    ? buildAppleWalletPassPreview(order, event, env)
+    : buildGoogleWalletPassPreview(order, event, env);
 
   return { statusCode: 501, body };
 }

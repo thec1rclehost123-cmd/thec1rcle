@@ -841,6 +841,19 @@ export async function cancelOrder(orderId) {
   if (order.status === 'cancelled') {
     return order; // Already cancelled
   }
+  if (
+    ['confirmed', 'checked_in', 'refund_requested', 'refund_processing', 'refunded'].includes(
+      String(order.status || '').toLowerCase(),
+    ) ||
+    Number(order.totalPaise || 0) > 0 ||
+    Number(order.totalAmount || 0) > 0
+  ) {
+    const error = new Error(
+      'LEGACY_PAID_ORDER_CANCELLATION_DISABLED: paid orders require canonical provider refund finalization',
+    );
+    error.code = 'LEGACY_PAID_ORDER_CANCELLATION_DISABLED';
+    throw error;
+  }
 
   const now = new Date().toISOString();
 
@@ -969,6 +982,13 @@ export async function cancelOrder(orderId) {
  * Update order status (e.g., from Webhook)
  */
 export async function updateOrderStatus(orderId, status, paymentDetails = {}) {
+  if (String(status || '').toLowerCase() === 'confirmed') {
+    const error = new Error(
+      'LEGACY_ORDER_CONFIRMATION_DISABLED: finalizeTicketPayment is the only confirmation authority',
+    );
+    error.code = 'LEGACY_ORDER_CONFIRMATION_DISABLED';
+    throw error;
+  }
   const order = await getOrderById(orderId);
   if (!order) throw new Error('Order not found');
 

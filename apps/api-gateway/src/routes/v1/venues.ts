@@ -7,6 +7,10 @@ import {
   cleanVenueProfilePatch,
 } from '../../lib/signed-urls.js';
 import { decrypt } from '../../lib/encryption.js';
+import {
+  getEventCommerceMetrics,
+  getPartnerCommerceRows,
+} from '../../lib/canonicalCommerceMetrics';
 
 const VenueIdQuery = z.object({ venueId: z.string() });
 const VenueCrmQuery = z.object({
@@ -367,13 +371,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           points = 12;
         } // 'all' → 12 months
 
-        // Fetch all orders for this venue (handles old orders without venueId field)
-        const allOrders = await fetchVenueOrders(fastify.db, venueId);
-        const orders = allOrders.filter((o: any) => {
-          if (o.status !== 'confirmed' && o.status !== 'paid') return false;
-          const ts = new Date(o.confirmedAt || o.createdAt || 0);
-          return range === 'all' ? true : ts >= cutoff;
-        });
+        const commerce = await getPartnerCommerceRows(fastify.db, venueId, 'venueId');
 
         // Build bucket map keyed by bucket identifier
         const buckets = new Map<string, { date: Date; tickets: number; revenue: number }>();
@@ -402,9 +400,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           }
         }
 
-        // Accumulate order values into buckets
-        for (const order of orders) {
-          const ts = new Date(order.confirmedAt || order.createdAt || 0);
+        for (const entry of commerce.ledger.filter((row) => row.type === 'venue_share')) {
+          const ts = new Date(entry.createdAtIso || 0);
+          if (range !== 'all' && ts < cutoff) continue;
           let key: string;
           if (range === '1d')
             key = `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}-${ts.getHours()}`;
@@ -413,17 +411,20 @@ export default async function venueRoutes(fastify: FastifyInstance) {
 
           const bucket = buckets.get(key);
           if (!bucket) continue;
+          bucket.revenue += Number(entry.amountPaise || 0) / 100;
+        }
 
-          const ticketCount =
-            order.ticketCount ||
-            (Array.isArray(order.tickets)
-              ? order.tickets.reduce((s: number, t: any) => s + (t.quantity || 1), 0)
-              : 0) ||
-            1;
-          const revenue = order.totalAmount || (order.totalPaise ? order.totalPaise / 100 : 0);
+        for (const ticket of commerce.tickets) {
+          const ts = new Date(ticket.createdAtIso || 0);
+          if (range !== 'all' && ts < cutoff) continue;
+          let key: string;
+          if (range === '1d')
+            key = `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}-${ts.getHours()}`;
+          else if (range === 'all') key = `${ts.getFullYear()}-${ts.getMonth()}`;
+          else key = `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}`;
 
-          bucket.tickets += ticketCount;
-          bucket.revenue += revenue;
+          const bucket = buckets.get(key);
+          if (bucket) bucket.tickets += 1;
         }
 
         // Serialise into series array
@@ -464,19 +465,13 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const [eventsSnap, ordersSnap, checkinsSnap] = await Promise.all([
+      const [eventsSnap, commerceRows, checkinsSnap] = await Promise.all([
         fastify.db
           .collection('events')
           .where('venueId', '==', venueId)
           .get()
           .catch(() => ({ docs: [] as any[], size: 0 })),
-        fastify.db
-          .collection('orders')
-          .where('venueId', '==', venueId)
-          .where('status', 'in', ['confirmed', 'paid'])
-          .where('createdAt', '>=', thirtyDaysAgo)
-          .get()
-          .catch(() => ({ docs: [] as any[] })),
+        getPartnerCommerceRows(fastify.db, venueId, 'venueId'),
         fastify.db
           .collection('check_ins')
           .where('venueId', '==', venueId)
@@ -484,16 +479,12 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           .get()
           .catch(() => ({ size: 0 })),
       ]);
-      const orderDocs = (ordersSnap as any).docs || [];
-      const totalRevenuePaise = orderDocs.reduce(
-        (sum: number, doc: any) =>
-          sum + (doc.data().totalPaise || Math.round((doc.data().amount || 0) * 100)),
-        0,
-      );
-      const totalTickets = orderDocs.reduce(
-        (sum: number, doc: any) => sum + (doc.data().ticketCount || 0),
-        0,
-      );
+      const totalRevenuePaise = commerceRows.ledger
+        .filter((entry) => !entry.createdAtIso || entry.createdAtIso >= thirtyDaysAgo)
+        .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0);
+      const totalTickets = commerceRows.tickets.filter(
+        (ticket) => !ticket.createdAtIso || ticket.createdAtIso >= thirtyDaysAgo,
+      ).length;
       const totalCheckIns = (checkinsSnap as any).size || 0;
       const eventCount = (eventsSnap as any).size || ((eventsSnap as any).docs || []).length;
       return reply.send({
@@ -531,9 +522,10 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-      const [eventsSnap, allOrders] = await Promise.all([
+      const [eventsSnap, allOrders, commerce] = await Promise.all([
         fastify.db.collection('events').where('venueId', '==', venueId).get(),
         fetchVenueOrders(fastify.db, venueId),
+        getPartnerCommerceRows(fastify.db, venueId, 'venueId'),
       ]);
 
       const recentEvents = eventsSnap.docs
@@ -551,11 +543,18 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return ts >= twoWeeksAgo.getTime() && ts < weekAgo.getTime();
       });
 
-      const weekendRevenue = thisWeekOrders.reduce(
-        (s: number, o: any) => s + (o.totalAmount || 0),
-        0,
-      );
-      const prevRevenue = prevWeekOrders.reduce((s: number, o: any) => s + (o.totalAmount || 0), 0);
+      const venueRevenueEntries = commerce.ledger.filter((entry) => entry.type === 'venue_share');
+      const weekendRevenue =
+        venueRevenueEntries
+          .filter((entry) => new Date(entry.createdAtIso || 0).getTime() >= weekAgo.getTime())
+          .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
+      const prevRevenue =
+        venueRevenueEntries
+          .filter((entry) => {
+            const timestamp = new Date(entry.createdAtIso || 0).getTime();
+            return timestamp >= twoWeeksAgo.getTime() && timestamp < weekAgo.getTime();
+          })
+          .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
       const revenueTrendPct =
         prevRevenue === 0
           ? weekendRevenue > 0
@@ -615,30 +614,13 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
 
-      const [ordersSnap, checkinsSnap] = await Promise.all([
-        fastify.db
-          .collection('orders')
-          .where('eventId', '==', eventId)
-          .where('status', '==', 'confirmed')
-          .get(),
+      const [commerce, checkinsSnap] = await Promise.all([
+        getEventCommerceMetrics(fastify.db, eventId),
         fastify.db.collection('check_ins').where('eventId', '==', eventId).get(),
       ]);
 
-      const revenue = ordersSnap.docs.reduce(
-        (sum: number, d: any) => sum + (d.data().totalAmount || 0),
-        0,
-      );
-      const ticketsSold = ordersSnap.docs.reduce((sum: number, d: any) => {
-        const o = d.data();
-        return (
-          sum +
-          (o.ticketCount ||
-            (Array.isArray(o.tickets)
-              ? o.tickets.reduce((s: number, t: any) => s + (t.quantity || 1), 0)
-              : 0) ||
-            1)
-        );
-      }, 0);
+      const revenue = commerce.netRevenue;
+      const ticketsSold = commerce.ticketsSold;
 
       return {
         id: eventId,
@@ -1427,15 +1409,8 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         );
         const walletsIssued = Number(summary.walletsIssued ?? 0);
 
-        // Compute ticket revenue from confirmed orders for this event
-        const ordersSnap = await fastify.db
-          .collection('orders')
-          .where('eventId', '==', eventId)
-          .where('status', '==', 'confirmed')
-          .get();
-        const ticketRevenuePaise = ordersSnap.docs.reduce((sum: number, d: any) => {
-          return sum + Math.round((Number(d.data().totalAmount) || 0) * 100);
-        }, 0);
+        const ticketRevenuePaise = (await getEventCommerceMetrics(fastify.db, eventId))
+          .netRevenuePaise;
 
         // Payout computed here — never on the frontend
         const payoutTotal =

@@ -87,7 +87,7 @@ export async function buildExploreFeedView({
     guestBffUpstreamJson(`/public/events?${eventQuery}`, {
       cacheMode: GUEST_BFF_CACHE.PUBLIC_REVALIDATED,
       forwardCookies: false,
-      next: { revalidate: 60 },
+      next: { revalidate: 15, tags: ['guest-events', 'guest-explore'] },
     }),
   ];
 
@@ -96,7 +96,7 @@ export async function buildExploreFeedView({
       guestBffUpstreamJson(`/public/events/featured?${featuredQuery.toString()}`, {
         cacheMode: GUEST_BFF_CACHE.PUBLIC_REVALIDATED,
         forwardCookies: false,
-        next: { revalidate: 60 },
+        next: { revalidate: 15, tags: ['guest-events', 'guest-explore', 'guest-featured'] },
       }),
     );
   }

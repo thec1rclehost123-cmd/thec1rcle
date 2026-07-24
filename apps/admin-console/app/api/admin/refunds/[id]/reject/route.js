@@ -3,7 +3,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { adminStore } from '@/lib/server/adminStore';
+import { getApiClient } from '@/lib/server/apiClient';
 import { withAdminAuth } from '@/lib/server/adminMiddleware';
 import { rateLimit } from '@/lib/server/rateLimit';
 
@@ -17,7 +17,6 @@ async function handler(request, { params }) {
 
     const { id } = await params;
     const refundId = id;
-    const admin = request.user;
     const body = await request.json();
     const { reason } = body;
 
@@ -25,7 +24,11 @@ async function handler(request, { params }) {
       return NextResponse.json({ error: 'Rejection reason is required' }, { status: 400 });
     }
 
-    await adminStore.rejectRefundRequest(refundId, reason, admin);
+    const token = request.headers.get('authorization').slice('Bearer '.length);
+    await getApiClient(token).request(`/refunds/${encodeURIComponent(refundId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'reject', reason }),
+    });
 
     return NextResponse.json({ success: true, message: 'Refund request rejected' });
   } catch (error) {

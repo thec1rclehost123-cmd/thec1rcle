@@ -128,7 +128,7 @@ export function guestBffJsonResponse(result, init = {}) {
       'Cache-Control',
       cacheControl ||
         (cacheMode === GUEST_BFF_CACHE.PUBLIC_REVALIDATED
-          ? 'public, max-age=0, s-maxage=60, stale-while-revalidate=300'
+          ? 'public, max-age=0, s-maxage=15, stale-while-revalidate=15'
           : 'no-store'),
     );
   }

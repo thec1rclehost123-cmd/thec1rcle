@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Triggering reload for compiled packages/core/dist changes
 import Fastify from 'fastify';
 import cors from '@fastify/cors';

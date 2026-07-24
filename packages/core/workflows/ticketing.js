@@ -1,11 +1,13 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { validatePaymentVerification } from 'razorpay/dist/utils/razorpay-utils.js';
+import Razorpay from 'razorpay';
 import { inngest, Events, sendEvent } from '../inngest-client.js';
 import { getAdminDb } from '../admin.js';
-import { issueEntitlements } from '../entitlement-engine.js';
+import { ENTITLEMENT_STATES } from '../entitlement-engine.js';
 import { ensureEventChatMembership } from '../guest-chat-service.js';
-import { releaseReservation } from '../inventory-engine.js';
+import { commitInventory, releaseReservation } from '../inventory-engine.js';
 import { getQrSecret } from '../secret-registry.js';
+import { writePartnerLedgerInTransaction } from '../partner-ledger-service.js';
 import { FieldValue } from 'firebase-admin/firestore';
 // NOTE: generateEntitlementQR is intentionally NOT imported here.
 // The rotating QR is generated live by the mobile app at display time.
@@ -58,7 +60,7 @@ export function verifyRazorpayCheckoutSignature({
     keySecret,
   );
 
-  if (!verified) throw codedError('Invalid signature', 'INVALID_SIGNATURE');
+  if (!verified) throw codedError('Invalid signature', 'PAYMENT_SIGNATURE_INVALID');
   return true;
 }
 
@@ -139,6 +141,9 @@ function buildTicketDocuments(order, event, issuedAt) {
         orderId: order.id,
         eventId: order.eventId,
         userId: order.userId,
+        hostId: order.hostId,
+        venueId: order.venueId || null,
+        promoterId: order.promoterId || null,
         tierId,
         ticketName: group.name || group.tierName || tierId,
         slotIndex: index,
@@ -154,6 +159,9 @@ function buildTicketDocuments(order, event, issuedAt) {
         orderId: order.id,
         eventId: order.eventId,
         userId: order.userId,
+        hostId: order.hostId,
+        venueId: order.venueId || null,
+        promoterId: order.promoterId || null,
         tierId,
         tierName: group.name || group.tierName || tierId,
         slotIndex: index,
@@ -196,6 +204,57 @@ function buildOrderQrCodes(order, ticketDocs) {
   });
 }
 
+function deterministicPublicToken(entitlementId) {
+  return `stk_${createHmac('sha256', getQrSecret())
+    .update(`public-entitlement:${entitlementId}`)
+    .digest('base64url')
+    .slice(0, 32)}`;
+}
+
+function buildEntitlementDocuments(order, event, ticketDocs, issuedAt) {
+  const eventSummary = {
+    title: event?.title || order.eventName || null,
+    startAt: event?.startDate || event?.startAt || null,
+    venue: event?.venue || event?.venueName || event?.location || null,
+    city: event?.city || null,
+    posterUrl: event?.image || event?.posterUrl || null,
+  };
+
+  return ticketDocs.map((ticket) => {
+    const entitlementId = `ENT-${safeDocSegment(order.id)}-${safeDocSegment(
+      ticket.tierId,
+    )}-${ticket.slotIndex}`.toUpperCase();
+    return {
+      id: entitlementId,
+      entitlementId,
+      ticketDocumentId: ticket.id,
+      ticketId: ticket.ticketId,
+      qrCode: entitlementId,
+      publicToken: deterministicPublicToken(entitlementId),
+      checkedIn: false,
+      eventId: order.eventId,
+      orderId: order.id,
+      ownerUserId: order.userId,
+      hostId: order.hostId,
+      venueId: order.venueId || null,
+      promoterId: order.promoterId || null,
+      ticketType: ticket.entryType === 'couple' ? 'couple' : 'paid',
+      genderConstraint: ticket.genderRequirement || 'none',
+      scanCountAllowed: ticket.scanCountAllowed,
+      scanCountUsed: 0,
+      state: ENTITLEMENT_STATES.ISSUED,
+      issuedAt,
+      eventSummary,
+      metadata: {
+        tierId: ticket.tierId,
+        tierName: ticket.tierName,
+        index: ticket.slotIndex,
+        entryType: ticket.entryType || 'general',
+      },
+    };
+  });
+}
+
 async function findPaymentRecordByRazorpayOrderId(db, transaction, razorpayOrderId) {
   const snapshot = await transaction.get(
     db.collection('payments').where('razorpayOrderId', '==', razorpayOrderId).limit(2),
@@ -233,10 +292,64 @@ async function getPaidOrderForPayment(db, transaction, payment) {
   throw codedError('Order not found', 'NOT_FOUND');
 }
 
-async function getEventSnapshot(db, eventId) {
+async function getEventSnapshot(db, transaction, eventId) {
   if (!eventId) return null;
-  const doc = await db.collection('events').doc(eventId).get();
+  const doc = await transaction.get(db.collection('events').doc(eventId));
   return doc.exists ? { id: doc.id, ...doc.data() } : null;
+}
+
+async function getProviderPayment({
+  razorpayOrderId,
+  razorpayPaymentId,
+  paymentRecord,
+  paymentGatewayConfig,
+  providerPayment,
+}) {
+  if (providerPayment) return providerPayment;
+
+  const isMock = isMockRazorpayPayload(razorpayOrderId, razorpayPaymentId, '');
+  if (isMock) {
+    if (!paymentGatewayConfig.allowMockPayment) {
+      throw codedError('Mock payments are disabled', 'BAD_REQUEST');
+    }
+    return {
+      id: razorpayPaymentId,
+      order_id: razorpayOrderId,
+      amount: Number(
+        paymentRecord.amountPaise ?? Math.round(Number(paymentRecord.amount || 0) * 100),
+      ),
+      currency: String(paymentRecord.currency || 'INR').toUpperCase(),
+      status: 'captured',
+      captured: true,
+    };
+  }
+
+  const keyId = paymentGatewayConfig.keyId || process.env.RAZORPAY_KEY_ID;
+  const keySecret = paymentGatewayConfig.keySecret || process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) {
+    throw codedError('Payment verification is not configured', 'PAYMENT_NOT_CONFIGURED');
+  }
+
+  const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+  return razorpay.payments.fetch(razorpayPaymentId);
+}
+
+function validateProviderPayment(providerPayment, razorpayOrderId, order) {
+  if (providerPayment?.order_id !== razorpayOrderId) {
+    throw codedError('Payment does not belong to this Razorpay order', 'PAYMENT_ALREADY_LINKED');
+  }
+  if (Number(providerPayment?.amount) !== Number(order.totalPaise)) {
+    throw codedError('Payment amount mismatch', 'PAYMENT_AMOUNT_MISMATCH');
+  }
+  if (
+    String(providerPayment?.currency || '').toUpperCase() !==
+    String(order.currency || 'INR').toUpperCase()
+  ) {
+    throw codedError('Payment currency mismatch', 'PAYMENT_AMOUNT_MISMATCH');
+  }
+  if (!['authorized', 'captured'].includes(String(providerPayment?.status || '').toLowerCase())) {
+    throw codedError('Payment is not successful', 'ORDER_NOT_FINALIZABLE');
+  }
 }
 
 function buildFulfillmentTickets(order) {
@@ -251,158 +364,57 @@ function buildFulfillmentTickets(order) {
   }));
 }
 
-export async function verifyCheckoutPayment({
-  db = getAdminDb(),
-  userId,
-  razorpay_order_id,
-  razorpay_payment_id,
-  razorpay_signature,
-  paymentGatewayConfig = {},
-}) {
-  const razorpayOrderId = razorpay_order_id;
-  const razorpayPaymentId = razorpay_payment_id;
-  const razorpaySignature = razorpay_signature;
-
-  if (!userId) throw codedError('Unauthorized', 'UNAUTHORIZED');
-
-  verifyRazorpayCheckoutSignature({
-    razorpayOrderId,
-    razorpayPaymentId,
-    razorpaySignature,
-    keySecret: paymentGatewayConfig.keySecret || process.env.RAZORPAY_KEY_SECRET,
-    allowMockPayment: !!paymentGatewayConfig.allowMockPayment,
-  });
-
-  const issuedAt = new Date().toISOString();
-  let transactionResult;
+export async function dispatchTicketPurchaseOutbox(db, outboxId) {
+  const ref = db.collection('domain_event_outbox').doc(outboxId);
+  const leaseId = randomUUID();
+  const now = new Date();
+  const leaseExpiresAt = new Date(now.getTime() + 60_000).toISOString();
+  let outbox = null;
 
   await db.runTransaction(async (transaction) => {
-    const paymentLookup = await findPaymentRecordByRazorpayOrderId(
-      db,
-      transaction,
-      razorpayOrderId,
-    );
-    const payment = paymentLookup.data;
-
-    if (payment.userId && payment.userId !== userId) {
-      throw codedError('Forbidden', 'FORBIDDEN');
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists) {
+      throw codedError('Ticket purchase outbox record not found', 'NOT_FOUND');
     }
-
+    const current = snapshot.data();
+    if (current.status === 'dispatched') {
+      outbox = { ...current, alreadyDispatched: true };
+      return;
+    }
     if (
-      payment.status === 'verified' &&
-      payment.razorpayPaymentId &&
-      payment.razorpayPaymentId !== razorpayPaymentId
+      current.status === 'dispatching' &&
+      current.leaseExpiresAt &&
+      new Date(current.leaseExpiresAt).getTime() > now.getTime()
     ) {
-      throw codedError('Payment order already verified with a different payment id', 'CONFLICT');
+      outbox = { ...current, leasedByAnotherWorker: true };
+      return;
     }
-
-    const orderLookup = await getPaidOrderForPayment(db, transaction, payment);
-    const order = orderLookup.data;
-
-    if (order.userId && order.userId !== userId) {
-      throw codedError('Forbidden', 'FORBIDDEN');
-    }
-
-    if (order.status !== 'confirmed' && !PAYMENT_PENDING_STATUSES.has(String(order.status || ''))) {
-      throw codedError(`Order is ${order.status}`, 'CONFLICT');
-    }
-
-    const event = await getEventSnapshot(db, order.eventId);
-    const ticketDocs = buildTicketDocuments(order, event, issuedAt);
-    const ticketRefs = ticketDocs.map((ticket) => db.collection('tickets').doc(ticket.id));
-    const ticketSnapshots = await Promise.all(ticketRefs.map((ref) => transaction.get(ref)));
-    const missingTicketCount = ticketSnapshots.filter((doc) => !doc.exists).length;
-    const existingTicketDocs = ticketSnapshots
-      .filter((doc) => doc.exists)
-      .map((doc) => ({ id: doc.id, ...doc.data() }));
-
-    ticketSnapshots.forEach((doc, index) => {
-      if (!doc.exists) {
-        transaction.set(ticketRefs[index], ticketDocs[index], { merge: false });
-      }
+    transaction.update(ref, {
+      status: 'dispatching',
+      leaseId,
+      leaseExpiresAt,
+      lastAttemptAt: now.toISOString(),
+      attempts: FieldValue.increment(1),
+      updatedAt: now.toISOString(),
     });
-
-    const allTickets = ticketDocs.map((ticket) => {
-      const existing = existingTicketDocs.find((candidate) => candidate.id === ticket.id);
-      return existing || ticket;
-    });
-    const qrCodes = buildOrderQrCodes(order, allTickets);
-    const alreadyVerified = payment.status === 'verified' || order.status === 'confirmed';
-
-    if (!alreadyVerified || missingTicketCount > 0) {
-      transaction.update(orderLookup.ref, {
-        status: 'confirmed',
-        paymentId: razorpayPaymentId,
-        paymentOrderId: razorpayOrderId,
-        paymentSignature: razorpaySignature,
-        ticketIds: allTickets.map((ticket) => ticket.id),
-        qrCodes,
-        ticketsIssuedAt: order.ticketsIssuedAt || issuedAt,
-        confirmedAt: order.confirmedAt || issuedAt,
-        updatedAt: issuedAt,
-      });
-    }
-
-    if (payment.status !== 'verified') {
-      transaction.update(paymentLookup.ref, {
-        status: 'verified',
-        razorpayPaymentId,
-        verifiedAt: issuedAt,
-      });
-    }
-
-    transactionResult = {
-      alreadyVerified,
-      order: {
-        ...order,
-        status: 'confirmed',
-        paymentId: razorpayPaymentId,
-        paymentOrderId: razorpayOrderId,
-        ticketIds: allTickets.map((ticket) => ticket.id),
-        qrCodes,
-        confirmedAt: order.confirmedAt || issuedAt,
-        updatedAt: issuedAt,
-      },
-      tickets: allTickets,
-      reservationId: order.reservationId || null,
-    };
+    outbox = current;
   });
 
-  const order = transactionResult.order;
-  let chat = null;
-  let chatUnlocked = false;
-  let redisReleased = false;
-
-  if (!transactionResult.alreadyVerified) {
-    try {
-      const chatResult = await ensureEventChatMembership(db, {
-        eventId: order.eventId,
-        userId: order.userId,
-        userEmail: order.userEmail || null,
-        source: 'ticket',
-        orderId: order.id,
-      });
-      chat = {
-        id: chatResult.chat.id,
-        memberId: chatResult.member.id,
-      };
-      chatUnlocked = true;
-    } catch (error) {
-      console.warn('[ticketing] Failed to unlock event chat after payment verify:', error.message);
-    }
+  if (outbox?.alreadyDispatched || outbox?.leasedByAnotherWorker) {
+    return {
+      success: true,
+      alreadyDispatched: Boolean(outbox.alreadyDispatched),
+      leasedByAnotherWorker: Boolean(outbox.leasedByAnotherWorker),
+    };
   }
 
-  if (!transactionResult.alreadyVerified && transactionResult.reservationId) {
-    try {
-      const release = await releaseReservation(transactionResult.reservationId);
-      redisReleased = !!release?.success;
-    } catch (error) {
-      console.warn('[ticketing] Failed to release paid cart reservation:', error.message);
+  try {
+    const orderDoc = await db.collection('orders').doc(outbox.orderId).get();
+    if (!orderDoc.exists || orderDoc.data()?.status !== 'confirmed') {
+      throw codedError('Outbox order is not confirmed', 'ORDER_NOT_FINALIZABLE');
     }
-  }
-
-  if (!transactionResult.alreadyVerified) {
-    sendEvent(
+    const order = { id: orderDoc.id, ...orderDoc.data() };
+    const dispatch = await sendEvent(
       Events.TICKET_PURCHASED,
       {
         orderId: order.id,
@@ -411,34 +423,433 @@ export async function verifyCheckoutPayment({
         eventId: order.eventId,
         tickets: buildFulfillmentTickets(order),
         totalAmount: order.totalAmount,
-        ticketsCount: transactionResult.tickets.length,
-        promoterCode: order.promoterCode || null,
+        totalPaise: order.totalPaise,
+        ticketsCount: Array.isArray(order.ticketIds) ? order.ticketIds.length : 0,
       },
-      { idempotencyKey: `ticket-purchased-${order.id}` },
-    ).catch((error) =>
-      console.error('[ticketing] Failed to dispatch ticket purchased event:', error),
+      { idempotencyKey: outboxId },
     );
+    if (!dispatch?.success) {
+      throw codedError(
+        dispatch?.error || 'Outbox provider rejected event',
+        'OUTBOX_DISPATCH_FAILED',
+      );
+    }
+
+    await db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists || snapshot.data()?.leaseId !== leaseId) return;
+      transaction.update(ref, {
+        status: 'dispatched',
+        dispatchedAt: new Date().toISOString(),
+        leaseId: null,
+        leaseExpiresAt: null,
+        lastError: null,
+        updatedAt: new Date().toISOString(),
+      });
+    });
+    return { success: true, alreadyDispatched: false };
+  } catch (error) {
+    await db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists || snapshot.data()?.leaseId !== leaseId) return;
+      transaction.update(ref, {
+        status: 'pending',
+        leaseId: null,
+        leaseExpiresAt: null,
+        lastError: String(error?.message || error).slice(0, 500),
+        updatedAt: new Date().toISOString(),
+      });
+    });
+    throw error;
+  }
+}
+
+export async function retryPendingTicketPurchaseOutbox(db = getAdminDb(), { limit = 50 } = {}) {
+  const snapshot = await db
+    .collection('domain_event_outbox')
+    .where('status', 'in', ['pending', 'dispatching'])
+    .limit(Math.min(Math.max(Number(limit) || 1, 1), 100))
+    .get();
+  const results = [];
+  for (const doc of snapshot.docs) {
+    try {
+      const result = await dispatchTicketPurchaseOutbox(db, doc.id);
+      results.push({ outboxId: doc.id, ...result });
+    } catch (error) {
+      results.push({
+        outboxId: doc.id,
+        success: false,
+        error: String(error?.message || error),
+      });
+    }
+  }
+  return {
+    processed: results.length,
+    succeeded: results.filter((item) => item.success).length,
+    failed: results.filter((item) => !item.success).length,
+    results,
+  };
+}
+
+export async function finalizeTicketPayment({
+  db = getAdminDb(),
+  userId = null,
+  source = 'client',
+  requestId = null,
+  expectedOrderId = null,
+  razorpayOrderId,
+  razorpayPaymentId,
+  razorpaySignature = null,
+  webhookVerified = false,
+  providerPayment = null,
+  paymentGatewayConfig = {},
+}) {
+  if (source === 'client') {
+    if (!userId) throw codedError('Unauthorized', 'UNAUTHORIZED');
+    verifyRazorpayCheckoutSignature({
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+      keySecret: paymentGatewayConfig.keySecret || process.env.RAZORPAY_KEY_SECRET,
+      allowMockPayment: !!paymentGatewayConfig.allowMockPayment,
+    });
+  } else if (source === 'webhook' && !webhookVerified) {
+    throw codedError('Webhook authenticity was not verified', 'PAYMENT_SIGNATURE_INVALID');
+  }
+
+  const paymentQuery = await db
+    .collection('payments')
+    .where('razorpayOrderId', '==', razorpayOrderId)
+    .limit(2)
+    .get();
+  if (paymentQuery.empty) throw codedError('Payment order not found', 'NOT_FOUND');
+  if (paymentQuery.docs.length !== 1) {
+    throw codedError('Payment order is ambiguous', 'ORDER_NOT_FINALIZABLE');
+  }
+  const initialPayment = paymentQuery.docs[0].data();
+  const verifiedProviderPayment = await getProviderPayment({
+    razorpayOrderId,
+    razorpayPaymentId,
+    paymentRecord: initialPayment,
+    paymentGatewayConfig,
+    providerPayment,
+  });
+
+  const issuedAt = new Date().toISOString();
+  let result = null;
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const paymentLookup = await findPaymentRecordByRazorpayOrderId(
+        db,
+        transaction,
+        razorpayOrderId,
+      );
+      const payment = paymentLookup.data;
+      const orderLookup = await getPaidOrderForPayment(db, transaction, payment);
+      const order = orderLookup.data;
+      const event = await getEventSnapshot(db, transaction, order.eventId);
+      if (!event) throw codedError('Event not found', 'NOT_FOUND');
+
+      if (source === 'client' && (payment.userId !== userId || order.userId !== userId)) {
+        throw codedError('Forbidden', 'FORBIDDEN');
+      }
+      if (expectedOrderId && order.id !== expectedOrderId) {
+        throw codedError(
+          'Payment does not belong to the requested order',
+          'PAYMENT_ALREADY_LINKED',
+        );
+      }
+      if (payment.razorpayPaymentId && payment.razorpayPaymentId !== razorpayPaymentId) {
+        throw codedError(
+          'Payment order already verified with a different payment id',
+          'PAYMENT_ALREADY_LINKED',
+        );
+      }
+      if (
+        order.status !== 'confirmed' &&
+        !PAYMENT_PENDING_STATUSES.has(String(order.status || ''))
+      ) {
+        throw codedError(`Order is ${order.status}`, 'ORDER_NOT_FINALIZABLE');
+      }
+      if (!order.hostId) {
+        throw codedError('Order is missing host attribution', 'ORDER_ATTRIBUTION_MISSING');
+      }
+      if (!Number.isSafeInteger(Number(order.totalPaise))) {
+        throw codedError('Order is missing integer payment total', 'ORDER_NOT_FINALIZABLE');
+      }
+      const paymentAmountPaise = Number(
+        payment.amountPaise ?? Math.round(Number(payment.amount || 0) * 100),
+      );
+      if (paymentAmountPaise !== Number(order.totalPaise)) {
+        throw codedError('Payment record amount mismatch', 'PAYMENT_AMOUNT_MISMATCH');
+      }
+      validateProviderPayment(verifiedProviderPayment, razorpayOrderId, order);
+
+      const ticketDocs = buildTicketDocuments(order, event, issuedAt);
+      if (ticketDocs.length === 0 || ticketDocs.length > 50) {
+        throw codedError(
+          'Ticket quantity is outside the atomic finalization limit',
+          'TICKET_TRANSACTION_LIMIT_EXCEEDED',
+        );
+      }
+      const entitlementDocs = buildEntitlementDocuments(order, event, ticketDocs, issuedAt);
+      const ticketRefs = ticketDocs.map((ticket) => db.collection('tickets').doc(ticket.id));
+      const entitlementRefs = entitlementDocs.map((entitlement) =>
+        db.collection('entitlements').doc(entitlement.id),
+      );
+      const markerRef = db.collection('partner_ledger_idempotency').doc(order.id);
+      const outboxRef = db.collection('domain_event_outbox').doc(`ticket-purchase-${order.id}`);
+      const paymentLinkQuery = db
+        .collection('payments')
+        .where('razorpayPaymentId', '==', razorpayPaymentId)
+        .limit(2);
+
+      const [ticketSnapshots, entitlementSnapshots, markerSnapshot, outboxSnapshot, paymentLinks] =
+        await Promise.all([
+          Promise.all(ticketRefs.map((ref) => transaction.get(ref))),
+          Promise.all(entitlementRefs.map((ref) => transaction.get(ref))),
+          transaction.get(markerRef),
+          transaction.get(outboxRef),
+          transaction.get(paymentLinkQuery),
+        ]);
+
+      const conflictingPayment = paymentLinks.docs?.find((doc) => doc.data().orderId !== order.id);
+      if (conflictingPayment) {
+        throw codedError('Payment is already linked to another order', 'PAYMENT_ALREADY_LINKED');
+      }
+
+      const isCompleteReplay =
+        order.status === 'confirmed' &&
+        payment.status === 'verified' &&
+        markerSnapshot.exists &&
+        ticketSnapshots.every((doc) => doc.exists) &&
+        entitlementSnapshots.every((doc) => doc.exists);
+
+      if (!isCompleteReplay && order.status === 'confirmed') {
+        throw codedError(
+          'Confirmed order is missing atomic finalization artifacts',
+          'LEDGER_IDEMPOTENCY_CONFLICT',
+        );
+      }
+
+      if (!isCompleteReplay) {
+        await commitInventory(transaction, {
+          db,
+          event,
+          items: order.tickets,
+          reservationId: order.reservationId || null,
+        });
+      }
+
+      const ledger = writePartnerLedgerInTransaction({
+        db,
+        transaction,
+        order,
+        event,
+        paymentId: razorpayPaymentId,
+        createdAt: issuedAt,
+        markerSnapshot,
+      });
+
+      ticketSnapshots.forEach((snapshot, index) => {
+        if (!snapshot.exists) transaction.create(ticketRefs[index], ticketDocs[index]);
+      });
+      entitlementSnapshots.forEach((snapshot, index) => {
+        if (!snapshot.exists) {
+          transaction.create(entitlementRefs[index], entitlementDocs[index]);
+        }
+      });
+
+      const qrCodes = buildOrderQrCodes(order, ticketDocs).map((qr) => ({
+        ...qr,
+        entitlementIds: entitlementDocs
+          .filter((entitlement) => entitlement.metadata.tierId === qr.ticketId)
+          .map((entitlement) => entitlement.id),
+      }));
+      const orderUpdate = {
+        status: 'confirmed',
+        paymentId: razorpayPaymentId,
+        paymentOrderId: razorpayOrderId,
+        ticketIds: ticketDocs.map((ticket) => ticket.id),
+        entitlementIds: entitlementDocs.map((entitlement) => entitlement.id),
+        ledgerMarkerId: ledger.markerId,
+        inventoryCommittedAt: order.inventoryCommittedAt || issuedAt,
+        qrCodes,
+        ticketsIssuedAt: order.ticketsIssuedAt || issuedAt,
+        confirmedAt: order.confirmedAt || issuedAt,
+        fulfillmentStatus: 'authoritative_committed',
+        updatedAt: issuedAt,
+      };
+      transaction.update(orderLookup.ref, orderUpdate);
+      transaction.update(paymentLookup.ref, {
+        status: 'verified',
+        razorpayPaymentId,
+        providerAmountPaise: Number(verifiedProviderPayment.amount),
+        providerCurrency: String(verifiedProviderPayment.currency || 'INR').toUpperCase(),
+        verifiedAt: payment.verifiedAt || issuedAt,
+        updatedAt: issuedAt,
+      });
+
+      if (!outboxSnapshot.exists) {
+        transaction.create(outboxRef, {
+          id: outboxRef.id,
+          type: 'ticket.purchase.confirmed',
+          aggregateId: order.id,
+          orderId: order.id,
+          eventId: order.eventId,
+          userId: order.userId,
+          hostId: order.hostId,
+          venueId: order.venueId || null,
+          promoterId: order.promoterId || null,
+          requestId,
+          status: 'pending',
+          attempts: 0,
+          createdAt: issuedAt,
+        });
+      }
+
+      result = {
+        order: { ...order, ...orderUpdate },
+        tickets: ticketDocs,
+        entitlements: entitlementDocs,
+        alreadyFinalized: isCompleteReplay,
+        ledgerMarkerId: ledger.markerId,
+        outboxEventId: outboxRef.id,
+        outboxDispatchRequired:
+          !outboxSnapshot.exists || outboxSnapshot.data()?.status !== 'dispatched',
+        reservationId: order.reservationId || null,
+      };
+    });
+  } catch (error) {
+    const captured = ['authorized', 'captured'].includes(
+      String(verifiedProviderPayment?.status || '').toLowerCase(),
+    );
+    if (captured && initialPayment.orderId) {
+      await Promise.allSettled([
+        db
+          .collection('orders')
+          .doc(initialPayment.orderId)
+          .update({
+            paymentFinalizationStatus: 'payment_received_finalization_pending',
+            paymentFinalizationPaymentId: razorpayPaymentId,
+            paymentFinalizationLastErrorCode: error?.code || 'TRANSACTION_FAILED',
+            paymentFinalizationLastAttemptAt: issuedAt,
+            updatedAt: issuedAt,
+          }),
+        paymentQuery.docs[0].ref.update({
+          status: 'captured_finalization_pending',
+          razorpayPaymentId,
+          providerAmountPaise: Number(verifiedProviderPayment.amount),
+          providerCurrency: String(verifiedProviderPayment.currency || 'INR').toUpperCase(),
+          finalizationLastErrorCode: error?.code || 'TRANSACTION_FAILED',
+          finalizationLastAttemptAt: issuedAt,
+          updatedAt: issuedAt,
+        }),
+      ]);
+    }
+
+    const nonRetryableCodes = new Set([
+      'UNAUTHORIZED',
+      'FORBIDDEN',
+      'NOT_FOUND',
+      'PAYMENT_SIGNATURE_INVALID',
+      'PAYMENT_AMOUNT_MISMATCH',
+      'PAYMENT_ALREADY_LINKED',
+      'ORDER_ATTRIBUTION_MISSING',
+      'ORDER_NOT_FINALIZABLE',
+      'LEDGER_IDEMPOTENCY_CONFLICT',
+      'TICKET_TRANSACTION_LIMIT_EXCEEDED',
+    ]);
+    if (nonRetryableCodes.has(error?.code)) throw error;
+
+    const retryError = codedError(
+      'Payment was received but finalization must be retried',
+      'FINALIZATION_RETRY_REQUIRED',
+    );
+    retryError.cause = error;
+    retryError.orderId = initialPayment.orderId;
+    retryError.paymentId = razorpayPaymentId;
+    throw retryError;
+  }
+
+  const order = result.order;
+  let chat = null;
+  let chatUnlocked = false;
+  let reservationReleased = false;
+
+  if (!result.alreadyFinalized) {
+    try {
+      const chatResult = await ensureEventChatMembership(db, {
+        eventId: order.eventId,
+        userId: order.userId,
+        userEmail: order.userEmail || null,
+        source: 'ticket',
+        orderId: order.id,
+      });
+      chat = { id: chatResult.chat.id, memberId: chatResult.member.id };
+      chatUnlocked = true;
+    } catch (error) {
+      console.warn('[ticketing] Failed to unlock event chat after payment verify:', error.message);
+    }
+
+    if (result.reservationId) {
+      try {
+        reservationReleased = Boolean((await releaseReservation(result.reservationId))?.success);
+      } catch (error) {
+        console.warn('[ticketing] Failed to release paid cart reservation:', error.message);
+      }
+    }
+  }
+
+  if (result.outboxDispatchRequired) {
+    dispatchTicketPurchaseOutbox(db, result.outboxEventId).catch(async (error) => {
+      console.error('[ticketing] Failed to dispatch ticket purchased event:', error);
+    });
   }
 
   return {
     success: true,
-    alreadyVerified: transactionResult.alreadyVerified,
-    order: transactionResult.order,
-    tickets: transactionResult.tickets.map((ticket) => ({
-      id: ticket.id,
-      ticketId: ticket.ticketId,
-      eventId: ticket.eventId,
-      tierId: ticket.tierId,
-      status: ticket.status,
-      qrMode: ticket.qrMode,
-    })),
-    ticketsCount: transactionResult.tickets.length,
+    orderId: order.id,
+    paymentId: razorpayPaymentId,
+    status: 'confirmed',
+    alreadyFinalized: result.alreadyFinalized,
+    alreadyVerified: result.alreadyFinalized,
+    ticketIds: result.tickets.map((ticket) => ticket.id),
+    entitlementIds: result.entitlements.map((entitlement) => entitlement.id),
+    ledgerMarkerId: result.ledgerMarkerId,
+    reservationReleased,
+    redisReleased: reservationReleased,
+    outboxEventId: result.outboxEventId,
+    order,
+    tickets: result.tickets,
+    ticketsCount: result.tickets.length,
     razorpayOrderId,
     razorpayPaymentId,
     chatUnlocked,
     chat,
-    redisReleased,
   };
+}
+
+export async function verifyCheckoutPayment({
+  db = getAdminDb(),
+  userId,
+  razorpay_order_id,
+  razorpay_payment_id,
+  razorpay_signature,
+  paymentGatewayConfig = {},
+  requestId = null,
+}) {
+  return finalizeTicketPayment({
+    db,
+    userId,
+    source: 'client',
+    requestId,
+    razorpayOrderId: razorpay_order_id,
+    razorpayPaymentId: razorpay_payment_id,
+    razorpaySignature: razorpay_signature,
+    paymentGatewayConfig,
+  });
 }
 
 /**
@@ -502,51 +913,27 @@ export const handleTicketFulfillment = inngest.createFunction(
     } = event.data;
     const db = getAdminDb();
 
-    // Step 1: Issue entitlements (one per human unit / quantity)
-    const entitlements = await step.run('issue-entitlements', async () => {
-      const order = { id: orderId, userId, eventId };
-      const items = tickets.map((t) => ({
-        ticketId: t.tierId,
-        name: t.tierName,
-        quantity: t.quantity,
-        entryType: t.entryType || 'general',
-        genderRequirement: t.genderRequirement,
-      }));
-      return await issueEntitlements(order, items);
+    // Entitlements are authoritative transaction artifacts. The workflow may
+    // read them for downstream delivery, but it must never issue or repair them.
+    const entitlements = await step.run('load-committed-entitlements', async () => {
+      const snapshot = await db.collection('entitlements').where('orderId', '==', orderId).get();
+      const rows = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      if (rows.length !== Number(ticketsCount || 0)) {
+        throw codedError('Atomic entitlement set is incomplete', 'FINALIZATION_RETRY_REQUIRED');
+      }
+      return rows;
     });
 
-    // Step 2: Link entitlementIds back to the order.
-    // For magic-mode qrCode entries, populate entitlementIds[] so the mobile app
-    // can call generateEntitlementQR(id) live at display time.
-    await step.run('link-entitlements-to-order', async () => {
+    await step.run('mark-post-commit-fulfillment-started', async () => {
       const orderDoc = await db.collection('orders').doc(orderId).get();
-      const existingQrCodes = orderDoc.data()?.qrCodes || [];
-
-      // Build a per-tierId bucket of entitlement IDs
-      const entsByTier = {};
-      for (const ent of entitlements) {
-        const tierId = ent.metadata?.tierId;
-        if (!tierId) continue;
-        if (!entsByTier[tierId]) entsByTier[tierId] = [];
-        entsByTier[tierId].push(ent.id);
+      if (!orderDoc.exists || orderDoc.data()?.status !== 'confirmed') {
+        throw codedError('Order is not atomically finalized', 'FINALIZATION_RETRY_REQUIRED');
       }
-
-      // Inject entitlementIds into each magic-mode qrCode entry
-      const updatedQrCodes = existingQrCodes.map((qr) => {
-        if (qr.qrMode !== 'magic') return qr;
-        return { ...qr, entitlementIds: entsByTier[qr.ticketId] || [] };
+      await db.collection('orders').doc(orderId).update({
+        fulfillmentStatus: 'post_commit_processing',
+        postCommitStartedAt: new Date().toISOString(),
       });
-
-      await db
-        .collection('orders')
-        .doc(orderId)
-        .update({
-          entitlementIds: entitlements.map((e) => e.id),
-          qrCodes: updatedQrCodes,
-          fulfilledAt: new Date().toISOString(),
-          fulfillmentStatus: 'completed',
-        });
-      return { linked: entitlements.length };
+      return { entitlements: entitlements.length };
     });
 
     // Step 2b: Unlock the event group chat for the ticket holder.
@@ -614,63 +1001,6 @@ export const handleTicketFulfillment = inngest.createFunction(
 
       return { queued: true, to: userEmail };
     });
-
-    // Step 5: Credit promoter if applicable
-    if (promoterCode) {
-      await step.run('credit-promoter-commission', async () => {
-        const promoDoc = await db
-          .collection('promo_codes')
-          .where('code', '==', promoterCode)
-          .limit(1)
-          .get();
-
-        if (promoDoc.empty) return { skipped: true, reason: 'Promo code not found' };
-
-        const promo = promoDoc.docs[0].data();
-        const promoterId = promo.promoterId;
-        const commissionRate = promo.commissionRate ?? 0.1; // 10% default
-
-        const commission = Math.round(totalAmount * commissionRate * 100) / 100;
-
-        // Write to partner_ledger (canonical) — skip if finance-service already wrote for this order
-        const idempotencyRef = db.collection('partner_ledger_idempotency').doc(orderId);
-        const idempotencyDoc = await idempotencyRef.get();
-        if (!idempotencyDoc.exists) {
-          const now = new Date().toISOString();
-          await db.collection('partner_ledger').add({
-            type: 'promoter_commission',
-            toPartnerId: promoterId,
-            fromPartnerId: null,
-            eventId,
-            referenceId: orderId,
-            amount: commission,
-            currency: 'INR',
-            status: 'pending',
-            settledAt: null,
-            createdAt: now,
-          });
-          await db.collection('partner_ledger_idempotency').doc(`promo_${orderId}`).set({
-            orderId,
-            eventId,
-            promoterId,
-            type: 'promo_commission',
-            createdAt: now,
-          });
-        }
-
-        // Increment promoter stats
-        await db
-          .collection('promoters')
-          .doc(promoterId)
-          .update({
-            totalSales: FieldValue.increment(totalAmount),
-            totalOrders: FieldValue.increment(1),
-            pendingCommission: FieldValue.increment(commission),
-          });
-
-        return { credited: true, promoterId, commission };
-      });
-    }
 
     // Step 6: Update event stats on the main event document.
     // Runs here (background) rather than in the synchronous fulfillment path to avoid
@@ -827,93 +1157,152 @@ export const processEventSettlement = inngest.createFunction(
       return stats;
     });
 
-    // Step 2: Calculate revenue
+    // Step 2: Calculate authoritative finance exclusively from partner_ledger.
     const revenue = await step.run('calculate-revenue', async () => {
-      const orders = await db
-        .collection('orders')
-        .where('eventId', '==', eventId)
-        .where('status', '==', 'confirmed')
-        .get();
-
-      let total = 0;
-      let platformFees = 0;
-      let taxCollected = 0;
-
-      orders.docs.forEach((doc) => {
-        const data = doc.data();
-        total += data.totalAmount || 0;
-        platformFees += data.platformFee || 0;
-        taxCollected += data.taxAmount || 0;
-      });
-
-      return { total, platformFees, taxCollected, orderCount: orders.size };
+      const snapshot = await db.collection('partner_ledger').where('eventId', '==', eventId).get();
+      const entries = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const active = entries.filter((entry) => entry.status !== 'reversed');
+      const grossRevenuePaise = active
+        .filter((entry) => entry.type === 'ticket_revenue')
+        .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0);
+      const platformFeePaise = active
+        .filter((entry) => entry.type === 'platform_fee')
+        .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0);
+      const orderCount = new Set(
+        active
+          .filter((entry) => entry.type === 'ticket_revenue')
+          .map((entry) => entry.orderId)
+          .filter(Boolean),
+      ).size;
+      return { grossRevenuePaise, platformFeePaise, orderCount, entries: active };
     });
 
-    // Step 3: Queue payouts
+    // Step 3: Queue deterministic participant payouts from pending allocations.
+    // Ledger rows remain pending until the payout provider confirms settlement.
     await step.run('queue-payouts', async () => {
-      const eventDoc = await db.collection('events').doc(eventId).get();
-      const eventData = eventDoc.data();
-
-      const hostPayout = revenue.total - revenue.platformFees - revenue.taxCollected;
-
-      await db.collection('payout_queue').add({
-        eventId,
-        recipientId: eventData.hostId,
-        recipientType: 'host',
-        grossAmount: revenue.total,
-        platformFees: revenue.platformFees,
-        netAmount: hostPayout,
-        status: 'pending_review',
-        createdAt: new Date().toISOString(),
-      });
-
-      return { hostPayout };
-    });
-
-    // Step 4: Mark promoter commissions as settled
-    await step.run('finalize-promoter-commissions', async () => {
+      const allocationTypes = new Set([
+        'host_payout',
+        'venue_share',
+        'promoter_commission',
+        'refund',
+      ]);
+      const byPartner = new Map();
+      for (const entry of revenue.entries) {
+        const isPendingAllocation = entry.type !== 'refund' && entry.status === 'pending';
+        const isAppliedRefund = entry.type === 'refund' && entry.status !== 'reversed';
+        if (
+          (!isPendingAllocation && !isAppliedRefund) ||
+          !allocationTypes.has(entry.type) ||
+          !entry.toPartnerId
+        ) {
+          continue;
+        }
+        const current = byPartner.get(entry.toPartnerId) || {
+          amountPaise: 0,
+          entryIds: [],
+          recipientType:
+            (entry.allocationType || entry.type) === 'venue_share'
+              ? 'venue'
+              : (entry.allocationType || entry.type) === 'promoter_commission'
+                ? 'promoter'
+                : 'host',
+        };
+        current.amountPaise += Number(entry.amountPaise || 0);
+        current.entryIds.push(entry.id);
+        byPartner.set(entry.toPartnerId, current);
+      }
       const now = new Date().toISOString();
-      // Settle partner_ledger entries (canonical collection)
-      const ledgerSnap = await db
-        .collection('partner_ledger')
-        .where('eventId', '==', eventId)
-        .where('type', '==', 'promoter_commission')
-        .where('status', '==', 'pending')
-        .get();
+      const payoutRows = [...byPartner.entries()]
+        .filter(([, allocation]) => allocation.amountPaise > 0)
+        .map(([partnerId, allocation]) => ({
+          ref: db.collection('payout_queue').doc(`${eventId}__${partnerId}`),
+          partnerId,
+          allocation: {
+            ...allocation,
+            entryIds: [...allocation.entryIds].sort(),
+          },
+        }));
 
-      const batch = db.batch();
-      ledgerSnap.docs.forEach((doc) => {
-        batch.update(doc.ref, { status: 'settled', settledAt: now });
+      return db.runTransaction(async (transaction) => {
+        const existingSnapshots = [];
+        for (const row of payoutRows) {
+          existingSnapshots.push(await transaction.get(row.ref));
+        }
+
+        let queued = 0;
+        let alreadyQueued = 0;
+        for (let index = 0; index < payoutRows.length; index += 1) {
+          const row = payoutRows[index];
+          const existingSnapshot = existingSnapshots[index];
+          const expected = {
+            eventId,
+            recipientId: row.partnerId,
+            recipientType: row.allocation.recipientType,
+            amountPaise: row.allocation.amountPaise,
+            currency: 'INR',
+            ledgerEntryIds: row.allocation.entryIds,
+          };
+
+          if (existingSnapshot.exists) {
+            const existing = existingSnapshot.data();
+            const existingEntryIds = [...(existing.ledgerEntryIds || [])].sort();
+            const differs =
+              existing.eventId !== expected.eventId ||
+              existing.recipientId !== expected.recipientId ||
+              existing.recipientType !== expected.recipientType ||
+              Number(existing.amountPaise || 0) !== expected.amountPaise ||
+              existing.currency !== expected.currency ||
+              JSON.stringify(existingEntryIds) !== JSON.stringify(expected.ledgerEntryIds);
+            if (!differs) {
+              alreadyQueued += 1;
+              continue;
+            }
+            if (existing.status === 'pending_review') {
+              transaction.update(row.ref, {
+                ...expected,
+                updatedAt: now,
+              });
+              queued += 1;
+              continue;
+            }
+            if (existing.status !== 'pending_review') {
+              const error = new Error(
+                `Payout queue idempotency conflict for ${eventId}/${row.partnerId}`,
+              );
+              error.code = 'PAYOUT_IDEMPOTENCY_CONFLICT';
+              throw error;
+            }
+          }
+
+          transaction.create(row.ref, {
+            ...expected,
+            status: 'pending_review',
+            createdAt: now,
+            updatedAt: now,
+          });
+          queued += 1;
+        }
+
+        return { queued, alreadyQueued };
       });
-
-      // Also settle any historical promoter_ledger entries (created before migration)
-      const legacySnap = await db
-        .collection('promoter_ledger')
-        .where('eventId', '==', eventId)
-        .where('status', '==', 'pending')
-        .get();
-      legacySnap.docs.forEach((doc) => {
-        batch.update(doc.ref, { status: 'ready_for_payout', finalizedAt: now });
-      });
-
-      await batch.commit();
-      return { promoterCommissions: ledgerSnap.size + legacySnap.size };
     });
 
-    // Step 5: Create settlement summary
+    // Step 4: Create a settlement summary. Completion is reserved for provider
+    // payout confirmation and must not be inferred from event end.
     await step.run('create-settlement-summary', async () => {
+      const { entries: _entries, ...revenueSummary } = revenue;
       await db.collection('event_settlements').doc(eventId).set({
         eventId,
         attendance,
-        revenue,
-        status: 'completed',
-        settledAt: new Date().toISOString(),
+        revenue: revenueSummary,
+        status: 'payouts_queued',
+        queuedAt: new Date().toISOString(),
       });
       return { recorded: true };
     });
 
     return {
-      status: 'settled',
+      status: 'payouts_queued',
       eventId,
       attendance,
       revenue,

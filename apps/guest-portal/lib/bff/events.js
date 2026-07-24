@@ -84,7 +84,7 @@ export async function buildEventDetailView(eventId) {
     guestBffUpstreamJson(`/public/events/${encodeURIComponent(eventId)}`, {
       cacheMode: GUEST_BFF_CACHE.PUBLIC_REVALIDATED,
       forwardCookies: false,
-      next: { revalidate: 30 },
+      next: { revalidate: 15, tags: ['guest-events', `guest-event:${eventId}`] },
     }),
     guestBffUpstreamJson('/auth/me'),
   ]);

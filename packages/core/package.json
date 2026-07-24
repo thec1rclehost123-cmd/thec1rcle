@@ -21,6 +21,7 @@
         "./promo-service": "./promo-service.js",
         "./time": "./time.js",
         "./ledger-engine": "./ledger-engine.js",
+        "./partner-ledger-service": "./partner-ledger-service.js",
         "./payout-engine": "./payout-engine.js",
         "./entitlement-engine": "./entitlement-engine.js",
         "./theme": "./theme.js",

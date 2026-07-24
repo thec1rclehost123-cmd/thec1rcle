@@ -37,6 +37,7 @@ class MockDocumentSnapshot {
   constructor(
     public readonly id: string,
     private readonly payload: any,
+    public readonly ref?: MockDocRef,
   ) {}
 
   get exists() {
@@ -59,7 +60,7 @@ class MockDocRef {
   }
 
   async get() {
-    return new MockDocumentSnapshot(this.id, this.db.docs.get(this.path));
+    return new MockDocumentSnapshot(this.id, this.db.docs.get(this.path), this);
   }
 
   collection(name: string) {
@@ -115,7 +116,10 @@ class MockQuery {
   async get() {
     let docs = Array.from(this.db.docs.entries())
       .filter(([path]) => isDirectChild(this.collectionPath, path))
-      .map(([path, payload]) => new MockDocumentSnapshot(getPathId(path), payload));
+      .map(
+        ([path, payload]) =>
+          new MockDocumentSnapshot(getPathId(path), payload, new MockDocRef(this.db, path)),
+      );
 
     docs = docs.filter((doc) => {
       const data = doc.data() || {};
@@ -195,6 +199,13 @@ class MockTransaction {
     if (options?.merge && isPlainObject(current)) {
       this.db.docs.set(ref.path, deepMerge(current, data));
       return;
+    }
+    this.db.docs.set(ref.path, data);
+  }
+
+  create(ref: MockDocRef, data: Record<string, any>) {
+    if (this.db.docs.has(ref.path)) {
+      throw new Error(`Document already exists: ${ref.path}`);
     }
     this.db.docs.set(ref.path, data);
   }

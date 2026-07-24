@@ -30,6 +30,7 @@ const envSchema = z.object({
   ARCHIVE_CHATS_CRON_SECRET: z.string().optional(),
   SCANNER_SESSION_SECRET: z.string().optional(),
   DEV_TOY_MODE: z.enum(['true', 'false']).default('false'),
+  C1RCLE_PAYOUT_MUTATIONS_ENABLED: z.enum(['true', 'false']).default('false'),
   FRONTEND_URLS: z
     .string()
     .optional()

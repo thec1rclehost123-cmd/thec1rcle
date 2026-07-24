@@ -2,6 +2,10 @@
   "name": "@c1rcle/monorepo",
   "private": true,
   "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": ">=20 <21",
+    "npm": ">=10 <11"
+  },
   "type": "module",
   "workspaces": [
     "apps/*",

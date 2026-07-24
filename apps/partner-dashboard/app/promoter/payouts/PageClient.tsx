@@ -150,20 +150,13 @@ export default function PayoutsPage() {
     [promoterId, getIdToken],
   );
 
-  const canRequest = balance && balance.available >= 100;
-
   return (
     <VenuePageShell
       title="Earnings & Payouts"
       actions={
-        <VenueActionButton
-          variant="primary"
-          icon={Wallet}
-          onClick={() => setShowRequestModal(true)}
-          disabled={!canRequest}
-        >
-          Request Payout
-        </VenueActionButton>
+        <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-xs font-bold text-amber-200">
+          Withdrawals unavailable during launch verification
+        </span>
       }
     >
       {/* Hero band */}
@@ -350,7 +343,7 @@ export default function PayoutsPage() {
       </motion.div>
 
       {/* Request Modal */}
-      {showRequestModal && (
+      {false && showRequestModal && (
         <TransferConfirmationModal
           available={balance?.available || 0}
           pending={balance?.pending || 0}

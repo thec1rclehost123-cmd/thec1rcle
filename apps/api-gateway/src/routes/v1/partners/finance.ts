@@ -1,5 +1,4 @@
 import type { FastifyInstance } from 'fastify';
-import { processRefund } from '@c1rcle/core/finance-engine';
 import { z } from 'zod';
 import { resolvePartnerContext } from '../../../lib/partner-context.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
@@ -617,15 +616,22 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
               requestId: request.id,
             }),
           );
-        return reply.send(await processRefund(orderId, amount, reason, request.user?.uid));
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'LEGACY_REFUND_ROUTE_DISABLED',
+            message:
+              'This legacy refund route is disabled. Use POST /api/v1/refunds/request with amountPaise.',
+            requestId: request.id,
+          }),
+        );
       }
 
       if (rest === 'wallet' && request.method === 'GET') {
         const balances = await financeService.getBalances(ctx);
         return reply.send({
-          availablePaise: Math.max(0, Math.round(toNumber(balances.available) * 100)),
-          pendingPaise: Math.max(0, Math.round(toNumber(balances.pending) * 100)),
-          heldPaise: Math.max(0, Math.round(toNumber(balances.pending) * 100)),
+          availablePaise: Math.max(0, balances.availablePaise),
+          pendingPaise: Math.max(0, balances.pendingPaise),
+          heldPaise: Math.max(0, balances.pendingPaise),
           currency: balances.currency || 'INR',
         });
       }
@@ -633,8 +639,8 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
       if (rest === 'payout-balance' && request.method === 'GET') {
         const balances = await financeService.getBalances(ctx);
         return reply.send({
-          withdrawablePaise: Math.max(0, Math.round(toNumber(balances.available) * 100)),
-          pendingSettlementPaise: Math.max(0, Math.round(toNumber(balances.pending) * 100)),
+          withdrawablePaise: Math.max(0, balances.availablePaise),
+          pendingSettlementPaise: Math.max(0, balances.pendingPaise),
           currency: balances.currency || 'INR',
         });
       }
@@ -670,8 +676,13 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
               requestId: request.id,
             }),
           );
-        const { requestPromoterPayout } = await import('@c1rcle/core/payout-engine');
-        return reply.send(await requestPromoterPayout({ ...body, promoterId: ctx.partnerId }));
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'PAYOUTS_NOT_LAUNCH_ENABLED',
+            message: 'Payout withdrawals are unavailable during launch verification',
+            requestId: request.id,
+          }),
+        );
       }
 
       if (rest === 'promoter/payouts' && request.method === 'GET') {
@@ -695,8 +706,13 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
               requestId: request.id,
             }),
           );
-        const { requestPromoterPayout } = await import('@c1rcle/core/payout-engine');
-        return reply.send(await requestPromoterPayout({ ...body, promoterId: ctx.partnerId }));
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'PAYOUTS_NOT_LAUNCH_ENABLED',
+            message: 'Payout withdrawals are unavailable during launch verification',
+            requestId: request.id,
+          }),
+        );
       }
 
       if (rest === 'promoter/payouts' && request.method === 'DELETE') {
@@ -708,41 +724,13 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
               requestId: request.id,
             }),
           );
-        const payoutId = String(query.payoutId || body.payoutId || '');
-        const ref = fastify.db.collection('payouts').doc(payoutId);
-        const doc = await ref.get();
-        if (!doc.exists)
-          return reply.status(404).send(
-            buildErrorResponse({
-              code: 'NOT_FOUND',
-              message: 'Payout not found',
-              requestId: request.id,
-            }),
-          );
-        const payout = doc.data() as Record<string, any>;
-        if (String(payout.partnerId || '') !== ctx.partnerId)
-          return reply.status(403).send(
-            buildErrorResponse({
-              code: 'FORBIDDEN',
-              message: 'Forbidden',
-              requestId: request.id,
-            }),
-          );
-        if (!['pending', 'processing'].includes(String(payout.status || '').toLowerCase())) {
-          return reply.status(409).send(
-            buildErrorResponse({
-              code: 'CONFLICT',
-              message: 'Only pending payouts can be cancelled',
-              requestId: request.id,
-            }),
-          );
-        }
-        await ref.update({
-          status: 'cancelled',
-          cancelledAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-        return reply.send({ success: true });
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'PAYOUTS_NOT_LAUNCH_ENABLED',
+            message: 'Payout withdrawals are unavailable during launch verification',
+            requestId: request.id,
+          }),
+        );
       }
 
       if (rest === 'promoter/bank-accounts' && request.method === 'GET') {

@@ -1,210 +1,116 @@
 /**
- * THE C1RCLE - Finance Engine
- * Orchestrates financial operations, reporting, and refunds.
+ * THE C1RCLE - canonical, read-only finance compatibility surface.
+ *
+ * New code should use the API Gateway FinanceService. These reads remain for
+ * compatibility, but they are intentionally backed only by partner_ledger.
+ * Refund mutation is disabled here because provider execution and canonical
+ * ledger finalization must pass through the Gateway refund workflow.
  */
 
 import { getAdminDb } from './admin.js';
-import {
-  MONEY_STATES,
-  getBalance,
-  initiateRefund,
-  finalizeRefund,
-  ACCOUNTS,
-} from './ledger-engine.js';
 
-/**
- * Gets a high-level financial summary for a partner or event
- */
+function toPaise(value) {
+  const amount = Number(value);
+  return Number.isSafeInteger(amount) ? amount : 0;
+}
+
+function activeEntries(snapshot) {
+  return snapshot.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter((entry) => entry.status !== 'reversed');
+}
+
+function sumEntries(entries, type, allocationTypes = null) {
+  return entries
+    .filter(
+      (entry) =>
+        entry.type === type &&
+        (!allocationTypes || allocationTypes.includes(String(entry.allocationType || ''))),
+    )
+    .reduce((sum, entry) => sum + toPaise(entry.amountPaise), 0);
+}
+
 export async function getFinancialSummary(entityId, type = 'venue') {
   const db = getAdminDb();
 
   if (String(type).toLowerCase() === 'event') {
-    let gross = 0;
-    let discounts = 0;
-    let net = 0;
-    let commissions = 0;
-    let fees = 0;
-    let settlementStatus = 'pending';
-
-    try {
-      const eventDoc = await db.collection('events').doc(entityId).get();
-      const event = eventDoc.exists ? eventDoc.data() : {};
-      settlementStatus = event.settlementStatus || 'pending';
-
-      // Query ledger splits to get actual allocated amounts if settled,
-      // otherwise calculate potential splits based on orders.
-      const ledgerSnapshot = await db
-        .collection('ledger_entries')
-        .where('metadata.eventId', '==', entityId)
-        .get();
-
-      const ledgerEntries = ledgerSnapshot.docs.map((doc) => doc.data());
-
-      if (ledgerEntries.length > 0) {
-        // Already settled: read actual balances from ledger
-        for (const entry of ledgerEntries) {
-          if (entry.state === MONEY_STATES.CAPTURED && entry.amount > 0) {
-            gross += entry.amount;
-          }
-          if (entry.state === MONEY_STATES.PAYABLE) {
-            if (entry.actorType === ACCOUNTS.PARTNER) {
-              net += entry.amount;
-            } else if (entry.actorType === ACCOUNTS.PROMOTER) {
-              commissions += entry.amount;
-            } else if (entry.actorId === ACCOUNTS.PLATFORM_FEE) {
-              fees += entry.amount;
-            }
-          }
-        }
-      } else {
-        // Not settled yet: calculate potential splits based on orders
-        const ordersSnapshot = await db
-          .collection('orders')
-          .where('eventId', '==', entityId)
-          .where('status', '==', 'confirmed')
-          .get();
-
-        const orders = ordersSnapshot.docs.map((doc) => doc.data());
-
-        const { calculateOrderSplits } = await import('./payout-engine.js');
-
-        // Pre-fetch all promoter commissions for this event to resolve exact commission amounts
-        const commSnapshot = await db
-          .collection('promoter_commissions')
-          .where('eventId', '==', entityId)
-          .get();
-
-        const commissionMap = new Map();
-        commSnapshot.docs.forEach((doc) => {
-          const commData = doc.data();
-          if (commData?.orderId) {
-            commissionMap.set(String(commData.orderId), {
-              amount: Number(commData.commissionAmount) || 0,
-              promoterId: commData.promoterId || 'UNKNOWN_PROMOTER',
-            });
-          }
-        });
-
-        for (const order of orders) {
-          const total = Number(order.totalAmount) || 0;
-          gross += total;
-          discounts += Number(order.discountAmount) || 0;
-
-          const resolvedPromoterCommission = order.id ? commissionMap.get(String(order.id)) : null;
-          const splits = calculateOrderSplits(order, event, resolvedPromoterCommission);
-          for (const split of splits) {
-            if (split.actorType === 'promoter') {
-              commissions += split.amount;
-            } else if (split.actorId === ACCOUNTS.PLATFORM_FEE) {
-              fees += split.amount;
-            } else if (split.actorType === 'venue' || split.actorType === 'host') {
-              net += split.amount;
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('[FinanceEngine] getFinancialSummary for event failed:', error.message);
-    }
+    const snapshot = await db.collection('partner_ledger').where('eventId', '==', entityId).get();
+    const entries = activeEntries(snapshot);
+    const grossPaise = sumEntries(entries, 'ticket_revenue');
+    const refundPaise = Math.abs(sumEntries(entries, 'refund'));
+    const commissionsPaise =
+      sumEntries(entries, 'promoter_commission') +
+      sumEntries(entries, 'refund', ['promoter_commission']);
+    const feesPaise =
+      sumEntries(entries, 'platform_fee') + sumEntries(entries, 'refund', ['platform_fee']);
+    const partnerNetPaise =
+      sumEntries(entries, 'host_payout') +
+      sumEntries(entries, 'venue_share') +
+      sumEntries(entries, 'refund', ['host_payout', 'venue_share']);
+    const netPaise = grossPaise - refundPaise;
 
     return {
       entityId,
-      type,
-      gross,
-      net,
-      commissions,
-      discounts,
-      fees,
-      payouts: [],
-      auditStatus: settlementStatus,
+      type: 'event',
+      gross: grossPaise / 100,
+      grossPaise,
+      net: netPaise / 100,
+      netPaise,
+      partnerNet: partnerNetPaise / 100,
+      partnerNetPaise,
+      commissions: commissionsPaise / 100,
+      commissionsPaise,
+      fees: feesPaise / 100,
+      feesPaise,
+      refunds: refundPaise / 100,
+      refundPaise,
       currency: 'INR',
+      source: 'partner_ledger',
     };
   }
 
-  // Total Revenue (HELD + SETTLED + PAYABLE)
-  const netRevenue = await getBalance({ actorId: entityId });
-
-  // Amount already paid out
-  const paidOut = await getBalance({ actorId: entityId, state: MONEY_STATES.PAID_OUT });
-
-  // Pending refunds
-  const refundPending = await getBalance({ actorId: entityId, state: MONEY_STATES.REFUND_PENDING });
+  const snapshot = await db.collection('partner_ledger').where('toPartnerId', '==', entityId).get();
+  const entries = activeEntries(snapshot);
+  const pendingPaise = entries
+    .filter((entry) => entry.status === 'pending')
+    .reduce((sum, entry) => sum + toPaise(entry.amountPaise), 0);
+  const availablePaise = entries
+    .filter((entry) => entry.status === 'settled')
+    .reduce((sum, entry) => sum + toPaise(entry.amountPaise), 0);
 
   return {
     entityId,
     type,
-    netRevenue,
-    availableBalance: netRevenue - paidOut,
-    paidOut: Math.abs(paidOut),
-    refundPending: Math.abs(refundPending),
+    netRevenue: (pendingPaise + availablePaise) / 100,
+    netRevenuePaise: pendingPaise + availablePaise,
+    availableBalance: availablePaise / 100,
+    availablePaise,
+    pendingBalance: pendingPaise / 100,
+    pendingPaise,
     currency: 'INR',
+    source: 'partner_ledger',
   };
 }
 
-/**
- * Fetches transaction history from the ledger
- */
 export async function getTransactionHistory(entityId, options = {}) {
   const { limit = 50, state = null } = options;
   const db = getAdminDb();
+  let query = db.collection('partner_ledger').where('toPartnerId', '==', entityId);
+  if (state) query = query.where('status', '==', String(state).toLowerCase());
+  const snapshot = await query.orderBy('createdAt', 'desc').limit(limit).get();
 
-  let query = db.collection('ledger_entries').where('actorId', '==', entityId);
-
-  if (state) {
-    query = query.where('state', '==', state);
-  }
-
-  query = query.orderBy('timestamp', 'desc').limit(limit);
-
-  const snapshot = await query.get();
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
+  return activeEntries(snapshot).map((entry) => ({
+    ...entry,
+    amount: toPaise(entry.amountPaise) / 100,
+    currency: entry.currency || 'INR',
+    source: 'partner_ledger',
   }));
 }
 
-/**
- * Orchestrates a refund process
- */
-export async function processRefund(orderId, amount, reason, actor = 'system') {
-  const db = getAdminDb();
-
-  // 1. Transaction to initiate refund in ledger
-  // This checks if funds are available in the order's CAPTURED state
-  const result = await db.runTransaction(async (transaction) => {
-    // Find the order to get its current state
-    const orderDoc = await transaction.get(db.collection('orders').doc(orderId));
-    if (!orderDoc.exists) throw new Error('Order not found');
-    const order = orderDoc.data();
-
-    // Initiate ledger entries
-    await initiateRefund(
-      orderId,
-      amount,
-      reason,
-      order.ledgerState || MONEY_STATES.CAPTURED,
-      transaction,
-    );
-
-    // Update order status/metadata
-    transaction.update(db.collection('orders').doc(orderId), {
-      refundStatus: 'pending',
-      refundAmount: amount,
-      updatedAt: new Date().toISOString(),
-    });
-
-    return { success: true };
-  });
-
-  // 2. Integration with Payment Gateway (Razorpay/Stripe) would happen here
-  // For now, we simulate success and finalize immediately in this POC logic
-  // In production, this would be a separate webhook-driven step
-  const refundId = `REF-${randomUUID().substring(0, 8).toUpperCase()}`;
-  await finalizeRefund(orderId, amount, refundId);
-
-  return { success: true, refundId };
-}
-
-function randomUUID() {
-  return Math.random().toString(36).substring(2, 15);
+export async function processRefund() {
+  const error = new Error(
+    'LEGACY_REFUND_ENGINE_DISABLED: use POST /api/v1/refunds/request and provider webhook finalization',
+  );
+  error.code = 'LEGACY_REFUND_ENGINE_DISABLED';
+  throw error;
 }

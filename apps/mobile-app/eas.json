@@ -20,7 +20,9 @@
       "environment": "preview",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "preview",
-        "EXPO_PUBLIC_DEMO_MODE": "false"
+        "EXPO_PUBLIC_DEMO_MODE": "false",
+        "EXPO_PUBLIC_PUBLIC_DEMO_MODE": "false",
+        "EXPO_PUBLIC_SHOWCASE_EVENTS": "false"
       }
     },
     "production": {
@@ -37,7 +39,9 @@
       },
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production",
-        "EXPO_PUBLIC_DEMO_MODE": "false"
+        "EXPO_PUBLIC_DEMO_MODE": "false",
+        "EXPO_PUBLIC_PUBLIC_DEMO_MODE": "false",
+        "EXPO_PUBLIC_SHOWCASE_EVENTS": "false"
       }
     }
   },

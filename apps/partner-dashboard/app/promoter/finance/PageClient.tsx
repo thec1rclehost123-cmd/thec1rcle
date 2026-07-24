@@ -206,9 +206,9 @@ export default function PromoterFinancePageClient() {
           <VenueActionButton variant="secondary" onClick={fetchData}>
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </VenueActionButton>
-          <Link href="/promoter/payouts">
-            <VenueActionButton variant="primary">Request Payout</VenueActionButton>
-          </Link>
+          <span className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-xs font-semibold text-amber-700 dark:text-amber-200">
+            Withdrawals unavailable during launch verification
+          </span>
         </div>
       }
     >
@@ -242,7 +242,7 @@ export default function PromoterFinancePageClient() {
         }
       />
 
-      {showTransferModal ? (
+      {false && showTransferModal ? (
         <TransferConfirmationModal
           available={balance?.available || 0}
           pending={balance?.pending || 0}

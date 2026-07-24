@@ -24,6 +24,7 @@ import {
 import { z } from 'zod';
 import * as Sentry from '@sentry/node';
 import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
+import { publishTicketPurchaseSync } from '../../lib/ticketPurchaseSync';
 
 function allowMockRazorpay() {
   const isProduction =
@@ -629,15 +630,17 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
 
         const result = await finalizeRazorpayTicketPurchase({
           db: fastify.db,
-          checkoutService: fastify.checkoutService,
+          requestId: request.id,
           razorpayOrderId,
           razorpayPaymentId,
+          providerPayment: paymentEntity,
           paymentGatewayConfig: {
             keyId: process.env.RAZORPAY_KEY_ID,
             keySecret: process.env.RAZORPAY_KEY_SECRET,
             allowMockPayment: allowMockRazorpay(),
           },
         });
+        await publishTicketPurchaseSync(fastify, result);
 
         request.log.info(
           {
@@ -645,28 +648,43 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             razorpayPaymentId,
             orderId: result?.order?.id,
             ticketsCount: result?.ticketsCount,
-            alreadyConfirmed: result?.alreadyConfirmed,
+            alreadyFinalized: result?.alreadyFinalized,
           },
           'Checkout webhook finalized tickets',
         );
 
         return {
           success: true,
-          alreadyConfirmed: Boolean(result?.alreadyConfirmed),
+          alreadyConfirmed: Boolean(result?.alreadyFinalized),
+          alreadyFinalized: Boolean(result?.alreadyFinalized),
           orderId: result?.order?.id || null,
           ticketsCount: result?.ticketsCount || 0,
+          ticketIds: result?.ticketIds || [],
+          entitlementIds: result?.entitlementIds || [],
+          ledgerMarkerId: result?.ledgerMarkerId || null,
         };
       } catch (error: any) {
         const status =
-          error.code === 'INVALID_SIGNATURE'
+          error.code === 'PAYMENT_SIGNATURE_INVALID'
             ? 401
             : error.code === 'NOT_FOUND'
               ? 404
-              : error.code === 'CONFLICT'
+              : [
+                    'CONFLICT',
+                    'PAYMENT_AMOUNT_MISMATCH',
+                    'PAYMENT_ALREADY_LINKED',
+                    'ORDER_ATTRIBUTION_MISSING',
+                    'ORDER_NOT_FINALIZABLE',
+                    'LEDGER_IDEMPOTENCY_CONFLICT',
+                    'INVENTORY_CONFLICT',
+                    'TICKET_TRANSACTION_LIMIT_EXCEEDED',
+                  ].includes(error.code)
                 ? 409
-                : error.code === 'PAYMENT_NOT_CONFIGURED'
-                  ? 500
-                  : 500;
+                : error.code === 'FINALIZATION_RETRY_REQUIRED'
+                  ? 503
+                  : error.code === 'PAYMENT_NOT_CONFIGURED'
+                    ? 500
+                    : 500;
 
         if (status >= 500) {
           fastify.log.error(`Checkout webhook failed: ${error.message}`);
@@ -711,7 +729,9 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             keySecret: process.env.RAZORPAY_KEY_SECRET,
             allowMockPayment: allowMockRazorpay(),
           },
+          requestId: request.id,
         });
+        await publishTicketPurchaseSync(fastify, result);
 
         request.log.info(
           {
@@ -729,6 +749,15 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         return {
           success: true,
           alreadyVerified: Boolean(result.alreadyVerified),
+          alreadyFinalized: Boolean(result.alreadyFinalized),
+          orderId: result.orderId,
+          paymentId: result.paymentId,
+          status: result.status,
+          ticketIds: result.ticketIds,
+          entitlementIds: result.entitlementIds,
+          ledgerMarkerId: result.ledgerMarkerId,
+          reservationReleased: result.reservationReleased,
+          outboxEventId: result.outboxEventId,
           order: result.order,
           tickets: result.tickets,
           ticketsCount: result.ticketsCount,
@@ -753,13 +782,24 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
               ? 403
               : error.code === 'NOT_FOUND'
                 ? 404
-                : error.code === 'INVALID_SIGNATURE' || error.code === 'BAD_REQUEST'
+                : error.code === 'PAYMENT_SIGNATURE_INVALID' || error.code === 'BAD_REQUEST'
                   ? 400
-                  : error.code === 'CONFLICT'
+                  : [
+                        'CONFLICT',
+                        'PAYMENT_AMOUNT_MISMATCH',
+                        'PAYMENT_ALREADY_LINKED',
+                        'ORDER_ATTRIBUTION_MISSING',
+                        'ORDER_NOT_FINALIZABLE',
+                        'LEDGER_IDEMPOTENCY_CONFLICT',
+                        'INVENTORY_CONFLICT',
+                        'TICKET_TRANSACTION_LIMIT_EXCEEDED',
+                      ].includes(error.code)
                     ? 409
-                    : error.code === 'PAYMENT_NOT_CONFIGURED'
-                      ? 500
-                      : 500;
+                    : error.code === 'FINALIZATION_RETRY_REQUIRED'
+                      ? 503
+                      : error.code === 'PAYMENT_NOT_CONFIGURED'
+                        ? 500
+                        : 500;
 
         if (status >= 500) {
           fastify.log.error(`Checkout verification failed: ${error.message}`);
@@ -839,39 +879,6 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           if (finalResult.cached) return finalResult.body;
         } else {
           finalResult = await work();
-        }
-
-        // Denormalize hostId/venueId from event into order for finance queries
-        if (finalResult?.order?.id) {
-          const orderEventId = finalResult.order.eventId || request.body?.eventId;
-          const orderLinkId = (request.body as any).linkId || null;
-          if (orderEventId) {
-            fastify.db
-              .collection('events')
-              .doc(orderEventId)
-              .get()
-              .then(async (evDoc: any) => {
-                if (!evDoc.exists) return;
-                const ev = evDoc.data() as any;
-                const updates: Record<string, any> = {};
-                if (ev.hostId) updates.hostId = ev.hostId;
-                if (ev.venueId) updates.venueId = ev.venueId;
-                if (orderLinkId) updates.promoterLinkId = orderLinkId;
-                if (Object.keys(updates).length > 0) {
-                  await fastify.db
-                    .collection('orders')
-                    .doc(finalResult.order.id)
-                    .update(updates)
-                    .catch((e: any) =>
-                      fastify.log.warn(
-                        { orderId: finalResult.order.id, error: e.message },
-                        'Failed to denormalize order fields',
-                      ),
-                    );
-                }
-              })
-              .catch(() => null); // non-critical, fire-and-forget
-          }
         }
 
         request.log.info(

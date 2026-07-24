@@ -264,11 +264,22 @@ export class CheckoutService {
       userPhone: string;
       promoCode?: string;
       promoterCode?: string;
+      linkId?: string | null;
+      sourceChannel?: string;
     },
     workspaceId?: string | null,
   ): Promise<any> {
-    const { reservationId, userId, userName, userEmail, userPhone, promoCode, promoterCode } =
-      params;
+    const {
+      reservationId,
+      userId,
+      userName,
+      userEmail,
+      userPhone,
+      promoCode,
+      promoterCode,
+      linkId,
+      sourceChannel,
+    } = params;
     const startTime = Date.now();
 
     try {
@@ -310,23 +321,162 @@ export class CheckoutService {
         );
       }
 
-      // 3. Build Authoritative Payload (Logic moved to Engine)
-      const orderPayload = buildOrderPayload({
-        reservation,
-        event,
-        pricing,
-        user: { id: userId, name: userName, email: userEmail, phone: userPhone },
-        promoterCode,
-        workspaceId: resolvedWorkspaceId,
-      });
-
       // Phase 1: Atomic Commit — RSVP uniqueness check runs inside the transaction
       // so concurrent requests cannot both pass the check before either writes.
       const db = await getAdminDb();
+      let orderPayload: any = null;
       await db.runTransaction(async (transaction: any) => {
-        if ((event as any).isRSVP) {
+        const eventRef = db.collection('events').doc(reservation.eventId);
+        const eventSnapshot = await transaction.get(eventRef);
+        const authoritativeEvent = eventSnapshot.exists
+          ? { id: eventSnapshot.id, ...eventSnapshot.data() }
+          : process.env.NODE_ENV === 'test'
+            ? event
+            : null;
+        if (!authoritativeEvent) {
+          throw this.withCode(new Error('Event not found'), 'NOT_FOUND');
+        }
+
+        const hostId =
+          (authoritativeEvent as any).hostId ||
+          (authoritativeEvent as any).ownerId ||
+          (authoritativeEvent as any).creatorId ||
+          null;
+        if (!hostId && !authoritativeEvent.isRSVP && Number(pricing.grandTotal || 0) > 0) {
+          throw this.withCode(
+            new Error('Paid event is missing host attribution'),
+            'ORDER_ATTRIBUTION_MISSING',
+          );
+        }
+
+        let promoterAttribution: any = null;
+        const requestedLinkId = linkId || null;
+        if (requestedLinkId || promoterCode) {
+          let linkSnapshot: any = null;
+          if (requestedLinkId) {
+            const candidate = await transaction.get(
+              db.collection('promoter_links').doc(requestedLinkId),
+            );
+            if (candidate.exists) linkSnapshot = candidate;
+          } else if (promoterCode) {
+            const candidates = await transaction.get(
+              db
+                .collection('promoter_links')
+                .where('code', '==', promoterCode)
+                .where('eventId', '==', reservation.eventId)
+                .where('isActive', '==', true)
+                .limit(2),
+            );
+            if (candidates.docs?.length === 1) linkSnapshot = candidates.docs[0];
+          }
+
+          if (!linkSnapshot?.exists) {
+            throw this.withCode(
+              new Error('Promoter attribution is invalid or inactive'),
+              'ORDER_ATTRIBUTION_MISSING',
+            );
+          }
+          const link = linkSnapshot.data();
+          if (link.eventId !== reservation.eventId || link.isActive === false || !link.promoterId) {
+            throw this.withCode(
+              new Error('Promoter attribution does not match this event'),
+              'ORDER_ATTRIBUTION_MISSING',
+            );
+          }
+
+          const rate = Number(link.commissionRate || 0);
+          const commissionType = link.commissionType || 'percentage';
+          const commissionBasePaise = Math.round(Number(pricing.subtotal || 0) * 100);
+          const promoterCommissionPaise =
+            commissionType === 'percentage' || commissionType === 'percent'
+              ? Math.round((commissionBasePaise * rate) / 100)
+              : Math.round(rate * 100);
+          promoterAttribution = {
+            promoterId: link.promoterId,
+            promoterLinkId: linkSnapshot.id,
+            promoterCommissionPaise,
+            splitRuleSnapshot: {
+              promoterLinkId: linkSnapshot.id,
+              promoterId: link.promoterId,
+              commissionRate: rate,
+              commissionType,
+              commissionBasePaise,
+              promoterCommissionPaise,
+              schemaVersion: 1,
+            },
+          };
+        }
+
+        const totalPaise = Math.round(Number(pricing.grandTotal || 0) * 100);
+        const platformFeePaise = Math.round(Number(pricing.fees?.total || 0) * 100);
+        const promoterCommissionPaise = Number(promoterAttribution?.promoterCommissionPaise || 0);
+        const allocationBasePaise = totalPaise - platformFeePaise - promoterCommissionPaise;
+        if (!Number.isSafeInteger(allocationBasePaise) || allocationBasePaise < 0) {
+          throw this.withCode(
+            new Error('Financial split exceeds the authoritative order total'),
+            'ORDER_ATTRIBUTION_MISSING',
+          );
+        }
+
+        const venueId = (authoritativeEvent as any).venueId || null;
+        const creatorRole = String((authoritativeEvent as any).creatorRole || '').toLowerCase();
+        const venueOwnsEvent =
+          Boolean(venueId) &&
+          (creatorRole === 'venue' || creatorRole === 'club' || venueId === hostId);
+        const configuredVenueShareBps = (authoritativeEvent as any).financialSplitRules
+          ?.venueShareBps;
+        const venueShareBps =
+          configuredVenueShareBps === undefined || configuredVenueShareBps === null
+            ? venueOwnsEvent
+              ? 10_000
+              : 0
+            : Number(configuredVenueShareBps);
+        if (
+          !Number.isSafeInteger(venueShareBps) ||
+          venueShareBps < 0 ||
+          venueShareBps > 10_000 ||
+          (venueShareBps > 0 && !venueId)
+        ) {
+          throw this.withCode(
+            new Error('Event has an invalid venue financial split'),
+            'ORDER_ATTRIBUTION_MISSING',
+          );
+        }
+        const venueSharePaise = Math.round((allocationBasePaise * venueShareBps) / 10_000);
+        const hostPayoutPaise = allocationBasePaise - venueSharePaise;
+        const financialAttribution = {
+          venueSharePaise,
+          hostPayoutPaise,
+          venueRule: {
+            source:
+              configuredVenueShareBps === undefined || configuredVenueShareBps === null
+                ? venueOwnsEvent
+                  ? 'venue_owned_event'
+                  : 'host_owned_event'
+                : 'event_financial_split_rules',
+            basis: 'net_after_platform_fee_and_promoter_commission',
+            allocationBasePaise,
+            venueShareBps,
+            venueSharePaise,
+            hostPayoutPaise,
+          },
+        };
+
+        orderPayload = buildOrderPayload({
+          reservation,
+          event: { ...authoritativeEvent, hostId },
+          pricing,
+          user: { id: userId, name: userName, email: userEmail, phone: userPhone },
+          promoterCode,
+          promoterAttribution,
+          financialAttribution,
+          sourceChannel: sourceChannel || (promoterAttribution ? 'promoter_link' : 'direct'),
+          workspaceId: resolvedWorkspaceId,
+        });
+
+        if ((authoritativeEvent as any).isRSVP) {
           const hasExistingRSVP = await this.orderRepo.checkExistingRSVP(
-            event.id,
+            authoritativeEvent.id,
             { userId, email: userEmail },
             transaction,
           );
@@ -334,7 +484,7 @@ export class CheckoutService {
         }
         await executeOrderCreation(transaction, {
           db,
-          event,
+          event: authoritativeEvent,
           orderData: orderPayload,
           reservationId: reservationId,
         });
@@ -343,7 +493,7 @@ export class CheckoutService {
       telemetry.track('CHECKOUT_INITIATED', {
         orderId: orderPayload.id,
         userId,
-        eventId: event.id,
+        eventId: orderPayload.eventId,
         duration: Date.now() - startTime,
       });
 
@@ -609,6 +759,8 @@ export class CheckoutService {
         amount: result.decision.refundAmount,
         status: result.refundResult ? 'processing' : 'not_applicable',
         razorpayRefundId: result.refundResult?.id,
+        refundRequestId: result.refundResult?.refundRequestId,
+        providerStatus: result.refundResult?.status,
       },
     };
   }

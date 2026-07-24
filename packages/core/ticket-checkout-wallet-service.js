@@ -1,7 +1,8 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getAdminDb } from './admin.js';
 import { getQrSecret } from './secret-registry.js';
 import { releaseReservation } from './inventory-engine.js';
+import { finalizeTicketPayment } from './workflows/ticketing.js';
 
 const PAYMENT_PENDING_STATUSES = new Set(['payment_pending', 'pending_payment']);
 const WALLET_QR_TTL_SECONDS = 60;
@@ -46,21 +47,163 @@ export function verifyTicketQrJwt(token, secret = getQrSecret()) {
     .replace(/\+/g, '-')
     .replace(/\//g, '_');
 
-  if (signature !== expectedSignature) {
+  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expectedSignature);
+  if (
+    actualBuffer.length !== expectedBuffer.length ||
+    !timingSafeEqual(actualBuffer, expectedBuffer)
+  ) {
     return { valid: false, error: 'Invalid JWT signature' };
   }
 
   try {
+    const header = JSON.parse(Buffer.from(encodedHeader, 'base64url').toString('utf8'));
     const payloadStr = Buffer.from(encodedPayload, 'base64').toString('utf8');
     const payload = JSON.parse(payloadStr);
     const nowSec = Math.floor(Date.now() / 1000);
-    if (payload.exp && nowSec > payload.exp) {
+    if (
+      header.alg !== 'HS256' ||
+      header.typ !== 'JWT' ||
+      !['ticket-v1', 'ticket-wallet-v1'].includes(header.kid)
+    ) {
+      return { valid: false, error: 'Unsupported ticket QR signing header' };
+    }
+    if (
+      payload.iss !== 'the-c1rcle' ||
+      payload.aud !== 'c1rcle-scanner' ||
+      payload.typ !== 'ticket' ||
+      !payload.orderId ||
+      !payload.eventId ||
+      !(payload.jti || payload.ticketId || payload.sub)
+    ) {
+      return { valid: false, error: 'Invalid ticket QR claims' };
+    }
+    if (payload.nbf && nowSec < Number(payload.nbf)) {
+      return { valid: false, error: 'Ticket QR code is not active yet', payload };
+    }
+    if (!payload.exp || nowSec >= Number(payload.exp)) {
       return { valid: false, error: 'Ticket QR code has expired', payload };
     }
     return { valid: true, payload };
   } catch (err) {
     return { valid: false, error: 'Failed to parse JWT payload' };
   }
+}
+
+export async function processTicketJwtScan({
+  db = getAdminDb(),
+  token,
+  eventId,
+  scannerId,
+  gate = null,
+}) {
+  const verified = verifyTicketQrJwt(token);
+  if (!verified.valid) return { success: false, result: 'invalid', error: verified.error };
+
+  const claims = verified.payload;
+  if (eventId && claims.eventId !== eventId) {
+    return { success: false, result: 'wrong_event', error: 'Ticket is for a different event' };
+  }
+
+  const ticketDocumentId = claims.jti || claims.ticketId || claims.sub;
+  const ticketRef = db.collection('tickets').doc(ticketDocumentId);
+  const entitlementQuery = db
+    .collection('entitlements')
+    .where('ticketDocumentId', '==', ticketDocumentId)
+    .limit(2);
+  let result = null;
+
+  await db.runTransaction(async (transaction) => {
+    const [ticketDoc, entitlementSnapshot] = await Promise.all([
+      transaction.get(ticketRef),
+      transaction.get(entitlementQuery),
+    ]);
+    if (!ticketDoc.exists) {
+      result = { success: false, result: 'not_found', error: 'Ticket not found' };
+      return;
+    }
+    if (entitlementSnapshot.docs?.length !== 1) {
+      result = {
+        success: false,
+        result: 'invalid',
+        error: 'Ticket entitlement is missing or ambiguous',
+      };
+      return;
+    }
+
+    const ticket = ticketDoc.data();
+    const entitlementDoc = entitlementSnapshot.docs[0];
+    const entitlement = entitlementDoc.data();
+    if (
+      ticket.orderId !== claims.orderId ||
+      ticket.eventId !== claims.eventId ||
+      ticket.eventId !== (eventId || claims.eventId) ||
+      entitlement.eventId !== ticket.eventId ||
+      entitlement.orderId !== ticket.orderId
+    ) {
+      result = { success: false, result: 'invalid', error: 'Ticket claims do not match records' };
+      return;
+    }
+    if (
+      ['revoked', 'refunded', 'cancelled', 'transferred'].includes(
+        String(ticket.status || '').toLowerCase(),
+      ) ||
+      ['REVOKED', 'EXPIRED'].includes(String(entitlement.state || '').toUpperCase())
+    ) {
+      result = { success: false, result: 'revoked', error: 'Ticket is not active' };
+      return;
+    }
+
+    const allowed = Number(entitlement.scanCountAllowed || ticket.scanCountAllowed || 1);
+    const used = Number(entitlement.scanCountUsed || ticket.scanCountUsed || 0);
+    if (used >= allowed || entitlement.state === 'CONSUMED') {
+      result = { success: false, result: 'already_scanned', error: 'Ticket already scanned' };
+      return;
+    }
+
+    const nextUsed = used + 1;
+    const now = new Date().toISOString();
+    const consumed = nextUsed >= allowed;
+    const scanRef = db.collection('ticket_scans').doc(`${ticketDocumentId}_${nextUsed}`);
+    transaction.update(ticketRef, {
+      scanCountUsed: nextUsed,
+      status: consumed ? 'used' : 'active',
+      lastScannedAt: now,
+      updatedAt: now,
+    });
+    transaction.update(entitlementDoc.ref, {
+      scanCountUsed: nextUsed,
+      checkedIn: consumed,
+      state: consumed ? 'CONSUMED' : 'ACTIVE',
+      lastScannedAt: now,
+      updatedAt: now,
+    });
+    transaction.create(scanRef, {
+      orderId: ticket.orderId,
+      eventId: ticket.eventId,
+      ticketId: ticketDocumentId,
+      entitlementId: entitlementDoc.id,
+      userId: ticket.userId,
+      quantity: 1,
+      entryType: ticket.entryType || 'general',
+      result: 'valid',
+      scannerId,
+      gate,
+      scannedAt: now,
+      createdAt: now,
+    });
+    result = {
+      success: true,
+      result: 'valid',
+      scanId: scanRef.id,
+      ticket: { id: ticketDocumentId, ...ticket, scanCountUsed: nextUsed },
+      entitlementId: entitlementDoc.id,
+      scanCountUsed: nextUsed,
+      scanCountAllowed: allowed,
+    };
+  });
+
+  return result;
 }
 
 function safeDocSegment(value) {
@@ -90,7 +233,7 @@ export function verifyRazorpayWebhookSignature({ rawBody, signature, webhookSecr
     .update(rawBody || '')
     .digest('hex');
   if (!signature || expected !== signature) {
-    throw codedError('Invalid webhook signature', 'INVALID_SIGNATURE');
+    throw codedError('Invalid webhook signature', 'PAYMENT_SIGNATURE_INVALID');
   }
   return true;
 }
@@ -297,50 +440,22 @@ export async function generateTicketsForOrder({ db = getAdminDb(), orderId }) {
 
 export async function finalizeRazorpayTicketPurchase({
   db = getAdminDb(),
-  checkoutService,
   razorpayOrderId,
   razorpayPaymentId,
   paymentGatewayConfig = {},
+  providerPayment = null,
+  requestId = null,
 }) {
-  const payment = await findPaymentByRazorpayOrderId(db, razorpayOrderId);
-  const orderId = payment.orderId;
-  if (!orderId) throw codedError('Payment record is missing order id', 'CONFLICT');
-
-  const verification = await checkoutService.verifyPayment({
-    orderId,
+  return finalizeTicketPayment({
+    db,
+    source: 'webhook',
+    requestId,
     razorpayOrderId,
     razorpayPaymentId,
-    userId: null,
+    webhookVerified: true,
+    providerPayment,
     paymentGatewayConfig,
   });
-
-  if (verification?.success === false) {
-    return verification;
-  }
-
-  const ticketResult = await generateTicketsForOrder({ db, orderId });
-
-  if (ticketResult?.order?.reservationId) {
-    await releaseReservation(ticketResult.order.reservationId).catch(() => undefined);
-  }
-
-  return {
-    success: true,
-    alreadyConfirmed: Boolean(verification?.alreadyConfirmed),
-    order: ticketResult.order,
-    tickets: ticketResult.tickets.map((ticket) => ({
-      id: ticket.id,
-      ticketId: ticket.ticketId,
-      eventId: ticket.eventId,
-      tierId: ticket.tierId,
-      status: ticket.status,
-      qrMode: ticket.qrMode,
-      qrExpiresAt: ticket.qrExpiresAt,
-    })),
-    ticketsCount: ticketResult.tickets.length,
-    razorpayOrderId,
-    razorpayPaymentId,
-  };
 }
 
 function eventFromDoc(doc) {

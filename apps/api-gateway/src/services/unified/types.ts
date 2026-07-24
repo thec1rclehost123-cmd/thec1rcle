@@ -117,7 +117,10 @@ export interface LedgerEntry {
   entryId: string;
   eventId: string;
   type: LedgerEntryType;
+  /** Display amount in rupees. Never use for ledger mutation or reconciliation. */
   amount: number;
+  /** Canonical integer amount used for all financial decisions. */
+  amountPaise: number;
   currency: 'INR';
   fromPartnerId: string | null;
   toPartnerId: string;
@@ -156,15 +159,26 @@ export interface LinkAnalytics {
 // ─── Finance ──────────────────────────────────────────────────────────────────
 
 export interface BalanceSummary {
+  /** Display balance in rupees. */
   available: number;
+  /** Display balance in rupees. */
   pending: number;
+  /** Canonical integer balance used for payout/refund decisions. */
+  availablePaise: number;
+  /** Canonical integer pending balance. */
+  pendingPaise: number;
   currency: 'INR';
 }
 
 export interface FinanceOverview {
+  /** Display values in rupees. */
   totalRevenue: number;
   pendingPayouts: number;
   settledPayouts: number;
+  /** Canonical integer values for reconciliation. */
+  totalRevenuePaise: number;
+  pendingPayoutsPaise: number;
+  settledPayoutsPaise: number;
   currency: 'INR';
   revenueByPeriod: DataPoint[];
 }

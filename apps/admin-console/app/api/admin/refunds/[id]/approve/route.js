@@ -3,7 +3,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { adminStore } from '@/lib/server/adminStore';
+import { getApiClient } from '@/lib/server/apiClient';
 import { withAdminAuth } from '@/lib/server/adminMiddleware';
 import { rateLimit } from '@/lib/server/rateLimit';
 
@@ -17,15 +17,17 @@ async function handler(request, { params }) {
 
     const { id } = await params;
     const refundId = id;
-    const admin = request.user;
-
-    const result = await adminStore.approveRefundRequest(refundId, admin);
+    const token = request.headers.get('authorization').slice('Bearer '.length);
+    const result = await getApiClient(token).request(`/refunds/${encodeURIComponent(refundId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'approve' }),
+    });
 
     return NextResponse.json({
       success: true,
-      approved: result.isFullyApproved,
+      approved: result.approved,
       pendingApprovals: result.pendingApprovals,
-      message: result.isFullyApproved
+      message: result.approved
         ? 'Refund approved and processing'
         : `Approval recorded. ${result.pendingApprovals} more needed.`,
     });

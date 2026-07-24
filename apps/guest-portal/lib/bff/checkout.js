@@ -1,5 +1,6 @@
 import { normalizeBootstrapPayload } from '../../features/auth/utils/authSessionModel.js';
 import { normalizeCheckoutEventDetail } from '../../features/checkout/checkoutEventModel.js';
+import { revalidateTag } from 'next/cache';
 import {
   buildCheckoutQuotePayload,
   buildCheckoutRequestIdempotencyKey,
@@ -87,8 +88,9 @@ export async function buildCheckoutSummaryView({
 
   const [eventResult, authResult, paymentResult] = await Promise.all([
     guestBffUpstreamJson(`/public/events/${encodeURIComponent(eventId)}`, {
-      cacheMode: GUEST_BFF_CACHE.PUBLIC_REVALIDATED,
+      cacheMode: GUEST_BFF_CACHE.PRIVATE_NO_STORE,
       forwardCookies: false,
+      cache: 'no-store',
     }),
     guestBffUpstreamJson('/auth/me'),
     guestBffUpstreamJson('/payments/config'),
@@ -290,6 +292,12 @@ export async function runCheckoutVerify(body = {}, requestHeaders = {}) {
     headers: requestHeaders,
     method: 'PATCH',
   });
+  if (result.response.ok) {
+    const eventId = result.data?.order?.eventId;
+    revalidateTag('guest-events', 'max');
+    revalidateTag('guest-explore', 'max');
+    if (eventId) revalidateTag(`guest-event:${eventId}`, 'max');
+  }
 
   return buildGuestBffResult({
     status: result.response.ok ? 200 : result.response.status || 422,

@@ -27,6 +27,10 @@ export class PaymentService {
   }): Promise<any> {
     const { order, userId, config } = params;
     const { keyId, keySecret, allowMockPayment, forceMockPayment } = config;
+    const amountPaise = Number.isSafeInteger(order.totalPaise)
+      ? Number(order.totalPaise)
+      : Math.round(order.totalAmount * 100);
+    const currency = String(order.currency || 'INR').toUpperCase();
     const reusableRecord = await this.orderRepo.getLatestPendingPaymentRecord(order.id);
 
     if (
@@ -44,7 +48,9 @@ export class PaymentService {
       return {
         razorpayOrderId: reusableRecord!.razorpayOrderId,
         amount: reusableRecord!.amount,
-        currency: 'INR',
+        amountPaise:
+          reusableRecord!.amountPaise ?? Math.round(Number(reusableRecord!.amount || 0) * 100),
+        currency: reusableRecord!.currency || currency,
         key: isMockOrder ? 'rzp_test_DEVELOPMENT' : keyId,
       };
     }
@@ -60,6 +66,8 @@ export class PaymentService {
         razorpayOrderId,
         workspaceId: order.workspaceId || null,
         amount: order.totalAmount,
+        amountPaise,
+        currency,
         status: 'initiated',
         userId,
         createdAt: new Date().toISOString(),
@@ -67,7 +75,8 @@ export class PaymentService {
       return {
         razorpayOrderId,
         amount: order.totalAmount,
-        currency: 'INR',
+        amountPaise,
+        currency,
         key: 'rzp_test_DEVELOPMENT',
       };
     }
@@ -78,8 +87,8 @@ export class PaymentService {
     try {
       rzpOrder = await withTimeout(
         razorpay.orders.create({
-          amount: Math.round(order.totalAmount * 100),
-          currency: 'INR',
+          amount: amountPaise,
+          currency,
           receipt: order.id,
           notes: { orderId: order.id, userId },
         }),
@@ -94,6 +103,8 @@ export class PaymentService {
       razorpayOrderId: rzpOrder.id,
       workspaceId: order.workspaceId || null,
       amount: order.totalAmount,
+      amountPaise,
+      currency,
       status: 'initiated',
       userId,
       createdAt: new Date().toISOString(),
@@ -102,7 +113,8 @@ export class PaymentService {
     return {
       razorpayOrderId: rzpOrder.id,
       amount: order.totalAmount,
-      currency: 'INR',
+      amountPaise,
+      currency,
       key: keyId,
     };
   }

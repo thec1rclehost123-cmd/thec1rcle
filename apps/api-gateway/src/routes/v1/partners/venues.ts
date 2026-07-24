@@ -16,6 +16,11 @@ import {
   resolveEffectiveCommission,
   normalizeCompensationForRead,
 } from '../events.js';
+import {
+  getEventCommerceMetrics,
+  getOrderCommerceAmounts,
+  getPartnerCommerceRows,
+} from '../../../lib/canonicalCommerceMetrics.js';
 
 import { uploadPartnerAsset } from '../../../lib/partner-upload.js';
 import {
@@ -334,52 +339,42 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
     weekAgo.setDate(now.getDate() - 7);
     const prevWeekAgo = new Date(now);
     prevWeekAgo.setDate(now.getDate() - 14);
-    const [eventsSnap, ordersThisWeek, ordersPrevWeek, profilesSnap] = await Promise.all([
+    const [eventsSnap, commerceRows] = await Promise.all([
       fastify.db
         .collection('events')
         .where('venueId', '==', venueId)
         .get()
         .catch(() => ({ docs: [] as any[] })),
-      fastify.db
-        .collection('orders')
-        .where('venueId', '==', venueId)
-        .where('status', 'in', ['confirmed', 'paid'])
-        .where('createdAt', '>=', weekAgo.toISOString())
-        .get()
-        .catch(() => ({ docs: [] as any[] })),
-      fastify.db
-        .collection('orders')
-        .where('venueId', '==', venueId)
-        .where('status', 'in', ['confirmed', 'paid'])
-        .where('createdAt', '>=', prevWeekAgo.toISOString())
-        .where('createdAt', '<', weekAgo.toISOString())
-        .get()
-        .catch(() => ({ docs: [] as any[] })),
-      fastify.db
-        .collection('orders')
-        .where('venueId', '==', venueId)
-        .where('status', 'in', ['confirmed', 'paid'])
-        .count()
-        .get()
-        .catch(() => null),
+      getPartnerCommerceRows(fastify.db, venueId, 'venueId'),
     ]);
     const recentEvents = ((eventsSnap as any).docs || [])
       .map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }))
       .filter((event: any) => event.startDate && event.startDate >= weekAgo.toISOString());
-    const thisWeekRevenue = ((ordersThisWeek as any).docs || []).reduce(
-      (s: number, d: any) => s + toNumber(d.data().amount || (d.data().totalPaise || 0) / 100),
-      0,
-    );
-    const prevWeekRevenue = ((ordersPrevWeek as any).docs || []).reduce(
-      (s: number, d: any) => s + toNumber(d.data().amount || (d.data().totalPaise || 0) / 100),
-      0,
-    );
+    const thisWeekRevenue =
+      commerceRows.ledger
+        .filter((row) => !row.createdAtIso || row.createdAtIso >= weekAgo.toISOString())
+        .reduce((sum, row) => sum + Number(row.amountPaise || 0), 0) / 100;
+    const prevWeekRevenue =
+      commerceRows.ledger
+        .filter(
+          (row) =>
+            row.createdAtIso &&
+            row.createdAtIso >= prevWeekAgo.toISOString() &&
+            row.createdAtIso < weekAgo.toISOString(),
+        )
+        .reduce((sum, row) => sum + Number(row.amountPaise || 0), 0) / 100;
     const trendPct =
       prevWeekRevenue > 0
         ? Math.round(((thisWeekRevenue - prevWeekRevenue) / prevWeekRevenue) * 100)
         : 0;
-    const totalGuests = profilesSnap ? (profilesSnap as any).data().count || 0 : 0;
-    const newGuestsThisWeek = (ordersThisWeek as any).docs?.length || 0;
+    const totalGuests = new Set(commerceRows.tickets.map((ticket) => ticket.userId).filter(Boolean))
+      .size;
+    const newGuestsThisWeek = new Set(
+      commerceRows.tickets
+        .filter((ticket) => !ticket.createdAtIso || ticket.createdAtIso >= weekAgo.toISOString())
+        .map((ticket) => ticket.userId)
+        .filter(Boolean),
+    ).size;
     return {
       weekendRevenue: thisWeekRevenue,
       revenueTrend: `${Math.abs(trendPct)}%`,
@@ -1629,6 +1624,10 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             .limit(500)
             .get()
             .catch(() => ({ docs: [] as any[] }));
+          const orderAmounts = await getOrderCommerceAmounts(
+            fastify.db,
+            ((snap as any).docs || []).map((doc: any) => doc.id),
+          );
           const allOrders = ((snap as any).docs || []).map((doc: any) => {
             const d = doc.data() || {};
             return {
@@ -1636,7 +1635,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               customerName: d.buyerName || d.customerName || d.name || 'Guest',
               email: d.buyerEmail || d.email || '',
               phone: d.buyerPhone || d.phone || '',
-              amount: toNumber(d.totalPaise || 0) / 100,
+              amount: Number(orderAmounts[doc.id]?.netPaise || 0) / 100,
               ticketsCount: toNumber(d.ticketCount || 1),
               createdAt: d.createdAt || null,
               eventId: d.eventId || null,
@@ -1675,13 +1674,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           else if (range === '1w') windowStart.setDate(now.getDate() - 6);
           else windowStart.setDate(now.getDate() - 29);
           windowStart.setHours(0, 0, 0, 0);
-          const ordersSnap = await fastify.db
-            .collection('orders')
-            .where('venueId', '==', ctx.partnerId)
-            .where('status', 'in', ['confirmed', 'paid'])
-            .where('createdAt', '>=', windowStart.toISOString())
-            .get()
-            .catch(() => ({ docs: [] as any[] }));
+          const commerceRows = await getPartnerCommerceRows(fastify.db, ctx.partnerId, 'venueId');
           const buckets: Record<string, { revenue: number; ticketsSold: number }> = {};
           for (let i = 0; i < points; i++) {
             const d = new Date(now);
@@ -1693,16 +1686,26 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 : `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
             buckets[key] = { revenue: 0, ticketsSold: 0 };
           }
-          for (const doc of (ordersSnap as any).docs || []) {
-            const d = doc.data() || {};
-            const ts = new Date(d.createdAt || 0);
+          for (const entry of commerceRows.ledger) {
+            if (entry.createdAtIso && entry.createdAtIso < windowStart.toISOString()) continue;
+            const ts = new Date(entry.createdAtIso || 0);
             const key =
               range === '1d'
                 ? `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}-${ts.getHours()}`
                 : `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}`;
             if (buckets[key]) {
-              buckets[key].revenue += d.totalPaise || Math.round((d.amount || 0) * 100);
-              buckets[key].ticketsSold += d.ticketCount || 0;
+              buckets[key].revenue += Number(entry.amountPaise || 0);
+            }
+          }
+          for (const ticket of commerceRows.tickets) {
+            if (ticket.createdAtIso && ticket.createdAtIso < windowStart.toISOString()) continue;
+            const ts = new Date(ticket.createdAtIso || 0);
+            const key =
+              range === '1d'
+                ? `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}-${ts.getHours()}`
+                : `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}`;
+            if (buckets[key]) {
+              buckets[key].ticketsSold += 1;
             }
           }
           const series = Object.entries(buckets).map(([, v], i) => {
@@ -1752,33 +1755,20 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
-          const [ordersSnap, checkinsSnap] = await Promise.all([
-            fastify.db
-              .collection('orders')
-              .where('eventId', '==', eventId)
-              .where('status', 'in', ['confirmed', 'paid'])
-              .get()
-              .catch(() => ({ docs: [] as any[] })),
+          const [commerce, checkinsSnap] = await Promise.all([
+            getEventCommerceMetrics(fastify.db, eventId),
             fastify.db
               .collection('check_ins')
               .where('eventId', '==', eventId)
               .get()
               .catch(() => ({ docs: [] as any[] })),
           ]);
-          const revenue = ((ordersSnap as any).docs || []).reduce(
-            (sum: number, doc: any) => sum + (doc.data().totalPaise || 0),
-            0,
-          );
-          const ticketsSold = ((ordersSnap as any).docs || []).reduce(
-            (sum: number, doc: any) => sum + (doc.data().ticketCount || 0),
-            0,
-          );
           return reply.send({
             id: eventId,
-            revenue: revenue / 100,
+            revenue: commerce.netRevenue,
             checkedIn: (checkinsSnap as any).size || 0,
-            expected: ticketsSold,
-            ticketsSold,
+            expected: commerce.ticketsSold,
+            ticketsSold: commerce.ticketsSold,
             entryVelocity: 0,
             entryRate: 0,
             entryHistory: [],
@@ -2024,7 +2014,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           await fastify.db.collection('events').doc(eventId).update(eventUpdatePayload);
           // Keep event_card_index and search in sync whenever the event goes public/live/paused
           if (['scheduled', 'live', 'paused'].includes(newStatus)) {
-            fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
+            await fastify.publicDiscoveryService.syncEventReadModels(eventId);
           }
           return reply.send({ success: true, status: newStatus });
         }
@@ -2561,7 +2551,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         const eventOverviewMatch = rest.match(/^events\/([^/]+)\/overview$/);
         if (eventOverviewMatch && request.method === 'GET') {
           const evtId = eventOverviewMatch[1];
-          const [eventDoc, ordersSnap, checkinsSnap, viewsSnap] = await Promise.all([
+          const [eventDoc, ordersSnap, checkinsSnap, viewsSnap, commerce] = await Promise.all([
             fastify.db.collection('events').doc(evtId).get(),
             fastify.db
               .collection('orders')
@@ -2588,6 +2578,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .doc(evtId)
               .get()
               .catch(() => null),
+            getEventCommerceMetrics(fastify.db, evtId),
           ]);
           if (!eventDoc.exists)
             return reply.status(404).send(
@@ -2607,13 +2598,16 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               }),
             );
           const orderDocs = (ordersSnap as any).docs || [];
-          const ticketsSold = orderDocs.reduce(
-            (s: number, d: any) => s + toNumber(d.data().ticketCount || 1),
-            0,
-          );
-          const grossRevenue =
-            orderDocs.reduce((s: number, d: any) => s + toNumber(d.data().totalPaise || 0), 0) /
-            100;
+          const ticketsSold = commerce.ticketsSold;
+          const grossRevenue = commerce.grossRevenue;
+          const estimatedEarnings =
+            commerce.ledgerEntries
+              .filter(
+                (entry) =>
+                  entry.toPartnerId === ctx.partnerId &&
+                  ['venue_share', 'host_payout', 'refund'].includes(entry.type),
+              )
+              .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
           const rawTiers = asArray(event.ticketTiers || event.tiers || []);
           const inventory = rawTiers.reduce(
             (s: number, t: any) => s + toNumber(t.quantity || t.maxQuantity || 0),
@@ -2622,20 +2616,29 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const capacity = toNumber(event.capacity || inventory || 0);
           const checkedIn = (checkinsSnap as any).size || 0;
           const buyerIds = new Set(
-            orderDocs.map((d: any) => d.data().buyerPhone || d.data().buyerEmail || d.id),
+            commerce.soldTickets.map((ticket) => ticket.userId).filter(Boolean),
           );
           const uniqueAttendees = buyerIds.size;
           const viewsData =
             viewsSnap && (viewsSnap as any).exists ? (viewsSnap as any).data() || {} : {};
           const tierMap = new Map<string, { tierName: string; sold: number; revenue: number }>();
-          for (const d of orderDocs) {
-            const o = d.data();
-            const tierId = o.tierId || 'unknown';
-            const tierName = o.tierName || 'Ticket';
+          const orderTicketCounts = commerce.soldTickets.reduce(
+            (counts, ticket) => {
+              counts[ticket.orderId] = (counts[ticket.orderId] || 0) + 1;
+              return counts;
+            },
+            {} as Record<string, number>,
+          );
+          for (const ticket of commerce.soldTickets) {
+            const tierId = ticket.tierId || 'unknown';
+            const tierName = ticket.tierName || 'Ticket';
             if (!tierMap.has(tierId)) tierMap.set(tierId, { tierName, sold: 0, revenue: 0 });
             const entry = tierMap.get(tierId)!;
-            entry.sold += toNumber(o.ticketCount || 1);
-            entry.revenue += toNumber(o.totalPaise || 0) / 100;
+            entry.sold += 1;
+            entry.revenue +=
+              Number(commerce.orderRevenuePaise[ticket.orderId]?.netPaise || 0) /
+              Math.max(orderTicketCounts[ticket.orderId] || 1, 1) /
+              100;
           }
           const ticketMix = Array.from(tierMap.entries()).map(([tierId, v]) => ({
             tierId,
@@ -2661,16 +2664,19 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               ? Math.round((ticketsSold / toNumber(viewsData.count)) * 100)
               : 0;
 
-          // Build sales timeline from order dates
+          // Build sales timeline from canonical ticket and ledger timestamps.
           const salesByDate = new Map<string, { tickets: number; revenue: number }>();
-          for (const d of orderDocs) {
-            const o = d.data();
-            const date = (o.createdAt || '').split('T')[0];
+          for (const ticket of commerce.soldTickets) {
+            const date = String(ticket.issuedAt || ticket.createdAt || '').split('T')[0];
             if (!date) continue;
             if (!salesByDate.has(date)) salesByDate.set(date, { tickets: 0, revenue: 0 });
-            const entry = salesByDate.get(date)!;
-            entry.tickets += toNumber(o.ticketCount || 1);
-            entry.revenue += toNumber(o.totalPaise || 0) / 100;
+            salesByDate.get(date)!.tickets += 1;
+          }
+          for (const ledgerEntry of [...commerce.revenueEntries, ...commerce.refundEntries]) {
+            const date = String(ledgerEntry.createdAt || '').split('T')[0];
+            if (!date) continue;
+            if (!salesByDate.has(date)) salesByDate.set(date, { tickets: 0, revenue: 0 });
+            salesByDate.get(date)!.revenue += Number(ledgerEntry.amountPaise || 0) / 100;
           }
           const salesTimeline = Array.from(salesByDate.entries())
             .map(([date, data]) => ({ date, tickets: data.tickets, revenue: data.revenue }))
@@ -2704,7 +2710,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           return reply.send({
             ticketsSold,
             grossRevenue,
-            estimatedEarnings: Math.round(grossRevenue * 0.85 * 100) / 100,
+            netRevenue: commerce.netRevenue,
+            estimatedEarnings,
             guestListSize: 0,
             totalCheckedIn: checkedIn,
             conversionRate,
@@ -2745,7 +2752,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         const eventFinanceMatch = rest.match(/^events\/([^/]+)\/finance$/);
         if (eventFinanceMatch && request.method === 'GET') {
           const evtId = eventFinanceMatch[1];
-          const [eventDoc, ordersSnap, walkInsSnap] = await Promise.all([
+          const [eventDoc, ordersSnap, walkInsSnap, commerce] = await Promise.all([
             fastify.db.collection('events').doc(evtId).get(),
             fastify.db
               .collection('orders')
@@ -2768,6 +2775,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 );
                 return { docs: [] as any[] };
               }),
+            getEventCommerceMetrics(fastify.db, evtId),
           ]);
           if (!eventDoc.exists)
             return reply.status(404).send(
@@ -2788,21 +2796,29 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             );
           const orderDocs = (ordersSnap as any).docs || [];
           const walkInDocs = (walkInsSnap as any).docs || [];
-          const gross =
-            orderDocs.reduce((s: number, d: any) => s + toNumber(d.data().totalPaise || 0), 0) /
-            100;
-          const refundAmount =
-            orderDocs
-              .filter((d: any) => d.data().refundedAt)
-              .reduce((s: number, d: any) => s + toNumber(d.data().refundPaise || 0), 0) / 100;
-          const platformFee = Math.round(gross * 0.05 * 100) / 100;
-          const venueCommissionRate = toNumber(event.venueCommissionRate || 15);
-          const venueCommission = Math.round(gross * (venueCommissionRate / 100) * 100) / 100;
+          const gross = commerce.grossRevenue;
+          const refundAmount = commerce.refundAmount;
+          const platformFee =
+            commerce.ledgerEntries
+              .filter((entry) => entry.type === 'platform_fee')
+              .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
+          const venueCommission =
+            commerce.ledgerEntries
+              .filter((entry) => entry.type === 'venue_share')
+              .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
+          const venueCommissionRate = gross > 0 ? (venueCommission / gross) * 100 : 0;
           const walkInRevenue = walkInDocs.reduce(
             (s: number, d: any) => s + toNumber(d.data().amount || 0),
             0,
           );
-          const net = Math.max(0, gross - platformFee - refundAmount);
+          const net =
+            commerce.ledgerEntries
+              .filter(
+                (entry) =>
+                  entry.toPartnerId === ctx.partnerId &&
+                  ['venue_share', 'host_payout', 'refund'].includes(entry.type),
+              )
+              .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
           const tierMap = new Map<string, { tierName: string; sold: number; revenue: number }>();
           for (const d of orderDocs) {
             const o = d.data();
@@ -2811,7 +2827,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             if (!tierMap.has(tierId)) tierMap.set(tierId, { tierName, sold: 0, revenue: 0 });
             const entry = tierMap.get(tierId)!;
             entry.sold += toNumber(o.ticketCount || 1);
-            entry.revenue += toNumber(o.totalPaise || 0) / 100;
+            entry.revenue += Number(commerce.orderRevenuePaise[d.id]?.netPaise || 0) / 100;
           }
           const ticketMix = Array.from(tierMap.entries()).map(([tierId, v]) => ({
             tierId,
@@ -2829,12 +2845,16 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             net,
             walkInRevenue,
             walkInOrders: walkInDocs.length,
-            onlineRevenue: gross,
-            onlineOrders: orderDocs.length,
+            onlineRevenue: commerce.netRevenue,
+            onlineOrders: commerce.orderCount,
             settlementStatus: event.settlementStatus || 'pending',
             paidAt: event.settledAt || null,
-            paymentSources: [{ label: 'Online', amount: gross, orders: orderDocs.length }],
-            intakeChannels: [{ label: 'App', amount: gross, orders: orderDocs.length }],
+            paymentSources: [
+              { label: 'Online', amount: commerce.netRevenue, orders: commerce.orderCount },
+            ],
+            intakeChannels: [
+              { label: 'App', amount: commerce.netRevenue, orders: commerce.orderCount },
+            ],
             ticketMix,
             hostPayout: null,
             promoterPayouts: [],
@@ -2889,7 +2909,12 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             .limit(50)
             .get()
             .catch(() => ({ docs: [] as any[], size: 0 }));
-          const lifetimeOrders = ((lifetimeSnap as any).docs || []).map((d: any) => {
+          const lifetimeDocs = (lifetimeSnap as any).docs || [];
+          const orderAmounts = await getOrderCommerceAmounts(fastify.db, [
+            attendeeId,
+            ...lifetimeDocs.map((document: any) => document.id),
+          ]);
+          const lifetimeOrders = lifetimeDocs.map((d: any) => {
             const od = d.data() || {};
             return {
               id: d.id,
@@ -2901,7 +2926,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               customerName: od.buyerName || 'Guest',
               email: od.buyerEmail || '',
               phone: od.buyerPhone || '',
-              amount: toNumber(od.totalPaise || 0) / 100,
+              amount: Number(orderAmounts[d.id]?.netPaise || 0) / 100,
               ticketsCount: toNumber(od.ticketCount || 1),
               createdAt: od.createdAt || null,
               confirmedAt: od.confirmedAt || null,
@@ -2936,7 +2961,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             ticketTier: o.tierName || '',
             tierId: o.tierId || '',
             quantity: toNumber(o.ticketCount || 1),
-            totalSpend: toNumber(o.totalPaise || 0) / 100,
+            totalSpend: Number(orderAmounts[attendeeId]?.netPaise || 0) / 100,
             source: o.source || 'online',
             status: o.checkedInAt ? 'checked_in' : 'paid',
             purchasedAt: o.createdAt || null,
@@ -2950,7 +2975,12 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             orderNumber: attendeeId.slice(0, 8).toUpperCase(),
             stats: {
               eventsAttended: buyerOrders.length,
-              lifetimeSpend: toNumber(o.totalPaise || 0) / 100,
+              lifetimeSpend:
+                lifetimeDocs.reduce(
+                  (sum: number, document: any) =>
+                    sum + Number(orderAmounts[document.id]?.netPaise || 0),
+                  0,
+                ) / 100,
             },
             joinedAt: o.createdAt || null,
           };
@@ -3044,6 +3074,10 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             ...ordersSnap.docs.map((d: any) => ({ doc: d, isRSVP: false })),
             ...rsvpsSnap.docs.map((d: any) => ({ doc: d, isRSVP: true })),
           ];
+          const orderAmounts = await getOrderCommerceAmounts(
+            fastify.db,
+            orderDocs.filter((item: any) => !item.isRSVP).map((item: any) => item.doc.id),
+          );
 
           let attendeesList = orderDocs.map((item: any) => {
             const doc = item.doc;
@@ -3063,10 +3097,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               ticketTier: o.tierName || (isRSVP ? 'RSVP' : ''),
               tierId: o.tierId || '',
               quantity: toNumber(o.ticketCount || o.quantity || 1),
-              totalSpend: isRSVP
-                ? 0
-                : toNumber(o.totalPaise || Math.round((o.amount || o.totalAmount || 0) * 100)) /
-                  100,
+              totalSpend: isRSVP ? 0 : Number(orderAmounts[doc.id]?.netPaise || 0) / 100,
               source,
               status: checkedInAt ? 'checked_in' : 'paid',
               purchasedAt: o.createdAt || null,
@@ -3148,7 +3179,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
-          const [assignmentsSnap, settingsDoc, connectionsSnap] = await Promise.all([
+          const [assignmentsSnap, settingsDoc, connectionsSnap, commerce] = await Promise.all([
             fastify.db
               .collection('promoter_assignments')
               .where('eventId', '==', evtId)
@@ -3165,6 +3196,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .where('status', 'in', ['approved', 'active'])
               .get()
               .catch(() => ({ docs: [] as any[] })),
+            getEventCommerceMetrics(fastify.db, evtId),
           ]);
           const settingsData =
             settingsDoc && (settingsDoc as any).exists ? (settingsDoc as any).data() || {} : {};
@@ -3175,11 +3207,31 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           };
           const assignedPromoters = ((assignmentsSnap as any).docs || []).map((doc: any) => {
             const data = doc.data() || {};
+            const promoterId = data.promoterId || '';
+            const promoterTickets = commerce.soldTickets.filter(
+              (ticket) => ticket.promoterId === promoterId,
+            );
+            const attributedOrderIds = new Set(
+              promoterTickets.map((ticket) => ticket.orderId).filter(Boolean),
+            );
             return {
               assignmentId: doc.id,
               ...data,
               id: doc.id,
-              promoterId: data.promoterId || '',
+              promoterId,
+              ticketsSold: promoterTickets.length,
+              sales: promoterTickets.length,
+              revenue: [...attributedOrderIds].reduce(
+                (sum, orderId) =>
+                  sum + Number(commerce.orderRevenuePaise[orderId]?.netPaise || 0) / 100,
+                0,
+              ),
+              commissionPaise: commerce.ledgerEntries
+                .filter(
+                  (entry) =>
+                    entry.type === 'promoter_commission' && entry.toPartnerId === promoterId,
+                )
+                .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0),
             };
           });
           const assignedIds = new Set(
@@ -3553,7 +3605,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .catch(() => {});
           }
 
-          await fastify.publicDiscoveryService.syncEventReadModels(evtId).catch(() => {});
+          await fastify.publicDiscoveryService.syncEventReadModels(evtId);
 
           return reply.send({ success: true, id: evtId });
         }
@@ -3581,19 +3633,14 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               }),
             );
           if (action === 'cancel') {
-            await ref.update({
-              status: 'cancelled',
-              cancelledAt: new Date().toISOString(),
-              cancelledBy: ctx.uid,
-            });
-            await fastify
-              .writeAuditLog({
-                action: 'ORDER_CANCELLED',
-                actorUid: ctx.uid,
-                entityId: orderId,
-                payload: { venueId: ctx.partnerId },
-              })
-              .catch(() => {});
+            return reply.status(503).send(
+              buildErrorResponse({
+                code: 'PARTNER_ORDER_CANCELLATION_NOT_LAUNCH_ENABLED',
+                message:
+                  'Partner-initiated cancellation is unavailable until canonical refund orchestration is enabled',
+                requestId: request.id,
+              }),
+            );
           }
           return reply.send({ success: true });
         }
@@ -3788,7 +3835,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 .doc(result.eventId)
                 .update({ visibility: 'public', updatedAt: now })
                 .catch(() => {});
-              fastify.publicDiscoveryService.syncEventReadModels(result.eventId).catch(() => {});
+              await fastify.publicDiscoveryService.syncEventReadModels(result.eventId);
             }
           }
           return reply.send({ success: true, status: result.status });
@@ -3960,16 +4007,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             summary.netVenueForfeitedValuePaise ?? summary.expiredBalancePaise ?? 0,
           );
           const walletsIssued = Number(summary.walletsIssued ?? 0);
-          const ordersSnap = await fastify.db
-            .collection('orders')
-            .where('eventId', '==', eventId)
-            .where('status', '==', 'confirmed')
-            .get()
-            .catch(() => ({ docs: [] as any[] }));
-          const ticketRevenuePaise = ((ordersSnap as any).docs || []).reduce(
-            (sum: number, doc: any) => sum + Math.round((Number(doc.data().amount) || 0) * 100),
-            0,
-          );
+          const ticketRevenuePaise = (await getEventCommerceMetrics(fastify.db, eventId))
+            .netRevenuePaise;
           const payoutTotal = Math.round(ticketRevenuePaise * 0.7) + breakageRevenue;
           const isLive =
             eventsSnap.docs.find((doc: any) => doc.id === eventId)?.data()?.status === 'live';
@@ -5049,19 +5088,13 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         // analytics/overview — real aggregation
         if (rest === 'analytics/overview' && request.method === 'GET') {
           const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-          const [eventsSnap, ordersSnap, checkinsSnap] = await Promise.all([
+          const [eventsSnap, commerceRows, checkinsSnap] = await Promise.all([
             fastify.db
               .collection('events')
               .where('venueId', '==', ctx.partnerId)
               .get()
               .catch(() => ({ docs: [] as any[], size: 0 })),
-            fastify.db
-              .collection('orders')
-              .where('venueId', '==', ctx.partnerId)
-              .where('status', 'in', ['confirmed', 'paid'])
-              .where('createdAt', '>=', thirtyDaysAgo)
-              .get()
-              .catch(() => ({ docs: [] as any[] })),
+            getPartnerCommerceRows(fastify.db, ctx.partnerId, 'venueId'),
             fastify.db
               .collection('check_ins')
               .where('venueId', '==', ctx.partnerId)
@@ -5069,16 +5102,12 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .get()
               .catch(() => ({ size: 0 })),
           ]);
-          const orderDocs = (ordersSnap as any).docs || [];
-          const totalRevenuePaise = orderDocs.reduce(
-            (sum: number, doc: any) =>
-              sum + (doc.data().totalPaise || Math.round((doc.data().amount || 0) * 100)),
-            0,
-          );
-          const totalTickets = orderDocs.reduce(
-            (sum: number, doc: any) => sum + (doc.data().ticketCount || 0),
-            0,
-          );
+          const totalRevenuePaise = commerceRows.ledger
+            .filter((row) => !row.createdAtIso || row.createdAtIso >= thirtyDaysAgo)
+            .reduce((sum, row) => sum + Number(row.amountPaise || 0), 0);
+          const totalTickets = commerceRows.tickets.filter(
+            (ticket) => !ticket.createdAtIso || ticket.createdAtIso >= thirtyDaysAgo,
+          ).length;
           const totalCheckIns = (checkinsSnap as any).size || 0;
           const eventCount = (eventsSnap as any).size || 0;
           return reply.send({
@@ -5174,7 +5203,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         // analytics/partners (hosts tab) — host + promoter attribution
         if (rest === 'analytics/partners' && request.method === 'GET') {
           const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-          const [ordersSnap, eventsSnap] = await Promise.all([
+          const [ordersSnap, eventsSnap, ticketsSnap] = await Promise.all([
             fastify.db
               .collection('orders')
               .where('venueId', '==', ctx.partnerId)
@@ -5188,7 +5217,25 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .where('venueId', '==', ctx.partnerId)
               .get()
               .catch(() => ({ docs: [] as any[] })),
+            fastify.db
+              .collection('tickets')
+              .where('venueId', '==', ctx.partnerId)
+              .where('status', 'in', ['active', 'used', 'transferred'])
+              .get()
+              .catch(() => ({ docs: [] as any[] })),
           ]);
+          const orderAmounts = await getOrderCommerceAmounts(
+            fastify.db,
+            ((ordersSnap as any).docs || []).map((document: any) => document.id),
+          );
+          const ticketCountsByOrder = ((ticketsSnap as any).docs || []).reduce(
+            (counts: Record<string, number>, document: any) => {
+              const orderId = document.data()?.orderId;
+              if (orderId) counts[orderId] = (counts[orderId] || 0) + 1;
+              return counts;
+            },
+            {},
+          );
           const eventMap3: Record<string, any> = {};
           for (const d of (eventsSnap as any).docs || []) eventMap3[d.id] = d.data();
           const hostMap: Record<
@@ -5225,10 +5272,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                   revenue: 0,
                 };
               hostMap[hostId].events.add(d.eventId || '');
-              hostMap[hostId].tickets += toNumber(d.ticketCount || 1);
-              hostMap[hostId].revenue += toNumber(
-                d.amount || d.totalPaise ? d.totalPaise / 100 : 0,
-              );
+              hostMap[hostId].tickets += ticketCountsByOrder[doc.id] || 0;
+              hostMap[hostId].revenue += Number(orderAmounts[doc.id]?.netPaise || 0) / 100;
             }
             const promoterId = String(d.promoterId || '');
             if (promoterId) {
@@ -5240,8 +5285,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                   revenue: 0,
                   clicks: 0,
                 };
-              promoterMap[promoterId].sales += toNumber(d.ticketCount || 1);
-              promoterMap[promoterId].revenue += toNumber(d.amount || 0);
+              promoterMap[promoterId].sales += ticketCountsByOrder[doc.id] || 0;
+              promoterMap[promoterId].revenue += Number(orderAmounts[doc.id]?.netPaise || 0) / 100;
             }
           }
           return reply.send({
@@ -5433,8 +5478,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           );
           return reply.send({
             balance: {
-              withdrawablePaise: Math.round(toNumber(balances.available) * 100),
-              pendingSettlementPaise: Math.round(toNumber(balances.pending) * 100),
+              withdrawablePaise: balances.availablePaise,
+              pendingSettlementPaise: balances.pendingPaise,
             },
             history,
           });
@@ -5510,8 +5555,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           });
           return reply.send({
             wallet: {
-              availablePaise: Math.round(toNumber(balances.available) * 100),
-              pendingPaise: Math.round(toNumber(balances.pending) * 100),
+              availablePaise: balances.availablePaise,
+              pendingPaise: balances.pendingPaise,
               heldPaise: 0,
               currency: 'INR',
             },
@@ -5533,22 +5578,55 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         }
 
         if (financePayoutsMatch && request.method === 'GET') {
-          const snap = await fastify.db
-            .collection('payouts')
-            .where('recipientId', '==', ctx.partnerId)
-            .where('recipientType', '==', 'venue')
-            .limit(50)
-            .get()
-            .catch(() => ({ docs: [] as any[] }));
+          const [snap, balances, bankSnap] = await Promise.all([
+            fastify.db
+              .collection('payouts')
+              .where('recipientId', '==', ctx.partnerId)
+              .where('recipientType', '==', 'venue')
+              .limit(50)
+              .get()
+              .catch(() => ({ docs: [] as any[] })),
+            financeService.getBalances(ctx),
+            fastify.db
+              .collection('bank_accounts')
+              .where('ownerId', '==', ctx.partnerId)
+              .where('ownerType', '==', 'venue')
+              .where('isDefault', '==', true)
+              .limit(1)
+              .get()
+              .catch(() => ({ docs: [] as any[] })),
+          ]);
           const payouts = ((snap as any).docs || []).map((doc: any) => ({
             id: doc.id,
-            ...(doc.data() || {}),
+            amountPaise:
+              toNumber(doc.data()?.amountPaise) || Math.round(toNumber(doc.data()?.amount) * 100),
+            status: String(doc.data()?.status || 'pending').toLowerCase(),
+            requestedAt: doc.data()?.requestedAt || doc.data()?.createdAt || null,
+            completedAt: doc.data()?.completedAt || doc.data()?.settledAt || null,
+            destination: doc.data()?.bankName
+              ? `${doc.data()?.bankName} •••• ${doc.data()?.last4 || ''}`.trim()
+              : null,
           }));
           payouts.sort(
             (a: any, b: any) =>
-              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+              new Date(b.requestedAt || 0).getTime() - new Date(a.requestedAt || 0).getTime(),
           );
-          return reply.send({ payouts });
+          const bank = (bankSnap as any).docs?.[0]?.data?.() || null;
+          return reply.send({
+            payouts,
+            balance: {
+              availablePaise: balances.availablePaise,
+              pendingPaise: balances.pendingPaise,
+              currency: 'INR',
+            },
+            bankAccount: bank
+              ? {
+                  bankName: bank.bankName || bank.bank || 'Bank account',
+                  last4: bank.last4 || null,
+                }
+              : null,
+            withdrawalsEnabled: false,
+          });
         }
 
         if (financeBankMatch && request.method === 'GET') {

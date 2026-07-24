@@ -91,7 +91,7 @@ export default function RootLayout() {
           if (eventId) handleProtectedRoute(`/event/${segment(eventId)}`);
           break;
         default:
-          handleProtectedRoute('/(tabs)/notifications');
+          handleProtectedRoute('/notifications');
           break;
       }
     });

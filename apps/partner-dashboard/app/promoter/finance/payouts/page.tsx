@@ -174,17 +174,9 @@ export default function PromoterPayoutsPage() {
           >
             <RefreshCw className={`h-4 w-4 text-text-secondary ${loading ? 'animate-spin' : ''}`} />
           </button>
-          <button
-            onClick={() => {
-              setShowForm(true);
-              setFormError(null);
-              setFormSuccess(false);
-            }}
-            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Request Payout
-          </button>
+          <span className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-xs font-semibold text-amber-700 dark:text-amber-200">
+            Withdrawals unavailable during launch verification
+          </span>
         </div>
       </div>
 

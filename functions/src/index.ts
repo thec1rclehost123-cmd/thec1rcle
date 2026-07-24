@@ -1,21 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import * as crypto from 'crypto';
-import {
-  createCartReservation,
-  getReservation,
-  cleanupExpiredReservations,
-} from './lib/reservations';
-import { calculatePricingInternal } from './lib/pricing';
-import {
-  createOrder,
-  createRSVPOrder,
-  getOrderByReservationId,
-  confirmOrderPayment,
-  failStaleOrders,
-} from './lib/orders';
-import { getEvent } from './lib/events';
-import { createRazorpayOrder } from './lib/razorpay';
+import { cleanupExpiredReservations } from './lib/reservations';
+import { failStaleOrders } from './lib/orders';
 import {
   initiateTransferInternal,
   acceptTransferInternal,
@@ -39,51 +25,66 @@ if (!process.env.RAZORPAY_WEBHOOK_SECRET) {
   console.error('RAZORPAY_WEBHOOK_SECRET is not configured — webhook verification will fail');
 }
 
-/**
- * 1. Reserve Tickets (DEPRECATED - Use API Gateway /api/v1/checkout/reserve)
- */
-export const reserveTickets = functions.https.onCall(async () => {
-  throw new functions.https.HttpsError(
-    'unimplemented',
-    'Deprecated: Use API Gateway /api/v1/checkout/reserve instead',
-  );
-});
+function legacyCommerceGone(endpoint: string, replacement: string) {
+  return functions.https.onRequest((req, res) => {
+    const clientVersion = String(req.header('x-app-version') || 'unknown')
+      .replace(/[^a-zA-Z0-9._-]/g, '')
+      .slice(0, 40);
+    console.warn(
+      JSON.stringify({
+        type: 'legacy_commerce_410',
+        endpoint,
+        clientVersion,
+        method: req.method,
+      }),
+    );
+    res.status(410).json({
+      success: false,
+      error: {
+        code: 'CLIENT_UPDATE_REQUIRED',
+        message: 'This checkout endpoint has been retired. Update THE C1RCLE app to continue.',
+        retryable: false,
+        replacement,
+      },
+    });
+  });
+}
 
-/**
- * 2. Calculate Pricing (DEPRECATED - Use API Gateway /api/v1/checkout/calculate)
- */
-export const calculatePricing = functions.https.onCall(async () => {
-  throw new functions.https.HttpsError(
-    'unimplemented',
-    'Deprecated: Use API Gateway /api/v1/checkout/calculate instead',
-  );
-});
+export const reserveTickets = legacyCommerceGone('reserveTickets', '/api/v1/checkout/reserve');
 
-/**
- * 3. Initiate Checkout (DEPRECATED - Use API Gateway /api/v1/checkout/initiate)
- */
-export const initiateCheckout = functions.https.onCall(async () => {
-  throw new functions.https.HttpsError(
-    'unimplemented',
-    'Deprecated: Use API Gateway /api/v1/checkout/initiate instead',
-  );
-});
+export const calculatePricing = legacyCommerceGone(
+  'calculatePricing',
+  '/api/v1/checkout/calculate',
+);
 
-/**
- * 4. Verify Payment (DEPRECATED - Use API Gateway /api/v1/checkout/verify)
- */
-export const verifyPayment = functions.https.onCall(async () => {
-  throw new functions.https.HttpsError(
-    'unimplemented',
-    'Deprecated: Use API Gateway /api/v1/checkout/verify instead',
-  );
-});
+export const initiateCheckout = legacyCommerceGone('initiateCheckout', '/api/v1/checkout/initiate');
+
+export const verifyPayment = legacyCommerceGone('verifyPayment', '/api/v1/checkout/verify');
 
 /**
  * 5. Razorpay Webhook (DEPRECATED - Use API Gateway /api/v1/payments/webhook)
  */
 export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
-  res.status(410).send('Deprecated: Use API Gateway /api/v1/payments/webhook instead');
+  const clientVersion = String(req.header('x-app-version') || 'server')
+    .replace(/[^a-zA-Z0-9._-]/g, '')
+    .slice(0, 40);
+  console.warn(
+    JSON.stringify({
+      type: 'legacy_commerce_410',
+      endpoint: 'razorpayWebhook',
+      clientVersion,
+      method: req.method,
+    }),
+  );
+  res.status(410).json({
+    success: false,
+    error: {
+      code: 'ENDPOINT_RETIRED',
+      message: 'Legacy Razorpay webhook endpoint is retired.',
+      retryable: false,
+      replacement: '/api/v1/payments/webhook',
+    },
+  });
 });
 
 /**
@@ -232,33 +233,10 @@ export const onOrderWrite = functions.firestore
         console.warn(`[Messaging] Failed to subscribe user to topic:`, e);
       }
 
-      // Promoter Aggregation
-      if (after.promoterId) {
-        const promoterStatsRef = admin
-          .firestore()
-          .collection('promoter_stats')
-          .doc(after.promoterId);
-        const commission = after.promoterAttribution?.commissionAmount || 0;
-        const revenue = after.totalAmount || 0;
-
-        promoterStatsRef
-          .set(
-            {
-              totalOrders: admin.firestore.FieldValue.increment(1),
-              totalRevenue: admin.firestore.FieldValue.increment(revenue),
-              totalCommission: admin.firestore.FieldValue.increment(commission),
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true },
-          )
-          .catch((err) => console.error('Failed to update promoter stats', err));
-      }
-
+      // This legacy trigger is deliberately non-financial. Revenue, commission,
+      // balances, and payouts are derived only from partner_ledger.
       return statsRef.set(
         {
-          revenue: {
-            total: admin.firestore.FieldValue.increment(after.totalAmount || 0),
-          },
           tickets_sold_total: admin.firestore.FieldValue.increment(totalTickets),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },

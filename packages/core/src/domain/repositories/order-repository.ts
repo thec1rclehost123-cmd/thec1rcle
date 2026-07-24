@@ -3,6 +3,9 @@ export interface Order {
   eventId: string;
   eventName: string;
   venueId?: string | null;
+  hostId?: string | null;
+  promoterLinkId?: string | null;
+  sourceChannel?: string;
   workspaceId?: string | null;
   queueId?: string | null;
   userId: string;
@@ -21,6 +24,17 @@ export interface Order {
   discountTotal: number;
   fees: any[];
   totalAmount: number;
+  currency?: string;
+  subtotalPaise?: number;
+  discountPaise?: number;
+  taxPaise?: number;
+  platformFeePaise?: number;
+  venueSharePaise?: number;
+  promoterCommissionPaise?: number;
+  hostPayoutPaise?: number;
+  totalPaise?: number;
+  financialSchemaVersion?: number;
+  splitRuleSnapshot?: Record<string, unknown>;
   status: 'payment_pending' | 'confirmed' | 'cancelled';
   reservationId?: string;
   promoterCode?: string | null;
@@ -61,8 +75,11 @@ export interface PaymentRecord {
   orderId: string;
   razorpayOrderId: string;
   workspaceId?: string | null;
+  /** @deprecated Read-only compatibility for payment records created before schema v2. */
   amount: number;
-  status: 'initiated' | 'verified' | 'failed';
+  amountPaise?: number;
+  currency?: string;
+  status: 'initiated' | 'verified' | 'failed' | 'captured_finalization_pending';
   userId: string;
   createdAt: string;
   razorpayPaymentId?: string;

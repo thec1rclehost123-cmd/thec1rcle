@@ -116,13 +116,16 @@ async function refreshTicketWallet(): Promise<void> {
   }
 }
 
-function refreshPostCheckoutState(): void {
-  void refreshTicketWallet();
-  void getFirebaseAuth()
-    .currentUser?.getIdToken(true)
-    .catch((error) => {
-      if (__DEV__) console.warn('[Checkout] Token refresh after checkout failed:', error);
-    });
+async function refreshPostCheckoutState(): Promise<void> {
+  await Promise.all([
+    refreshTicketWallet(),
+    getFirebaseAuth()
+      .currentUser?.getIdToken(true)
+      .then(() => undefined)
+      .catch((error) => {
+        if (__DEV__) console.warn('[Checkout] Token refresh after checkout failed:', error);
+      }),
+  ]);
 }
 
 function isConfirmedOrder(order: any): boolean {
@@ -137,7 +140,7 @@ async function recoverConfirmedCheckout(orderId: string): Promise<boolean> {
     if (!isConfirmedOrder(order)) return false;
 
     useCartStore.getState().clearCart();
-    refreshPostCheckoutState();
+    await refreshPostCheckoutState();
     return true;
   } catch (error) {
     if (__DEV__) console.warn('[Checkout] Confirmed-order recovery failed:', error);
@@ -292,7 +295,7 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
       useCartStore.getState().clearPendingReservation();
       useCartStore.getState().setPendingPaymentOrderId(null);
       useCartStore.getState().clearCart();
-      refreshPostCheckoutState();
+      await refreshPostCheckoutState();
       onStatusChange?.('confirmed');
       return {
         success: true,
@@ -384,7 +387,7 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
     useCartStore.getState().clearPendingReservation();
     useCartStore.getState().setPendingPaymentOrderId(null);
     useCartStore.getState().clearCart();
-    refreshPostCheckoutState();
+    await refreshPostCheckoutState();
 
     onStatusChange?.('confirmed');
     return {

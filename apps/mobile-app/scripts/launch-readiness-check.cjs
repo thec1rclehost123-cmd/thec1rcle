@@ -54,10 +54,14 @@ if (projectId) {
 
 for (const profile of ['preview', 'production']) {
   const env = easJson.build?.[profile]?.env || {};
-  if (env.EXPO_PUBLIC_DEMO_MODE === 'false') {
-    ok(`${profile} build disables demo mode`);
+  if (
+    env.EXPO_PUBLIC_DEMO_MODE === 'false' &&
+    env.EXPO_PUBLIC_PUBLIC_DEMO_MODE === 'false' &&
+    env.EXPO_PUBLIC_SHOWCASE_EVENTS === 'false'
+  ) {
+    ok(`${profile} build disables demo and showcase data`);
   } else {
-    fail(`${profile} build must set EXPO_PUBLIC_DEMO_MODE=false`);
+    fail(`${profile} build must disable demo and showcase data`);
   }
 }
 
@@ -74,7 +78,12 @@ if (
   fail('production EAS profile must be store-only, non-dev-client, Android app-bundle, and physical-iOS configured');
 }
 
-const allowedInlineProductionEnv = new Set(['EXPO_PUBLIC_APP_ENV', 'EXPO_PUBLIC_DEMO_MODE']);
+const allowedInlineProductionEnv = new Set([
+  'EXPO_PUBLIC_APP_ENV',
+  'EXPO_PUBLIC_DEMO_MODE',
+  'EXPO_PUBLIC_PUBLIC_DEMO_MODE',
+  'EXPO_PUBLIC_SHOWCASE_EVENTS',
+]);
 const inlineProductionEnv = productionProfile.env || {};
 const unexpectedInlineKeys = Object.keys(inlineProductionEnv).filter((key) => !allowedInlineProductionEnv.has(key));
 const unsafeInlineValues = Object.entries(inlineProductionEnv).filter(([, value]) => containsPlaceholder(value));

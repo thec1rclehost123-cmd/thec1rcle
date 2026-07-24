@@ -141,24 +141,68 @@ export function generateOrderId(prefix = 'ORD') {
  * Builds a standardized Order payload
  */
 export function buildOrderPayload(params) {
-  const { reservation, event, pricing, user, promoterCode, workspaceId } = params;
+  const {
+    reservation,
+    event,
+    pricing,
+    user,
+    promoterCode,
+    promoterAttribution = null,
+    financialAttribution = null,
+    sourceChannel = 'direct',
+    workspaceId,
+  } = params;
   const isRSVP = !!event.isRSVP;
   const orderId = generateOrderId(isRSVP ? 'RSVP' : 'ORD');
 
   const ticketCount = pricing.items.reduce((s, item) => s + item.quantity, 0);
+  const subtotalPaise = Math.round(Number(pricing.subtotal || 0) * 100);
+  const discountPaise = Math.round(Number(pricing.discountTotal || 0) * 100);
+  const platformFeePaise = Math.round(Number(pricing.fees?.total || 0) * 100);
+  const taxPaise = Math.round(Number(pricing.fees?.gst || 0) * 100);
+  const totalPaise = Math.round(Number(pricing.grandTotal || 0) * 100);
+  const venueSharePaise = Number(financialAttribution?.venueSharePaise || 0);
+  const promoterCommissionPaise = Number(promoterAttribution?.promoterCommissionPaise || 0);
+  const hostPayoutPaise = Number(
+    financialAttribution?.hostPayoutPaise ??
+      totalPaise - platformFeePaise - venueSharePaise - promoterCommissionPaise,
+  );
 
   return {
     id: orderId,
     eventId: event.id,
     eventName: event.title,
     workspaceId: workspaceId || event.workspaceId || null,
+    hostId: event.hostId || event.ownerId || event.creatorId || null,
+    venueId: event.venueId || null,
+    promoterId: promoterAttribution?.promoterId || null,
+    promoterLinkId: promoterAttribution?.promoterLinkId || null,
+    sourceChannel,
     queueId: reservation.queueId || null,
     userId: user.id,
     userName: user.name,
     userEmail: user.email,
     userPhone: user.phone,
     ticketCount,
-    totalPaise: Math.round(pricing.grandTotal * 100),
+    currency: pricing.currency || event.currency || 'INR',
+    subtotalPaise,
+    discountPaise,
+    taxPaise,
+    platformFeePaise,
+    venueSharePaise,
+    promoterCommissionPaise,
+    hostPayoutPaise,
+    totalPaise,
+    financialSchemaVersion: 1,
+    splitRuleSnapshot: {
+      schemaVersion: 1,
+      platformFeePaise,
+      venueSharePaise,
+      promoterCommissionPaise,
+      hostPayoutPaise,
+      venueRule: financialAttribution?.venueRule || null,
+      promoterRule: promoterAttribution?.splitRuleSnapshot || null,
+    },
     tickets: pricing.items.map((item) => ({
       ticketId: item.tierId,
       name: item.tierName,
@@ -334,6 +378,19 @@ export async function cancelOrder(orderId) {
   const order = await getOrderById(orderId);
   if (!order) throw new Error('Order not found');
   if (order.status === 'cancelled') return order;
+  if (
+    ['confirmed', 'checked_in', 'refund_requested', 'refund_processing', 'refunded'].includes(
+      String(order.status || '').toLowerCase(),
+    ) ||
+    Number(order.totalPaise || 0) > 0 ||
+    Number(order.totalAmount || 0) > 0
+  ) {
+    const error = new Error(
+      'LEGACY_PAID_ORDER_CANCELLATION_DISABLED: paid orders require canonical provider refund finalization',
+    );
+    error.code = 'LEGACY_PAID_ORDER_CANCELLATION_DISABLED';
+    throw error;
+  }
 
   const db = getAdminDb();
   const now = new Date().toISOString();

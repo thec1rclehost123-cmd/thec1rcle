@@ -22,6 +22,9 @@ import {
   upsertScannerDeviceState,
 } from '../../lib/scannerLiveState';
 import { verifyPassword, decrypt } from '../../lib/encryption';
+import { commitInventory } from '@c1rcle/core/inventory-engine';
+import { writePartnerLedgerInTransaction } from '@c1rcle/core/partner-ledger-service';
+import { publishTicketPurchaseSync } from '../../lib/ticketPurchaseSync';
 
 const ScanBody = z
   .object({
@@ -102,7 +105,7 @@ const DoorEntryBody = z
     // Prices are always recalculated server-side from the event's ticket catalog.
     paymentMethod: z.string().optional(),
     gate: z.string().optional(),
-    idempotencyKey: z.string().uuid().optional(),
+    idempotencyKey: z.string().uuid(),
   })
   .strict();
 
@@ -365,25 +368,117 @@ export default async function scanRoutes(fastify: FastifyInstance) {
           typeof qrData === 'string' &&
           (qrData.includes('.') || qrData.trim().startsWith('eyJ'))
         ) {
-          const { verifyTicketQrJwt } =
+          const { verifyTicketQrJwt, processTicketJwtScan } =
             // @ts-ignore — JS-only core module, no .d.ts yet
             await import('@c1rcle/core/ticket-checkout-wallet-service');
           const verified = verifyTicketQrJwt(qrData.trim());
-          if (verified && verified.valid && verified.payload) {
-            payload = {
-              o: verified.payload.o || verified.payload.orderId,
-              t: verified.payload.t || verified.payload.ticketId,
-              e: verified.payload.e || verified.payload.eventId,
-              u: verified.payload.u || verified.payload.userId,
-              q: verified.payload.q || 1,
-              sig: 'jwt_verified',
-            };
-          } else {
+          if (!verified?.valid || !verified.payload) {
             return reply.status(400).send({
               error: verified?.error || 'Expired or invalid ticket QR code',
               result: 'invalid',
             });
           }
+
+          const jwtEventId = verified.payload.eventId;
+          if (eventId && jwtEventId !== eventId) {
+            return reply
+              .status(400)
+              .send({ error: 'Ticket is for a different event', result: 'wrong_event' });
+          }
+          const authorizedVenueId = venueId || auth.codeData?.venueId || null;
+          if (deviceId && authorizedVenueId) {
+            const deviceCheck = await validateScannerDevice(
+              fastify.db,
+              deviceId,
+              authorizedVenueId,
+            );
+            if (!deviceCheck.valid) {
+              return reply.status(403).send({ error: deviceCheck.error, result: 'device_invalid' });
+            }
+          }
+
+          const jwtScan = await processTicketJwtScan({
+            db: fastify.db,
+            token: qrData.trim(),
+            eventId: eventId || jwtEventId,
+            scannerId: scannedBy?.uid || request.scannerSessionId || 'scanner',
+            gate: request.body.gate || null,
+          });
+          const liveWhen = new Date().toISOString();
+          await Promise.allSettled([
+            recordScannerLiveEvent(
+              fastify.db,
+              {
+                eventId: eventId || jwtEventId,
+                venueId: authorizedVenueId,
+                orderId: verified.payload.orderId,
+                ticketId: verified.payload.jti || verified.payload.ticketId || verified.payload.sub,
+                guestDisplayName: jwtScan.ticket?.userName || 'Guest',
+                result: jwtScan.success ? 'valid' : jwtScan.result || 'invalid',
+                source: 'scanner',
+                scannedAt: liveWhen,
+                deviceId: deviceId || null,
+                operatorUid: scannedBy?.uid || null,
+                operatorName: scannedBy?.name || 'Scanner',
+                operatorRole: scannedBy?.role || 'door_staff',
+                gate: request.body.gate || null,
+                ticketTierId: jwtScan.ticket?.tierId || null,
+                ticketTierName: jwtScan.ticket?.tierName || null,
+              },
+              jwtScan.success
+                ? { totalScans: 1, checkedIn: 1 }
+                : {
+                    totalScans: 1,
+                    ...(jwtScan.result === 'already_scanned'
+                      ? { duplicateScans: 1 }
+                      : { invalidScans: 1 }),
+                  },
+              jwtScan.success
+                ? {
+                    checkedInIncrement: 1,
+                    entryType: jwtScan.ticket?.entryType || 'general',
+                    entryTypeQuantity: 1,
+                  }
+                : undefined,
+            ),
+            auth.sessionRef ? touchScannerSession(auth.sessionRef, liveWhen) : Promise.resolve(),
+          ]);
+
+          if (!jwtScan.success) {
+            return reply.status(jwtScan.result === 'not_found' ? 404 : 400).send({
+              error: jwtScan.error || 'Entry denied',
+              result: jwtScan.result || 'invalid',
+            });
+          }
+          fastify.broadcast(
+            {
+              type: 'TICKET_CHECKED_IN',
+              payload: {
+                eventId: eventId || jwtEventId,
+                ticketId: jwtScan.ticket.id,
+                entitlementId: jwtScan.entitlementId,
+                scanId: jwtScan.scanId,
+                scannedAt: liveWhen,
+              },
+            },
+            `event:${eventId || jwtEventId}`,
+          );
+          return {
+            success: true,
+            result: 'valid',
+            scanId: jwtScan.scanId,
+            ticket: {
+              orderId: jwtScan.ticket.orderId,
+              eventId: jwtScan.ticket.eventId,
+              ticketName: jwtScan.ticket.tierName,
+              quantity: 1,
+              entryType: jwtScan.ticket.entryType || 'general',
+              userName: jwtScan.ticket.userName || 'Guest',
+            },
+            scanCountUsed: jwtScan.scanCountUsed,
+            scanCountAllowed: jwtScan.scanCountAllowed,
+            message: 'Entry approved',
+          };
         } else {
           payload = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
         }
@@ -1324,100 +1419,309 @@ export default async function scanRoutes(fastify: FastifyInstance) {
 
       // SECURITY: Price is always recalculated server-side from the event's ticket catalog.
       // unitPrice and totalAmount from the client are never trusted.
-      const eventTickets: any[] =
-        (eventDoc.exists ? (eventDoc.data() as any)?.tickets : null) || [];
+      const initialEvent = eventDoc.exists ? ((eventDoc.data() as any) ?? {}) : {};
+      const eventTickets: any[] = initialEvent.ticketCatalog?.tiers || initialEvent.tickets || [];
       const tierConfig = eventTickets.find((t: any) => t.id === tierId || t.tierId === tierId);
       const tierName = tierConfig?.name || clientTierName || tierId;
       const unitPrice = Number(tierConfig?.price ?? tierConfig?.unitPrice ?? 0);
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        return reply.status(409).send({
+          success: false,
+          error: 'Authoritative ticket price is invalid',
+        });
+      }
       const totalAmount = unitPrice * quantity;
 
       const now = new Date().toISOString();
-      // H1: Idempotency — deterministic orderId from client key
-      const orderId = idempotencyKey
-        ? `DOOR-${idempotencyKey.replace(/-/g, '').substring(0, 8).toUpperCase()}`
-        : `DOOR-${randomBytes(4).toString('hex').toUpperCase()}`;
-
-      // Idempotency replay check
-      if (idempotencyKey) {
-        const existingOrder = await fastify.db.collection('orders').doc(orderId).get();
-        if (existingOrder.exists) {
-          return { success: true, orderId, qrData: existingOrder.data()?.qrData };
-        }
-      }
-      const ticketId = `TKT-${randomBytes(3).toString('hex').toUpperCase()}`;
-      const ts = Date.now();
-      const qrPayload: any = {
-        o: orderId,
-        e: eventId,
-        t: ticketId,
-        n: tierName,
-        u: `guest_${ts}`,
-        q: quantity,
-        et: entryType || 'general',
-        rt: 0,
-        ts,
-        v: 1,
-      };
-      qrPayload.sig = createHmac('sha256', QR_SECRET)
-        .update(`${orderId}:${eventId}:${ticketId}:${qrPayload.u}:${quantity}:${ts}:PAID`)
-        .digest('hex')
-        .substring(0, 16);
+      const orderId = `DOOR-${idempotencyKey.replace(/-/g, '').substring(0, 16).toUpperCase()}`;
+      const anonymousUserId = `door_guest_${orderId.toLowerCase()}`;
+      const orderRef = fastify.db.collection('orders').doc(orderId);
+      const eventRef = fastify.db.collection('events').doc(eventId);
+      const markerRef = fastify.db.collection('partner_ledger_idempotency').doc(orderId);
+      const paymentRef = fastify.db.collection('payments').doc(`door_${orderId}`);
+      const outboxRef = fastify.db
+        .collection('domain_event_outbox')
+        .doc(`ticket-purchase-${orderId}`);
+      const ticketIds = Array.from({ length: quantity }, (_, index) =>
+        `TKT-${orderId}-${tierId}-${index + 1}`.toUpperCase(),
+      );
+      const entitlementIds = ticketIds.map((_, index) =>
+        `ENT-${orderId}-${tierId}-${index + 1}`.toUpperCase(),
+      );
+      let alreadyFinalized = false;
 
       await fastify.db.runTransaction(async (tx: any) => {
-        tx.set(fastify.db.collection('orders').doc(orderId), {
+        const [
+          existingOrder,
+          eventSnapshot,
+          markerSnapshot,
+          paymentSnapshot,
+          outboxSnapshot,
+          ticketSnapshots,
+          entitlementSnapshots,
+        ] = await Promise.all([
+          tx.get(orderRef),
+          tx.get(eventRef),
+          tx.get(markerRef),
+          tx.get(paymentRef),
+          tx.get(outboxRef),
+          Promise.all(
+            ticketIds.map((ticketDocumentId) =>
+              tx.get(fastify.db.collection('tickets').doc(ticketDocumentId)),
+            ),
+          ),
+          Promise.all(
+            entitlementIds.map((entitlementId) =>
+              tx.get(fastify.db.collection('entitlements').doc(entitlementId)),
+            ),
+          ),
+        ]);
+
+        if (existingOrder.exists) {
+          const existing = existingOrder.data() as any;
+          const complete =
+            existing.status === 'confirmed' &&
+            markerSnapshot.exists &&
+            paymentSnapshot.exists &&
+            ticketSnapshots.every((snapshot: any) => snapshot.exists) &&
+            entitlementSnapshots.every((snapshot: any) => snapshot.exists);
+          if (!complete || Number(existing.totalPaise || 0) !== Math.round(totalAmount * 100)) {
+            throw Object.assign(new Error('Door sale idempotency conflict'), {
+              code: 'LEDGER_IDEMPOTENCY_CONFLICT',
+            });
+          }
+          alreadyFinalized = true;
+          return;
+        }
+        if (!eventSnapshot.exists) {
+          throw Object.assign(new Error('Event not found'), { code: 'NOT_FOUND' });
+        }
+        const event = { id: eventSnapshot.id, ...eventSnapshot.data() } as any;
+        const authoritativeTiers = event.ticketCatalog?.tiers || event.tickets || [];
+        const authoritativeTier = authoritativeTiers.find(
+          (candidate: any) => candidate.id === tierId || candidate.tierId === tierId,
+        );
+        const remaining = Number(
+          authoritativeTier?.remaining ??
+            authoritativeTier?.inventory?.remainingQuantity ??
+            authoritativeTier?.quantity ??
+            0,
+        );
+        if (!authoritativeTier || remaining < quantity) {
+          throw Object.assign(new Error('Door ticket inventory is unavailable'), {
+            code: 'INVENTORY_CONFLICT',
+          });
+        }
+
+        const hostId = event.hostId || event.creatorId || event.venueId || null;
+        const venueId = event.venueId || codeData.venueId || null;
+        if (!hostId) {
+          throw Object.assign(new Error('Door sale is missing partner attribution'), {
+            code: 'ORDER_ATTRIBUTION_MISSING',
+          });
+        }
+        const totalPaise = Math.round(totalAmount * 100);
+        const venueSharePaise = venueId ? totalPaise : 0;
+        const hostPayoutPaise = venueId ? 0 : totalPaise;
+        const order = {
           id: orderId,
           eventId,
+          eventName: event.title || null,
+          hostId,
+          venueId,
+          promoterId: null,
+          promoterLinkId: null,
+          sourceChannel: 'door',
           source: 'door',
           status: 'confirmed',
           userName: guestName,
           userPhone: guestPhone || null,
-          userId: qrPayload.u,
+          userId: anonymousUserId,
+          ticketCount: quantity,
           tickets: [
             {
-              ticketId,
+              ticketId: tierId,
               tierId,
               name: tierName,
               entryType: entryType || 'general',
               quantity,
-              unitPrice,
-              subtotal: totalAmount,
+              price: unitPrice,
+              total: totalAmount,
             },
           ],
+          subtotalPaise: totalPaise,
+          discountPaise: 0,
+          taxPaise: 0,
+          platformFeePaise: 0,
+          venueSharePaise,
+          promoterCommissionPaise: 0,
+          hostPayoutPaise,
+          totalPaise,
           subtotal: totalAmount,
-          total: totalAmount,
+          totalAmount,
           currency: 'INR',
+          financialSchemaVersion: 1,
+          splitRuleSnapshot: {
+            schemaVersion: 1,
+            source: venueId ? 'door_collection_venue' : 'door_collection_host',
+            platformFeePaise: 0,
+            venueSharePaise,
+            promoterCommissionPaise: 0,
+            hostPayoutPaise,
+          },
           paymentMethod,
           paymentStatus: 'collected',
+          paymentId: `door_${orderId}`,
+          ledgerMarkerId: orderId,
+          ticketIds,
+          entitlementIds,
           doorEntryMeta: {
             eventCode: eventCode.toUpperCase(),
             gate: gate || null,
             collectedAt: now,
           },
-          qrPayload,
-          qrData: JSON.stringify(qrPayload),
           createdAt: now,
           confirmedAt: now,
           checkedInAt: now,
+          updatedAt: now,
+        };
+
+        await commitInventory(tx, {
+          db: fastify.db,
+          event,
+          items: order.tickets,
+          reservationId: null,
         });
-        tx.set(fastify.db.collection('ticket_scans').doc(`${orderId}_scan`), {
+        const ledger = writePartnerLedgerInTransaction({
+          db: fastify.db,
+          transaction: tx,
+          order,
+          event,
+          paymentId: `door_${orderId}`,
+          createdAt: now,
+          markerSnapshot,
+        });
+        tx.create(orderRef, order);
+        tx.create(paymentRef, {
           orderId,
           eventId,
-          ticketId,
-          userId: qrPayload.u,
-          quantity,
-          entryType: entryType || 'general',
-          result: 'valid',
-          source: 'door',
-          scannedBy: { uid: `scanner_${eventCode}`, name: 'Door Entry', role: 'door_staff' },
-          device: { id: gate || 'door', bound: false },
-          scannedAt: now,
+          userId: anonymousUserId,
+          provider: 'door',
+          method: paymentMethod,
+          amountPaise: totalPaise,
+          currency: 'INR',
+          status: 'verified',
+          verifiedAt: now,
           createdAt: now,
+          updatedAt: now,
         });
+
+        ticketIds.forEach((ticketDocumentId, index) => {
+          const ticketId = `${orderId}-${tierId}-${index + 1}`;
+          tx.create(fastify.db.collection('tickets').doc(ticketDocumentId), {
+            id: ticketDocumentId,
+            ticketId,
+            orderId,
+            eventId,
+            userId: anonymousUserId,
+            hostId,
+            venueId,
+            promoterId: null,
+            tierId,
+            tierName,
+            slotIndex: index + 1,
+            quantity: 1,
+            originalQuantity: quantity,
+            entryType: entryType || 'general',
+            status: 'used',
+            qrMode: 'door_direct',
+            scanCountAllowed: 1,
+            scanCountUsed: 1,
+            createdAt: now,
+            usedAt: now,
+            updatedAt: now,
+          });
+          tx.create(fastify.db.collection('entitlements').doc(entitlementIds[index]), {
+            id: entitlementIds[index],
+            entitlementId: entitlementIds[index],
+            ticketDocumentId,
+            ticketId,
+            eventId,
+            orderId,
+            ownerUserId: anonymousUserId,
+            hostId,
+            venueId,
+            promoterId: null,
+            ticketType: 'paid',
+            scanCountAllowed: 1,
+            scanCountUsed: 1,
+            state: 'CONSUMED',
+            issuedAt: now,
+            consumedAt: now,
+            createdAt: now,
+            updatedAt: now,
+          });
+          tx.create(fastify.db.collection('ticket_scans').doc(`${ticketDocumentId}_door_scan`), {
+            orderId,
+            eventId,
+            ticketId,
+            ticketDocumentId,
+            entitlementId: entitlementIds[index],
+            userId: anonymousUserId,
+            quantity: 1,
+            entryType: entryType || 'general',
+            result: 'valid',
+            source: 'door',
+            scannedBy: {
+              uid: `scanner_${eventCode}`,
+              name: 'Door Entry',
+              role: 'door_staff',
+            },
+            device: { id: gate || 'door', bound: false },
+            scannedAt: now,
+            createdAt: now,
+          });
+        });
+        if (!outboxSnapshot.exists) {
+          tx.create(outboxRef, {
+            id: outboxRef.id,
+            type: 'ticket.purchase.confirmed',
+            aggregateId: orderId,
+            orderId,
+            eventId,
+            hostId,
+            venueId,
+            promoterId: null,
+            ticketCount: quantity,
+            ticketIds,
+            entitlementIds,
+            ledgerMarkerId: ledger.markerId,
+            source: 'door',
+            status: 'pending',
+            attempts: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
         tx.update(codeSnap.docs[0].ref, {
-          'stats.doorEntriesCount': (codeData.stats?.doorEntriesCount || 0) + quantity,
-          'stats.doorRevenue': (codeData.stats?.doorRevenue || 0) + totalAmount,
+          'stats.doorEntriesCount': FieldValue.increment(quantity),
+          'stats.doorRevenuePaise': FieldValue.increment(totalPaise),
+          updatedAt: now,
         });
       });
+
+      const syncResult = {
+        orderId,
+        eventId,
+        hostId: (eventDoc.data() as any)?.hostId || (eventDoc.data() as any)?.creatorId || null,
+        venueId: (eventDoc.data() as any)?.venueId || codeData.venueId || null,
+        promoterId: null,
+        ticketIds,
+        entitlementIds,
+        ledgerMarkerId: orderId,
+        alreadyFinalized,
+      };
+      await publishTicketPurchaseSync(fastify, syncResult);
 
       const liveWhen = new Date().toISOString();
       await Promise.allSettled([
@@ -1427,7 +1731,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
             eventId,
             venueId: codeData.venueId || null,
             orderId,
-            ticketId,
+            ticketId: ticketIds[0],
             guestDisplayName: guestName.trim(),
             result: 'valid',
             source: 'scanner',
@@ -1451,7 +1755,16 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         auth.sessionRef ? touchScannerSession(auth.sessionRef, liveWhen) : Promise.resolve(),
       ]);
 
-      return { success: true, orderId, qrData: JSON.stringify(qrPayload) };
+      return {
+        success: true,
+        orderId,
+        alreadyFinalized,
+        ticketIds,
+        entitlementIds,
+        ledgerMarkerId: orderId,
+        status: 'entered',
+        qrData: null,
+      };
     },
   );
 

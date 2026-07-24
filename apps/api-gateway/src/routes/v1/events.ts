@@ -67,6 +67,7 @@ const ExploreEventListQuery = z
     venueSlug: z.string().trim().max(120).optional(),
     lifecycle: z.string().trim().max(120).optional(),
     creatorId: z.string().trim().max(120).optional(),
+    fresh: z.enum(['true', 'false']).optional(),
   })
   .strict();
 
@@ -204,6 +205,7 @@ function sortObjectKeys(obj: any): any {
 
 function normalizeExploreEventsQuery(rawQuery: Record<string, any> = {}) {
   const query = { ...(rawQuery || {}) };
+  delete query.fresh;
   const normalizedCityKey = normalizeCityKey(query.cityKey || query.city || null);
 
   if (normalizedCityKey) {
@@ -1636,6 +1638,7 @@ async function syncEventPromoters(
     }
   } catch (err: any) {
     console.error(`[syncEventPromoters] Error: ${err.message}`);
+    throw err;
   }
 }
 
@@ -1716,14 +1719,19 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         }
 
         await enforcePublicRateLimit(fastify, request, 'events:explore', 120, 60);
-        applyPublicCacheHeaders(reply, 60);
+        const forceFresh = request.query?.fresh === 'true';
+        if (forceFresh) {
+          reply.header('Cache-Control', 'no-store');
+        } else {
+          applyPublicCacheHeaders(reply, 60);
+        }
 
         const normalizedQuery = normalizeExploreEventsQuery(request.query || {});
         const rawCacheKey = `explore:v${EXPLORE_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(
           normalizedQuery,
         )}`;
         const cacheKey = await buildVersionedPublicCacheKey(fastify, 'events', rawCacheKey);
-        const cached = await fastify.cache.get('public-discovery', cacheKey);
+        const cached = forceFresh ? null : await fastify.cache.get('public-discovery', cacheKey);
         if (cached) return cached;
 
         const result = await fastify.publicDiscoveryService.listEvents(normalizedQuery);
@@ -2481,12 +2489,12 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         });
 
         await fastify.invalidatePublicDiscovery('all');
-        await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
+        await fastify.publicDiscoveryService.syncEventReadModels(event.id);
 
-        // Sync promoters (fire-and-forget) — pass V2 pc object directly
+        // Promoter attribution must be durable before the event mutation succeeds.
         const bodyPromotersEnabled = pc.enabled ?? false;
 
-        syncEventPromoters(
+        await syncEventPromoters(
           fastify.db,
           event.id,
           event.title || 'Untitled Event',
@@ -2769,7 +2777,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         });
 
         await fastify.invalidatePublicDiscovery('all');
-        await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
+        await fastify.publicDiscoveryService.syncEventReadModels(event.id);
 
         if (touchesCompensation) {
           const settingsDoc = await fastify.db
@@ -2780,7 +2788,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           const prevIds: string[] =
             (settingsDoc?.exists ? (settingsDoc.data() as any)?.allowedPromoterIds : null) ?? [];
 
-          // Sync promoters (fire-and-forget) — pass V2 pc object directly
+          // Promoter attribution is part of the authoritative event mutation.
           const resolvedPc = patchFields.promoterCompensation
             ? patchFields.promoterCompensation
             : preEventData?.promoterCompensation
@@ -2792,7 +2800,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             : prevIds;
           const bodyPromotersEnabled = resolvedPc.enabled ?? false;
 
-          syncEventPromoters(
+          await syncEventPromoters(
             fastify.db,
             id,
             event.title || 'Untitled Event',
@@ -2892,7 +2900,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           .doc(id)
           .update({ ...repairs, updatedAt: new Date().toISOString() });
       }
-      await fastify.publicDiscoveryService.syncEventReadModels(id).catch(() => undefined);
+      await fastify.publicDiscoveryService.syncEventReadModels(id);
       await fastify.invalidatePublicDiscovery('all').catch(() => undefined);
 
       return reply.send({ success: true, repaired: repairs });
@@ -3194,10 +3202,10 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         await fastify.publicDiscoveryService.syncEventReadModels(event.id);
         await fastify.invalidatePublicDiscovery('all');
 
-        // Sync promoters (fire-and-forget) — pass V2 pc object directly
+        // Promoter attribution must be durable before creation returns.
         const bodyPromotersEnabled = pcBody.enabled ?? false;
 
-        syncEventPromoters(
+        await syncEventPromoters(
           fastify.db,
           event.id,
           eventRecord.title || 'Untitled Event',
@@ -3263,7 +3271,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           id: id,
         });
         await fastify.invalidatePublicDiscovery('all');
-        await fastify.publicDiscoveryService.syncEventReadModels(id).catch(() => undefined);
+        await fastify.publicDiscoveryService.syncEventReadModels(id);
         return { success: true, message: 'Event deleted', workspaceId };
       } catch (error: any) {
         fastify.log.error(`Error in DELETE /events/:id: ${error.message}`);

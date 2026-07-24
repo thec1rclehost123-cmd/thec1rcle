@@ -430,7 +430,13 @@ export const useEventsStore = create<EventsState>((set, get) => ({
 
     try {
       const response = await apiFetch<EventListResponse>(
-        `/api/v1/events${buildQuery({ city, limit: 24, sort: 'soonest', cursor })}`,
+        `/api/v1/events${buildQuery({
+          city,
+          limit: 24,
+          sort: 'soonest',
+          cursor,
+          fresh: force && !cursor ? 'true' : undefined,
+        })}`,
         { requireAuth: false },
       );
       const incoming = filterByCity(appendPublicDemoEvents(extractEvents(response)), city);

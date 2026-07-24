@@ -6,6 +6,7 @@ import {
   getPromoterFunnel,
 } from '@c1rcle/core/analytics-engine';
 import { PROMOTER_COMMISSION_TIERS } from '../../lib/rbac-permissions';
+import { getEventCommerceMetrics } from '../../lib/canonicalCommerceMetrics';
 
 const AnalyticsRangeSchema = z.object({
   range: z.enum(['7d', '30d', '90d', '1y']).optional(),
@@ -258,50 +259,32 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
         const cached = await fastify.cache.get('analytics:event', cacheKey);
         if (cached) return cached;
 
-        // Fetch raw overview and finance data in parallel
-        const [overviewSnap, ordersSnap] = await Promise.all([
+        // Finance and admission truth come from the canonical ledger and tickets.
+        const [overviewSnap, commerce] = await Promise.all([
           fastify.db.collection('event_analytics').doc(eventId).get(),
-          fastify.db
-            .collection('orders')
-            .where('eventId', '==', eventId)
-            .where('status', 'in', ['confirmed', 'checked_in', 'partially_checked_in'])
-            .get(),
+          getEventCommerceMetrics(fastify.db, eventId),
         ]);
 
         const overview = overviewSnap.exists ? (overviewSnap.data() as Record<string, any>) : {};
-        const orders = ordersSnap.docs.map((d) => d.data());
-        const totalGrossPaise = orders.reduce((s: number, o: any) => {
-          if (typeof o.totalPaise === 'number' && o.totalPaise > 0) {
-            return s + o.totalPaise;
-          }
-          const rawAmount = Number(o.totalAmount) || 0;
-          return s + (rawAmount > 1000 ? rawAmount : Math.round(rawAmount * 100));
-        }, 0);
-        const grossRevenue = Math.round(totalGrossPaise / 100);
-        const ticketsSold = orders.reduce(
-          (s: number, o: any) =>
-            s +
-            (Array.isArray(o.tickets)
-              ? o.tickets.reduce((sum: number, t: any) => sum + (t.quantity ?? t.qty ?? 1), 0)
-              : 0),
-          0,
-        );
+        const grossRevenue = commerce.grossRevenue;
+        const netRevenue = commerce.netRevenue;
+        const ticketsSold = commerce.ticketsSold;
         const totalCheckedIn = Number(overview.totalCheckedIn ?? 0);
         const capacity = Number(overview.capacity ?? 0);
         const views = Number(overview.views ?? 0);
         const guestlistSignups = Number(overview.guestListSize ?? 0);
-        const refundAmount = Number(overview.refundAmount ?? 0);
+        const refundAmount = commerce.refundAmount;
         const uniqueAttendees = Number(overview.uniqueAttendees ?? 0);
         const repeatGuests = Number(overview.repeatGuests ?? 0);
 
         const result = {
-          totalRevenue: grossRevenue,
+          totalRevenue: netRevenue,
           ticketsSold,
           totalCheckIns: totalCheckedIn,
           guestlistSignups,
           capacity,
           views,
-          avgTicketPrice: ticketsSold > 0 ? grossRevenue / ticketsSold : 0,
+          avgTicketPrice: ticketsSold > 0 ? netRevenue / ticketsSold : 0,
           occupancyRate: capacity > 0 ? (totalCheckedIn / capacity) * 100 : 0,
           sellThroughRate: Number(overview.sellThrough ?? 0),
           refundAmount,

@@ -7,6 +7,7 @@ import {
   sanitizeEventResubmissionPatch,
 } from '../../lib/partner-hardening.js';
 import { enrichHostProfileWithSignedUrls, cleanHostProfilePatch } from '../../lib/signed-urls.js';
+import { getPartnerCommerceRows } from '../../lib/canonicalCommerceMetrics.js';
 
 const HostOverviewQuery = z
   .object({
@@ -889,19 +890,13 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const [eventsSnap, ordersSnap, checkinsSnap] = await Promise.all([
+      const [eventsSnap, commerceRows, checkinsSnap] = await Promise.all([
         fastify.db
           .collection('events')
           .where('creatorId', '==', hostId)
           .get()
           .catch(() => ({ docs: [] as any[], size: 0 })),
-        fastify.db
-          .collection('orders')
-          .where('hostId', '==', hostId)
-          .where('status', 'in', ['confirmed', 'paid'])
-          .where('createdAt', '>=', thirtyDaysAgo)
-          .get()
-          .catch(() => ({ docs: [] as any[] })),
+        getPartnerCommerceRows(fastify.db, hostId, 'hostId'),
         fastify.db
           .collection('check_ins')
           .where('hostId', '==', hostId)
@@ -909,15 +904,12 @@ export default async function hostRoutes(fastify: FastifyInstance) {
           .get()
           .catch(() => ({ size: 0 })),
       ]);
-      const totalRevenuePaise = ((ordersSnap as any).docs || []).reduce(
-        (sum: number, doc: any) =>
-          sum + (doc.data().totalPaise || Math.round((doc.data().amount || 0) * 100)),
-        0,
-      );
-      const totalTickets = ((ordersSnap as any).docs || []).reduce(
-        (sum: number, doc: any) => sum + (doc.data().ticketCount || 0),
-        0,
-      );
+      const totalRevenuePaise = commerceRows.ledger
+        .filter((entry) => !entry.createdAtIso || entry.createdAtIso >= thirtyDaysAgo)
+        .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0);
+      const totalTickets = commerceRows.tickets.filter(
+        (ticket) => !ticket.createdAtIso || ticket.createdAtIso >= thirtyDaysAgo,
+      ).length;
       const eventCount = (eventsSnap as any).size || ((eventsSnap as any).docs || []).length;
       return reply.send({
         period: '30d',
