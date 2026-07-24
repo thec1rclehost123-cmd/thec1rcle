@@ -9,13 +9,17 @@
    - In `adminStore.js` (`adminRoleUpdate`), the method updated Firebase Auth Custom User Claims using `auth.setCustomUserClaims(adminId, { admin_role: newRole })`.
    - Firebase Auth custom user claims are replaced entirely on update; they are not merged. This resulted in the deletion of crucial claims such as `admin: true` and `role: 'admin'`, locking the administrator out of the system.
 
+3. **DELETE Route Nukes All Custom Claims**:
+   - The DELETE route in `route.js` cleared all user custom claims via `auth.setCustomUserClaims(membershipId, {})`. If an admin team member also had other partner roles/claims (e.g., `partnerId`, `partnerType`), those claims were completely deleted, causing loss of access to partner dashboards.
+
 ## Solution
 1. **Firestore Field Alignment**:
    - Aligned all Firestore `admins` collection writes and updates so that `role` is strictly set to `'admin'` and the specific tier role is saved in the `admin_role` field.
    - Refactored Firestore database calls in API handlers, store helper methods, and utility scripts to adhere to this schema.
 
-2. **Custom Claims Hardening**:
+2. **Custom Claims Hardening & Preservation**:
    - Hardened the `adminRoleUpdate` method in `adminStore.js` to set the complete set of claims (`{ role: 'admin', admin: true, admin_role: newRole }`), preventing admin privilege revocation on role updates.
+   - Refactored the DELETE method in `route.js` to fetch and preserve non-admin custom claims (such as `partnerId`, `partnerType`), setting the `role` claim to the correct partner role and updating the Firestore `users` document accordingly instead of resetting it entirely to `'user'`.
 
 3. **Prettier Code Formatting**:
    - Standardized code style formatting across all affected files using Prettier.
@@ -23,6 +27,7 @@
 ## Files Changed
 1. **`apps/admin-console/app/api/admins/team/[membershipId]/route.js`**
    - Configured PATCH updates to set `role: 'admin'` in the `admins` Firestore document.
+   - Configured DELETE to safely fetch and preserve non-admin custom claims (e.g. `partnerId`, `partnerType`) when revoking an admin, updating the Firestore `users` profile with the correct fallback role rather than blindly resetting it to `'user'`.
 2. **`apps/admin-console/app/api/auth/accept-invite/route.js`**
    - Configured invite acceptance to set `role: 'admin'` in the newly created or merged Firestore document.
 3. **`apps/admin-console/lib/server/adminStore.js`**

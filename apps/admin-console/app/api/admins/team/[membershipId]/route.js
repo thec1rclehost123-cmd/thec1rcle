@@ -121,25 +121,80 @@ async function deleteHandler(req, { params }) {
       updatedAt: new Date().toISOString(),
     });
 
-    // Clear Firebase Auth custom claims (demotes from admin)
+    // Fetch current claims and user data to preserve non-admin/partner status
     const auth = getAdminAuth();
+    let currentClaims = {};
     try {
-      await auth.setCustomUserClaims(membershipId, {});
+      const userRecord = await auth.getUser(membershipId);
+      currentClaims = userRecord.customClaims || {};
     } catch (err) {
-      console.warn('[Admin DELETE] Claims clear failed:', err);
+      console.warn('[Admin DELETE] Failed to fetch current claims:', err);
+    }
+
+    const userDocRef = db.collection('users').doc(membershipId);
+    const userDocSnap = await userDocRef.get();
+    const userData = userDocSnap.exists ? userDocSnap.data() : {};
+
+    // Remove admin-specific claims
+    const { admin, admin_role, role: currentRole, ...remainingClaims } = currentClaims;
+
+    // Determine partner status
+    const partnerId = remainingClaims.partnerId || userData.partnerId || userData.venueId || null;
+    let partnerType = remainingClaims.partnerType || userData.partnerType || null;
+
+    if (partnerId && !partnerType) {
+      if (partnerId.startsWith('v_')) {
+        partnerType = 'venue';
+      } else if (partnerId.startsWith('h_')) {
+        partnerType = 'host';
+      } else if (partnerId.startsWith('p_')) {
+        partnerType = 'promoter';
+      }
+    }
+
+    let targetRole = 'user';
+    let newClaims = {};
+
+    if (partnerId) {
+      if (partnerType === 'venue') {
+        targetRole = 'partner';
+      } else if (partnerType) {
+        targetRole = partnerType;
+      } else {
+        targetRole = 'partner';
+      }
+      newClaims = {
+        ...remainingClaims,
+        partnerId,
+        role: targetRole,
+      };
+      if (partnerType) {
+        newClaims.partnerType = partnerType;
+      }
+    }
+
+    try {
+      await auth.setCustomUserClaims(membershipId, newClaims);
+    } catch (err) {
+      console.warn('[Admin DELETE] Claims update failed:', err);
     }
 
     // Demote user profile document in Firestore
-    await db
-      .collection('users')
-      .doc(membershipId)
-      .update({
-        role: 'user',
-        admin: false,
-        admin_role: null,
-        updatedAt: new Date().toISOString(),
-      })
-      .catch(() => null);
+    const userUpdateFields = {
+      role: targetRole,
+      admin: false,
+      admin_role: null,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (partnerId) {
+      userUpdateFields.partnerId = partnerId;
+      if (partnerType === 'venue') {
+        userUpdateFields.venueId = partnerId;
+      }
+    }
+
+    await userDocRef.update(userUpdateFields).catch(() => null);
 
     return NextResponse.json({ success: true });
   } catch (error) {
