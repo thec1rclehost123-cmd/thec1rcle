@@ -14,7 +14,7 @@
  * @module cover-charge-engine
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { getAdminDb } from './admin.js';
 import { recordLedgerTransaction } from './ledger-engine.js';
 
@@ -30,8 +30,13 @@ const IDEMPOTENCY_LOOKBACK_LIMIT = 10;
 // HELPERS
 // =============================================================================
 
-function newWalletId() {
-  return `CW-${randomUUID().replace(/-/g, '').substring(0, 12).toUpperCase()}`;
+export function deterministicCoverWalletId(orderId, tierId, unitIndex = 1) {
+  const digest = createHash('sha256')
+    .update(`cover-wallet:v2:${orderId}:${tierId}:${unitIndex}`)
+    .digest('hex')
+    .slice(0, 24)
+    .toUpperCase();
+  return `CW-${digest}`;
 }
 
 function newTxnId() {
@@ -154,17 +159,58 @@ export async function issueWallet(
   }
 
   const db = getAdminDb();
+  const tierId = String(tierConfig.tierId || tierConfig.ticketTierId || 'GEN');
+  const unitIndex = Number(tierConfig.unitIndex || 1);
+  const wallet = buildCoverWalletDocument({
+    orderId,
+    eventId,
+    venueId,
+    userId,
+    tierId,
+    unitIndex,
+    tierConfig,
+    eventStartIso,
+    tzOffset,
+    termsAcceptedAt,
+  });
+  const ref = db.collection(WALLET_COLLECTION).doc(wallet.id);
+  const existing = transaction ? await transaction.get(ref) : await ref.get();
+  if (existing.exists) {
+    return { id: existing.id, ...existing.data() };
+  }
 
-  // Idempotency: check for existing wallet for this order
-  const existingQuery = await db
-    .collection(WALLET_COLLECTION)
-    .where('orderId', '==', orderId)
-    .where('userId', '==', userId)
-    .limit(1)
-    .get();
+  if (transaction) {
+    transaction.create(ref, wallet);
+  } else {
+    await ref.create(wallet);
+  }
 
-  if (!existingQuery.empty) {
-    return { id: existingQuery.docs[0].id, ...existingQuery.docs[0].data() };
+  return wallet;
+}
+
+export function buildCoverWalletDocument({
+  orderId,
+  eventId,
+  venueId,
+  userId,
+  tierId,
+  unitIndex = 1,
+  tierConfig,
+  eventStartIso,
+  tzOffset = '+05:30',
+  termsAcceptedAt,
+  issuedAt,
+}) {
+  if (!Number.isInteger(tierConfig.walletAmountPaise) || tierConfig.walletAmountPaise <= 0) {
+    throw new Error(
+      `walletAmountPaise must be a positive integer, got ${tierConfig.walletAmountPaise}`,
+    );
+  }
+  if (!orderId || !eventId || !venueId || !userId || !tierId) {
+    throw new Error('Cover wallet attribution is incomplete');
+  }
+  if (!Number.isInteger(unitIndex) || unitIndex < 1) {
+    throw new Error(`unitIndex must be a positive integer, got ${unitIndex}`);
   }
 
   const terminationTime = computeTerminationTime(
@@ -172,16 +218,17 @@ export async function issueWallet(
     tierConfig.terminationHour ?? 5,
     tzOffset,
   );
-
-  const walletId = newWalletId();
-  const now = new Date().toISOString();
-
-  const wallet = {
+  const walletId = deterministicCoverWalletId(orderId, tierId, unitIndex);
+  const now = issuedAt || new Date().toISOString();
+  return {
     id: walletId,
     orderId,
     eventId,
     venueId,
     userId,
+    tierId,
+    unitIndex,
+    schemaVersion: 2,
     state: 'ACTIVE',
     openingBalancePaise: tierConfig.walletAmountPaise,
     currentBalancePaise: tierConfig.walletAmountPaise,
@@ -212,16 +259,6 @@ export async function issueWallet(
     lastActivityAt: now,
     createdBy: 'checkout_service',
   };
-
-  const ref = db.collection(WALLET_COLLECTION).doc(walletId);
-
-  if (transaction) {
-    transaction.set(ref, wallet);
-  } else {
-    await ref.set(wallet);
-  }
-
-  return wallet;
 }
 
 // =============================================================================
@@ -247,6 +284,9 @@ export async function debitWallet(req) {
     operatorRole,
     deviceId,
     eventCodeId,
+    authorizedEventId,
+    authorizedVenueId,
+    scannerSessionId,
   } = req;
 
   if (!idempotencyKey) {
@@ -264,7 +304,13 @@ export async function debitWallet(req) {
 
   return await db.runTransaction(async (tx) => {
     const walletRef = db.collection(WALLET_COLLECTION).doc(walletId);
-    const walletDoc = await tx.get(walletRef);
+    const idempotencyRef = walletRef.collection(TXN_SUBCOLLECTION).doc(`IDEMP-${idempotencyKey}`);
+    const eventCodeRef = db.collection('event_codes').doc(eventCodeId);
+    const [walletDoc, idempotencyDoc, eventCodeDoc] = await Promise.all([
+      tx.get(walletRef),
+      tx.get(idempotencyRef),
+      tx.get(eventCodeRef),
+    ]);
 
     if (!walletDoc.exists) {
       return { success: false, code: 'WALLET_NOT_FOUND', message: 'Cover Wallet not found' };
@@ -273,16 +319,8 @@ export async function debitWallet(req) {
     const wallet = walletDoc.data();
 
     // --- Idempotency check ---
-    const idempSnap = await db
-      .collection(WALLET_COLLECTION)
-      .doc(walletId)
-      .collection(TXN_SUBCOLLECTION)
-      .where('idempotencyKey', '==', idempotencyKey)
-      .limit(1)
-      .get();
-
-    if (!idempSnap.empty) {
-      const existingTxn = { id: idempSnap.docs[0].id, ...idempSnap.docs[0].data() };
+    if (idempotencyDoc.exists) {
+      const existingTxn = { id: idempotencyDoc.id, ...idempotencyDoc.data() };
       return {
         success: true,
         transactionId: existingTxn.id,
@@ -291,6 +329,25 @@ export async function debitWallet(req) {
         code: 'IDEMPOTENCY_REPLAY',
         message: 'Transaction already committed',
         existingTransaction: existingTxn,
+      };
+    }
+    const eventCode = eventCodeDoc.exists ? eventCodeDoc.data() : null;
+    if (
+      !eventCode ||
+      eventCode.type !== 'charge' ||
+      eventCode.isRevoked === true ||
+      (eventCode.expiresAt && new Date(eventCode.expiresAt).getTime() <= Date.now()) ||
+      String(eventCode.eventId) !== String(authorizedEventId) ||
+      String(eventCode.venueId || '') !== String(authorizedVenueId || '') ||
+      String(wallet.eventId) !== String(authorizedEventId) ||
+      String(wallet.venueId) !== String(authorizedVenueId) ||
+      !deviceId ||
+      !scannerSessionId
+    ) {
+      return {
+        success: false,
+        code: 'CHARGE_CONTEXT_MISMATCH',
+        message: 'Charge session does not authorize this wallet',
       };
     }
 
@@ -375,7 +432,7 @@ export async function debitWallet(req) {
     }
 
     // --- Commit ---
-    const txnId = newTxnId();
+    const txnId = idempotencyRef.id;
     const timestamp = now.toISOString();
     const newBalance = wallet.currentBalancePaise - totalAmountPaise;
 
@@ -398,16 +455,11 @@ export async function debitWallet(req) {
       operatorRole: operatorRole || 'staff',
       deviceId,
       eventCodeId,
+      scannerSessionId,
       createdAt: timestamp,
     };
 
-    const txnRef = db
-      .collection(WALLET_COLLECTION)
-      .doc(walletId)
-      .collection(TXN_SUBCOLLECTION)
-      .doc(txnId);
-
-    tx.set(txnRef, txn);
+    tx.create(idempotencyRef, txn);
     tx.update(walletRef, {
       currentBalancePaise: newBalance,
       totalDebitedPaise: wallet.totalDebitedPaise + totalAmountPaise,
@@ -453,7 +505,7 @@ export async function reverseTransaction(req) {
     eventCodeId,
   } = req;
 
-  if (!['manager', 'admin', 'super'].includes(operatorRole)) {
+  if (!['owner', 'manager', 'admin', 'super'].includes(operatorRole)) {
     return {
       success: false,
       code: 'INSUFFICIENT_ROLE',
@@ -592,7 +644,7 @@ export async function reverseTransaction(req) {
 export async function topUpWallet(req) {
   const { walletId, amountPaise, reason, idempotencyKey, operatorId, operatorRole } = req;
 
-  if (!['host', 'admin', 'super'].includes(operatorRole)) {
+  if (!['owner', 'manager', 'host', 'admin', 'super'].includes(operatorRole)) {
     return {
       success: false,
       code: 'INSUFFICIENT_ROLE',
@@ -962,8 +1014,9 @@ export async function generateReconciliation(eventId, venueId) {
 
   const now = new Date().toISOString();
 
+  const reconciliationId = `${venueId}_${eventId}`;
   const reconciliation = {
-    id: eventId,
+    id: reconciliationId,
     eventId,
     venueId,
     generatedAt: now,
@@ -986,7 +1039,7 @@ export async function generateReconciliation(eventId, venueId) {
   };
 
   // Persist
-  await db.collection(RECON_COLLECTION).doc(eventId).set(reconciliation);
+  await db.collection(RECON_COLLECTION).doc(reconciliationId).set(reconciliation);
 
   return reconciliation;
 }

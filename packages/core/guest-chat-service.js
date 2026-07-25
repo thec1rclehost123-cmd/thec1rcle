@@ -236,10 +236,10 @@ async function hasActiveEventEntitlement(db, userId, eventId) {
 
   const queries = [
     db
-      .collection('orders')
-      .where('userId', '==', userId)
+      .collection('entitlements')
+      .where('ownerUserId', '==', userId)
       .where('eventId', '==', eventId)
-      .where('status', 'in', ACTIVE_ORDER_STATUSES)
+      .where('state', '==', 'ACTIVE')
       .limit(1)
       .get(),
     db
@@ -277,49 +277,118 @@ export async function ensureEventChatMembership(
   const event = await getEvent(db, eventId);
   if (!event) throw new Error('Event not found');
 
-  const { chat, memberCount } = await resolveEventChatForNewMember(db, event);
   const profile = await getUserProfile(db, userId);
   const now = nowIso();
-  const member = {
-    id: memberId(chat.id, userId),
-    chatId: chat.id,
-    type: 'event',
-    eventId,
-    roomNumber: Number(chat.roomNumber || 1),
-    userId,
-    displayName: userName || displayNameFromProfile(profile, userEmail || 'C1RCLE member'),
-    photoURL: userAvatar || avatarFromProfile(profile),
-    status: 'active',
-    source,
-    orderId,
-    joinedAt: now,
-    lastReadAt: null,
-    unreadCount: 0,
-    updatedAt: now,
-  };
+  const allocationRef = db.collection('eventChatAllocations').doc(eventId);
+  const memberIndexRef = db.collection('eventChatMemberIndex').doc(`${eventId}_${userId}`);
+  const existingAllocation = await allocationRef.get();
+  let allocationSeed = { currentRoomNumber: 1, currentRoomMemberCount: 0 };
+  if (!existingAllocation.exists) {
+    const existingRooms = await getEventChatRooms(db, eventId);
+    const latestRoom = existingRooms[existingRooms.length - 1];
+    if (latestRoom) {
+      allocationSeed = {
+        currentRoomNumber: Number(latestRoom.roomNumber || 1),
+        currentRoomMemberCount: await countActiveMembers(db, latestRoom.id),
+      };
+    }
+  }
+  let allocated = null;
 
-  const nextRoomMemberCount = memberCount + 1;
-  const batch = db.batch();
-  batch.set(db.collection(CHAT_MEMBERS_COLLECTION).doc(member.id), member, { merge: true });
-  batch.set(
-    db.collection(CHATS_COLLECTION).doc(chat.id),
-    {
-      roomMemberCount: nextRoomMemberCount,
-      participantCount: nextRoomMemberCount,
+  await db.runTransaction(async (transaction) => {
+    const [allocationDoc, memberIndexDoc] = await Promise.all([
+      transaction.get(allocationRef),
+      transaction.get(memberIndexRef),
+    ]);
+    if (memberIndexDoc.exists && memberIndexDoc.data()?.status === 'active') {
+      const existingChatId = memberIndexDoc.data().chatId;
+      const existingMemberRef = db
+        .collection(CHAT_MEMBERS_COLLECTION)
+        .doc(memberId(existingChatId, userId));
+      const [existingChatDoc, existingMemberDoc] = await Promise.all([
+        transaction.get(db.collection(CHATS_COLLECTION).doc(existingChatId)),
+        transaction.get(existingMemberRef),
+      ]);
+      if (existingChatDoc.exists && existingMemberDoc.exists) {
+        allocated = {
+          chat: { id: existingChatDoc.id, ...existingChatDoc.data() },
+          member: { id: existingMemberDoc.id, ...existingMemberDoc.data() },
+        };
+        return;
+      }
+      throw new Error('Chat membership index is inconsistent');
+    }
+
+    const allocation = allocationDoc.exists ? allocationDoc.data() || {} : allocationSeed;
+    let roomNumber = Math.max(1, Number(allocation.currentRoomNumber || 1));
+    let roomMemberCount = Math.max(0, Number(allocation.currentRoomMemberCount || 0));
+    if (roomMemberCount >= MAX_EVENT_CHAT_ROOM_MEMBERS) {
+      roomNumber += 1;
+      roomMemberCount = 0;
+    }
+    const chat = buildEventChat(event, roomNumber);
+    const chatId = chat.id;
+    const member = {
+      id: memberId(chatId, userId),
+      chatId,
+      type: 'event',
+      eventId,
+      roomNumber,
+      userId,
+      displayName: userName || displayNameFromProfile(profile, userEmail || 'C1RCLE member'),
+      photoURL: userAvatar || avatarFromProfile(profile),
+      status: 'active',
+      source,
+      orderId,
+      joinedAt: now,
+      lastReadAt: null,
+      unreadCount: 0,
       updatedAt: now,
-    },
-    { merge: true },
-  );
-  await batch.commit();
+    };
+    const nextRoomMemberCount = roomMemberCount + 1;
+    transaction.set(
+      db.collection(CHATS_COLLECTION).doc(chatId),
+      {
+        ...chat,
+        roomMemberCount: nextRoomMemberCount,
+        participantCount: nextRoomMemberCount,
+        createdAt: now,
+        updatedAt: now,
+      },
+      { merge: true },
+    );
+    transaction.create(db.collection(CHAT_MEMBERS_COLLECTION).doc(member.id), member);
+    transaction.create(memberIndexRef, {
+      eventId,
+      userId,
+      chatId,
+      roomNumber,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    });
+    transaction.set(
+      allocationRef,
+      {
+        eventId,
+        currentRoomNumber: roomNumber,
+        currentRoomMemberCount: nextRoomMemberCount,
+        roomCapacity: MAX_EVENT_CHAT_ROOM_MEMBERS,
+        updatedAt: now,
+      },
+      { merge: true },
+    );
+    allocated = {
+      chat: {
+        ...chat,
+        roomMemberCount: nextRoomMemberCount,
+        participantCount: nextRoomMemberCount,
+      },
+      member,
+    };
+  });
 
-  return {
-    chat: {
-      ...chat,
-      roomMemberCount: nextRoomMemberCount,
-      participantCount: nextRoomMemberCount,
-    },
-    member,
-  };
+  return allocated;
 }
 
 async function resolveChat(db, rawChatId) {
@@ -655,7 +724,7 @@ export async function sendChatMessage(
     senderId: userId,
     senderName,
     senderAvatar,
-    senderBadge: metadata.senderBadge || null,
+    senderBadge: null,
     content,
     imageUrl: messageType === 'image' ? content : null,
     type: messageType,

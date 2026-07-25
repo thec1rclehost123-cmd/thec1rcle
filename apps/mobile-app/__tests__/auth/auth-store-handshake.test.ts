@@ -43,6 +43,10 @@ jest.mock('../../lib/firebase', () => ({
 
 jest.mock('../../lib/api', () => ({
   syncAuthSession: jest.fn(),
+  apiFetch: jest.fn(async () => ({
+    success: true,
+    data: { token: 'realtime-session-token', expiresAt: '2099-01-01T00:00:00.000Z', expiresInSeconds: 60 },
+  })),
 }));
 
 jest.mock('../../lib/notifications', () => ({
@@ -53,6 +57,9 @@ jest.mock('../../lib/websocket', () => ({
   wsManager: {
     start: jest.fn(),
     stop: jest.fn(),
+    setConfig: jest.fn(),
+    onAppForeground: jest.fn(),
+    isConnected: false,
   },
 }));
 
@@ -175,7 +182,7 @@ describe('authStore server handshake', () => {
     });
     expect(refreshPushToken).toHaveBeenCalledWith('user_1');
     await flushPromises();
-    expect(wsManager.start).toHaveBeenCalledWith('firebase-token');
+    expect(wsManager.start).toHaveBeenCalledWith('realtime-session-token');
 
     cleanup();
   });

@@ -1,5 +1,6 @@
 // Safety features - Location sharing, SOS via API Gateway
 import * as Location from 'expo-location';
+import * as Crypto from 'expo-crypto';
 import { apiFetch } from '@/lib/api';
 import { scheduleLocalNotification } from './notifications';
 import { Linking, Alert } from 'react-native';
@@ -9,13 +10,15 @@ export interface EmergencyContact {
   name: string;
   phone: string;
   relationship?: string;
+  status?: 'pending_verification' | 'verified';
 }
 
 export async function getEmergencyContacts(uid: string): Promise<EmergencyContact[]> {
   try {
-    const response = await apiFetch<any>('/api/v1/users/me', { requireAuth: true });
-    const profile = response.profile || response.data?.profile || response;
-    return (profile?.emergencyContacts as EmergencyContact[]) ?? [];
+    const response = await apiFetch<any>('/api/v1/social/emergency-contacts', {
+      requireAuth: true,
+    });
+    return response.data?.contacts || response.contacts || [];
   } catch (error) {
     if (__DEV__) console.error('Error fetching emergency contacts:', error);
     return [];
@@ -27,9 +30,14 @@ export async function saveEmergencyContacts(
   contacts: EmergencyContact[],
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await apiFetch('/api/v1/users/me', {
+    await apiFetch('/api/v1/social/emergency-contacts', {
       method: 'PUT',
-      body: JSON.stringify({ emergencyContacts: contacts }),
+      body: JSON.stringify({
+        contacts: contacts.map((contact) => ({
+          ...contact,
+          relationship: contact.relationship?.trim() || 'Other',
+        })),
+      }),
       requireAuth: true,
     });
     return { success: true };
@@ -157,6 +165,51 @@ export async function stopLocationSharing(
   }
 }
 
+export async function inviteToLocationSharing(
+  sessionId: string,
+  targetUserId: string,
+): Promise<{ success: boolean; grantId?: string; error?: string }> {
+  try {
+    const response = await apiFetch<any>(`/api/v1/social/location/${sessionId}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({ targetUserId }),
+      requireAuth: true,
+    });
+    return { success: true, grantId: response.data?.grantId || response.grantId };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function acceptLocationSharingInvite(
+  grantId: string,
+): Promise<{ success: boolean; sessionId?: string; error?: string }> {
+  try {
+    const response = await apiFetch<any>(`/api/v1/social/location/invites/${grantId}/accept`, {
+      method: 'POST',
+      requireAuth: true,
+    });
+    return { success: true, sessionId: response.data?.sessionId || response.sessionId };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function revokeLocationSharing(
+  sessionId: string,
+  targetUserId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiFetch(
+      `/api/v1/social/location/${encodeURIComponent(sessionId)}/grants/${encodeURIComponent(targetUserId)}`,
+      { method: 'DELETE', requireAuth: true },
+    );
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 // Subscribe to friend's location via Polling
 export function subscribeToFriendLocation(
   sessionId: string,
@@ -191,38 +244,40 @@ export function subscribeToFriendLocation(
 
 // Trigger SOS via Gateway
 export async function triggerSOS(
-  userId: string,
+  _userId: string,
   eventId?: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const location = await getCurrentLocation();
 
     // Register SOS in Gateway
-    await apiFetch('/api/v1/social/sos', {
+    const response = await apiFetch<any>('/api/v1/social/sos', {
       method: 'POST',
       body: JSON.stringify({
         eventId,
         latitude: location?.latitude,
         longitude: location?.longitude,
+        idempotencyKey: Crypto.randomUUID(),
       }),
       requireAuth: true,
     });
 
-    const contacts = await getEmergencyContacts(userId);
-
-    if (contacts.length > 0) {
-      const message = encodeURIComponent(
-        `🆘 SOS ALERT!\n` +
-          (location
-            ? `📍 Location: https://maps.google.com/?q=${location.latitude},${location.longitude}`
-            : 'Location unavailable'),
-      );
-      await Linking.openURL(`sms:${contacts[0].phone}?body=${message}`);
+    const accepted = response.data?.accepted ?? response.accepted;
+    const acceptedCount = Number(response.data?.acceptedCount ?? response.acceptedCount ?? 0);
+    if (!accepted || acceptedCount < 1) {
+      return {
+        success: false,
+        error: 'Emergency messaging was not accepted. Call local emergency services.',
+      };
     }
 
-    await scheduleLocalNotification('SOS Alert Sent', 'Emergency contacts have been notified.', {
-      type: 'sos_sent',
-    });
+    await scheduleLocalNotification(
+      'SOS Alert Sent',
+      `${acceptedCount} verified emergency contact${acceptedCount === 1 ? '' : 's'} accepted.`,
+      {
+        type: 'sos_sent',
+      },
+    );
 
     return { success: true };
   } catch (error: any) {

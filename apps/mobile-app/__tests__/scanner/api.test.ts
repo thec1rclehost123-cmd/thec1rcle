@@ -276,15 +276,9 @@ describe('fetchWalletByPaymentQr', () => {
 
 const MOCK_DEBIT_REQ = {
   walletId: 'wallet_1',
-  paymentQrJwt: 'wallet.jwt.token',
   presetItemId: 'item_1',
   quantity: 1,
   idempotencyKey: 'test-uuid-1234',
-  operatorId: 'scanner_code',
-  operatorName: 'Scanner',
-  deviceId: 'ios-test-device',
-  eventCodeId: 'code_123',
-  isOnline: true as const,
 };
 
 describe('submitDebit', () => {

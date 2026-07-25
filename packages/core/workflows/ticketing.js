@@ -7,7 +7,11 @@ import { ENTITLEMENT_STATES } from '../entitlement-engine.js';
 import { ensureEventChatMembership } from '../guest-chat-service.js';
 import { commitInventory, releaseReservation } from '../inventory-engine.js';
 import { getQrSecret } from '../secret-registry.js';
-import { writePartnerLedgerInTransaction } from '../partner-ledger-service.js';
+import {
+  buildPartnerLedgerEntries,
+  writePartnerLedgerInTransaction,
+} from '../partner-ledger-service.js';
+import { buildCoverWalletDocument } from '../cover-charge-engine.js';
 import { FieldValue } from 'firebase-admin/firestore';
 // NOTE: generateEntitlementQR is intentionally NOT imported here.
 // The rotating QR is generated live by the mobile app at display time.
@@ -97,30 +101,11 @@ function safeDocSegment(value) {
     .slice(0, 80);
 }
 
-function getTicketJwtExpiry(order, event) {
-  const eventEnd =
-    event?.endDate ||
-    event?.endAt ||
-    event?.endsAt ||
-    event?.startDate ||
-    event?.startAt ||
-    order?.eventStartAt ||
-    null;
-  const fallbackSeconds = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
-  if (!eventEnd) return fallbackSeconds;
-
-  const eventEndSeconds = Math.floor(new Date(eventEnd).getTime() / 1000);
-  if (!Number.isFinite(eventEndSeconds)) return fallbackSeconds;
-  return eventEndSeconds + 12 * 60 * 60;
-}
-
 function normalizeOrderTickets(order) {
   return Array.isArray(order?.tickets) ? order.tickets : [];
 }
 
 function buildTicketDocuments(order, event, issuedAt) {
-  const nowSeconds = Math.floor(new Date(issuedAt).getTime() / 1000);
-  const exp = getTicketJwtExpiry(order, event);
   const ticketDocs = [];
 
   for (const group of normalizeOrderTickets(order)) {
@@ -131,28 +116,6 @@ function buildTicketDocuments(order, event, issuedAt) {
     for (let index = 1; index <= quantity; index += 1) {
       const ticketId = `${order.id}-${tierId}-${index}`;
       const ticketDocId = `TKT-${safeDocSegment(order.id)}-${safeTierId}-${index}`.toUpperCase();
-      const jwtPayload = {
-        iss: 'the-c1rcle',
-        aud: 'c1rcle-scanner',
-        typ: 'ticket',
-        ver: 1,
-        sub: ticketId,
-        jti: ticketDocId,
-        orderId: order.id,
-        eventId: order.eventId,
-        userId: order.userId,
-        hostId: order.hostId,
-        venueId: order.venueId || null,
-        promoterId: order.promoterId || null,
-        tierId,
-        ticketName: group.name || group.tierName || tierId,
-        slotIndex: index,
-        iat: nowSeconds,
-        nbf: nowSeconds,
-        exp,
-      };
-
-      const qrPayload = signTicketJwt(jwtPayload);
       ticketDocs.push({
         id: ticketDocId,
         ticketId,
@@ -169,10 +132,9 @@ function buildTicketDocuments(order, event, issuedAt) {
         originalQuantity: quantity,
         entryType: group.entryType || 'general',
         status: 'active',
-        qrMode: 'jwt',
-        qrPayload,
-        qrJwt: qrPayload,
-        jwtPayload,
+        qrMode: 'dynamic_jwt',
+        qrPayload: null,
+        qrJwt: null,
         scanCountAllowed: group.entryType === 'couple' ? 2 : 1,
         scanCountUsed: 0,
         createdAt: issuedAt,
@@ -194,11 +156,11 @@ function buildOrderQrCodes(order, ticketDocs) {
       quantity: Number(group.quantity || docs.length || 1),
       entryType: group.entryType || 'general',
       isRSVP: false,
-      qrMode: 'jwt',
+      qrMode: 'dynamic_jwt',
       ticketDocumentIds: docs.map((ticket) => ticket.id),
-      qrPayloads: docs.map((ticket) => ticket.qrPayload),
-      qrPayload: docs.length === 1 ? docs[0].qrPayload : null,
-      qrData: docs.length === 1 ? docs[0].qrPayload : null,
+      qrPayloads: [],
+      qrPayload: null,
+      qrData: null,
       shortCode: null,
     };
   });
@@ -242,7 +204,7 @@ function buildEntitlementDocuments(order, event, ticketDocs, issuedAt) {
       genderConstraint: ticket.genderRequirement || 'none',
       scanCountAllowed: ticket.scanCountAllowed,
       scanCountUsed: 0,
-      state: ENTITLEMENT_STATES.ISSUED,
+      state: ENTITLEMENT_STATES.ACTIVE,
       issuedAt,
       eventSummary,
       metadata: {
@@ -253,6 +215,34 @@ function buildEntitlementDocuments(order, event, ticketDocs, issuedAt) {
       },
     };
   });
+}
+
+function buildCoverWalletDocuments(order, event, issuedAt) {
+  const wallets = [];
+  for (const group of normalizeOrderTickets(order)) {
+    const tierConfig = group.coverChargeConfig;
+    if (!tierConfig?.enabled) continue;
+    const tierId = group.ticketId || group.tierId || group.id || 'GEN';
+    const quantity = Math.max(1, Number(group.quantity || 1));
+    for (let unitIndex = 1; unitIndex <= quantity; unitIndex += 1) {
+      wallets.push(
+        buildCoverWalletDocument({
+          orderId: order.id,
+          eventId: order.eventId,
+          venueId: order.venueId || event?.venueId,
+          userId: order.userId,
+          tierId,
+          unitIndex,
+          tierConfig,
+          eventStartIso: event?.startAt || event?.startDate,
+          tzOffset: event?.timezoneOffset || '+05:30',
+          termsAcceptedAt: order.coverChargeTermsAcceptedAt || order.createdAt || issuedAt,
+          issuedAt,
+        }),
+      );
+    }
+  }
+  return wallets;
 }
 
 async function findPaymentRecordByRazorpayOrderId(db, transaction, razorpayOrderId) {
@@ -347,8 +337,11 @@ function validateProviderPayment(providerPayment, razorpayOrderId, order) {
   ) {
     throw codedError('Payment currency mismatch', 'PAYMENT_AMOUNT_MISMATCH');
   }
-  if (!['authorized', 'captured'].includes(String(providerPayment?.status || '').toLowerCase())) {
-    throw codedError('Payment is not successful', 'ORDER_NOT_FINALIZABLE');
+  if (
+    String(providerPayment?.status || '').toLowerCase() !== 'captured' ||
+    providerPayment?.captured === false
+  ) {
+    throw codedError('Payment has not been captured', 'PAYMENT_NOT_CAPTURED');
   }
 }
 
@@ -594,9 +587,22 @@ export async function finalizeTicketPayment({
         );
       }
       const entitlementDocs = buildEntitlementDocuments(order, event, ticketDocs, issuedAt);
+      const coverWalletDocs = buildCoverWalletDocuments(order, event, issuedAt);
       const ticketRefs = ticketDocs.map((ticket) => db.collection('tickets').doc(ticket.id));
       const entitlementRefs = entitlementDocs.map((entitlement) =>
         db.collection('entitlements').doc(entitlement.id),
+      );
+      const coverWalletRefs = coverWalletDocs.map((wallet) =>
+        db.collection('cover_wallets').doc(wallet.id),
+      );
+      const expectedLedgerPosting = buildPartnerLedgerEntries({
+        order,
+        event,
+        paymentId: razorpayPaymentId,
+        createdAt: issuedAt,
+      });
+      const ledgerRefs = expectedLedgerPosting.entries.map((entry) =>
+        db.collection('partner_ledger').doc(entry.id),
       );
       const markerRef = db.collection('partner_ledger_idempotency').doc(order.id);
       const outboxRef = db.collection('domain_event_outbox').doc(`ticket-purchase-${order.id}`);
@@ -605,10 +611,19 @@ export async function finalizeTicketPayment({
         .where('razorpayPaymentId', '==', razorpayPaymentId)
         .limit(2);
 
-      const [ticketSnapshots, entitlementSnapshots, markerSnapshot, outboxSnapshot, paymentLinks] =
-        await Promise.all([
+      const [
+        ticketSnapshots,
+        entitlementSnapshots,
+        coverWalletSnapshots,
+        ledgerSnapshots,
+        markerSnapshot,
+        outboxSnapshot,
+        paymentLinks,
+      ] = await Promise.all([
           Promise.all(ticketRefs.map((ref) => transaction.get(ref))),
           Promise.all(entitlementRefs.map((ref) => transaction.get(ref))),
+          Promise.all(coverWalletRefs.map((ref) => transaction.get(ref))),
+          Promise.all(ledgerRefs.map((ref) => transaction.get(ref))),
           transaction.get(markerRef),
           transaction.get(outboxRef),
           transaction.get(paymentLinkQuery),
@@ -624,7 +639,24 @@ export async function finalizeTicketPayment({
         payment.status === 'verified' &&
         markerSnapshot.exists &&
         ticketSnapshots.every((doc) => doc.exists) &&
-        entitlementSnapshots.every((doc) => doc.exists);
+        entitlementSnapshots.every((doc) => doc.exists) &&
+        coverWalletSnapshots.every((doc) => doc.exists) &&
+        ledgerSnapshots.every((doc, index) => {
+          if (!doc.exists) return false;
+          const actual = doc.data();
+          const expected = expectedLedgerPosting.entries[index];
+          return (
+            doc.id === expected.id &&
+            actual.orderId === expected.orderId &&
+            actual.paymentId === expected.paymentId &&
+            actual.eventId === expected.eventId &&
+            actual.type === expected.type &&
+            actual.amountPaise === expected.amountPaise &&
+            actual.currency === expected.currency &&
+            actual.toPartnerId === expected.toPartnerId &&
+            actual.fromPartnerId === expected.fromPartnerId
+          );
+        });
 
       if (!isCompleteReplay && order.status === 'confirmed') {
         throw codedError(
@@ -660,6 +692,11 @@ export async function finalizeTicketPayment({
           transaction.create(entitlementRefs[index], entitlementDocs[index]);
         }
       });
+      coverWalletSnapshots.forEach((snapshot, index) => {
+        if (!snapshot.exists) {
+          transaction.create(coverWalletRefs[index], coverWalletDocs[index]);
+        }
+      });
 
       const qrCodes = buildOrderQrCodes(order, ticketDocs).map((qr) => ({
         ...qr,
@@ -673,6 +710,7 @@ export async function finalizeTicketPayment({
         paymentOrderId: razorpayOrderId,
         ticketIds: ticketDocs.map((ticket) => ticket.id),
         entitlementIds: entitlementDocs.map((entitlement) => entitlement.id),
+        coverWalletIds: coverWalletDocs.map((wallet) => wallet.id),
         ledgerMarkerId: ledger.markerId,
         inventoryCommittedAt: order.inventoryCommittedAt || issuedAt,
         qrCodes,
@@ -702,6 +740,7 @@ export async function finalizeTicketPayment({
           hostId: order.hostId,
           venueId: order.venueId || null,
           promoterId: order.promoterId || null,
+          coverWalletIds: coverWalletDocs.map((wallet) => wallet.id),
           requestId,
           status: 'pending',
           attempts: 0,
@@ -713,6 +752,7 @@ export async function finalizeTicketPayment({
         order: { ...order, ...orderUpdate },
         tickets: ticketDocs,
         entitlements: entitlementDocs,
+        coverWallets: coverWalletDocs,
         alreadyFinalized: isCompleteReplay,
         ledgerMarkerId: ledger.markerId,
         outboxEventId: outboxRef.id,
@@ -722,9 +762,9 @@ export async function finalizeTicketPayment({
       };
     });
   } catch (error) {
-    const captured = ['authorized', 'captured'].includes(
-      String(verifiedProviderPayment?.status || '').toLowerCase(),
-    );
+    const captured =
+      String(verifiedProviderPayment?.status || '').toLowerCase() === 'captured' &&
+      verifiedProviderPayment?.captured !== false;
     if (captured && initialPayment.orderId) {
       await Promise.allSettled([
         db
@@ -754,6 +794,7 @@ export async function finalizeTicketPayment({
       'FORBIDDEN',
       'NOT_FOUND',
       'PAYMENT_SIGNATURE_INVALID',
+      'PAYMENT_NOT_CAPTURED',
       'PAYMENT_AMOUNT_MISMATCH',
       'PAYMENT_ALREADY_LINKED',
       'ORDER_ATTRIBUTION_MISSING',

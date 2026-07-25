@@ -14,6 +14,7 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
+import { useShallow } from 'zustand/react/shallow';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useIsFocused, useLocalSearchParams } from 'expo-router';
@@ -328,7 +329,13 @@ export default function ExploreScreen() {
   const isFocused = useIsFocused();
   const params = useLocalSearchParams<{ firstRun?: string }>();
 
-  const { events, loading, fetchEvents } = useEventsStore();
+  const { events, loading, fetchEvents } = useEventsStore(
+    useShallow((state) => ({
+      events: state.events,
+      loading: state.loading,
+      fetchEvents: state.fetchEvents,
+    })),
+  );
   const {
     recommendations,
     reasonLabel,
@@ -630,12 +637,27 @@ export default function ExploreScreen() {
   const isInitialLoading = loading && allEvents.length === 0;
 
   const [greeting, setGreeting] = useState(getGreeting());
+  const lastFocusRefreshAt = useRef(0);
 
   useFocusEffect(
     useCallback(() => {
       setGreeting(getGreeting());
-    }, []),
+      if (Date.now() - lastFocusRefreshAt.current >= 5_000) {
+        lastFocusRefreshAt.current = Date.now();
+        void loadData(cityFilter, true);
+      }
+    }, [cityFilter, loadData]),
   );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && isFocused) {
+        lastFocusRefreshAt.current = Date.now();
+        void loadData(cityFilter, true);
+      }
+    });
+    return () => subscription.remove();
+  }, [cityFilter, isFocused, loadData]);
 
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;

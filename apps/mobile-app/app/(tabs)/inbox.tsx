@@ -30,6 +30,7 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Search, MessageCircle, Heart, X, Lock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { FlashList } from '@shopify/flash-list';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/lib/design/theme';
 import { useAuthStore } from '@/store/authStore';
@@ -764,9 +765,15 @@ export default function InboxScreen() {
                   pointerEvents="none"
                 />
               )}
-              <ScrollView
+              <FlashList
                 key="event-chats"
-                style={{ flex: 1 }}
+                data={eventChats}
+                renderItem={({ item, index }) => (
+                  <Animated.View entering={FadeInDown.delay(index * 50).duration(400)}>
+                    <EventChatCard chat={item} index={index} />
+                  </Animated.View>
+                )}
+                keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
                 refreshControl={
@@ -776,18 +783,8 @@ export default function InboxScreen() {
                     tintColor={colors.iris}
                   />
                 }
-              >
-                <Animated.View entering={FadeIn.duration(200)}>
-                  {eventChats.length > 0 ? (
-                    eventChats.map((chat: EventChat, i: number) => (
-                      <Animated.View
-                        key={chat.id}
-                        entering={FadeInDown.delay(i * 50).duration(400)}
-                      >
-                        <EventChatCard chat={chat} index={i} />
-                      </Animated.View>
-                    ))
-                  ) : loading ? (
+                ListEmptyComponent={
+                  loading ? (
                     <InboxEventCardSkeletonList count={3} />
                   ) : (
                     <View style={styles.emptyCard}>
@@ -796,9 +793,9 @@ export default function InboxScreen() {
                         Get a ticket to an event — its group chat unlocks automatically.
                       </Text>
                     </View>
-                  )}
-                </Animated.View>
-              </ScrollView>
+                  )
+                }
+              />
             </>
           ) : (
             <ScrollView

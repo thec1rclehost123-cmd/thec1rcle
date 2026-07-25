@@ -66,6 +66,65 @@ export async function finalizeProcessedRefund({
     });
 
     const revokeAdmission = refund.revokeAdmission === true || refund.fullyRefunded === true;
+    const requestedTicketIds = new Set(
+      Array.isArray(refund.ticketIds)
+        ? refund.ticketIds.map(String)
+        : Array.isArray(refund.refundedTicketIds)
+          ? refund.refundedTicketIds.map(String)
+          : [],
+    );
+    const requestedEntitlementIds = new Set(
+      Array.isArray(refund.entitlementIds)
+        ? refund.entitlementIds.map(String)
+        : Array.isArray(refund.refundedEntitlementIds)
+          ? refund.refundedEntitlementIds.map(String)
+          : [],
+    );
+    if (
+      revokeAdmission &&
+      refund.fullyRefunded !== true &&
+      (requestedTicketIds.size === 0 || requestedEntitlementIds.size === 0)
+    ) {
+      throw Object.assign(
+        new Error('Partial admission refund requires exact ticket and entitlement IDs'),
+        { code: 'REFUND_ADMISSION_MAPPING_REQUIRED' },
+      );
+    }
+
+    const ticketsToRevoke = refund.fullyRefunded
+      ? ticketsSnapshot.docs
+      : ticketsSnapshot.docs.filter((ticket: any) => requestedTicketIds.has(ticket.id));
+    const entitlementsToRevoke = refund.fullyRefunded
+      ? entitlementsSnapshot.docs
+      : entitlementsSnapshot.docs.filter((entitlement: any) =>
+          requestedEntitlementIds.has(entitlement.id),
+        );
+    if (
+      revokeAdmission &&
+      (ticketsToRevoke.length !==
+        (refund.fullyRefunded ? ticketsSnapshot.docs.length : requestedTicketIds.size) ||
+        entitlementsToRevoke.length !==
+          (refund.fullyRefunded
+            ? entitlementsSnapshot.docs.length
+            : requestedEntitlementIds.size))
+    ) {
+      throw Object.assign(new Error('Refund admission mapping does not belong to this order'), {
+        code: 'REFUND_ADMISSION_MAPPING_INVALID',
+      });
+    }
+
+    if (refund.fullyRefunded !== true) {
+      const selectedTicketIds = new Set(ticketsToRevoke.map((ticket: any) => ticket.id));
+      for (const entitlement of entitlementsToRevoke) {
+        const ticketDocumentId = String(entitlement.data()?.ticketDocumentId || '');
+        if (!selectedTicketIds.has(ticketDocumentId)) {
+          throw Object.assign(
+            new Error('Refund ticket and entitlement mapping is inconsistent'),
+            { code: 'REFUND_ADMISSION_MAPPING_INVALID' },
+          );
+        }
+      }
+    }
     const terminalOrderStatus =
       refund.terminalOrderStatus ||
       (refund.fullyRefunded ? 'refunded' : refund.previousStatus || 'confirmed');
@@ -85,7 +144,7 @@ export async function finalizeProcessedRefund({
     });
 
     if (revokeAdmission) {
-      for (const ticket of ticketsSnapshot.docs) {
+      for (const ticket of ticketsToRevoke) {
         transaction.update(ticket.ref, {
           status: 'refunded',
           revokedAt: processedAt,
@@ -93,7 +152,7 @@ export async function finalizeProcessedRefund({
           updatedAt: processedAt,
         });
       }
-      for (const entitlement of entitlementsSnapshot.docs) {
+      for (const entitlement of entitlementsToRevoke) {
         transaction.update(entitlement.ref, {
           state: 'REVOKED',
           revokedAt: processedAt,
@@ -109,9 +168,9 @@ export async function finalizeProcessedRefund({
       providerRefundId,
       ledgerMarkerId: ledger.markerId,
       alreadyFinalized: ledger.alreadyPosted,
-      ticketIds: revokeAdmission ? ticketsSnapshot.docs.map((document: any) => document.id) : [],
+      ticketIds: revokeAdmission ? ticketsToRevoke.map((document: any) => document.id) : [],
       entitlementIds: revokeAdmission
-        ? entitlementsSnapshot.docs.map((document: any) => document.id)
+        ? entitlementsToRevoke.map((document: any) => document.id)
         : [],
     };
   });

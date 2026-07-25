@@ -113,6 +113,12 @@ export async function calculatePricing(input) {
       tierName: tier.name,
       quantity,
       unitPrice: priceInfo.price,
+      entryType: tier.entryType || 'general',
+      genderRequirement: tier.genderRequirement || tier.requiredGender || null,
+      // This is an immutable snapshot from the authoritative event tier, not
+      // buyer input. Payment finalization uses it to issue deterministic cover
+      // wallets in the same transaction as tickets and entitlements.
+      coverChargeConfig: tier.coverChargeConfig || tier.coverWallet || null,
       priceLabel: priceInfo.label,
       subtotal,
       formatted: {

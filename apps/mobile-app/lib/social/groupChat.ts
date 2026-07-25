@@ -126,7 +126,7 @@ export async function getEventGroupChat(eventId: string): Promise<{
 
 /**
  * Send message to event group chat.
- * Uses: POST /api/v1/social/chat
+ * Uses the canonical /api/v1/chats writer.
  */
 export async function sendGroupMessage(
   eventId: string,
@@ -138,21 +138,16 @@ export async function sendGroupMessage(
   replyToId?: string,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const response = await apiFetch<any>('/api/v1/social/chat', {
+    const response = await apiFetch<any>(`/api/v1/chats/${encodeURIComponent(eventId)}/messages`, {
       method: 'POST',
       body: JSON.stringify({
-        eventId,
         text: content,
         replyToId,
-        metadata: {
-          senderAvatar: userAvatar,
-          senderBadge: userBadge,
-        },
       }),
       requireAuth: true,
     });
 
-    return { success: true, messageId: response.id };
+    return { success: true, messageId: response.data?.message?.id || response.message?.id };
   } catch (error: any) {
     if (__DEV__) console.error('Error sending group message:', error);
     return { success: false, error: error.message };
@@ -171,20 +166,16 @@ export async function sendGroupImageMessage(
   userBadge?: string,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const response = await apiFetch<any>('/api/v1/social/chat', {
+    const response = await apiFetch<any>(`/api/v1/chats/${encodeURIComponent(eventId)}/messages`, {
       method: 'POST',
       body: JSON.stringify({
-        eventId,
         imageUrl,
-        metadata: {
-          senderAvatar: userAvatar,
-          senderBadge: userBadge,
-        },
+        type: 'image',
       }),
       requireAuth: true,
     });
 
-    return { success: true, messageId: response.id };
+    return { success: true, messageId: response.data?.message?.id || response.message?.id };
   } catch (error: any) {
     if (__DEV__) console.error('Error sending group image:', error);
     return { success: false, error: error.message };
@@ -202,15 +193,10 @@ export async function sendAnnouncement(
   badge: 'host' | 'venue',
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await apiFetch<any>('/api/v1/social/chat', {
+    await apiFetch<any>(`/api/v1/chats/${encodeURIComponent(eventId)}/messages`, {
       method: 'POST',
       body: JSON.stringify({
-        eventId,
         text: content,
-        metadata: {
-          senderBadge: badge,
-          isAnnouncement: true,
-        },
       }),
       requireAuth: true,
     });
@@ -279,15 +265,19 @@ export function subscribeToGroupChat(
     if (!active) return;
     if (AppState.currentState !== 'active') return;
     try {
-      const response = await apiFetch<{ messages: GroupMessage[] }>(
-        `/api/v1/social/chat/${eventId}?limit=${safeMessageLimit}`,
+      const response = await apiFetch<{
+        data?: { messages: GroupMessage[] };
+        messages?: GroupMessage[];
+      }>(
+        `/api/v1/chats/${encodeURIComponent(eventId)}/messages?limit=${safeMessageLimit}`,
         { requireAuth: true },
       );
-      if (active && response.messages) {
+      const responseMessages = response.data?.messages || response.messages;
+      if (active && responseMessages) {
         publishMessages(
           mergeMessages(
             latestMessages,
-            response.messages
+            responseMessages
               .map((message) => normalizeGroupMessage(message, eventId))
               .filter((message): message is GroupMessage => Boolean(message)),
             safeMessageLimit,
@@ -353,13 +343,16 @@ export async function getRecentGroupMessages(
 ): Promise<GroupMessage[]> {
   try {
     const safeMessageLimit = clampMessageLimit(messageLimit);
-    const response = await apiFetch<{ messages: GroupMessage[] }>(
-      `/api/v1/social/chat/${eventId}?limit=${safeMessageLimit}`,
+    const response = await apiFetch<{
+      data?: { messages: GroupMessage[] };
+      messages?: GroupMessage[];
+    }>(
+      `/api/v1/chats/${encodeURIComponent(eventId)}/messages?limit=${safeMessageLimit}`,
       { requireAuth: true },
     );
     return mergeMessages(
       [],
-      (response.messages || [])
+      (response.data?.messages || response.messages || [])
         .map((message) => normalizeGroupMessage(message, eventId))
         .filter((message): message is GroupMessage => Boolean(message)),
       safeMessageLimit,

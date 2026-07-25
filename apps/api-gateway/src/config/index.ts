@@ -29,6 +29,9 @@ const envSchema = z.object({
   CRON_SECRET: z.string().optional(),
   ARCHIVE_CHATS_CRON_SECRET: z.string().optional(),
   SCANNER_SESSION_SECRET: z.string().optional(),
+  WEBSOCKET_SESSION_SECRET: z.string().min(32).optional(),
+  PROMOTER_ATTRIBUTION_SECRET: z.string().min(32).optional(),
+  GUEST_REVALIDATION_SECRET: z.string().min(32).optional(),
   DEV_TOY_MODE: z.enum(['true', 'false']).default('false'),
   C1RCLE_PAYOUT_MUTATIONS_ENABLED: z.enum(['true', 'false']).default('false'),
   FRONTEND_URLS: z
@@ -63,10 +66,16 @@ if (_env.data.NODE_ENV === 'production') {
   const missingSecrets = [
     'QR_SECRET_KEY',
     'SCANNER_SESSION_SECRET',
+    'WEBSOCKET_SESSION_SECRET',
+    'PROMOTER_ATTRIBUTION_SECRET',
+    'GUEST_REVALIDATION_SECRET',
     'INTERNAL_API_KEY',
     'TICKET_SECRET',
     'QUEUE_SECRET_KEY',
     'RAZORPAY_KEY_SECRET',
+    'MSG91_AUTH_KEY',
+    'MSG91_TEMPLATE_ID',
+    'MSG91_SOS_TEMPLATE_ID',
   ].filter((name) => !process.env[name]);
   if (missingSecrets.length > 0) {
     console.error(`❌ Missing required production secrets: ${missingSecrets.join(', ')}`);

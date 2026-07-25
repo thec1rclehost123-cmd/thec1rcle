@@ -1,8 +1,11 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
+// @ts-ignore - JS module with runtime exports
+import { signPromoterAttribution } from '@c1rcle/core/promoter-attribution';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 import { resolvePartnerContext } from '../../lib/partner-context.js';
+import { getPermissionsForRole } from '../../lib/rbac-permissions.js';
 import { encrypt } from '../../lib/encryption.js';
 import { applyPublicCacheHeaders, buildVersionedPublicCacheKey } from '../../utils/public-cache';
 import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
@@ -127,12 +130,35 @@ const EventUpdateBody = EventCreateBody.partial();
 
 // Wizard auto-save sends { actor, updates } — accept both flat and wrapped forms.
 const PartnerEventUpdateBody = z.union([
-  z.object({
-    actor: z.unknown(),
-    updates: z.record(z.string(), z.unknown()),
-    action: z.string().optional(),
-  }),
+  z
+    .object({
+      actor: z.unknown().optional(),
+      updates: z.record(z.string(), z.unknown()),
+      action: z.enum(['draft', 'publish', 'submit']).optional(),
+    })
+    .strict(),
   z.record(z.string(), z.unknown()),
+]);
+
+const PROTECTED_EVENT_UPDATE_FIELDS = new Set([
+  'id',
+  'creatorId',
+  'creatorRole',
+  'workspaceId',
+  'hostId',
+  'venueId',
+  'ownership',
+  'financialAttribution',
+  'splitRuleSnapshot',
+  'partnerAttribution',
+  'lifecycle',
+  'status',
+  'visibility',
+  'approvalState',
+  'approvedBy',
+  'approvedAt',
+  'publishedAt',
+  'cancelledAt',
 ]);
 
 // Partner wizard sends a rich payload — validate only the required fields
@@ -1304,6 +1330,19 @@ export async function ensurePromoterLink(
     const linkId = `${promoterId}_${eventId}`;
     const linkRef = db.collection('promoter_links').doc(linkId);
     const linkDoc = await linkRef.get();
+    const assignmentVersion = 2;
+    const termsVersion = 2;
+    const attributionSignature = signPromoterAttribution({
+      assignmentId: linkId,
+      assignmentVersion,
+      termsVersion,
+      promoterId,
+      eventId,
+      commissionRate,
+      commissionType,
+      ticketTierIds: [],
+      tierCommissions,
+    });
 
     const now = new Date().toISOString();
     if (!linkDoc.exists) {
@@ -1320,6 +1359,10 @@ export async function ensurePromoterLink(
         commissionRate,
         commissionType,
         tierCommissions,
+        assignmentId: linkId,
+        assignmentVersion,
+        termsVersion,
+        attributionSignature,
         code: trackingCode,
         clicks: 0,
         conversions: 0,
@@ -1333,7 +1376,16 @@ export async function ensurePromoterLink(
       // Keep the link's payout-time commission in sync with the current
       // effective rate (standard flat rate, per-tier custom map, or salary's 0).
       await linkRef.set(
-        { commissionRate, commissionType, tierCommissions, updatedAt: now },
+        {
+          commissionRate,
+          commissionType,
+          tierCommissions,
+          assignmentId: linkId,
+          assignmentVersion,
+          termsVersion,
+          attributionSignature,
+          updatedAt: now,
+        },
         { merge: true },
       );
     }
@@ -1341,7 +1393,7 @@ export async function ensurePromoterLink(
     return trackingCode || '';
   } catch (err: any) {
     console.error(`[ensurePromoterLink] Error: ${err.message}`);
-    return '';
+    throw err;
   }
 }
 
@@ -1530,6 +1582,11 @@ async function syncEventPromoters(
               commissionRate: effective.rate,
               commissionType: effective.type,
               tierCommissions: effective.tierCommissions,
+              assignmentVersion: 2,
+              termsVersion: 2,
+              approvedByPartnerId:
+                eventData?.hostId || eventData?.venueId || eventData?.creatorId || null,
+              approvedAt: now,
               linkCode: trackingCode || null,
               totalSales: 0,
               totalRevenue: 0,
@@ -1571,15 +1628,23 @@ async function syncEventPromoters(
           effective.tierCommissions,
         );
         const assignId = `${promoterId}_${eventId}`;
-        await db.collection('promoter_assignments').doc(assignId).set(
-          {
-            commissionRate: effective.rate,
-            commissionType: effective.type,
-            tierCommissions: effective.tierCommissions,
-            updatedAt: now,
-          },
-          { merge: true },
-        );
+        await db
+          .collection('promoter_assignments')
+          .doc(assignId)
+          .set(
+            {
+              commissionRate: effective.rate,
+              commissionType: effective.type,
+              tierCommissions: effective.tierCommissions,
+              assignmentVersion: 2,
+              termsVersion: 2,
+              approvedByPartnerId:
+                eventData?.hostId || eventData?.venueId || eventData?.creatorId || null,
+              approvedAt: now,
+              updatedAt: now,
+            },
+            { merge: true },
+          );
       }),
     );
 
@@ -1667,12 +1732,67 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             );
           }
 
-          let q: any = fastify.db.collection('events');
-          if (creatorId) {
-            q = q.where('creatorId', '==', creatorId);
-          } else if (venueId) {
-            q = q.where('venueId', '==', venueId);
+          let partnerCtx;
+          try {
+            partnerCtx = await resolvePartnerContext(fastify.db, request);
+          } catch {
+            return reply.status(503).send(
+              buildErrorResponse({
+                code: 'AUTHORIZATION_UNAVAILABLE',
+                message: 'Partner authorization is unavailable',
+                requestId: request.id,
+              }),
+            );
           }
+          if (!partnerCtx) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Events not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          const membership = (request.authContext?.memberships || []).find(
+            (candidate: any) =>
+              candidate.partnerId === partnerCtx.partnerId &&
+              (candidate.isActive === true || candidate.status === 'active'),
+          );
+          const fallbackRole = partnerCtx.roles.some((role: string) => role.endsWith('_owner'))
+            ? 'owner'
+            : 'staff';
+          if (
+            !getPermissionsForRole(
+              partnerCtx.type,
+              String(membership?.role || fallbackRole),
+            ).includes('MANAGE_EVENTS')
+          ) {
+            return reply.status(403).send(
+              buildErrorResponse({
+                code: 'PERMISSION_REQUIRED',
+                message: 'MANAGE_EVENTS permission is required',
+                requestId: request.id,
+              }),
+            );
+          }
+          if (
+            (creatorId && creatorId !== partnerCtx.partnerId) ||
+            (venueId && venueId !== partnerCtx.partnerId)
+          ) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Events not found',
+                requestId: request.id,
+              }),
+            );
+          }
+
+          let q: any = fastify.db.collection('events');
+          q =
+            partnerCtx.type === 'venue'
+              ? q.where('venueId', '==', partnerCtx.partnerId)
+              : q.where('creatorId', '==', partnerCtx.partnerId);
 
           if (lifecycle) {
             const lifecycles = lifecycle
@@ -2490,6 +2610,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
         await fastify.invalidatePublicDiscovery('all');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id);
+        await fastify.revalidateGuestEvent(event.id, 'created');
 
         // Promoter attribution must be durable before the event mutation succeeds.
         const bodyPromotersEnabled = pc.enabled ?? false;
@@ -2540,53 +2661,125 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           }),
         );
 
-      // workspaceId from x-workspace-id header or auth context activeMembership.
-      // For solo owners (no partner_memberships doc), both may be null — derive from the event itself.
-      let workspaceId: string | null = request.workspaceId || null;
-      let existingEventSnap: any = null;
-      if (!workspaceId) {
-        const snap = await fastify.db
-          .collection('events')
-          .doc(id)
-          .get()
-          .catch(() => null);
-        if (snap?.exists) {
-          existingEventSnap = snap.data() as any;
-          const candidate: string =
-            existingEventSnap.workspaceId ||
-            existingEventSnap.creatorId ||
-            existingEventSnap.hostId ||
-            '';
-          if (candidate) {
-            const ok =
-              candidate === userId ||
-              (await fastify.verifyPartnerAccess(request, candidate).catch(() => false));
-            if (ok) workspaceId = candidate;
-          }
-        }
-      }
-      if (!workspaceId)
-        return reply.status(400).send(
+      const existingEventDoc = await fastify.db.collection('events').doc(id).get();
+      if (!existingEventDoc.exists) {
+        return reply.status(404).send(
           buildErrorResponse({
-            code: 'MISSING_SCOPE',
-            message: 'Missing workspace scope',
+            code: 'NOT_FOUND',
+            message: 'Event not found',
             requestId: request.id,
           }),
         );
+      }
+      const existingEventSnap = existingEventDoc.data() as Record<string, any>;
+
+      let partnerCtx;
+      try {
+        partnerCtx = await resolvePartnerContext(fastify.db, request);
+      } catch (error: any) {
+        request.log.error({ error }, 'Unable to resolve event update authorization');
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'AUTHORIZATION_UNAVAILABLE',
+            message: 'Partner authorization is unavailable',
+            requestId: request.id,
+          }),
+        );
+      }
+      if (!partnerCtx || !['host', 'venue'].includes(partnerCtx.type)) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Event not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      const membership = (request.authContext?.memberships || []).find(
+        (candidate: any) =>
+          candidate.partnerId === partnerCtx.partnerId &&
+          (candidate.isActive === true || candidate.status === 'active'),
+      );
+      const fallbackRole = partnerCtx.roles.some((role: string) => role.endsWith('_owner'))
+        ? 'owner'
+        : 'staff';
+      if (
+        !getPermissionsForRole(partnerCtx.type, String(membership?.role || fallbackRole)).includes(
+          'MANAGE_EVENTS',
+        )
+      ) {
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'PERMISSION_REQUIRED',
+            message: 'MANAGE_EVENTS permission is required',
+            requestId: request.id,
+          }),
+        );
+      }
+      const authorizedPartnerIds = new Set(
+        [
+          existingEventSnap.workspaceId,
+          existingEventSnap.creatorId,
+          existingEventSnap.hostId,
+          existingEventSnap.venueId,
+        ].filter(Boolean),
+      );
+      if (!authorizedPartnerIds.has(partnerCtx.partnerId)) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Event not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      const workspaceId: string =
+        existingEventSnap.workspaceId ||
+        existingEventSnap.creatorId ||
+        existingEventSnap.hostId ||
+        partnerCtx.partnerId;
 
       // Unwrap wizard auto-save envelope { actor, updates } → use updates as the patch body
       const rawBody: any = request.body;
-      const patchFields: any =
+      const submittedPatch: Record<string, unknown> =
         rawBody?.updates && typeof rawBody.updates === 'object' ? rawBody.updates : rawBody;
-
-      // Self-heal: venue-creator events saved before venueId fallback fix had venueId=""
-      if (
-        existingEventSnap &&
-        !existingEventSnap.venueId &&
-        (existingEventSnap.creatorRole === 'venue' || existingEventSnap.creatorRole === 'club') &&
-        existingEventSnap.creatorId
-      ) {
-        patchFields.venueId = patchFields.venueId || existingEventSnap.creatorId;
+      const protectedFields = Object.keys(submittedPatch).filter((field) =>
+        PROTECTED_EVENT_UPDATE_FIELDS.has(field),
+      );
+      if (protectedFields.length > 0) {
+        return reply.status(400).send(
+          buildErrorResponse({
+            code: 'PROTECTED_EVENT_FIELD',
+            message: `Protected event fields cannot be patched: ${protectedFields.join(', ')}`,
+            requestId: request.id,
+          }),
+        );
+      }
+      const patchFields: Record<string, any> = { ...submittedPatch };
+      const action = rawBody?.updates ? rawBody.action : undefined;
+      if (action === 'submit') {
+        return reply.status(400).send(
+          buildErrorResponse({
+            code: 'EVENT_COMMAND_REQUIRED',
+            message: 'Host submission must use the host event submission command',
+            requestId: request.id,
+          }),
+        );
+      }
+      if (action === 'publish') {
+        if (partnerCtx.type !== 'venue' || existingEventSnap.venueId !== partnerCtx.partnerId) {
+          return reply.status(403).send(
+            buildErrorResponse({
+              code: 'PERMISSION_REQUIRED',
+              message: 'Only the assigned venue can publish this event',
+              requestId: request.id,
+            }),
+          );
+        }
+        patchFields.lifecycle = 'scheduled';
+        patchFields.status = 'active';
+        patchFields.visibility = 'public';
+        patchFields.publishedAt = new Date().toISOString();
       }
 
       // --- Promoter compensation validation + stale-model cleanup ---
@@ -2778,6 +2971,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
         await fastify.invalidatePublicDiscovery('all');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id);
+        await fastify.revalidateGuestEvent(event.id, 'updated');
 
         if (touchesCompensation) {
           const settingsDoc = await fastify.db
@@ -2937,28 +3131,59 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         );
 
       const body: Record<string, any> = { ...request.body };
+      let partnerCtx;
+      try {
+        partnerCtx = await resolvePartnerContext(fastify.db, request);
+      } catch (error: any) {
+        request.log.error({ error }, 'Unable to resolve event creator partner context');
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'AUTHORIZATION_UNAVAILABLE',
+            message: 'Partner authorization is unavailable',
+            requestId: request.id,
+          }),
+        );
+      }
+      if (!partnerCtx || !['host', 'venue'].includes(partnerCtx.type)) {
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'PARTNER_SCOPE_REQUIRED',
+            message: 'An active host or venue membership is required',
+            requestId: request.id,
+          }),
+        );
+      }
+      const membership = (request.authContext?.memberships || []).find(
+        (candidate: any) =>
+          candidate.partnerId === partnerCtx.partnerId &&
+          (candidate.isActive === true || candidate.status === 'active'),
+      );
+      const fallbackRole = partnerCtx.roles.some((role: string) => role.endsWith('_owner'))
+        ? 'owner'
+        : 'staff';
+      const permissions = getPermissionsForRole(
+        partnerCtx.type,
+        String(membership?.role || fallbackRole),
+      );
+      if (!permissions.includes('MANAGE_EVENTS')) {
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'PERMISSION_REQUIRED',
+            message: 'MANAGE_EVENTS permission is required',
+            requestId: request.id,
+          }),
+        );
+      }
 
-      let hostId: string = body.creatorId || body.hostId || userId;
+      const creatorRole = partnerCtx.type;
+      const creatorPartnerId = partnerCtx.partnerId;
+      let hostId: string = creatorPartnerId;
       const isDraft: boolean = body.lifecycle === 'draft';
-      if (body.creatorRole === 'host') {
-        body.creatorId = hostId;
-        body.hostId = hostId;
-      }
-
-      // Verify the authenticated user has access to the claimed partner identity.
-      // Skip when creatorId === userId (solo user whose Firebase UID is the partner doc ID).
-      if (hostId !== userId) {
-        const hasAccess = await fastify.verifyPartnerAccess(request, hostId).catch(() => false);
-        if (!hasAccess) {
-          return reply.status(403).send(
-            buildErrorResponse({
-              code: 'FORBIDDEN',
-              message: 'You do not have access to this partner account',
-              requestId: request.id,
-            }),
-          );
-        }
-      }
+      body.creatorRole = creatorRole;
+      body.creatorId = creatorPartnerId;
+      body.workspaceId = creatorPartnerId;
+      body.hostId = creatorPartnerId;
+      if (creatorRole === 'venue') body.venueId = creatorPartnerId;
 
       // --- Normalize image fields ---
       const normalizedPoster =
@@ -2973,17 +3198,8 @@ export default async function eventRoutes(fastify: FastifyInstance) {
       // For venue/club creators, ensure venueId is the actual venue Firestore doc ID.
       // When activeMembership is null on the client, the wizard sends creatorId=uid which
       // can differ from the venue's Firestore document ID. resolvePartnerContext gives the truth.
-      if ((body.creatorRole === 'venue' || body.creatorRole === 'club') && !body.venueId) {
-        const partnerCtx = await resolvePartnerContext(fastify.db, request).catch(() => null);
-        if (partnerCtx?.type === 'venue' && partnerCtx.partnerId) {
-          body.venueId = partnerCtx.partnerId;
-          body.creatorId = partnerCtx.partnerId;
-          hostId = partnerCtx.partnerId; // update so buildEvent uses the venue doc ID, not uid
-        }
-      }
-
       // --- Resolve host–venue selection ---
-      if (body.creatorRole === 'host' && body.venueId) {
+      if (creatorRole === 'host' && body.venueId) {
         const activeSnap = await fastify.db
           .collection('partnerships')
           .where('hostId', '==', hostId)
@@ -3059,7 +3275,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
       }
 
       // --- Active partnership enforcement ---
-      if (body.creatorRole === 'host' && body.venueId && !isDraft) {
+      if (creatorRole === 'host' && body.venueId && !isDraft) {
         const partnershipSnap = await fastify.db
           .collection('partnerships')
           .where('hostId', '==', hostId)
@@ -3080,10 +3296,10 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
       // --- Lifecycle enforcement ---
       if (!isDraft) {
-        if (body.creatorRole === 'host') {
+        if (creatorRole === 'host') {
           body.lifecycle = 'submitted';
           // visibility stays as-is (will be set to 'public' when venue approves)
-        } else if (body.creatorRole === 'venue' || body.creatorRole === 'club') {
+        } else if (creatorRole === 'venue') {
           body.lifecycle = 'scheduled';
           body.visibility = 'public'; // Venue events self-approve — stamp public immediately
         }
@@ -3140,8 +3356,14 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         };
         const eventRecord = await enrichPartnerSnapshots(fastify.db, event);
 
+        body.creatorRole = creatorRole;
+        body.creatorId = creatorPartnerId;
+        body.workspaceId = creatorPartnerId;
+        body.hostId = creatorPartnerId;
+        if (creatorRole === 'venue') body.venueId = creatorPartnerId;
+
         const slotRecord =
-          body.creatorRole === 'host' && body.venueId && !isDraft
+          body.venueId && !isDraft
             ? {
                 eventId: event.id,
                 hostId,
@@ -3157,8 +3379,8 @@ export default async function eventRoutes(fastify: FastifyInstance) {
                 requestedEndTime: body.endTime || null,
                 requestedBy: hostId,
                 notes: `Event creation request: ${body.title}`,
-                source: 'host_event_request',
-                status: 'pending',
+                source: creatorRole === 'host' ? 'host_event_request' : 'venue_self_booking',
+                status: creatorRole === 'host' ? 'pending' : 'booked',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
                 createdBy: userId,
@@ -3201,6 +3423,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         await fastify.cache.invalidateNamespace('events:nearby');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id);
         await fastify.invalidatePublicDiscovery('all');
+        await fastify.revalidateGuestEvent(event.id, 'created');
 
         // Promoter attribution must be durable before creation returns.
         const bodyPromotersEnabled = pcBody.enabled ?? false;

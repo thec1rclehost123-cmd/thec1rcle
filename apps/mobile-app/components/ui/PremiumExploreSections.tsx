@@ -1,14 +1,7 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  Pressable,
-  Dimensions,
-  Image as RNImage,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable, Dimensions, Image as RNImage } from 'react-native';
 import { Image } from 'expo-image';
+import { FlashList } from '@shopify/flash-list';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
@@ -129,17 +122,10 @@ function HorizontalEventRail({
 }) {
   const visibleEvents = events.slice(0, limit);
   return (
-    <ScrollView
-      horizontal
-      bounces={false}
-      overScrollMode="never"
-      showsHorizontalScrollIndicator={false}
-      snapToInterval={FOR_YOU_CARD_WIDTH + EXPLORE_RAIL_GAP}
-      decelerationRate="fast"
-      contentContainerStyle={styles.horizontalRailContent}
-    >
-      {visibleEvents.map((item, index) => (
-        <View key={item.id} style={[styles.horizontalRailItem, { zIndex: index + 1 }]}>
+    <FlashList
+      data={visibleEvents}
+      renderItem={({ item, index }) => (
+        <View style={[styles.horizontalRailItem, { zIndex: index + 1 }]}>
           <PremiumEventCard
             event={item}
             index={index}
@@ -147,8 +133,16 @@ function HorizontalEventRail({
             hideGradient={hideGradient}
           />
         </View>
-      ))}
-    </ScrollView>
+      )}
+      keyExtractor={(item) => item.id}
+      horizontal
+      bounces={false}
+      overScrollMode="never"
+      showsHorizontalScrollIndicator={false}
+      snapToInterval={FOR_YOU_CARD_WIDTH + EXPLORE_RAIL_GAP}
+      decelerationRate="fast"
+      contentContainerStyle={styles.horizontalRailContent}
+    />
   );
 }
 
@@ -186,13 +180,10 @@ export function TopVenues({ city }: { city?: string }) {
   return (
     <View style={styles.section}>
       <SectionHeader title="Top Venues" onViewAll={() => router.push('/(tabs)/venues')} />
-      <ScrollView
-        horizontal
-        bounces={false}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: EXPLORE_SIDE_INSET, gap: EXPLORE_RAIL_GAP }}
-      >
-        {venues.slice(0, 8).map((venue, index) => {
+      <FlashList
+        data={venues.slice(0, 8)}
+        keyExtractor={(venue) => venue.id}
+        renderItem={({ item: venue, index }) => {
           const img =
             venue.photoURL ||
             venue.image ||
@@ -201,7 +192,6 @@ export function TopVenues({ city }: { city?: string }) {
             'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600';
           return (
             <AnimatedPressable
-              key={venue.id}
               entering={FadeInRight.delay(index * 50).duration(400)}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -225,6 +215,7 @@ export function TopVenues({ city }: { city?: string }) {
                   source={{ uri: img }}
                   style={StyleSheet.absoluteFillObject}
                   contentFit="cover"
+                  cachePolicy="memory-disk"
                 />
               </View>
               <Text
@@ -253,8 +244,12 @@ export function TopVenues({ city }: { city?: string }) {
               </Text>
             </AnimatedPressable>
           );
-        })}
-      </ScrollView>
+        }}
+        horizontal
+        bounces={false}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: EXPLORE_SIDE_INSET, gap: EXPLORE_RAIL_GAP }}
+      />
     </View>
   );
 }
@@ -285,18 +280,19 @@ export function TrendingRightNow({ events }: { events: Event[] }) {
         title="Hottest Scenes"
         onViewAll={() => router.push({ pathname: '/events/feed', params: { type: 'trending' } })}
       />
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: EXPLORE_SIDE_INSET, gap: EXPLORE_RAIL_GAP }}
-      >
-        {events.slice(0, 6).map((item, index) => (
-          <View key={item.id} style={{ width: FOR_YOU_CARD_WIDTH }}>
+      <FlashList
+        data={events.slice(0, 6)}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) => (
+          <View style={{ width: FOR_YOU_CARD_WIDTH }}>
             <Text style={styles.rankNumber}>{index + 1}</Text>
             <PremiumEventCard event={item} index={index} variant="standard" hideGradient />
           </View>
-        ))}
-      </ScrollView>
+        )}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: EXPLORE_SIDE_INSET, gap: EXPLORE_RAIL_GAP }}
+      />
     </View>
   );
 }

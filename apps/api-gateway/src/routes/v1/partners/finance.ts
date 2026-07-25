@@ -4,6 +4,10 @@ import { resolvePartnerContext } from '../../../lib/partner-context.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
 import { buildPayoutAccountRecord } from '../../../lib/partner-hardening.js';
+import {
+  getPermissionsForRole,
+  type Permission,
+} from '../../../lib/rbac-permissions.js';
 
 const LedgerQuerySchema = z
   .object({
@@ -40,19 +44,91 @@ const DisputesQuerySchema = z
   })
   .strict();
 
-const BankAccountSchema = z.object({
-  accountNumber: z.string(),
-  ifscCode: z.string(),
-  bankName: z.string(),
-  accountHolderName: z.string(),
-  isDefault: z.boolean().optional(),
-});
+const BankAccountSchema = z
+  .object({
+    accountNumber: z.string().regex(/^\d{6,20}$/),
+    ifscCode: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/i),
+    bankName: z.string().trim().min(2).max(120),
+    accountHolderName: z.string().trim().min(2).max(120),
+    isDefault: z.boolean().optional(),
+  })
+  .strict();
 
 export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   const financeService = new FinanceService({
     db: fastify.db,
     log: fastify.log,
     redis: fastify.redis,
+  });
+
+  const resolveAuthorizedFinanceContext = async (
+    request: any,
+    permission: Permission,
+  ) => {
+    await fastify.enrichAuthContext(request);
+    const ctx = await resolvePartnerContext(fastify.db, request);
+    if (!ctx) return null;
+
+    const membership = request.authContext?.memberships?.find(
+      (candidate: any) =>
+        candidate.partnerId === ctx.partnerId &&
+        candidate.isActive === true &&
+        String(candidate.status || 'active').toLowerCase() !== 'removed',
+    );
+
+    let role = membership?.role ? String(membership.role) : '';
+    const partnerType = membership?.partnerType
+      ? String(membership.partnerType)
+      : String(ctx.type);
+
+    if (!role) {
+      if (ctx.roles.includes('venue_owner') || ctx.roles.includes('host_owner')) {
+        role = 'owner';
+      } else if (ctx.roles.includes('promoter_owner')) {
+        role = 'promoter';
+      }
+    }
+
+    const permissions = getPermissionsForRole(partnerType, role);
+    if (!permissions.includes(permission)) return null;
+    return ctx;
+  };
+
+  fastify.addHook('preHandler', async (request: any, reply: any) => {
+    if (!request.user) {
+      return reply.status(401).send(
+        buildErrorResponse({
+          code: 'AUTH_REQUIRED',
+          message: 'Authentication required',
+          requestId: request.id,
+        }),
+      );
+    }
+
+    const requiredPermission: Permission =
+      request.method === 'GET' || request.method === 'HEAD'
+        ? 'VIEW_FINANCIALS'
+        : 'MANAGE_PAYOUTS';
+    const ctx = await resolveAuthorizedFinanceContext(request, requiredPermission);
+    if (!ctx) {
+      request.log.warn(
+        {
+          uid: request.user.uid,
+          permission: requiredPermission,
+          route: `${request.method} ${request.url}`,
+          requestId: request.id,
+        },
+        'Partner finance permission denied',
+      );
+      return reply.status(403).send(
+        buildErrorResponse({
+          code: 'PERMISSION_REQUIRED',
+          message: `${requiredPermission} permission is required`,
+          requestId: request.id,
+        }),
+      );
+    }
+    request.financePartnerContext = ctx;
   });
 
   const resolveFinanceContext = async (request: any, reply: any) => {
@@ -805,14 +881,20 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
         });
         const items = asArray(payouts.data).map((payout: Record<string, any>) => ({
           id: payout.payoutId,
-          arrivalDate: payout.requestedAt ?? payout.completedAt ?? null,
+          requestedAt: payout.requestedAt ?? null,
+          completedAt: payout.completedAt ?? null,
+          arrivalDate: payout.completedAt ?? payout.requestedAt ?? null,
+          amountPaise: toNumber(payout.amountPaise),
           amount: toNumber(payout.amount),
           currency: payout.currency || 'INR',
-          status: payout.status || 'paid',
-          eventName: null,
-          description: 'Event Revenue',
+          status: payout.status || 'pending',
+          paymentMethod: payout.paymentMethod ?? null,
         }));
-        return reply.send({ payouts: items, hasMore: Boolean(payouts.hasMore) });
+        return reply.send({
+          payouts: items,
+          hasMore: Boolean(payouts.hasMore),
+          nextCursor: payouts.nextCursor || null,
+        });
       }
 
       if (rest === 'venue/bank-accounts' && request.method === 'GET') {

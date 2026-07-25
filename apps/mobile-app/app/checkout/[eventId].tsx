@@ -26,6 +26,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useEventsStore, type Event, type TicketTier } from '@/store/eventsStore';
 import { useCartStore } from '@/store/cartStore';
+import { useShallow } from 'zustand/react/shallow';
 import { colors, gradients, typography } from '@/lib/design/theme';
 import { resolveEventAccentColor, TICKET_ACCENT } from '@/hooks/useEventAccent';
 import { getEventImage } from '@/lib/utils/event';
@@ -339,8 +340,20 @@ export default function TicketSelectionScreen() {
   const { eventId, ref } = useLocalSearchParams<{ eventId?: string; ref?: string }>();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
-  const { getEventById, events, featuredEvents } = useEventsStore();
-  const { items: cartItems, clearCart, addItem } = useCartStore();
+  const { getEventById, events, featuredEvents } = useEventsStore(
+    useShallow((state) => ({
+      getEventById: state.getEventById,
+      events: state.events,
+      featuredEvents: state.featuredEvents,
+    })),
+  );
+  const { cartItems, clearCart, addItem } = useCartStore(
+    useShallow((state) => ({
+      cartItems: state.items,
+      clearCart: state.clearCart,
+      addItem: state.addItem,
+    })),
+  );
   const [event, setEvent] = useState<Event | null>(() => {
     if (!eventId) return null;
     return (

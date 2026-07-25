@@ -1,5 +1,5 @@
 import { getAdminDb } from '@c1rcle/core/admin';
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { transferEntitlement } from '@c1rcle/core/entitlement-engine';
 import { deductInventory } from '@c1rcle/core/inventory-engine';
 import { getTicketSecret } from './secret-registry.js';
@@ -116,6 +116,19 @@ const ORDERS_COLLECTION = 'orders';
 const SHARE_BUNDLES_COLLECTION = 'share_bundles';
 const TICKET_ASSIGNMENTS_COLLECTION = 'ticket_assignments';
 const TRANSFERS_COLLECTION = 'transfers';
+const TRANSFER_EVENTS_COLLECTION = 'ticket_transfer_events';
+
+function hashTransferToken(token) {
+  return createHash('sha256').update(String(token)).digest('hex');
+}
+
+function activeTransferDocumentId(ticketId) {
+  return `ACTIVE-${createHash('sha256').update(String(ticketId)).digest('hex').slice(0, 40)}`;
+}
+
+function normalizeVerifiedEmail(email) {
+  return typeof email === 'string' ? email.trim().toLowerCase() : null;
+}
 
 /**
  * Generate a non-guessable token for the share link or transfer
@@ -1384,31 +1397,41 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
     }
   }
 
-  // 3. Concurrency Check: Existing Pending Transfer
-  const existingPending = await db
-    .collection(TRANSFERS_COLLECTION)
+  const ticketSnapshot = await db
+    .collection('tickets')
     .where('ticketId', '==', ticketId)
-    .where('senderId', '==', senderId)
-    .where('status', '==', 'pending')
+    .limit(1)
     .get();
-
-  if (!existingPending.empty) {
-    // If already exists, return the existing one or cancel it?
-    // Let's just return the existing one if it's not expired.
-    const existing = existingPending.docs[0];
-    const data = existing.data();
-    if (new Date(data.expiresAt) > new Date()) {
-      return { id: existing.id, ...data };
-    }
-    // If expired, we'll mark it as expired and continue to create a new one
-    await existing.ref.update({ status: 'expired', updatedAt: new Date().toISOString() });
+  if (ticketSnapshot.empty) {
+    const error = new Error('Canonical ticket artifact is required before transfer');
+    error.code = 'TICKET_TRANSFER_ARTIFACT_MISSING';
+    throw error;
+  }
+  const ticketRef = ticketSnapshot.docs[0].ref;
+  if (!entitlementId) {
+    const entitlementSnapshot = await db
+      .collection('entitlements')
+      .where('ticketId', '==', ticketId)
+      .limit(1)
+      .get();
+    if (!entitlementSnapshot.empty) entitlementId = entitlementSnapshot.docs[0].id;
+  }
+  if (!entitlementId) {
+    const error = new Error('Canonical entitlement artifact is required before transfer');
+    error.code = 'TICKET_TRANSFER_ARTIFACT_MISSING';
+    throw error;
   }
 
-  // 4. Create Transfer Record
+  // 3. Create one deterministic active transfer record per canonical ticket.
   const token = generateToken(20);
+  const tokenHash = hashTransferToken(token);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
   const senderProfile = await db.collection('users').doc(senderId).get();
   const senderData = senderProfile.exists ? senderProfile.data() : {};
+  const transferId = activeTransferDocumentId(ticketId);
+  const transferRef = db.collection(TRANSFERS_COLLECTION).doc(transferId);
+  const entitlementRef = db.collection('entitlements').doc(entitlementId);
+  const now = new Date().toISOString();
 
   const transfer = {
     ticketId,
@@ -1420,200 +1443,329 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
     entitlementId,
     senderId,
     senderName: senderData.displayName || senderData.name || 'Member',
-    recipientEmail: recipientEmail ? recipientEmail.toLowerCase() : null,
+    recipientEmail: normalizeVerifiedEmail(recipientEmail),
     eventId,
     eventTitle: event?.title || 'Event',
     status: 'pending',
-    token,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    tokenHash,
+    tokenVersion: 2,
+    createdAt: now,
+    updatedAt: now,
     expiresAt: expiresAt.toISOString(),
   };
 
-  const docRef = await db.collection(TRANSFERS_COLLECTION).add(transfer);
+  await db.runTransaction(async (transaction) => {
+    const [activeTransferDoc, ticketDoc, entitlementDoc] = await Promise.all([
+      transaction.get(transferRef),
+      transaction.get(ticketRef),
+      transaction.get(entitlementRef),
+    ]);
+    if (activeTransferDoc.exists) {
+      const active = activeTransferDoc.data();
+      if (active.status === 'pending' && new Date(active.expiresAt).getTime() > Date.now()) {
+        const error = new Error('This ticket already has an active transfer');
+        error.code = 'TRANSFER_ALREADY_PENDING';
+        throw error;
+      }
+    }
+    if (!ticketDoc.exists || !entitlementDoc.exists) {
+      const error = new Error('Canonical ticket artifacts are unavailable');
+      error.code = 'TICKET_TRANSFER_ARTIFACT_MISSING';
+      throw error;
+    }
+    const ticket = ticketDoc.data();
+    const entitlement = entitlementDoc.data();
+    if (
+      ticket.userId !== senderId ||
+      entitlement.ownerUserId !== senderId ||
+      ticket.status !== 'active' ||
+      !['ACTIVE', 'ISSUED'].includes(String(entitlement.state).toUpperCase()) ||
+      Number(ticket.scanCountUsed || 0) > 0 ||
+      Number(entitlement.scanCountUsed || 0) > 0
+    ) {
+      const error = new Error('Ticket is no longer eligible for transfer');
+      error.code = 'TRANSFER_NOT_ELIGIBLE';
+      throw error;
+    }
 
-  await logAuditEvent(
-    'transfer_initiated',
-    {
-      transferId: docRef.id,
-      ticketId,
-      senderId,
-      recipientEmail: transfer.recipientEmail,
-      method: recipientEmail ? 'email' : 'link',
-    },
-    db,
-  );
+    transaction.set(transferRef, transfer);
+    transaction.update(ticketRef, {
+      transferStatus: 'pending_transfer',
+      activeTransferId: transferId,
+      updatedAt: now,
+    });
+    transaction.update(entitlementRef, {
+      transferStatus: 'pending_transfer',
+      activeTransferId: transferId,
+      updatedAt: now,
+    });
+    transaction.set(
+      db.collection(TRANSFER_EVENTS_COLLECTION).doc(`INITIATED-${tokenHash}`),
+      {
+        type: 'ticket_transfer_initiated',
+        transferId,
+        ticketId,
+        senderId,
+        recipientEmail: transfer.recipientEmail,
+        method: recipientEmail ? 'email' : 'link',
+        createdAt: now,
+      },
+      { merge: false },
+    );
+  });
 
-  return { id: docRef.id, ...transfer };
+  return { id: transferId, ...transfer, token };
 }
 
 /**
  * Accept a ticket transfer
  */
-export async function acceptTransfer(tokenOrId, recipientId) {
+export async function acceptTransfer(tokenOrId, recipientId, principal = {}) {
   if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
   const db = getAdminDb();
-
-  return await db.runTransaction(async (transaction) => {
-    // Lookup by ID first, then by token
-    let transferRef = db.collection(TRANSFERS_COLLECTION).doc(tokenOrId);
-    let transferDoc = await transaction.get(transferRef);
-
-    if (!transferDoc.exists) {
-      const tokenQuery = await db
-        .collection(TRANSFERS_COLLECTION)
-        .where('token', '==', tokenOrId)
-        .limit(1)
-        .get();
-      if (tokenQuery.empty) throw new Error('Transfer link is invalid or has been revoked.');
-      transferRef = tokenQuery.docs[0].ref;
-      transferDoc = tokenQuery.docs[0];
+  const tokenHash = hashTransferToken(tokenOrId);
+  let transferRef = db.collection(TRANSFERS_COLLECTION).doc(tokenOrId);
+  let transferLookup = await transferRef.get();
+  if (!transferLookup.exists) {
+    const tokenQuery = await db
+      .collection(TRANSFERS_COLLECTION)
+      .where('tokenHash', '==', tokenHash)
+      .limit(2)
+      .get();
+    if (tokenQuery.size !== 1) {
+      const error = new Error('Transfer link is invalid or has been revoked.');
+      error.code = 'TRANSFER_INVALID';
+      throw error;
     }
+    transferRef = tokenQuery.docs[0].ref;
+    transferLookup = tokenQuery.docs[0];
+  }
 
+  const lookupData = transferLookup.data();
+  const ticketSnapshot = await db
+    .collection('tickets')
+    .where('ticketId', '==', lookupData.ticketId)
+    .limit(2)
+    .get();
+  if (ticketSnapshot.size !== 1 || !lookupData.entitlementId) {
+    const error = new Error('Canonical ticket artifacts are missing or ambiguous');
+    error.code = 'TICKET_TRANSFER_ARTIFACT_MISSING';
+    throw error;
+  }
+
+  const ticketRef = ticketSnapshot.docs[0].ref;
+  const entitlementRef = db.collection('entitlements').doc(lookupData.entitlementId);
+  const recipientRef = db.collection('users').doc(recipientId);
+  const eventRef = db.collection('events').doc(lookupData.eventId);
+  const orderRef = db.collection(ORDERS_COLLECTION).doc(lookupData.orderId);
+  const assignmentRef = lookupData.ticketId.startsWith('CLAIM-')
+    ? db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(lookupData.ticketId)
+    : null;
+  const senderBlockedRecipientQuery = db
+    .collection('userBlocks')
+    .where('blockerUid', '==', lookupData.senderId)
+    .where('blockedUid', '==', recipientId)
+    .limit(1);
+  const recipientBlockedSenderQuery = db
+    .collection('userBlocks')
+    .where('blockerUid', '==', recipientId)
+    .where('blockedUid', '==', lookupData.senderId)
+    .limit(1);
+  const newPublicToken = `stk_${createHmac('sha256', getTicketSecret())
+    .update(`transfer:${transferRef.id}:${tokenHash}:${recipientId}`)
+    .digest('base64url')
+    .slice(0, 32)}`;
+
+  const result = await db.runTransaction(async (transaction) => {
+    const [
+      transferDoc,
+      ticketDoc,
+      entitlementDoc,
+      recipientDoc,
+      eventDoc,
+      orderDoc,
+      senderBlockedRecipient,
+      recipientBlockedSender,
+      assignmentDoc,
+    ] = await Promise.all([
+      transaction.get(transferRef),
+      transaction.get(ticketRef),
+      transaction.get(entitlementRef),
+      transaction.get(recipientRef),
+      transaction.get(eventRef),
+      transaction.get(orderRef),
+      transaction.get(senderBlockedRecipientQuery),
+      transaction.get(recipientBlockedSenderQuery),
+      assignmentRef ? transaction.get(assignmentRef) : Promise.resolve(null),
+    ]);
+    if (!transferDoc.exists) return { error: 'TRANSFER_INVALID' };
     const transfer = transferDoc.data();
     const transferId = transferDoc.id;
 
-    // 1. Validation Logic
-    if (transfer.status !== 'pending') {
-      if (transfer.status === 'accepted') throw new Error('This ticket has already been claimed.');
-      if (transfer.status === 'cancelled')
-        throw new Error('This transfer was cancelled by the sender.');
-      throw new Error(`This transfer is no longer valid (Status: ${transfer.status})`);
-    }
-
-    if (new Date(transfer.expiresAt) < new Date()) {
-      transaction.update(transferRef, { status: 'expired', updatedAt: new Date().toISOString() });
-      throw new Error(
-        'This transfer link has expired. Please ask the sender to generate a new one.',
-      );
-    }
-
-    if (transfer.senderId === recipientId) {
-      throw new Error('You already own this ticket.');
-    }
-
-    if (await isUserBlocked(recipientId, db)) {
-      throw new Error('Your account is restricted from accepting ticket transfers.');
-    }
-
-    const ticketId = transfer.ticketId;
-    const recipientGender = await getUserGender(recipientId);
-    const transferGenderRequirement = transfer.requiredGender || 'any';
-    if (transferGenderRequirement !== 'any' && recipientGender !== transferGenderRequirement) {
-      throw new Error(
-        `Restricted: This ticket is for ${transferGenderRequirement === 'female' ? 'Females' : 'Males'} only.`,
-      );
-    }
-    const parts = ticketId.split('-');
-
-    // 2. Ownership Verify (Verify sender still owns it)
-    if (ticketId.startsWith('CLAIM-')) {
-      const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(ticketId);
-      const assignmentDoc = await transaction.get(assignmentRef);
-      if (!assignmentDoc.exists || assignmentDoc.data().redeemerId !== transfer.senderId) {
-        transaction.update(transferRef, {
-          status: 'invalidated',
-          updatedAt: new Date().toISOString(),
-        });
-        throw new Error("This ticket is no longer in the sender's wallet.");
+    if (transfer.status === 'accepted') {
+      if (transfer.recipientId === recipientId) {
+        return {
+          success: true,
+          alreadyClaimed: true,
+          ticketId: transfer.ticketId,
+          entitlementId: transfer.entitlementId,
+        };
       }
-    } else {
-      const orderId = parts.slice(0, parts.length - 2).join('-');
-      const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
-      const orderDoc = await transaction.get(orderRef);
-      if (!orderDoc.exists || orderDoc.data().userId !== transfer.senderId) {
-        transaction.update(transferRef, {
-          status: 'invalidated',
-          updatedAt: new Date().toISOString(),
-        });
-        throw new Error('The sender no longer owns the order containing this ticket.');
-      }
+      return { error: 'TRANSFER_ALREADY_CLAIMED' };
     }
-
-    // 3. Atomic Handoff
-    let requiredGender = 'any';
-    const now = new Date().toISOString();
-
-    if (ticketId.startsWith('CLAIM-')) {
-      const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(ticketId);
-      const assignmentData = (await transaction.get(assignmentRef)).data();
-      requiredGender = assignmentData.requiredGender || transferGenderRequirement;
-
-      // Log old identity removal
-      await logAuditEvent(
-        'assignment_transferred_out',
-        { assignmentId: ticketId, formerOwner: transfer.senderId, newOwner: recipientId },
-        db,
-      );
-
-      // Update assignment
-      transaction.update(assignmentRef, {
-        redeemerId: recipientId,
-        previousOwnerId: transfer.senderId,
-        updatedAt: now,
-        transferSource: 'formal_transfer',
-        receivedFrom: transfer.senderName || 'Unknown',
+    if (transfer.status !== 'pending') return { error: 'TRANSFER_NOT_PENDING' };
+    if (transfer.tokenHash !== tokenHash && tokenOrId !== transferId) {
+      return { error: 'TRANSFER_INVALID' };
+    }
+    if (new Date(transfer.expiresAt).getTime() <= Date.now()) {
+      transaction.update(transferRef, {
+        status: 'expired',
+        updatedAt: new Date().toISOString(),
       });
-    } else {
-      // Convert direct order ticket to an assignment for the new user
-      const assignmentId = `TRANS-${ticketId}-${recipientId.slice(0, 5)}-${randomBytes(4).toString('hex')}`;
-      const qrPayload = signTicketPayload(assignmentId);
+      return { error: 'TRANSFER_EXPIRED' };
+    }
+    if (transfer.senderId === recipientId) return { error: 'TRANSFER_SELF_CLAIM' };
 
-      const assignment = {
-        originalTicketId: ticketId,
-        orderId: transfer.orderId || parts.slice(0, parts.length - 2).join('-'),
-        tierId: transfer.tierId || parts[parts.length - 2],
-        slotIndex: transfer.slotIndex || Number(parts[parts.length - 1]),
-        redeemerId: recipientId,
-        originalPurchaserId: transfer.senderId,
-        senderId: transfer.senderId,
-        eventId: transfer.eventId,
-        status: 'active',
-        assignmentId,
-        qrPayload,
-        requiredGender: transferGenderRequirement,
-        entitlementId: transfer.entitlementId || null,
-        ticketType: transfer.ticketType || 'Transferred Pass',
-        transferredAt: now,
-        createdAt: now,
-        updatedAt: now,
-        receivedFrom: transfer.senderName || 'Unknown',
-      };
-
-      transaction.set(db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(assignmentId), assignment);
+    const intendedEmail = normalizeVerifiedEmail(transfer.recipientEmail);
+    const verifiedEmail = normalizeVerifiedEmail(principal.email);
+    if (
+      intendedEmail &&
+      (principal.emailVerified !== true || !verifiedEmail || verifiedEmail !== intendedEmail)
+    ) {
+      return { error: 'TRANSFER_RECIPIENT_MISMATCH' };
+    }
+    if (!recipientDoc.exists || recipientDoc.data().status === 'banned') {
+      return { error: 'TRANSFER_RECIPIENT_INELIGIBLE' };
+    }
+    if (!senderBlockedRecipient.empty || !recipientBlockedSender.empty) {
+      return { error: 'TRANSFER_BLOCKED_RELATIONSHIP' };
+    }
+    if (!eventDoc.exists || !orderDoc.exists || !ticketDoc.exists || !entitlementDoc.exists) {
+      return { error: 'TICKET_TRANSFER_ARTIFACT_MISSING' };
     }
 
-    // 4. Entitlement Engine
-    if (transfer.entitlementId) {
-      await transferEntitlement(
-        transfer.entitlementId,
-        recipientId,
-        transfer.senderId,
-        transaction,
-      );
+    const event = eventDoc.data();
+    const order = orderDoc.data();
+    const ticket = ticketDoc.data();
+    const entitlement = entitlementDoc.data();
+    const eventStart = new Date(event.startDate || event.startAt || 0).getTime();
+    if (Number.isFinite(eventStart) && eventStart - Date.now() < 2 * 60 * 60 * 1000) {
+      return { error: 'TRANSFER_WINDOW_CLOSED' };
+    }
+    if (
+      ['refunded', 'cancelled', 'refund_pending'].includes(
+        String(order.status || '').toLowerCase(),
+      ) ||
+      ticket.userId !== transfer.senderId ||
+      entitlement.ownerUserId !== transfer.senderId ||
+      ticket.status !== 'active' ||
+      !['ACTIVE', 'ISSUED'].includes(String(entitlement.state).toUpperCase()) ||
+      Number(ticket.scanCountUsed || 0) > 0 ||
+      Number(entitlement.scanCountUsed || 0) > 0 ||
+      (assignmentRef &&
+        (!assignmentDoc?.exists || assignmentDoc.data().redeemerId !== transfer.senderId))
+    ) {
+      return { error: 'TRANSFER_NOT_ELIGIBLE' };
     }
 
-    // 5. Finalize Transfer Record
-    transaction.update(transferRef, {
-      status: 'accepted',
-      recipientId: recipientId,
-      acceptedAt: now,
+    const transferGenderRequirement = transfer.requiredGender || 'any';
+    const recipientGender = recipientDoc.data().gender;
+    if (transferGenderRequirement !== 'any' && recipientGender !== transferGenderRequirement) {
+      return { error: 'TRANSFER_RECIPIENT_INELIGIBLE' };
+    }
+
+    const now = new Date().toISOString();
+    const nextQrVersion = Number(ticket.qrVersion || 1) + 1;
+    transaction.update(ticketRef, {
+      userId: recipientId,
+      previousOwnerUserId: transfer.senderId,
+      transferStatus: 'transferred',
+      activeTransferId: null,
+      qrVersion: nextQrVersion,
+      transferredAt: now,
+      updatedAt: now,
+    });
+    transaction.update(entitlementRef, {
+      ownerUserId: recipientId,
+      previousOwnerUserId: transfer.senderId,
+      transferStatus: 'transferred',
+      activeTransferId: null,
+      publicToken: newPublicToken,
+      qrVersion: nextQrVersion,
+      transferredAt: now,
       updatedAt: now,
     });
 
-    await logAuditEvent(
-      'transfer_accepted',
-      {
-        transferId,
-        senderId: transfer.senderId,
-        recipientId,
-        ticketId,
-      },
-      db,
-    );
+    if (assignmentRef) {
+      transaction.update(assignmentRef, {
+        redeemerId: recipientId,
+        previousOwnerId: transfer.senderId,
+        transferSource: 'formal_transfer',
+        receivedFrom: transfer.senderName || 'Unknown',
+        updatedAt: now,
+      });
+    }
 
-    return { success: true, ticketId };
+    const storedResult = {
+      ticketId: transfer.ticketId,
+      entitlementId: transfer.entitlementId,
+      recipientId,
+    };
+    transaction.update(transferRef, {
+      status: 'accepted',
+      recipientId,
+      acceptedAt: now,
+      updatedAt: now,
+      result: storedResult,
+    });
+    transaction.create(db.collection(TRANSFER_EVENTS_COLLECTION).doc(`ACCEPTED-${tokenHash}`), {
+      type: 'ticket_transfer_accepted',
+      transferId,
+      senderId: transfer.senderId,
+      recipientId,
+      ticketId: transfer.ticketId,
+      entitlementId: transfer.entitlementId,
+      createdAt: now,
+    });
+    transaction.create(db.collection('outbox_events').doc(`TICKET-TRANSFER-${tokenHash}`), {
+      type: 'ticket.transfer.accepted',
+      aggregateId: transfer.ticketId,
+      transferId,
+      senderId: transfer.senderId,
+      recipientId,
+      ticketId: transfer.ticketId,
+      entitlementId: transfer.entitlementId,
+      status: 'pending',
+      attempts: 0,
+      createdAt: now,
+    });
+
+    return {
+      success: true,
+      alreadyClaimed: false,
+      ...storedResult,
+    };
   });
+
+  if (result?.error) {
+    const messages = {
+      TRANSFER_ALREADY_CLAIMED: 'This ticket was claimed by another recipient.',
+      TRANSFER_NOT_PENDING: 'This transfer is no longer active.',
+      TRANSFER_INVALID: 'Transfer link is invalid or has been revoked.',
+      TRANSFER_EXPIRED: 'This transfer link has expired.',
+      TRANSFER_SELF_CLAIM: 'You already own this ticket.',
+      TRANSFER_RECIPIENT_MISMATCH: 'This transfer was issued to another verified account.',
+      TRANSFER_RECIPIENT_INELIGIBLE: 'This account is not eligible to accept the transfer.',
+      TRANSFER_BLOCKED_RELATIONSHIP: 'This transfer is not permitted.',
+      TICKET_TRANSFER_ARTIFACT_MISSING: 'Canonical ticket artifacts are unavailable.',
+      TRANSFER_WINDOW_CLOSED: 'Transfers are closed for this event.',
+      TRANSFER_NOT_ELIGIBLE: 'This ticket is no longer eligible for transfer.',
+    };
+    const error = new Error(messages[result.error] || 'Transfer failed.');
+    error.code = result.error;
+    throw error;
+  }
+  return result;
 }
 
 export async function getPendingTransfers(userId, email = null) {
@@ -1690,26 +1842,79 @@ export async function cancelTransfer(transferId, userId) {
   const db = getAdminDb();
 
   const transferRef = db.collection(TRANSFERS_COLLECTION).doc(transferId);
-  const doc = await transferRef.get();
+  const lookup = await transferRef.get();
+  if (!lookup.exists) throw new Error('Transfer not found');
+  const transfer = lookup.data();
+  const ticketSnapshot = await db
+    .collection('tickets')
+    .where('ticketId', '==', transfer.ticketId)
+    .limit(2)
+    .get();
+  if (ticketSnapshot.size !== 1 || !transfer.entitlementId) {
+    const error = new Error('Canonical ticket artifacts are unavailable');
+    error.code = 'TICKET_TRANSFER_ARTIFACT_MISSING';
+    throw error;
+  }
+  const ticketRef = ticketSnapshot.docs[0].ref;
+  const entitlementRef = db.collection('entitlements').doc(transfer.entitlementId);
 
-  if (!doc.exists) throw new Error('Transfer not found');
-  if (doc.data().senderId !== userId) throw new Error('Unauthorized');
+  const result = await db.runTransaction(async (transaction) => {
+    const [transferDoc, ticketDoc, entitlementDoc] = await Promise.all([
+      transaction.get(transferRef),
+      transaction.get(ticketRef),
+      transaction.get(entitlementRef),
+    ]);
+    if (!transferDoc.exists) return { error: 'TRANSFER_INVALID' };
+    const current = transferDoc.data();
+    if (current.senderId !== userId) return { error: 'TRANSFER_NOT_FOUND' };
+    if (current.status === 'cancelled') return { success: true, alreadyCancelled: true };
+    if (current.status !== 'pending') return { error: 'TRANSFER_NOT_PENDING' };
+    if (!ticketDoc.exists || !entitlementDoc.exists) {
+      return { error: 'TICKET_TRANSFER_ARTIFACT_MISSING' };
+    }
+    if (ticketDoc.data().userId !== userId || entitlementDoc.data().ownerUserId !== userId) {
+      return { error: 'TRANSFER_NOT_ELIGIBLE' };
+    }
 
-  await transferRef.update({
-    status: 'cancelled',
-    updatedAt: new Date().toISOString(),
+    const now = new Date().toISOString();
+    transaction.update(transferRef, {
+      status: 'cancelled',
+      cancelledAt: now,
+      updatedAt: now,
+    });
+    transaction.update(ticketRef, {
+      transferStatus: null,
+      activeTransferId: null,
+      updatedAt: now,
+    });
+    transaction.update(entitlementRef, {
+      transferStatus: null,
+      activeTransferId: null,
+      updatedAt: now,
+    });
+    transaction.create(
+      db
+        .collection(TRANSFER_EVENTS_COLLECTION)
+        .doc(`CANCELLED-${current.tokenHash || hashTransferToken(transferId)}`),
+      {
+        type: 'ticket_transfer_cancelled',
+        transferId,
+        ticketId: current.ticketId,
+        userId,
+        createdAt: now,
+      },
+    );
+    return { success: true, alreadyCancelled: false };
   });
 
-  await logAuditEvent(
-    'transfer_cancelled',
-    {
-      transferId,
-      userId,
-    },
-    db,
-  );
-
-  return { success: true };
+  if (result?.error) {
+    const error = new Error(
+      result.error === 'TRANSFER_NOT_FOUND' ? 'Transfer not found' : 'Transfer cannot be cancelled',
+    );
+    error.code = result.error;
+    throw error;
+  }
+  return result;
 }
 
 /**

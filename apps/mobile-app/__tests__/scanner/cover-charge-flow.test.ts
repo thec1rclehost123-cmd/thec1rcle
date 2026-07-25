@@ -75,15 +75,9 @@ describe('debit flow', () => {
     const result = await submitDebit(
       {
         walletId: 'wallet_1',
-        paymentQrJwt: 'wallet.jwt.token',
         presetItemId: 'item_1',
         quantity: 1,
         idempotencyKey: 'key_1',
-        operatorId: 'scanner_code',
-        operatorName: 'Scanner',
-        deviceId: 'test_device',
-        eventCodeId: 'code_1',
-        isOnline: true,
       },
       SESSION_TOKEN,
     );
@@ -96,15 +90,9 @@ describe('debit flow', () => {
     const result = await submitDebit(
       {
         walletId: 'wallet_1',
-        paymentQrJwt: 'wallet.jwt.token',
         presetItemId: 'item_1',
         quantity: 1,
         idempotencyKey: 'key_1',
-        operatorId: 'scanner_code',
-        operatorName: 'Scanner',
-        deviceId: 'test_device',
-        eventCodeId: 'code_1',
-        isOnline: true,
       },
       SESSION_TOKEN,
     );
@@ -120,15 +108,9 @@ describe('debit flow', () => {
     await submitDebit(
       {
         walletId: 'w1',
-        paymentQrJwt: 'wallet.jwt.token',
         presetItemId: 'i1',
         quantity: 1,
         idempotencyKey: key,
-        operatorId: 'op',
-        operatorName: 'S',
-        deviceId: 'd1',
-        eventCodeId: 'c1',
-        isOnline: true,
       },
       SESSION_TOKEN,
     );
@@ -138,15 +120,9 @@ describe('debit flow', () => {
     await submitDebit(
       {
         walletId: 'w1',
-        paymentQrJwt: 'wallet.jwt.token',
         presetItemId: 'i1',
         quantity: 1,
         idempotencyKey: key,
-        operatorId: 'op',
-        operatorName: 'S',
-        deviceId: 'd1',
-        eventCodeId: 'c1',
-        isOnline: true,
       },
       SESSION_TOKEN,
     );

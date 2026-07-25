@@ -46,13 +46,29 @@ describe('safety', () => {
   });
 
   describe('getEmergencyContacts', () => {
-    it('extracts contacts from profile response', async () => {
+    it('extracts contacts from the canonical safety response', async () => {
       mockApiFetch.mockResolvedValueOnce({
-        profile: { emergencyContacts: [{ name: 'Mom', phone: '+911234567890' }] },
+        data: {
+          contacts: [
+            {
+              name: 'Mom',
+              phone: '+911234567890',
+              relationship: 'Parent',
+              status: 'verified',
+            },
+          ],
+        },
       });
 
       const contacts = await getEmergencyContacts('user_1');
-      expect(contacts).toEqual([{ name: 'Mom', phone: '+911234567890' }]);
+      expect(contacts).toEqual([
+        {
+          name: 'Mom',
+          phone: '+911234567890',
+          relationship: 'Parent',
+          status: 'verified',
+        },
+      ]);
     });
 
     it('returns empty array on error', async () => {
@@ -71,9 +87,11 @@ describe('safety', () => {
       ]);
 
       expect(result).toEqual({ success: true });
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/v1/users/me', {
+      expect(mockApiFetch).toHaveBeenCalledWith('/api/v1/social/emergency-contacts', {
         method: 'PUT',
-        body: JSON.stringify({ emergencyContacts: [{ name: 'Dad', phone: '+919876543210' }] }),
+        body: JSON.stringify({
+          contacts: [{ name: 'Dad', phone: '+919876543210', relationship: 'Other' }],
+        }),
         requireAuth: true,
       });
     });
@@ -241,29 +259,31 @@ describe('safety', () => {
   });
 
   describe('triggerSOS', () => {
-    it('sends SOS and opens SMS', async () => {
+    it('reports success only after the Gateway confirms provider acceptance', async () => {
       (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValueOnce({
         status: 'granted',
       });
       (Location.getCurrentPositionAsync as jest.Mock).mockResolvedValueOnce({
         coords: { latitude: 19.076, longitude: 72.8777 },
       });
-      mockApiFetch.mockResolvedValueOnce({});
-      mockApiFetch.mockResolvedValueOnce({
-        profile: { emergencyContacts: [{ name: 'Mom', phone: '+911234567890' }] },
-      });
+      mockApiFetch.mockResolvedValueOnce({ data: { accepted: true, acceptedCount: 1 } });
 
-      await triggerSOS('user_1', 'evt_1');
+      await expect(triggerSOS('user_1', 'evt_1')).resolves.toEqual({ success: true });
 
       expect(mockApiFetch).toHaveBeenCalledWith('/api/v1/social/sos', {
         method: 'POST',
-        body: JSON.stringify({ eventId: 'evt_1', latitude: 19.076, longitude: 72.8777 }),
+        body: JSON.stringify({
+          eventId: 'evt_1',
+          latitude: 19.076,
+          longitude: 72.8777,
+          idempotencyKey: 'test-uuid-1234-5678-abcd-efgh',
+        }),
         requireAuth: true,
       });
-      expect(Linking.openURL).toHaveBeenCalled();
+      expect(Linking.openURL).not.toHaveBeenCalled();
       expect(scheduleLocalNotification).toHaveBeenCalledWith(
         'SOS Alert Sent',
-        'Emergency contacts have been notified.',
+        '1 verified emergency contact accepted.',
         { type: 'sos_sent' },
       );
     });

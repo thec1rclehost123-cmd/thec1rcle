@@ -22,7 +22,7 @@ export default function CheckoutSummaryPanel({
   totalDiscount,
 }) {
   return (
-    <div className="hidden md:flex flex-col h-fit overflow-hidden rounded-[42px] border border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] shadow-[0_30px_120px_rgba(0,0,0,0.45)] backdrop-blur-3xl">
+    <div className="hidden md:flex flex-col h-fit overflow-hidden rounded-[42px] border border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] shadow-[0_30px_120px_rgba(0,0,0,0.45)] backdrop-blur-md">
       <div className="relative h-44 shrink-0">
         <Image
           src={event.image || '/events/placeholder.jpg'}

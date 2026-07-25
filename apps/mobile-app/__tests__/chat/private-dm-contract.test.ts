@@ -35,13 +35,16 @@ describe('private DM API contract', () => {
   });
 
   it('sends text using the gateway field name', async () => {
-    mockApiFetch.mockResolvedValue({ success: true, messageId: 'message_1' });
+    mockApiFetch.mockResolvedValue({
+      success: true,
+      data: { message: { id: 'message_1' } },
+    });
 
     await expect(
       sendDirectMessage('conversation_1', 'sender_1', 'See you inside', 'message_0'),
     ).resolves.toMatchObject({ success: true, messageId: 'message_1' });
 
-    expect(mockApiFetch).toHaveBeenCalledWith('/api/v1/social/dm/conversation_1/send', {
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/v1/chats/conversation_1/messages', {
       method: 'POST',
       body: JSON.stringify({ text: 'See you inside', replyToId: 'message_0' }),
       requireAuth: true,
@@ -73,7 +76,7 @@ describe('private DM API contract', () => {
 
     expect(mockApiFetch).toHaveBeenCalledTimes(1);
     expect(mockApiFetch).toHaveBeenCalledWith(
-      '/api/v1/social/dm/conversation_1/messages?limit=50',
+      '/api/v1/chats/conversation_1/messages?limit=50',
       { requireAuth: true },
     );
     expect(wsManager.subscribe).toHaveBeenCalledWith('dm:conversation_1', expect.any(Function));
@@ -101,7 +104,7 @@ describe('private DM API contract', () => {
     await Promise.resolve();
 
     expect(mockApiFetch).toHaveBeenCalledWith(
-      '/api/v1/social/dm/conversation_cold_start/messages?limit=50',
+      '/api/v1/chats/conversation_cold_start/messages?limit=50',
       { requireAuth: true },
     );
 

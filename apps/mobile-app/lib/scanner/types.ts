@@ -168,16 +168,9 @@ export interface PresetItem {
 
 export interface DebitRequest {
   walletId: string;
-  paymentQrJwt: string;
-  presetItemId?: string;
-  customAmountPaise?: number;
+  presetItemId: string;
   quantity: number;
   idempotencyKey: string;
-  operatorId: string;
-  operatorName: string;
-  deviceId: string;
-  eventCodeId: string;
-  isOnline: true;
 }
 
 export interface DebitResponse {

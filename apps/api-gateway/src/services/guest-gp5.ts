@@ -252,8 +252,12 @@ export async function initiateGuestTransfer(
   return result;
 }
 
-export async function acceptGuestTransfer(userId: string, transferCode: string) {
-  const result = await acceptTransfer(transferCode, userId);
+export async function acceptGuestTransfer(
+  userId: string,
+  transferCode: string,
+  principal: { email?: string | null; emailVerified?: boolean } = {},
+) {
+  const result = await acceptTransfer(transferCode, userId, principal);
   await invalidateGuestWallet([userId]);
   return result;
 }

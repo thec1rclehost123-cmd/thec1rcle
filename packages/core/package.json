@@ -49,6 +49,7 @@
         "./profile-engine": "./profile-engine.js",
         "./finance-engine": "./finance-engine.js",
         "./promoter-engine": "./promoter-engine.js",
+        "./promoter-attribution": "./promoter-attribution.js",
         "./analytics-engine": "./analytics-engine.js",
         "./table-engine": "./table-engine.js",
         "./waitlist-engine": "./waitlist-engine.js",
@@ -103,6 +104,6 @@
     },
     "devDependencies": {
         "@types/node": "^20.11.0",
-        "typescript": "^5.3.3"
+        "typescript": "5.9.3"
     }
 }

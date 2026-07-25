@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { AppState } from 'react-native';
 import { getFirebaseAuth, subscribeToAuthState, type User } from '@/lib/firebase';
-import { syncAuthSession } from '@/lib/api';
+import { apiFetch, syncAuthSession } from '@/lib/api';
 import { finishFirstRunMetric, startFirstRunMetric } from '@/lib/firstRunPerformance';
 import { refreshPushToken } from '@/lib/notifications';
 import { wsManager } from '@/lib/websocket';
@@ -90,6 +90,40 @@ let activeAuthUserId: string | null = null;
 let authGeneration = 0;
 let serverSyncedUserId: string | null = null;
 let authSyncFlight: { uid: string; promise: Promise<void> } | null = null;
+let realtimeSessionTimer: ReturnType<typeof setTimeout> | null = null;
+let realtimeSessionFlight: Promise<void> | null = null;
+
+function stopRealtimeSessionRefresh() {
+  if (realtimeSessionTimer) clearTimeout(realtimeSessionTimer);
+  realtimeSessionTimer = null;
+  realtimeSessionFlight = null;
+}
+
+function startRealtimeSession(userId: string): Promise<void> {
+  if (realtimeSessionFlight) return realtimeSessionFlight;
+  const flight = (async () => {
+    const currentUser = getFirebaseAuth().currentUser;
+    if (!currentUser || currentUser.uid !== userId) return;
+    const result = await apiFetch<{
+      success: boolean;
+      data: { token: string; expiresAt: string; expiresInSeconds: number };
+    }>('/realtime/session', { method: 'POST' });
+    if (getFirebaseAuth().currentUser?.uid !== userId) return;
+    wsManager.start(result.data.token);
+    if (realtimeSessionTimer) clearTimeout(realtimeSessionTimer);
+    realtimeSessionTimer = setTimeout(
+      () => void startRealtimeSession(userId),
+      Math.max(15_000, Number(result.data.expiresInSeconds || 60) * 800),
+    );
+    (realtimeSessionTimer as any)?.unref?.();
+  })();
+  realtimeSessionFlight = flight;
+  const clear = () => {
+    if (realtimeSessionFlight === flight) realtimeSessionFlight = null;
+  };
+  void flight.then(clear, clear);
+  return flight;
+}
 
 function resetAuthSyncCoordinator() {
   serverSyncedUserId = null;
@@ -195,7 +229,10 @@ function startAuthenticatedSideEffects(user: User) {
   void useNotificationsStore.getState().fetchNotifications(user.uid);
   void refreshPushToken(user.uid);
   try {
-    void user.getIdToken().then((token) => wsManager.start(token));
+    wsManager.setConfig({
+      onAuthFailure: () => void startRealtimeSession(user.uid),
+    });
+    void startRealtimeSession(user.uid);
   } catch {
     if (__DEV__) console.warn('[AuthStore] Failed to start websocket after auth.');
   }
@@ -316,6 +353,7 @@ export function initAuthListener() {
       void hydrateAuthenticatedUser(user, generation);
     } else {
       activeAuthUserId = null;
+      stopRealtimeSessionRefresh();
       resetAuthSyncCoordinator();
       useAuthStore.setState({
         user: null,
@@ -344,12 +382,14 @@ export function initAuthListener() {
   const appStateSubscription = AppState.addEventListener('change', (state) => {
     if (state === 'active' && activeAuthUserId) {
       void refreshPushToken(activeAuthUserId);
+      if (!wsManager.isConnected) void startRealtimeSession(activeAuthUserId);
       wsManager.onAppForeground();
     }
   });
 
   return () => {
     cancelRetry();
+    stopRealtimeSessionRefresh();
     unsubscribe();
     appStateSubscription.remove();
   };

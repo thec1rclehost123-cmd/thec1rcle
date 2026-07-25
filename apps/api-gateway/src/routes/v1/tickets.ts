@@ -7,7 +7,10 @@ import {
   getGuestWalletTicket,
 } from '@c1rcle/core/guest-wallet-profile-notification-service';
 // @ts-ignore
-import { getUserTicketWallet } from '@c1rcle/core/ticket-checkout-wallet-service';
+import {
+  createTicketQrForEntitlement,
+  getUserTicketWallet,
+} from '@c1rcle/core/ticket-checkout-wallet-service';
 import {
   acceptGuestTransfer,
   assignGuestPartner,
@@ -386,21 +389,29 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       if (!userId) return;
 
       try {
-        const result = await acceptGuestTransfer(userId, request.body.transferCode);
+        const result = await acceptGuestTransfer(userId, request.body.transferCode, {
+          email: request.user?.email || null,
+          emailVerified: request.user?.email_verified === true,
+        });
         fastify.log.info(
           { requestId: request.id, userId, transferCode: request.body.transferCode },
           'Guest transfer accepted',
         );
         return buildSuccessResponse(result as Record<string, unknown>);
       } catch (error: any) {
-        const status = error.message?.includes('already') ? 409 : 400;
+        const status =
+          error.code === 'TRANSFER_ALREADY_CLAIMED'
+            ? 409
+            : error.code === 'TRANSFER_RECIPIENT_MISMATCH'
+              ? 403
+              : 400;
         fastify.log.warn(
           { requestId: request.id, userId, error: error.message },
           'PATCH /tickets/transfer rejected',
         );
         return reply.status(status).send(
           buildErrorResponse({
-            code: status === 409 ? 'CONFLICT' : 'BAD_REQUEST',
+            code: error.code || (status === 409 ? 'TRANSFER_ALREADY_CLAIMED' : 'BAD_REQUEST'),
             message: error.message || 'Transfer failed',
             requestId: request.id,
           }),
@@ -1121,13 +1132,22 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
       const isOwner = Boolean(requesterId) && requesterId === entitlement.ownerUserId;
 
-      // generateEntitlementQR mints a fresh valid signature for whatever ID it is
-      // given, with no ownership baked in — so it runs only for the owner, and is
-      // signed over the real entitlement ID (never the share token).
       let qrPayload: string | null = null;
+      let qrExpiresAt: string | null = null;
       if (isOwner) {
-        const { generateEntitlementQR } = await import('@c1rcle/core/entitlement-engine');
-        qrPayload = JSON.stringify(generateEntitlementQR(entitlement.id));
+        try {
+          const qr = await createTicketQrForEntitlement({
+            db: fastify.db,
+            userId: requesterId,
+            entitlementId: entitlement.id,
+          });
+          qrPayload = qr.qrPayload;
+          qrExpiresAt = qr.qrExpiresAt;
+        } catch (error: any) {
+          if (error?.code !== 'TICKET_MIGRATION_REQUIRED' && error?.code !== 'NOT_FOUND') {
+            throw error;
+          }
+        }
       }
 
       // Give the owner a share token to build the shareable link from. Tickets
@@ -1159,6 +1179,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
           entryType: entitlement.metadata?.entryType || 'general',
           quantity: entitlement.scanCountAllowed || 1,
           qrPayload,
+          qrExpiresAt,
           // Only the owner receives the share capability.
           shareToken,
           eventTitle: event?.title || entitlement.eventSummary?.title || 'Event',

@@ -1,18 +1,15 @@
 import { FastifyInstance } from 'fastify';
-import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { trackPromoterLinkClick } from '@c1rcle/core/promoter-engine';
+// @ts-ignore - JS module with runtime exports
+import { signPromoterAttribution } from '@c1rcle/core/promoter-attribution';
 import { z } from 'zod';
+import { resolvePartnerContext } from '../../lib/partner-context.js';
 
 const CreateLinkBody = z
   .object({
-    promoterId: z.string(),
-    promoterName: z.string().optional(),
     eventId: z.string(),
-    eventTitle: z.string().optional(),
-    commissionRate: z.number().optional(),
-    commissionType: z.string().optional(),
-    ticketTierIds: z.array(z.string()).optional(),
-    expiresAt: z.string().nullable().optional(),
+    ticketTierIds: z.array(z.string()).max(50).optional(),
   })
   .strict();
 
@@ -78,82 +75,119 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
       preHandler: [fastify.requireAuth, fastify.validate({ body: CreateLinkBody })],
     },
     async (request: any, reply) => {
-      const body = request.body as any;
-      const {
-        promoterId,
-        promoterName,
-        eventId,
-        eventTitle,
-        commissionRate,
-        commissionType = 'percentage',
-        ticketTierIds = [],
-        expiresAt = null,
-      } = body;
-
-      // Caller must be the promoter themselves or a manager of the event's host/venue.
-      const callerIsPromoter = request.user.uid === promoterId;
-      if (!callerIsPromoter) {
-        const eventDoc = await fastify.db
-          .collection('events')
-          .doc(eventId)
-          .get()
-          .catch(() => null);
-        const partnerId = eventDoc?.exists
-          ? (eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId
-          : null;
-        if (!partnerId) {
-          return reply
-            .status(403)
-            .send({ error: 'Forbidden: cannot create a link on behalf of another promoter' });
-        }
-        try {
-          await fastify.verifyPartnerAccess(request, partnerId);
-        } catch {
-          return reply
-            .status(403)
-            .send({ error: 'Forbidden: cannot create a link on behalf of another promoter' });
-        }
-      }
-
-      const existing = await fastify.db
-        .collection(LINKS_COL)
-        .where('promoterId', '==', promoterId)
-        .where('eventId', '==', eventId)
-        .where('isActive', '==', true)
-        .limit(1)
-        .get();
-      if (!existing.empty) {
-        return reply.status(409).send({ error: 'Active link already exists for this event' });
-      }
-
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      const code = Array.from(
-        { length: 6 },
-        () => chars[Math.floor(Math.random() * chars.length)],
-      ).join('');
-      const now = new Date().toISOString();
-      const id = randomUUID();
-      const link = {
-        id,
-        code,
-        promoterId,
-        promoterName,
-        eventId,
-        eventTitle,
-        ticketTierIds,
-        commissionRate,
-        commissionType,
-        clicks: 0,
-        conversions: 0,
-        revenue: 0,
-        commission: 0,
-        isActive: true,
-        expiresAt,
-        createdAt: now,
-        updatedAt: now,
+      const { eventId, ticketTierIds = [] } = request.body as {
+        eventId: string;
+        ticketTierIds?: string[];
       };
-      await fastify.db.collection(LINKS_COL).doc(id).set(link);
-      return link;
+      let context;
+      try {
+        context = await resolvePartnerContext(fastify.db, request);
+      } catch (error: any) {
+        request.log.error({ error }, 'Unable to resolve promoter link authorization');
+        return reply.status(503).send({ error: 'Promoter authorization is unavailable' });
+      }
+      if (!context || context.type !== 'promoter') {
+        return reply.status(403).send({ error: 'An active promoter membership is required' });
+      }
+
+      const promoterId = context.partnerId;
+      const assignmentId = `${promoterId}_${eventId}`;
+      const assignmentRef = fastify.db.collection('promoter_assignments').doc(assignmentId);
+      const eventRef = fastify.db.collection('events').doc(eventId);
+      const linkRef = fastify.db.collection(LINKS_COL).doc(assignmentId);
+
+      try {
+        return await fastify.db.runTransaction(async (transaction: any) => {
+          const [assignmentDoc, eventDoc, existingLinkDoc] = await Promise.all([
+            transaction.get(assignmentRef),
+            transaction.get(eventRef),
+            transaction.get(linkRef),
+          ]);
+          if (!assignmentDoc.exists || !eventDoc.exists) {
+            throw Object.assign(new Error('Approved promoter assignment not found'), {
+              code: 'PROMOTER_ASSIGNMENT_REQUIRED',
+              statusCode: 403,
+            });
+          }
+          const assignment = assignmentDoc.data() as any;
+          const event = eventDoc.data() as any;
+          if (
+            assignment.status !== 'active' ||
+            assignment.promoterId !== promoterId ||
+            assignment.eventId !== eventId ||
+            Number(assignment.assignmentVersion || 0) < 2 ||
+            !assignment.approvedByPartnerId
+          ) {
+            throw Object.assign(new Error('Approved promoter assignment is invalid'), {
+              code: 'PROMOTER_ASSIGNMENT_REQUIRED',
+              statusCode: 403,
+            });
+          }
+          if (!['scheduled', 'live'].includes(String(event.lifecycle || '').toLowerCase())) {
+            throw Object.assign(new Error('Event is not open for promotion'), {
+              code: 'EVENT_NOT_PROMOTABLE',
+              statusCode: 409,
+            });
+          }
+
+          const assignedTierIds = Object.keys(assignment.tierCommissions || {});
+          const selectedTierIds = [...new Set(ticketTierIds.map(String))].sort();
+          if (
+            selectedTierIds.length > 0 &&
+            assignedTierIds.length > 0 &&
+            selectedTierIds.some((tierId) => !assignedTierIds.includes(tierId))
+          ) {
+            throw Object.assign(new Error('A requested ticket tier is not assigned'), {
+              code: 'PROMOTER_TIER_NOT_ASSIGNED',
+              statusCode: 403,
+            });
+          }
+          if (existingLinkDoc.exists && existingLinkDoc.data().isActive === true) {
+            return existingLinkDoc.data();
+          }
+
+          const assignmentVersion = Number(assignment.assignmentVersion);
+          const termsVersion = Number(assignment.termsVersion || assignmentVersion);
+          const link = {
+            id: assignmentId,
+            code:
+              assignment.linkCode ||
+              createHash('sha256')
+                .update(`promoter-link:${assignmentId}`)
+                .digest('hex')
+                .slice(0, 10)
+                .toUpperCase(),
+            promoterId,
+            promoterName: assignment.promoterName || '',
+            eventId,
+            eventTitle: event.title || assignment.eventTitle || 'Event',
+            ticketTierIds: selectedTierIds,
+            commissionRate: Number(assignment.commissionRate || 0),
+            commissionType: assignment.commissionType || 'percentage',
+            tierCommissions: assignment.tierCommissions || null,
+            assignmentId,
+            assignmentVersion,
+            termsVersion,
+            clicks: 0,
+            conversions: 0,
+            revenue: 0,
+            commission: 0,
+            isActive: true,
+            expiresAt: assignment.validUntil || event.startDate || event.startAt || null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          } as any;
+          link.attributionSignature = signPromoterAttribution(link);
+          transaction.set(linkRef, link);
+          return link;
+        });
+      } catch (error: any) {
+        request.log.warn({ error, promoterId, eventId }, 'Promoter link creation rejected');
+        return reply.status(error.statusCode || 503).send({
+          error: error.message || 'Promoter link creation failed',
+          code: error.code || 'PROMOTER_LINK_CREATION_FAILED',
+        });
+      }
     },
   );
 

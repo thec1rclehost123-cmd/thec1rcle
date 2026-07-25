@@ -24,7 +24,6 @@ import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-ca
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
-import Constants from 'expo-constants';
 import { randomUUID } from 'expo-crypto';
 import { useScannerStore } from '@/store/scannerStore';
 import { fetchWalletByPaymentQr, submitDebit } from '@/lib/scanner';
@@ -45,11 +44,6 @@ type NoInfer<T> = [T][T extends any ? 0 : never];
 
 function formatPaiseCurrency(paise: number): string {
   return `₹${Math.round(paise / 100)}`;
-}
-
-function getDeviceId(): string {
-  const installId = (Constants as any).installationId || 'device';
-  return `${Constants.platform?.os || 'mobile'}-${installId}`.substring(0, 40);
 }
 
 export default function CoverChargeScreen() {
@@ -169,26 +163,12 @@ export default function CoverChargeScreen() {
     safeSetState(setChargeState, 'SUBMITTING');
 
     const token = sessionToken || eventData?.sessionToken || '';
-    const codeId = eventData?.codeId || 'scanner';
-    const paymentQrJwt = wallet.paymentQrJwt || lastScannedRef.current || '';
-    if (!paymentQrJwt) {
-      safeSetState(setErrorMessage, 'Scan the guest payment QR again.');
-      safeSetState(setChargeState, 'DEBIT_ERROR');
-      return;
-    }
-
     const result = await submitDebit(
       {
         walletId: wallet.id,
-        paymentQrJwt,
         presetItemId: selectedItem.id,
         quantity: 1,
         idempotencyKey: idempotencyKeyRef.current,
-        operatorId: codeId,
-        operatorName: 'Scanner',
-        deviceId: getDeviceId(),
-        eventCodeId: codeId,
-        isOnline: true,
       },
       token,
     );

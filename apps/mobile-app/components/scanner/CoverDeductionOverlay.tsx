@@ -3,7 +3,7 @@
  * CoverDeductionOverlay
  *
  * Shown in the scanner app when a cover-charge ticket is scanned.
- * Staff selects a preset item (or enters a custom amount) and taps Process.
+ * Staff selects a server-authorized preset item and taps Process.
  *
  * Rules enforced here:
  *  - Offline is hard-blocked (no offline cover charges)
@@ -18,7 +18,6 @@ import {
   Text,
   Pressable,
   ScrollView,
-  TextInput,
   StyleSheet,
   Alert,
   ActivityIndicator,
@@ -32,11 +31,6 @@ import { WalletContext, PresetItem } from '@/lib/scanner/types';
 interface Props {
   wallet: WalletContext;
   sessionToken: string;
-  paymentQrJwt: string;
-  deviceId: string;
-  eventCodeId: string;
-  operatorId: string;
-  operatorName: string;
   onSuccess: (newBalancePaise: number) => void;
   onDismiss: () => void;
 }
@@ -52,35 +46,21 @@ function randomKey(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function CoverDeductionOverlay({
-  wallet,
-  sessionToken,
-  paymentQrJwt,
-  deviceId,
-  eventCodeId,
-  operatorId,
-  operatorName,
-  onSuccess,
-  onDismiss,
-}: Props) {
+export function CoverDeductionOverlay({ wallet, sessionToken, onSuccess, onDismiss }: Props) {
   const [selectedPreset, setSelectedPreset] = useState<PresetItem | null>(null);
-  const [customAmountStr, setCustomAmountStr] = useState('');
-  const [showCustom, setShowCustom] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [successState, setSuccessState] = useState<{ charged: number; newBalance: number } | null>(
     null,
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const selectedAmountPaise = showCustom
-    ? parseInt(customAmountStr) || 0
-    : (selectedPreset?.amountPaise ?? 0);
+  const selectedAmountPaise = selectedPreset?.amountPaise ?? 0;
 
   const balance = wallet.currentBalancePaise;
   const deficit = selectedAmountPaise - balance;
   const isInsufficientBalance = selectedAmountPaise > 0 && deficit > 0;
   const canProcess =
-    selectedAmountPaise > 0 && Boolean(paymentQrJwt) && !isInsufficientBalance && !isProcessing;
+    selectedAmountPaise > 0 && Boolean(selectedPreset) && !isInsufficientBalance && !isProcessing;
 
   const handleProcess = useCallback(async () => {
     if (!canProcess) return;
@@ -103,17 +83,9 @@ export function CoverDeductionOverlay({
       const result = await submitDebit(
         {
           walletId: wallet.id,
-          paymentQrJwt,
-          ...(showCustom
-            ? { customAmountPaise: selectedAmountPaise }
-            : { presetItemId: selectedPreset?.id }),
+          presetItemId: selectedPreset?.id || '',
           quantity: 1,
           idempotencyKey,
-          operatorId,
-          operatorName,
-          deviceId,
-          eventCodeId,
-          isOnline: true,
         },
         sessionToken,
       );
@@ -132,19 +104,7 @@ export function CoverDeductionOverlay({
     } finally {
       setIsProcessing(false);
     }
-  }, [
-    canProcess,
-    selectedAmountPaise,
-    selectedPreset,
-    showCustom,
-    wallet.id,
-    paymentQrJwt,
-    sessionToken,
-    deviceId,
-    eventCodeId,
-    operatorId,
-    operatorName,
-  ]);
+  }, [canProcess, selectedAmountPaise, selectedPreset, wallet.id, sessionToken]);
 
   const percent =
     wallet.openingBalancePaise > 0
@@ -205,50 +165,16 @@ export function CoverDeductionOverlay({
                 items={wallet.rules.allowedPresetItems}
                 onSelect={(item) => {
                   setSelectedPreset(item);
-                  setShowCustom(false);
                   setErrorMsg(null);
                 }}
                 disabled={isProcessing}
               />
 
-              {/* Custom amount toggle */}
-              <Pressable
-                onPress={() => {
-                  setShowCustom((v) => !v);
-                  setSelectedPreset(null);
-                  setErrorMsg(null);
-                }}
-                style={styles.customToggle}
-              >
-                <Text style={styles.customToggleText}>
-                  {showCustom ? '← Use Preset' : 'Custom Amount'}
-                </Text>
-              </Pressable>
-
-              {showCustom && (
-                <View style={styles.customInputRow}>
-                  <Text style={styles.customPrefix}>₹</Text>
-                  <TextInput
-                    style={styles.customInput}
-                    value={customAmountStr}
-                    onChangeText={(v) => {
-                      setCustomAmountStr(v.replace(/[^0-9]/g, ''));
-                      setErrorMsg(null);
-                    }}
-                    keyboardType="number-pad"
-                    placeholder="Enter amount in paise"
-                    placeholderTextColor="rgba(255,255,255,0.25)"
-                    maxLength={8}
-                  />
-                </View>
-              )}
-
               {/* Selected item summary */}
               {selectedAmountPaise > 0 && !isInsufficientBalance && (
                 <View style={styles.selectedSummary}>
                   <Text style={styles.selectedSummaryText}>
-                    {showCustom ? 'Custom' : selectedPreset?.name} —{' '}
-                    {formatPaise(selectedAmountPaise)}
+                    {selectedPreset?.name} — {formatPaise(selectedAmountPaise)}
                   </Text>
                 </View>
               )}
@@ -372,39 +298,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     paddingHorizontal: 20,
     marginBottom: 8,
-  },
-  customToggle: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  customToggleText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(168,85,247,0.7)',
-  },
-  customInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 20,
-    marginBottom: 8,
-    backgroundColor: 'rgba(168,85,247,0.1)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(168,85,247,0.3)',
-    paddingHorizontal: 14,
-  },
-  customPrefix: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#a855f7',
-    marginRight: 4,
-  },
-  customInput: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#fff',
-    paddingVertical: 12,
   },
   selectedSummary: {
     marginHorizontal: 20,

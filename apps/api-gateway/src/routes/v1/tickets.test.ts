@@ -7,12 +7,15 @@ import ticketRoutes from './tickets';
 // Admin app, and so "did we mint a credential / a share token?" is observable.
 vi.mock('@c1rcle/core/entitlement-engine', () => ({
   PUBLIC_TOKEN_PREFIX: 'stk_',
-  generateEntitlementQR: (entitlementId: string) => ({
-    eid: entitlementId,
-    ts: 1700000000,
-    sig: 'test-signature',
-  }),
   generatePublicToken: () => 'stk_freshly-minted-token',
+}));
+
+vi.mock('@c1rcle/core/ticket-checkout-wallet-service', () => ({
+  createTicketQrForEntitlement: vi.fn(async ({ entitlementId }: { entitlementId: string }) => ({
+    qrPayload: `signed-ticket-jwt:${entitlementId}`,
+    qrExpiresAt: '2026-08-01T20:00:15.000Z',
+  })),
+  getUserTicketWallet: vi.fn(),
 }));
 
 // NOTE: entitlements store the holder in `ownerUserId` and the anonymous share
@@ -169,10 +172,8 @@ describe('GET /tickets/public — owner access by raw entitlement ID', () => {
     const { ticket } = res.json();
     expect(ticket.entitlementId).toBe('ENT-ORD-100-GEN-1');
     expect(ticket.state).toBe('ACTIVE');
-    expect(JSON.parse(ticket.qrPayload)).toMatchObject({
-      eid: 'ENT-ORD-100-GEN-1',
-      sig: 'test-signature',
-    });
+    expect(ticket.qrPayload).toBe('signed-ticket-jwt:ENT-ORD-100-GEN-1');
+    expect(ticket.qrExpiresAt).toBe('2026-08-01T20:00:15.000Z');
     expect(ticket.shareToken).toBe('stk_owner-token');
     await server.close();
   });
@@ -182,7 +183,7 @@ describe('GET /tickets/public — owner access by raw entitlement ID', () => {
     // Owner reaches the page via the share-token URL.
     const res = await get(server, 'stk_owner-token', { authorization: 'Bearer owner-token' });
     expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.json().ticket.qrPayload).eid).toBe('ENT-ORD-100-GEN-1');
+    expect(res.json().ticket.qrPayload).toBe('signed-ticket-jwt:ENT-ORD-100-GEN-1');
     await server.close();
   });
 

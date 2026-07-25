@@ -409,12 +409,13 @@ export function useCheckoutSession({
       }
     };
 
-    syncCheckoutQuote();
+    const debounceTimer = setTimeout(syncCheckoutQuote, 300);
     return () => {
       cancelled = true;
+      clearTimeout(debounceTimer);
     };
   }, [
-    cartReservation,
+    cartReservation?.reservationId,
     clearPersistedReservation,
     currentQuotePayload,
     event?.id,

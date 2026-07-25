@@ -1,8 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { createHash, randomUUID } from 'node:crypto';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
+import { sendGuestOtp, verifyGuestOtp } from '../../lib/guest-otp';
+import { sendSosViaMsg91 } from '../../lib/msg91-sos';
 // @ts-ignore
 import { followEntity, unfollowEntity, isFollowing } from '@c1rcle/core/follow-graph-engine';
+// @ts-ignore
+import { getChatMessages, sendChatMessage } from '@c1rcle/core/guest-chat-service';
 
 const ChatMessageBody = z
   .object({
@@ -63,6 +68,84 @@ const SwipeBody = z
     action: z.enum(['like', 'pass']),
   })
   .strict();
+
+const EmergencyContactSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    phone: z
+      .string()
+      .trim()
+      .regex(/^\+?[0-9]{10,15}$/),
+    relationship: z.string().trim().min(1).max(40),
+  })
+  .strict();
+
+const EmergencyContactsBody = z
+  .object({
+    contacts: z.array(EmergencyContactSchema).max(5),
+  })
+  .strict();
+
+const EmergencyContactParams = z.object({ id: z.string().min(1).max(128) }).strict();
+const EmergencyContactVerifyBody = z.object({ code: z.string().regex(/^[0-9]{4,8}$/) }).strict();
+
+const SosBody = z
+  .object({
+    eventId: z.string().max(128).optional(),
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+    idempotencyKey: z.string().uuid(),
+  })
+  .refine(
+    (value) =>
+      (value.latitude === undefined && value.longitude === undefined) ||
+      (value.latitude !== undefined && value.longitude !== undefined),
+    'latitude and longitude must be supplied together',
+  );
+
+const LocationSessionParams = z.object({ id: z.string().min(1).max(128) }).strict();
+const LocationUpdateBody = z
+  .object({
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+  })
+  .strict();
+const LocationStartBody = LocationUpdateBody.extend({
+  eventId: z.string().max(128).optional(),
+  durationHours: z.number().int().min(1).max(12).default(4),
+}).strict();
+const LocationInviteBody = z.object({ targetUserId: z.string().min(1).max(128) }).strict();
+const LocationGrantParams = z
+  .object({
+    id: z.string().min(1).max(128),
+    targetUserId: z.string().min(1).max(128),
+  })
+  .strict();
+
+async function usersAreBlocked(db: any, leftUserId: string, rightUserId: string) {
+  const [left, right] = await Promise.all([
+    db
+      .collection('userBlocks')
+      .where('blockerUid', '==', leftUserId)
+      .where('blockedUid', '==', rightUserId)
+      .limit(1)
+      .get(),
+    db
+      .collection('userBlocks')
+      .where('blockerUid', '==', rightUserId)
+      .where('blockedUid', '==', leftUserId)
+      .limit(1)
+      .get(),
+  ]);
+  return !left.empty || !right.empty;
+}
+
+function emergencyContactId(userId: string, phone: string) {
+  return createHash('sha256')
+    .update(`emergency-contact:v1:${userId}:${phone.replace(/\D/g, '')}`)
+    .digest('hex')
+    .slice(0, 40);
+}
 
 export default async function socialRoutes(fastify: FastifyInstance) {
   /**
@@ -343,28 +426,26 @@ export default async function socialRoutes(fastify: FastifyInstance) {
           }),
         );
 
-      const { eventId, text, imageUrl, videoUrl, replyToId, metadata } = request.body;
+      const { eventId, text, imageUrl, replyToId } = request.body;
 
       try {
-        const message = {
-          eventId,
-          userId,
-          // Redacted to prevent bulk scraping of attendee names
-          senderName: 'Attendee',
-          senderPhoto: null,
-          text: text || '',
-          imageUrl: imageUrl || null,
-          videoUrl: videoUrl || null,
-          replyToId: replyToId || null,
-          createdAt: new Date().toISOString(),
-          metadata: {
-            ...(metadata || {}),
-            isAnonymous: true,
+        const result = await sendChatMessage(fastify.db, userId, eventId, {
+          text,
+          imageUrl,
+          type: imageUrl ? 'image' : 'text',
+          metadata: { replyTo: replyToId || null },
+        });
+        const topic = `event-chat:${result.chat.eventId}`;
+        fastify.broadcast(
+          {
+            type: 'chat:new_message',
+            payload: { topic, eventId: result.chat.eventId, message: result.message },
           },
-        };
-
-        const docRef = await fastify.db.collection('eventGroupMessages').add(message);
-        return { success: true, id: docRef.id, message };
+          topic,
+        );
+        reply.header('Deprecation', 'true');
+        reply.header('Sunset', 'Sat, 08 Aug 2026 00:00:00 GMT');
+        return { success: true, id: result.message.id, message: result.message };
       } catch (error: any) {
         fastify.log.error(`Error in POST /social/chat: ${error.message}`);
         return reply.status(500).send(
@@ -910,39 +991,162 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     }
   });
 
+  fastify.get(
+    '/social/emergency-contacts',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any) => {
+      const snapshot = await fastify.db
+        .collection('emergency_contacts')
+        .where('userId', '==', request.user.uid)
+        .limit(5)
+        .get();
+      return buildSuccessResponse({
+        contacts: snapshot.docs.map((doc: any) => {
+          const contact = doc.data();
+          return {
+            id: doc.id,
+            name: contact.name,
+            phone: contact.phone,
+            relationship: contact.relationship,
+            status: contact.status,
+          };
+        }),
+      });
+    },
+  );
+
+  fastify.put(
+    '/social/emergency-contacts',
+    {
+      preHandler: [fastify.requireAuth, fastify.validate({ body: EmergencyContactsBody })],
+    },
+    async (request: any) => {
+      const userId = request.user.uid;
+      const now = new Date().toISOString();
+      const incoming = request.body.contacts.map((contact: any) => ({
+        ...contact,
+        phone: contact.phone.startsWith('+') ? contact.phone : `+91${contact.phone}`,
+      }));
+      const existing = await fastify.db
+        .collection('emergency_contacts')
+        .where('userId', '==', userId)
+        .limit(5)
+        .get();
+      const existingById = new Map(existing.docs.map((doc: any) => [doc.id, doc.data()]));
+      const desiredIds = new Set<string>();
+      const batch = fastify.db.batch();
+
+      for (const contact of incoming) {
+        const id = emergencyContactId(userId, contact.phone);
+        desiredIds.add(id);
+        const previous: any = existingById.get(id);
+        batch.set(
+          fastify.db.collection('emergency_contacts').doc(id),
+          {
+            id,
+            userId,
+            name: contact.name,
+            phone: contact.phone,
+            relationship: contact.relationship,
+            status: previous?.status === 'verified' ? 'verified' : 'pending_verification',
+            verifiedAt: previous?.verifiedAt || null,
+            createdAt: previous?.createdAt || now,
+            updatedAt: now,
+          },
+          { merge: true },
+        );
+      }
+      for (const doc of existing.docs) {
+        if (!desiredIds.has(doc.id)) batch.delete(doc.ref);
+      }
+      await batch.commit();
+      return buildSuccessResponse({
+        contacts: incoming.map((contact: any) => {
+          const id = emergencyContactId(userId, contact.phone);
+          const previous: any = existingById.get(id);
+          return {
+            id,
+            ...contact,
+            status: previous?.status === 'verified' ? 'verified' : 'pending_verification',
+          };
+        }),
+      });
+    },
+  );
+
+  fastify.post(
+    '/social/emergency-contacts/:id/request-verification',
+    {
+      config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+      preHandler: [fastify.requireAuth, fastify.validate({ params: EmergencyContactParams })],
+    },
+    async (request: any, reply) => {
+      const ref = fastify.db.collection('emergency_contacts').doc(request.params.id);
+      const snapshot = await ref.get();
+      if (!snapshot.exists || snapshot.data()?.userId !== request.user.uid) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Emergency contact not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      await sendGuestOtp(fastify.db, 'phone', snapshot.data()!.phone);
+      await ref.set(
+        { verificationRequestedAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { merge: true },
+      );
+      return buildSuccessResponse({ accepted: true });
+    },
+  );
+
+  fastify.post(
+    '/social/emergency-contacts/:id/verify',
+    {
+      config: { rateLimit: { max: 10, timeWindow: '1 hour' } },
+      preHandler: [
+        fastify.requireAuth,
+        fastify.validate({
+          params: EmergencyContactParams,
+          body: EmergencyContactVerifyBody,
+        }),
+      ],
+    },
+    async (request: any, reply) => {
+      const ref = fastify.db.collection('emergency_contacts').doc(request.params.id);
+      const snapshot = await ref.get();
+      if (!snapshot.exists || snapshot.data()?.userId !== request.user.uid) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Emergency contact not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      await verifyGuestOtp(fastify.db, 'phone', snapshot.data()!.phone, request.body.code);
+      const verifiedAt = new Date().toISOString();
+      await ref.update({ status: 'verified', verifiedAt, updatedAt: verifiedAt });
+      return buildSuccessResponse({ verified: true, verifiedAt });
+    },
+  );
+
   /**
    * POST /api/v1/social/location/start
    */
   fastify.post(
     '/social/location/start',
     {
-      preHandler: [
-        fastify.validate({
-          body: z
-            .object({
-              eventId: z.string().optional(),
-              latitude: z.number(),
-              longitude: z.number(),
-              durationHours: z.number().optional(),
-            })
-            .strict(),
-        }),
-      ],
+      preHandler: [fastify.requireAuth, fastify.validate({ body: LocationStartBody })],
     },
     async (request: any, reply) => {
-      const userId = request.user?.uid;
-      if (!userId)
-        return reply.status(401).send(
-          buildErrorResponse({
-            code: 'UNAUTHORIZED',
-            message: 'Unauthorized',
-            requestId: request.id,
-          }),
-        );
+      const userId = request.user.uid;
       const { eventId, latitude, longitude, durationHours = 4 } = request.body;
 
       try {
-        const sessionId = `loc_${userId}_${Date.now()}`;
+        const sessionId = `loc_${randomUUID()}`;
+        const now = new Date().toISOString();
         const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
 
         await fastify.db
@@ -952,12 +1156,12 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             id: sessionId,
             userId,
             eventId: eventId || null,
-            sharedWith: [],
             location: { latitude, longitude },
-            lastUpdate: new Date().toISOString(),
+            lastUpdate: now,
             expiresAt,
             isActive: true,
-            createdAt: new Date().toISOString(),
+            createdAt: now,
+            updatedAt: now,
           });
 
         return { success: true, sessionId };
@@ -981,26 +1185,15 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     '/social/location/:id',
     {
       preHandler: [
+        fastify.requireAuth,
         fastify.validate({
-          body: z
-            .object({
-              latitude: z.number(),
-              longitude: z.number(),
-            })
-            .strict(),
+          params: LocationSessionParams,
+          body: LocationUpdateBody,
         }),
       ],
     },
     async (request: any, reply) => {
-      const userId = request.user?.uid;
-      if (!userId)
-        return reply.status(401).send(
-          buildErrorResponse({
-            code: 'UNAUTHORIZED',
-            message: 'Unauthorized',
-            requestId: request.id,
-          }),
-        );
+      const userId = request.user.uid;
       const { id } = request.params;
       const { latitude, longitude } = request.body;
 
@@ -1008,11 +1201,21 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         const docRef = fastify.db.collection('locationSessions').doc(id);
         const doc = await docRef.get();
 
-        if (!doc.exists || doc.data()?.userId !== userId) {
-          return reply.status(403).send(
+        const session = doc.data();
+        if (!doc.exists || session?.userId !== userId) {
+          return reply.status(404).send(
             buildErrorResponse({
-              code: 'FORBIDDEN',
-              message: 'Forbidden',
+              code: 'NOT_FOUND',
+              message: 'Location session not found',
+              requestId: request.id,
+            }),
+          );
+        }
+        if (!session?.isActive || new Date(session.expiresAt).getTime() <= Date.now()) {
+          return reply.status(409).send(
+            buildErrorResponse({
+              code: 'LOCATION_SESSION_INACTIVE',
+              message: 'Location session has ended',
               requestId: request.id,
             }),
           );
@@ -1021,6 +1224,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         await docRef.update({
           location: { latitude, longitude },
           lastUpdate: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         });
 
         return { success: true };
@@ -1037,53 +1241,336 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     },
   );
 
+  fastify.post(
+    '/social/location/:id/invites',
+    {
+      preHandler: [
+        fastify.requireAuth,
+        fastify.validate({
+          params: LocationSessionParams,
+          body: LocationInviteBody,
+        }),
+      ],
+    },
+    async (request: any, reply) => {
+      const ownerUserId = request.user.uid;
+      const targetUserId = request.body.targetUserId;
+      if (targetUserId === ownerUserId) {
+        return reply.status(400).send(
+          buildErrorResponse({
+            code: 'BAD_REQUEST',
+            message: 'Cannot share location with yourself',
+            requestId: request.id,
+          }),
+        );
+      }
+      const sessionRef = fastify.db.collection('locationSessions').doc(request.params.id);
+      const [sessionSnapshot, targetSnapshot, blocked] = await Promise.all([
+        sessionRef.get(),
+        fastify.db.collection('users').doc(targetUserId).get(),
+        usersAreBlocked(fastify.db, ownerUserId, targetUserId),
+      ]);
+      const session = sessionSnapshot.data();
+      if (
+        !sessionSnapshot.exists ||
+        session?.userId !== ownerUserId ||
+        !session?.isActive ||
+        new Date(session.expiresAt).getTime() <= Date.now()
+      ) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Location session not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      if (!targetSnapshot.exists || blocked) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Recipient not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      const grantId = `${request.params.id}_${targetUserId}`;
+      const now = new Date().toISOString();
+      await fastify.db.collection('location_sharing_grants').doc(grantId).set(
+        {
+          id: grantId,
+          sessionId: request.params.id,
+          ownerUserId,
+          targetUserId,
+          status: 'invited',
+          expiresAt: session.expiresAt,
+          invitedAt: now,
+          updatedAt: now,
+        },
+        { merge: true },
+      );
+      return buildSuccessResponse({ grantId, status: 'invited' });
+    },
+  );
+
+  fastify.post(
+    '/social/location/invites/:id/accept',
+    {
+      preHandler: [fastify.requireAuth, fastify.validate({ params: LocationSessionParams })],
+    },
+    async (request: any, reply) => {
+      const grantRef = fastify.db.collection('location_sharing_grants').doc(request.params.id);
+      const grantSnapshot = await grantRef.get();
+      const grant = grantSnapshot.data();
+      if (!grantSnapshot.exists || !grant || grant.targetUserId !== request.user.uid) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Location invitation not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      const sessionSnapshot = await fastify.db
+        .collection('locationSessions')
+        .doc(grant.sessionId)
+        .get();
+      const session = sessionSnapshot.data();
+      if (
+        !sessionSnapshot.exists ||
+        !session?.isActive ||
+        new Date(session.expiresAt).getTime() <= Date.now() ||
+        (await usersAreBlocked(fastify.db, grant.ownerUserId, request.user.uid))
+      ) {
+        return reply.status(409).send(
+          buildErrorResponse({
+            code: 'LOCATION_INVITE_INACTIVE',
+            message: 'Location invitation is no longer active',
+            requestId: request.id,
+          }),
+        );
+      }
+      const acceptedAt = new Date().toISOString();
+      await grantRef.update({ status: 'accepted', acceptedAt, updatedAt: acceptedAt });
+      return buildSuccessResponse({ sessionId: grant.sessionId, status: 'accepted' });
+    },
+  );
+
+  fastify.get(
+    '/social/location/:id',
+    {
+      preHandler: [fastify.requireAuth, fastify.validate({ params: LocationSessionParams })],
+    },
+    async (request: any, reply) => {
+      const sessionSnapshot = await fastify.db
+        .collection('locationSessions')
+        .doc(request.params.id)
+        .get();
+      const session = sessionSnapshot.data();
+      if (
+        !sessionSnapshot.exists ||
+        !session?.isActive ||
+        new Date(session.expiresAt).getTime() <= Date.now()
+      ) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Location session not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      const isOwner = session.userId === request.user.uid;
+      if (!isOwner) {
+        const grant = await fastify.db
+          .collection('location_sharing_grants')
+          .doc(`${request.params.id}_${request.user.uid}`)
+          .get();
+        if (
+          !grant.exists ||
+          grant.data()?.status !== 'accepted' ||
+          (await usersAreBlocked(fastify.db, session.userId, request.user.uid))
+        ) {
+          return reply.status(404).send(
+            buildErrorResponse({
+              code: 'NOT_FOUND',
+              message: 'Location session not found',
+              requestId: request.id,
+            }),
+          );
+        }
+      }
+      return {
+        id: sessionSnapshot.id,
+        userId: session.userId,
+        eventId: session.eventId,
+        location: session.location,
+        lastUpdate: session.lastUpdate,
+        expiresAt: session.expiresAt,
+        isActive: true,
+      };
+    },
+  );
+
+  fastify.post(
+    '/social/location/:id/stop',
+    {
+      preHandler: [fastify.requireAuth, fastify.validate({ params: LocationSessionParams })],
+    },
+    async (request: any, reply) => {
+      const sessionRef = fastify.db.collection('locationSessions').doc(request.params.id);
+      const snapshot = await sessionRef.get();
+      if (!snapshot.exists || snapshot.data()?.userId !== request.user.uid) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Location session not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      const stoppedAt = new Date().toISOString();
+      await sessionRef.update({ isActive: false, stoppedAt, updatedAt: stoppedAt });
+      return buildSuccessResponse({ stopped: true, stoppedAt });
+    },
+  );
+
+  fastify.delete(
+    '/social/location/:id/grants/:targetUserId',
+    {
+      preHandler: [fastify.requireAuth, fastify.validate({ params: LocationGrantParams })],
+    },
+    async (request: any, reply) => {
+      const { id, targetUserId } = request.params;
+      const session = await fastify.db.collection('locationSessions').doc(id).get();
+      if (!session.exists || session.data()?.userId !== request.user.uid) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Location session not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      const revokedAt = new Date().toISOString();
+      await fastify.db
+        .collection('location_sharing_grants')
+        .doc(`${id}_${targetUserId}`)
+        .set({ status: 'revoked', revokedAt, updatedAt: revokedAt }, { merge: true });
+      return buildSuccessResponse({ revoked: true, revokedAt });
+    },
+  );
+
   /**
    * POST /api/v1/social/sos
    */
   fastify.post(
     '/social/sos',
     {
-      preHandler: [
-        fastify.validate({
-          body: z
-            .object({
-              eventId: z.string().optional(),
-              latitude: z.number().optional(),
-              longitude: z.number().optional(),
-            })
-            .strict(),
-        }),
-      ],
+      config: { rateLimit: { max: 3, timeWindow: '10 minutes' } },
+      preHandler: [fastify.requireAuth, fastify.validate({ body: SosBody })],
     },
     async (request: any, reply) => {
-      const userId = request.user?.uid;
-      if (!userId)
-        return reply.status(401).send(
-          buildErrorResponse({
-            code: 'UNAUTHORIZED',
-            message: 'Unauthorized',
-            requestId: request.id,
-          }),
-        );
-      const { eventId, latitude, longitude } = request.body;
+      const userId = request.user.uid;
+      const { eventId, latitude, longitude, idempotencyKey } = request.body;
+      const sosId = createHash('sha256')
+        .update(`sos:v1:${userId}:${idempotencyKey}`)
+        .digest('hex')
+        .slice(0, 40);
+      const sosRef = fastify.db.collection('sos_alerts').doc(sosId);
 
       try {
-        const sosRef = await fastify.db.collection('sosAlerts').add({
+        const existing = await sosRef.get();
+        if (existing.exists && existing.data()?.status === 'accepted') {
+          const data = existing.data()!;
+          return buildSuccessResponse({
+            sosId,
+            accepted: true,
+            alreadyAccepted: true,
+            acceptedCount: Number(data.acceptedCount || 0),
+          });
+        }
+
+        const contactSnapshot = await fastify.db
+          .collection('emergency_contacts')
+          .where('userId', '==', userId)
+          .limit(5)
+          .get();
+        const contacts = contactSnapshot.docs
+          .map((doc: any) => ({ contactId: doc.id, ...doc.data() }))
+          .filter((contact: any) => contact.status === 'verified');
+        if (contacts.length === 0) {
+          return reply.status(409).send(
+            buildErrorResponse({
+              code: 'SOS_NO_VERIFIED_CONTACTS',
+              message: 'Verify at least one emergency contact before sending SOS',
+              requestId: request.id,
+            }),
+          );
+        }
+
+        const profile = await fastify.db.collection('users').doc(userId).get();
+        const now = new Date().toISOString();
+        await sosRef.set({
+          id: sosId,
           userId,
           eventId: eventId || null,
           location: latitude != null && longitude != null ? { latitude, longitude } : null,
-          status: 'triggered',
-          triggeredAt: new Date().toISOString(),
+          recipientContactIds: contacts.map((contact: any) => contact.contactId),
+          status: 'dispatching',
+          idempotencyKeyHash: createHash('sha256').update(idempotencyKey).digest('hex'),
+          requestId: request.id,
+          attempts: Number(existing.data()?.attempts || 0) + 1,
+          triggeredAt: existing.data()?.triggeredAt || now,
+          updatedAt: now,
         });
 
-        // Note: In production, trigger SMS/Push here
-        return { success: true, sosId: sosRef.id };
+        const receipts = await sendSosViaMsg91({
+          sosId,
+          userName: profile.data()?.displayName || profile.data()?.name || 'A C1RCLE member',
+          recipients: contacts.map((contact: any) => ({
+            contactId: contact.contactId,
+            phone: contact.phone,
+            name: contact.name,
+          })),
+          latitude,
+          longitude,
+        });
+        const acceptedAt = new Date().toISOString();
+        await sosRef.update({
+          status: 'accepted',
+          acceptedCount: receipts.length,
+          receipts,
+          acceptedAt,
+          updatedAt: acceptedAt,
+          lastError: null,
+        });
+        return buildSuccessResponse({
+          sosId,
+          accepted: true,
+          alreadyAccepted: false,
+          acceptedCount: receipts.length,
+        });
       } catch (error: any) {
-        fastify.log.error(`Error in POST /social/sos: ${error.message}`);
-        return reply.status(500).send(
+        await sosRef
+          .set(
+            {
+              status: 'failed',
+              lastErrorCode: error.code || 'SOS_PROVIDER_UNAVAILABLE',
+              failedAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true },
+          )
+          .catch(() => undefined);
+        fastify.log.error(
+          { requestId: request.id, userId, sosId, error: error.message },
+          'POST /social/sos failed',
+        );
+        return reply.status(503).send(
           buildErrorResponse({
-            code: 'INTERNAL_ERROR',
-            message: 'Internal server error',
+            code: error.code || 'SOS_PROVIDER_UNAVAILABLE',
+            message: 'Emergency messaging was not accepted. Call local emergency services.',
             requestId: request.id,
           }),
         );
@@ -1282,34 +1769,26 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         );
 
       try {
-        const convoRef = fastify.db.collection('privateConversations').doc(id);
-        const convoDoc = await convoRef.get();
-        if (!convoDoc.exists)
-          return reply.status(404).send(
-            buildErrorResponse({
-              code: 'NOT_FOUND',
-              message: 'Not found',
-              requestId: request.id,
-            }),
-          );
-
-        const msgRef = await fastify.db.collection('directMessages').add({
-          conversationId: id,
-          senderId: userId,
-          content: text || imageUrl,
-          type: text ? 'text' : 'image',
-          createdAt: new Date().toISOString(),
+        const result = await sendChatMessage(fastify.db, userId, id, {
+          text,
+          imageUrl,
+          type: imageUrl ? 'image' : 'text',
         });
-
-        await convoRef.update({
-          lastMessage: {
-            content: text || '📷 Photo',
-            senderId: userId,
-            createdAt: new Date().toISOString(),
+        const topic = `dm:${result.chat.id || id}`;
+        fastify.broadcast(
+          {
+            type: 'dm:new_message',
+            payload: {
+              topic,
+              conversationId: result.chat.id || id,
+              message: result.message,
+            },
           },
-        });
-
-        return { success: true, messageId: msgRef.id };
+          topic,
+        );
+        reply.header('Deprecation', 'true');
+        reply.header('Sunset', 'Sat, 08 Aug 2026 00:00:00 GMT');
+        return { success: true, messageId: result.message.id };
       } catch (error: any) {
         fastify.log.error(`Error in POST /social/dm/:id/send: ${error.message}`);
         return reply.status(500).send(
@@ -1341,32 +1820,10 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     const { limit = 50 } = request.query;
 
     try {
-      const convoDoc = await fastify.db.collection('privateConversations').doc(id).get();
-      if (!convoDoc.exists)
-        return reply
-          .status(404)
-          .send(
-            buildErrorResponse({ code: 'NOT_FOUND', message: 'Not found', requestId: request.id }),
-          );
-      if (!(convoDoc.data() as any).participants?.includes(userId)) {
-        return reply.status(403).send(
-          buildErrorResponse({
-            code: 'FORBIDDEN',
-            message: 'Forbidden: Not a participant',
-            requestId: request.id,
-          }),
-        );
-      }
-
-      const snapshot = await fastify.db
-        .collection('directMessages')
-        .where('conversationId', '==', id)
-        .orderBy('createdAt', 'desc')
-        .limit(Number(limit))
-        .get();
-
-      const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      return buildSuccessResponse({ messages });
+      const result = await getChatMessages(fastify.db, userId, id, { limit });
+      reply.header('Deprecation', 'true');
+      reply.header('Sunset', 'Sat, 08 Aug 2026 00:00:00 GMT');
+      return buildSuccessResponse(result);
     } catch (error: any) {
       fastify.log.error(`Error in GET /social/dm/:id/messages: ${error.message}`);
       return reply.status(500).send(
@@ -1531,20 +1988,13 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     const { limit = 50, lastTimestamp } = request.query;
 
     try {
-      let query = fastify.db
-        .collection('eventGroupMessages')
-        .where('eventId', '==', eventId)
-        .orderBy('createdAt', 'desc')
-        .limit(Number(limit));
-
-      if (lastTimestamp) {
-        query = query.startAfter(lastTimestamp);
-      }
-
-      const snapshot = await query.get();
-      const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).reverse();
-
-      return buildSuccessResponse({ messages });
+      const result = await getChatMessages(fastify.db, userId, eventId, {
+        limit,
+        before: lastTimestamp || null,
+      });
+      reply.header('Deprecation', 'true');
+      reply.header('Sunset', 'Sat, 08 Aug 2026 00:00:00 GMT');
+      return buildSuccessResponse(result);
     } catch (error: any) {
       fastify.log.error(`Error in GET /social/chat/:eventId: ${error.message}`);
       return reply.status(500).send(

@@ -37,6 +37,7 @@ const VENUE_PERMISSIONS: Record<string, Permission[]> = {
     'MANAGE_SETTINGS',
     'MANAGE_PARTNERSHIPS',
     'MANAGE_PAGE_CONTENT',
+    'MANAGE_PAYOUTS',
     'MANAGE_GUEST_OPS',
     'EXPORT_GUESTS',
   ],
@@ -82,12 +83,36 @@ const HOST_PERMISSIONS: Record<string, Permission[]> = {
 };
 
 const PROMOTER_PERMISSIONS: Record<string, Permission[]> = {
-  PROMOTER: ['VIEW_ANALYTICS', 'MANAGE_PAGE_CONTENT', 'VIEW_GUESTLIST'],
-  TEAM_LEAD: ['VIEW_ANALYTICS', 'MANAGE_STAFF', 'VIEW_GUESTLIST'],
+  PROMOTER: [
+    'VIEW_ANALYTICS',
+    'MANAGE_PAGE_CONTENT',
+    'VIEW_GUESTLIST',
+    'VIEW_FINANCIALS',
+    'MANAGE_PAYOUTS',
+  ],
+  TEAM_LEAD: ['VIEW_ANALYTICS', 'MANAGE_STAFF', 'VIEW_GUESTLIST', 'VIEW_FINANCIALS'],
 };
 
+export function normalizePartnerRole(role: string): string {
+  const normalized = String(role || 'staff')
+    .trim()
+    .replace(/[\s-]+/g, '_')
+    .toUpperCase();
+  const aliases: Record<string, string> = {
+    DOOR_STAFF: 'DOOR',
+    DOOR_OPERATOR: 'DOOR',
+    VENUE_STAFF: 'STAFF',
+    FINANCE: 'FINANCE_ADMIN',
+    FINANCE_STAFF: 'FINANCE_ADMIN',
+    HOST_OWNER: 'OWNER',
+    VENUE_OWNER: 'OWNER',
+    PROMOTER_OWNER: 'PROMOTER',
+  };
+  return aliases[normalized] || normalized;
+}
+
 export function getPermissionsForRole(partnerType: string, role: string): Permission[] {
-  const r = role.toUpperCase();
+  const r = normalizePartnerRole(role);
   const type = (partnerType === 'club' ? 'venue' : partnerType).toLowerCase();
   if (type === 'host') return HOST_PERMISSIONS[r] ?? [];
   if (type === 'promoter') return PROMOTER_PERMISSIONS[r] ?? [];
@@ -98,7 +123,7 @@ export function getDefaultTabVisibility(
   partnerType: string,
   role: string,
 ): Partial<Record<string, boolean>> | null {
-  const r = role.toUpperCase();
+  const r = normalizePartnerRole(role);
   const type = (partnerType === 'club' ? 'venue' : partnerType).toLowerCase();
 
   if (type === 'host') {

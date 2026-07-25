@@ -7,6 +7,9 @@ export interface AuthMembership {
 }
 
 export interface RequestAuthContext {
+  credentialKind: 'id_token' | 'session_cookie' | 'internal_key' | null;
+  revokedChecked: boolean;
+  disabledChecked: boolean;
   identity: {
     uid: string;
     email: string | null;
@@ -36,6 +39,11 @@ function normalizeMembership(raw: Record<string, any>): AuthMembership | null {
 export function buildRequestAuthContext(
   user: Record<string, any>,
   rawMemberships: Array<Record<string, any>> = [],
+  verification: {
+    credentialKind?: RequestAuthContext['credentialKind'];
+    revokedChecked?: boolean;
+    disabledChecked?: boolean;
+  } = {},
 ): RequestAuthContext {
   const memberships = rawMemberships
     .map(normalizeMembership)
@@ -55,6 +63,9 @@ export function buildRequestAuthContext(
     null;
 
   return {
+    credentialKind: verification.credentialKind || null,
+    revokedChecked: verification.revokedChecked === true,
+    disabledChecked: verification.disabledChecked === true,
     identity: {
       uid: String(user.uid),
       email: user.email ? String(user.email) : null,

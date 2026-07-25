@@ -104,7 +104,8 @@ vi.mock('@c1rcle/core/inventory-engine', () => {
 async function buildServer({
   authenticated = false,
   customDb,
-}: { authenticated?: boolean; customDb?: any } = {}) {
+  partnerMembership,
+}: { authenticated?: boolean; customDb?: any; partnerMembership?: any | null } = {}) {
   const server = Fastify({ logger: false });
   server.decorate(
     'db',
@@ -202,6 +203,7 @@ async function buildServer({
     syncEventReadModels: vi.fn(async () => undefined),
   } as any);
   server.decorate('invalidatePublicDiscovery', vi.fn(async () => undefined) as any);
+  server.decorate('revalidateGuestEvent', vi.fn(async () => undefined) as any);
   server.decorate('verifyPartnerAccess', vi.fn(async () => true) as any);
   server.decorate('requireAuth', async (request: any, reply: any) => {
     if (!request.user?.uid) {
@@ -211,8 +213,33 @@ async function buildServer({
     }
   });
   server.decorateRequest('user', null);
+  server.decorateRequest('authContext', null);
   server.addHook('onRequest', async (request: any) => {
-    request.user = authenticated ? { uid: 'user_1', email: 'guest@example.com' } : null;
+    const activeMembership =
+      partnerMembership === undefined
+        ? {
+            uid: 'user_1',
+            partnerId: 'host_123',
+            partnerType: 'host',
+            role: 'owner',
+            status: 'active',
+            isActive: true,
+          }
+        : partnerMembership;
+    request.user = authenticated
+      ? { uid: 'user_1', email: 'guest@example.com', activeMembership }
+      : null;
+    request.authContext = authenticated
+      ? {
+          memberships: activeMembership ? [activeMembership] : [],
+          activeMembership,
+          scopes: {
+            partnerIds: activeMembership ? [activeMembership.partnerId] : [],
+            partnerTypes: activeMembership ? [activeMembership.partnerType] : [],
+            roles: activeMembership ? [activeMembership.role] : [],
+          },
+        }
+      : null;
   });
   await server.register(validatePlugin);
   await server.register(eventRoutes, { prefix: '/api/v1' });

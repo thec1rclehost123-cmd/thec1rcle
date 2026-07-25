@@ -10,7 +10,8 @@ import {
   debitWallet,
   reverseTransaction,
   topUpWallet,
-  issueWallet,
+  buildCoverWalletDocument,
+  deterministicCoverWalletId,
 } from './cover-charge-engine.js';
 
 // ---------------------------------------------------------------------------
@@ -142,6 +143,46 @@ describe('formatPaise', () => {
 
   it('throws for non-integer input', () => {
     expect(() => formatPaise(500.5)).toThrow();
+  });
+});
+
+describe('cover wallet issuance identity', () => {
+  it('uses one deterministic identity per order, tier, and admission unit', () => {
+    expect(deterministicCoverWalletId('ORD-1', 'VIP', 1)).toBe(
+      deterministicCoverWalletId('ORD-1', 'VIP', 1),
+    );
+    expect(deterministicCoverWalletId('ORD-1', 'VIP', 1)).not.toBe(
+      deterministicCoverWalletId('ORD-1', 'VIP', 2),
+    );
+  });
+
+  it('builds an immutable integer-paise wallet snapshot', () => {
+    expect(
+      buildCoverWalletDocument({
+        orderId: 'ORD-1',
+        eventId: 'EVT-1',
+        venueId: 'VEN-1',
+        userId: 'USR-1',
+        tierId: 'VIP',
+        unitIndex: 2,
+        tierConfig: {
+          enabled: true,
+          walletAmountPaise: 50_000,
+          terminationHour: 5,
+          presetItems: [],
+        },
+        eventStartIso: '2026-03-14T22:00:00+05:30',
+        issuedAt: '2026-03-01T00:00:00.000Z',
+      }),
+    ).toMatchObject({
+      id: deterministicCoverWalletId('ORD-1', 'VIP', 2),
+      orderId: 'ORD-1',
+      tierId: 'VIP',
+      unitIndex: 2,
+      openingBalancePaise: 50_000,
+      currentBalancePaise: 50_000,
+      schemaVersion: 2,
+    });
   });
 });
 

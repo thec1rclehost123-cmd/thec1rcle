@@ -1,7 +1,6 @@
 import { ReactNode } from 'react';
 import { View, Pressable, StyleSheet, PressableProps } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
@@ -96,9 +95,9 @@ export function Card({
         onPress={onPress ? handlePress : undefined}
         style={[animatedStyle, styles.glassContainer, style]}
       >
-        <BlurView blurMethod="dimezisBlurView" intensity={20} tint="dark" style={styles.blur}>
+        <LinearGradient colors={['rgba(20,20,28,0.88)', 'rgba(10,10,15,0.96)']} style={styles.blur}>
           <View style={[styles.glassOverlay, { padding: paddingStyles[padding] }]}>{children}</View>
-        </BlurView>
+        </LinearGradient>
       </Container>
     );
   }

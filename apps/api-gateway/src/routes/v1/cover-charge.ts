@@ -18,6 +18,8 @@ import {
   generateReconciliation,
 } from '@c1rcle/core/cover-charge-engine';
 import { validateScannerSession } from '../../lib/scannerSessions';
+import { resolvePartnerContext } from '../../lib/partner-context.js';
+import { normalizePartnerRole } from '../../lib/rbac-permissions.js';
 
 // =============================================================================
 // Zod Schemas
@@ -29,12 +31,6 @@ const DebitBody = z
     presetItemId: z.string().min(1),
     quantity: z.number().int().min(1).max(10),
     idempotencyKey: z.string().uuid('idempotencyKey must be a UUID'),
-    operatorId: z.string().min(1),
-    operatorName: z.string().optional().default(''),
-    operatorRole: z.string().optional().default('staff'),
-    deviceId: z.string().min(1),
-    eventCodeId: z.string().min(1),
-    isOnline: z.boolean(), // client must declare connectivity state
   })
   .strict();
 
@@ -44,10 +40,6 @@ const ReverseBody = z
     transactionId: z.string().min(1),
     reason: z.string().min(3),
     supervisorPinHash: z.string().min(1),
-    operatorId: z.string().min(1),
-    operatorRole: z.string().min(1),
-    deviceId: z.string().min(1),
-    eventCodeId: z.string().min(1),
   })
   .strict();
 
@@ -57,8 +49,6 @@ const TopUpBody = z
     amountPaise: z.number().int().positive(),
     reason: z.string().min(3),
     idempotencyKey: z.string().uuid(),
-    operatorId: z.string().min(1),
-    operatorRole: z.string().min(1),
   })
   .strict();
 
@@ -66,14 +56,12 @@ const FreezeBody = z
   .object({
     walletId: z.string().min(1),
     reason: z.string().min(3),
-    frozenBy: z.string().min(1),
   })
   .strict();
 
 const UnfreezeBody = z
   .object({
     walletId: z.string().min(1),
-    unfrozenBy: z.string().min(1),
   })
   .strict();
 
@@ -100,22 +88,79 @@ const ReconciliationQuery = z
 // Scanner session token validation (C3 — scanner is a no-Firebase-auth route)
 // =============================================================================
 
-async function validateScannerToken(fastify: FastifyInstance, request: any): Promise<boolean> {
+async function requireChargeSession(fastify: FastifyInstance, request: any): Promise<any | null> {
   const authHeader = (request.headers.authorization as string) || '';
-  const token = authHeader.replace('Bearer ', '').trim();
-  if (!token) return false;
-
-  // Try Firebase ID token first (staff also logged in as guest user)
-  try {
-    await fastify.auth.verifyIdToken(token);
-    return true;
-  } catch {}
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token) return null;
 
   const session = await validateScannerSession(fastify, token);
-  if (!session.authorized) return false;
+  if (!session.authorized) return null;
+  if (
+    session.sessionData?.codeType !== 'charge' ||
+    session.codeData?.type !== 'charge' ||
+    session.sessionData?.codeId !== session.codeDoc.id ||
+    !session.sessionData?.eventId ||
+    !session.sessionData?.venueId ||
+    !session.sessionData?.deviceId
+  ) {
+    return null;
+  }
+  const boundDevice = await fastify.db
+    .collection('bound_devices')
+    .doc(`${session.sessionData.venueId}_${session.sessionData.deviceId}`)
+    .get();
+  if (
+    !boundDevice.exists ||
+    boundDevice.data()?.bound !== true ||
+    boundDevice.data()?.status !== 'active'
+  ) {
+    return null;
+  }
   request.scannerCodeId = session.codeDoc.id;
   request.scannerCodeData = session.codeData;
-  return true;
+  return session;
+}
+
+async function requireVenueWalletAuthority(
+  fastify: FastifyInstance,
+  request: any,
+  walletId: string,
+  supervisorOnly = false,
+) {
+  const walletDoc = await fastify.db.collection('cover_wallets').doc(walletId).get();
+  if (!walletDoc.exists) return { ok: false as const, status: 404, code: 'WALLET_NOT_FOUND' };
+  const wallet = walletDoc.data() as any;
+  const context = await resolvePartnerContext(fastify.db, request).catch(() => null);
+  if (
+    !context ||
+    context.type !== 'venue' ||
+    String(context.partnerId) !== String(wallet.venueId)
+  ) {
+    return { ok: false as const, status: 404, code: 'WALLET_NOT_FOUND' };
+  }
+  const membership = (request.authContext?.memberships || []).find(
+    (candidate: any) =>
+      candidate.partnerId === context.partnerId &&
+      (candidate.isActive === true || candidate.status === 'active'),
+  );
+  const role = normalizePartnerRole(
+    membership?.role ||
+      (context.roles.some((item: string) => item.endsWith('_owner')) ? 'OWNER' : ''),
+  );
+  if (supervisorOnly && !['OWNER', 'MANAGER'].includes(role)) {
+    return { ok: false as const, status: 403, code: 'SUPERVISOR_REQUIRED' };
+  }
+  return {
+    ok: true as const,
+    wallet,
+    walletDoc,
+    context,
+    operator: {
+      id: request.user.uid,
+      name: request.user.name || request.user.email || 'Venue operator',
+      role: role.toLowerCase(),
+    },
+  };
 }
 
 // =============================================================================
@@ -134,8 +179,8 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
       preHandler: [fastify.validate({ params: WalletByOrderParams })],
     },
     async (request: any, reply) => {
-      const isAuthorized = await validateScannerToken(fastify, request);
-      if (!isAuthorized) return reply.status(401).send({ error: 'Unauthorized' });
+      const session = await requireChargeSession(fastify, request);
+      if (!session) return reply.status(401).send({ error: 'Charge session required' });
 
       const { orderId } = request.params as any;
       const snap = await (fastify as any).db
@@ -149,6 +194,12 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
 
       const doc = snap.docs[0];
       const w = doc.data() as any;
+      if (
+        String(w.eventId) !== String(session.sessionData.eventId) ||
+        String(w.venueId) !== String(session.sessionData.venueId)
+      ) {
+        return reply.status(404).send({ error: 'No active wallet for this order' });
+      }
       return {
         wallet: {
           id: doc.id,
@@ -180,68 +231,21 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
     async (request: any, reply) => {
       const body = request.body as z.infer<typeof DebitBody>;
 
-      // Hard block offline debits — v1 policy
-      if (!body.isOnline) {
-        return reply.status(503).send({
-          success: false,
-          code: 'OFFLINE_NOT_SUPPORTED',
-          message:
-            'Cover Wallet charges require a live connection. Connect to venue Wi-Fi or mobile data.',
-        });
-      }
-
-      // C3: Accept scanner session token OR Firebase auth
-      const isScannerAuthorized = await validateScannerToken(fastify, request);
-      if (!isScannerAuthorized) {
+      const session = await requireChargeSession(fastify, request);
+      if (!session) {
         return reply
           .status(401)
-          .send({ success: false, code: 'UNAUTHENTICATED', message: 'Authentication required' });
-      }
-
-      // Only enforce operatorId match for Firebase-authenticated users (not scanner sessions)
-      const authenticatedUid = request.user?.uid;
-      if (authenticatedUid && authenticatedUid !== body.operatorId) {
-        return reply.status(403).send({
-          success: false,
-          code: 'OPERATOR_MISMATCH',
-          message: 'operatorId must match authenticated user',
-        });
-      }
-
-      // Verify the event_code is of type 'charge'
-      const codeSnap = await fastify.db.collection('event_codes').doc(body.eventCodeId).get();
-      if (!codeSnap.exists) {
-        return reply
-          .status(403)
-          .send({ success: false, code: 'INVALID_CHARGE_CODE', message: 'Event code not found' });
-      }
-      const codeData = codeSnap.data() as any;
-      if (codeData.type !== 'charge') {
-        return reply.status(403).send({
-          success: false,
-          code: 'INVALID_CHARGE_CODE',
-          message: 'This event code does not permit wallet charges. Use a Charge Mode code.',
-        });
-      }
-      if (codeData.isRevoked) {
-        return reply.status(403).send({
-          success: false,
-          code: 'CHARGE_CODE_REVOKED',
-          message: 'Event charge code has been revoked',
-        });
-      }
-      if (codeData.expiresAt && new Date(codeData.expiresAt) < new Date()) {
-        return reply.status(403).send({
-          success: false,
-          code: 'CHARGE_CODE_EXPIRED',
-          message: 'Event charge code has expired',
-        });
+          .send({
+            success: false,
+            code: 'CHARGE_SESSION_REQUIRED',
+            message: 'Charge session required',
+          });
       }
 
       // Velocity check (Redis-backed)
       const velocityOk = await checkAndIncrementVelocity(
         fastify.redis,
-        body.deviceId,
+        session.sessionData.deviceId,
         body.walletId,
         3, // default max debits per minute per device
       );
@@ -259,11 +263,14 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
           presetItemId: body.presetItemId,
           quantity: body.quantity,
           idempotencyKey: body.idempotencyKey,
-          operatorId: body.operatorId,
-          operatorName: body.operatorName || '',
-          operatorRole: body.operatorRole || 'staff',
-          deviceId: body.deviceId,
-          eventCodeId: body.eventCodeId,
+          operatorId: session.sessionData.userId || `charge_session_${session.sessionId}`,
+          operatorName: session.sessionData.userName || 'Charge operator',
+          operatorRole: 'charge_operator',
+          deviceId: session.sessionData.deviceId,
+          eventCodeId: session.codeDoc.id,
+          authorizedEventId: session.sessionData.eventId,
+          authorizedVenueId: session.sessionData.venueId,
+          scannerSessionId: session.sessionId,
         });
 
         if (!result.success) {
@@ -297,19 +304,13 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/reverse',
     {
-      preHandler: [fastify.validate({ body: ReverseBody })],
+      preHandler: [fastify.requireAuth, fastify.validate({ body: ReverseBody })],
     },
     async (request: any, reply) => {
       const body = request.body as z.infer<typeof ReverseBody>;
-
-      const authenticatedUid = request.user?.uid;
-      if (!authenticatedUid || authenticatedUid !== body.operatorId) {
-        return reply.status(403).send({
-          success: false,
-          code: 'OPERATOR_MISMATCH',
-          message: 'operatorId must match authenticated user',
-        });
-      }
+      const authority = await requireVenueWalletAuthority(fastify, request, body.walletId, true);
+      if (!authority.ok)
+        return reply.status(authority.status).send({ success: false, code: authority.code });
 
       try {
         const result = await reverseTransaction({
@@ -317,10 +318,10 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
           transactionId: body.transactionId,
           reason: body.reason,
           supervisorPinHash: body.supervisorPinHash,
-          operatorId: body.operatorId,
-          operatorRole: body.operatorRole,
-          deviceId: body.deviceId,
-          eventCodeId: body.eventCodeId,
+          operatorId: authority.operator.id,
+          operatorRole: authority.operator.role,
+          deviceId: 'supervisor_console',
+          eventCodeId: 'supervisor_approval',
         });
 
         if (!result.success) {
@@ -352,19 +353,13 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/top-up',
     {
-      preHandler: [fastify.validate({ body: TopUpBody })],
+      preHandler: [fastify.requireAuth, fastify.validate({ body: TopUpBody })],
     },
     async (request: any, reply) => {
       const body = request.body as z.infer<typeof TopUpBody>;
-
-      const authenticatedUid = request.user?.uid;
-      if (!authenticatedUid || authenticatedUid !== body.operatorId) {
-        return reply.status(403).send({
-          success: false,
-          code: 'OPERATOR_MISMATCH',
-          message: 'operatorId must match authenticated user',
-        });
-      }
+      const authority = await requireVenueWalletAuthority(fastify, request, body.walletId, true);
+      if (!authority.ok)
+        return reply.status(authority.status).send({ success: false, code: authority.code });
 
       try {
         const result = await topUpWallet({
@@ -372,8 +367,8 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
           amountPaise: body.amountPaise,
           reason: body.reason,
           idempotencyKey: body.idempotencyKey,
-          operatorId: body.operatorId,
-          operatorRole: body.operatorRole,
+          operatorId: authority.operator.id,
+          operatorRole: authority.operator.role,
         });
 
         if (!result.success) {
@@ -403,16 +398,14 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/freeze',
     {
-      preHandler: [fastify.validate({ body: FreezeBody })],
+      preHandler: [fastify.requireAuth, fastify.validate({ body: FreezeBody })],
     },
     async (request: any, reply) => {
       const body = request.body as z.infer<typeof FreezeBody>;
-      // Admin/manager only
-      const role = request.user?.role;
-      if (!['admin', 'manager', 'super'].includes(role)) {
-        return reply.status(403).send({ success: false, code: 'INSUFFICIENT_ROLE' });
-      }
-      const result = await freezeWallet(body.walletId, body.reason, body.frozenBy);
+      const authority = await requireVenueWalletAuthority(fastify, request, body.walletId, true);
+      if (!authority.ok)
+        return reply.status(authority.status).send({ success: false, code: authority.code });
+      const result = await freezeWallet(body.walletId, body.reason, authority.operator.id);
       return result;
     },
   );
@@ -422,15 +415,14 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/unfreeze',
     {
-      preHandler: [fastify.validate({ body: UnfreezeBody })],
+      preHandler: [fastify.requireAuth, fastify.validate({ body: UnfreezeBody })],
     },
     async (request: any, reply) => {
       const body = request.body as z.infer<typeof UnfreezeBody>;
-      const role = request.user?.role;
-      if (!['admin', 'manager', 'super'].includes(role)) {
-        return reply.status(403).send({ success: false, code: 'INSUFFICIENT_ROLE' });
-      }
-      const result = await unfreezeWallet(body.walletId, body.unfrozenBy);
+      const authority = await requireVenueWalletAuthority(fastify, request, body.walletId, true);
+      if (!authority.ok)
+        return reply.status(authority.status).send({ success: false, code: authority.code });
+      const result = await unfreezeWallet(body.walletId, authority.operator.id);
       if (!result.success) return reply.status(422).send(result);
       return result;
     },
@@ -441,7 +433,7 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/wallet/:walletId',
     {
-      preHandler: [fastify.validate({ params: WalletParams })],
+      preHandler: [fastify.requireAuth, fastify.validate({ params: WalletParams })],
     },
     async (request: any, reply) => {
       const { walletId } = request.params as any;
@@ -457,12 +449,11 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
 
       // Guests can only read their own wallet
       const isOwner = wallet.userId === authenticatedUid;
-      const isAdmin = request.user?.role === 'admin' || request.user?.admin === true;
-      const isStaff =
-        request.user?.role && ['staff', 'manager', 'host'].includes(request.user.role);
-
-      if (!isOwner && !isAdmin && !isStaff) {
-        return reply.status(403).send({ error: 'Forbidden' });
+      let isVenueStaff = false;
+      if (!isOwner) {
+        const authority = await requireVenueWalletAuthority(fastify, request, walletId);
+        if (!authority.ok) return reply.status(404).send({ error: 'Wallet not found' });
+        isVenueStaff = true;
       }
 
       // Fetch last 20 txns
@@ -480,7 +471,7 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
       const showHistory = wallet.rules?.showTransactionHistory ?? true;
       const showBalance = wallet.rules?.showBalanceToGuest ?? true;
 
-      if (!isAdmin && !isStaff && !showBalance) {
+      if (!isVenueStaff && !showBalance) {
         return { wallet: { id: wallet.id, state: wallet.state, eventId: wallet.eventId } };
       }
 
@@ -495,7 +486,7 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
           terminationTime: wallet.rules?.terminationTime,
           txnCount: wallet.txnCount,
         },
-        transactions: isAdmin || isStaff || showHistory ? txns : [],
+        transactions: isVenueStaff || showHistory ? txns : [],
       };
     },
   );
@@ -505,21 +496,24 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/reconciliation',
     {
-      preHandler: [fastify.validate({ querystring: ReconciliationQuery })],
+      preHandler: [fastify.requireAuth, fastify.validate({ querystring: ReconciliationQuery })],
     },
     async (request: any, reply) => {
       const { eventId, venueId } = request.query as any;
 
-      const isAdmin = request.user?.admin === true || request.user?.role === 'admin';
-      const isHost = request.user?.role === 'host' || request.user?.role === 'manager';
-      if (!isAdmin && !isHost) {
-        return reply.status(403).send({ error: 'Forbidden' });
+      const context = await resolvePartnerContext(fastify.db, request).catch(() => null);
+      if (!context || context.type !== 'venue' || context.partnerId !== venueId) {
+        return reply.status(404).send({ error: 'Reconciliation not found' });
+      }
+      const eventDoc = await fastify.db.collection('events').doc(eventId).get();
+      if (!eventDoc.exists || String(eventDoc.data()?.venueId) !== String(venueId)) {
+        return reply.status(404).send({ error: 'Reconciliation not found' });
       }
 
       // Check if a cached reconciliation already exists
       const existing = await fastify.db
         .collection('cover_wallet_reconciliations')
-        .doc(eventId)
+        .doc(`${venueId}_${eventId}`)
         .get();
       if (existing.exists) {
         return existing.data();

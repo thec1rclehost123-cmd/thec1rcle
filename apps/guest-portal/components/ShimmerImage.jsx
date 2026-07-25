@@ -44,9 +44,7 @@ export default function ShimmerImage({
         <Image
           sizes={props.sizes || (props.fill ? defaultSizes : undefined)}
           {...props}
-          unoptimized={
-            isDiceBear || props.unoptimized || (props.src && String(props.src).startsWith('http'))
-          }
+          unoptimized={isDiceBear || props.unoptimized}
           ref={imgRef}
           className={`relative z-10 ${className}`}
           onLoad={(event) => {

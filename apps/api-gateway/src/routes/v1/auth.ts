@@ -677,6 +677,25 @@ export default async function authRoutes(fastify: FastifyInstance) {
   );
 
   fastify.post('/logout', async (request: any, reply) => {
+    const uid = request.user?.uid;
+    if (uid) {
+      try {
+        await fastify.auth.revokeRefreshTokens(uid);
+      } catch (error: any) {
+        request.log.error(
+          { uid, requestId: request.id, error: error?.message || String(error) },
+          'Failed to revoke Firebase refresh tokens during logout',
+        );
+        clearCookie(reply);
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'AUTH_LOGOUT_REVOCATION_FAILED',
+            message: 'The local session was cleared, but server session revocation must be retried.',
+            requestId: request.id,
+          }),
+        );
+      }
+    }
     clearCookie(reply);
     return { success: true };
   });

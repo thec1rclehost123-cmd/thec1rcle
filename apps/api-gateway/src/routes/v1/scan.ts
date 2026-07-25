@@ -4,8 +4,8 @@ import {
   validateScannerDevice,
   recordScanAttempt,
 } from '@c1rcle/core/scan-engine';
-import { randomBytes, createHmac } from 'node:crypto';
-import { FieldValue, Firestore } from 'firebase-admin/firestore';
+import { randomBytes } from 'node:crypto';
+import { FieldValue } from 'firebase-admin/firestore';
 import { resolvePartnerContext, canManageVenue } from '../../lib/partner-context';
 import { z } from 'zod';
 import {
@@ -21,22 +21,31 @@ import {
   updateScannerSummary,
   upsertScannerDeviceState,
 } from '../../lib/scannerLiveState';
-import { verifyPassword, decrypt } from '../../lib/encryption';
 import { commitInventory } from '@c1rcle/core/inventory-engine';
 import { writePartnerLedgerInTransaction } from '@c1rcle/core/partner-ledger-service';
 import { publishTicketPurchaseSync } from '../../lib/ticketPurchaseSync';
+import { createTicketQrForEntitlement } from '@c1rcle/core/ticket-checkout-wallet-service';
 
 const ScanBody = z
   .object({
     qrData: z.any().optional(),
     ticketPayload: z.any().optional(), // Legacy web proxy compat
-    scannerId: z.string().optional(), // Legacy web proxy compat
-    eventId: z.string().optional(),
+    eventId: z.string(),
     eventCode: z.string().optional(),
-    deviceId: z.string().optional(),
-    venueId: z.string().optional(),
+    deviceId: z.string().min(16).max(128),
+    venueId: z.string(),
     gate: z.string().optional(),
-    scannedBy: z.any().optional(),
+  })
+  .strict();
+
+const ConfirmCoupleScanBody = z
+  .object({
+    confirmationToken: z.string().min(32),
+    eventId: z.string(),
+    venueId: z.string(),
+    deviceId: z.string().min(16).max(128),
+    eventCode: z.string().optional(),
+    gate: z.string().optional(),
   })
   .strict();
 
@@ -86,8 +95,9 @@ const StaffSessionBody = z
   .object({
     eventId: z.string(),
     venueId: z.string(),
-    userId: z.string(),
-    role: z.string(),
+    deviceId: z.string().min(16).max(128),
+    deviceName: z.string().trim().min(1).max(120).optional(),
+    gate: z.string().trim().min(1).max(120).optional(),
   })
   .strict();
 
@@ -202,6 +212,11 @@ const QR_SECRET = getQrSecret();
 type ScannerAuthResult = {
   authorized: boolean;
   usingFirebase: boolean;
+  operator?: {
+    uid: string;
+    name: string;
+    role: string;
+  };
   codeDoc?: any;
   codeData?: any;
   sessionRef?: any;
@@ -226,11 +241,80 @@ async function validateScannerAccess(
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   if (!token) return { authorized: false, usingFirebase: false };
 
+  let decoded: any = null;
   try {
-    const decoded = await (fastify as any).auth.verifyIdToken(token);
+    decoded = await (fastify as any).auth.verifyIdToken(token, true);
+  } catch {
+    decoded = null;
+  }
+
+  if (decoded) {
+    const eventId = request.body?.eventId || request.query?.eventId || null;
+    const requestedVenueId =
+      request.body?.venueId || request.query?.venueId || request.headers?.['x-venue-id'] || null;
+
+    let event: Record<string, any> | null = null;
+    if (eventId) {
+      const eventDoc = await fastify.db.collection('events').doc(String(eventId)).get();
+      if (!eventDoc.exists || eventDoc.data()?.isDeleted) {
+        return { authorized: false, usingFirebase: true };
+      }
+      event = eventDoc.data() || {};
+    }
+
+    const venueId = String(event?.venueId || requestedVenueId || '');
+    if (!venueId || (requestedVenueId && String(requestedVenueId) !== venueId)) {
+      return { authorized: false, usingFirebase: true };
+    }
+
+    const staffSnapshot = await fastify.db
+      .collection('venue_staff')
+      .where('venueId', '==', venueId)
+      .where('userId', '==', decoded.uid)
+      .limit(2)
+      .get();
+    if (staffSnapshot.size !== 1) {
+      return { authorized: false, usingFirebase: true };
+    }
+
+    const staffDoc = staffSnapshot.docs[0];
+    const staff = staffDoc.data() || {};
+    const role = String(staff.role || '').toUpperCase();
+    const roleCanScan = ['OWNER', 'MANAGER', 'FLOOR_MANAGER', 'OPS', 'SECURITY', 'DOOR'].includes(
+      role,
+    );
+    const active =
+      staff.isActive === true &&
+      staff.status !== 'removed' &&
+      (staff.verified === true || staff.isVerified === true);
+    const canScan = staff.permissions?.scanTickets === true || roleCanScan;
+    if (!active || !canScan) {
+      return { authorized: false, usingFirebase: true };
+    }
+
     request.user = { ...(request.user || {}), ...decoded };
-    return { authorized: true, usingFirebase: true };
-  } catch {}
+    const codeData = {
+      code: 'STAFF',
+      eventId: eventId ? String(eventId) : null,
+      venueId,
+      deviceId: request.body?.deviceId || null,
+      type: 'scan_only',
+      isStaffSession: true,
+      userId: decoded.uid,
+      role: role.toLowerCase(),
+    };
+    return {
+      authorized: true,
+      usingFirebase: true,
+      operator: {
+        uid: decoded.uid,
+        name: String(staff.name || decoded.name || decoded.email || 'Venue Staff'),
+        role: role.toLowerCase(),
+      },
+      codeDoc: staffDoc,
+      codeData,
+    };
+  }
 
   const session = await validateScannerSession(fastify, token);
   if (!session.authorized) return { authorized: false, usingFirebase: false };
@@ -242,6 +326,11 @@ async function validateScannerAccess(
   return {
     authorized: true,
     usingFirebase: false,
+    operator: {
+      uid: String(session.sessionData?.userId || session.sessionId),
+      name: String(session.sessionData?.userName || 'Scanner'),
+      role: String(session.sessionData?.role || 'door').toLowerCase(),
+    },
     codeDoc: session.codeDoc,
     codeData: session.codeData,
     sessionRef: session.sessionRef,
@@ -257,14 +346,20 @@ function scannerSessionError(reply: any) {
 
 function matchesScannerContext(
   auth: ScannerAuthResult,
-  { eventId, eventCode, venueId }: { eventId?: string; eventCode?: string; venueId?: string },
+  {
+    eventId,
+    eventCode,
+    venueId,
+    deviceId,
+  }: { eventId?: string; eventCode?: string; venueId?: string; deviceId?: string },
 ): boolean {
-  if (auth.usingFirebase || !auth.codeData) return true;
+  if (!auth.codeData) return false;
 
   const normalizedCode = eventCode?.toUpperCase().trim();
   if (normalizedCode && auth.codeData.code !== normalizedCode) return false;
   if (eventId && auth.codeData.eventId !== eventId) return false;
   if (venueId && auth.codeData.venueId && auth.codeData.venueId !== venueId) return false;
+  if (deviceId && auth.codeData.deviceId && auth.codeData.deviceId !== deviceId) return false;
 
   return true;
 }
@@ -326,17 +421,15 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     async (request: any, reply) => {
       const { eventId, eventCode, deviceId, venueId } = request.body;
       const qrData = request.body.qrData || request.body.ticketPayload;
-      const scannedBy =
-        request.body.scannedBy ||
-        (request.body.scannerId ? { uid: request.body.scannerId, role: 'door_staff' } : undefined);
 
       if (!qrData) return reply.status(400).send({ error: 'QR data is required' });
 
       const auth = await validateScannerAccess(fastify, request);
       if (!auth.authorized) return scannerSessionError(reply);
-      if (!matchesScannerContext(auth, { eventId, eventCode, venueId })) {
+      if (!matchesScannerContext(auth, { eventId, eventCode, venueId, deviceId })) {
         return scannerSessionError(reply);
       }
+      const scannedBy = auth.operator;
 
       let payload: any;
       try {
@@ -368,7 +461,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
           typeof qrData === 'string' &&
           (qrData.includes('.') || qrData.trim().startsWith('eyJ'))
         ) {
-          const { verifyTicketQrJwt, processTicketJwtScan } =
+          const { verifyTicketQrJwt, previewTicketJwtScan, processTicketJwtScan } =
             // @ts-ignore — JS-only core module, no .d.ts yet
             await import('@c1rcle/core/ticket-checkout-wallet-service');
           const verified = verifyTicketQrJwt(qrData.trim());
@@ -386,15 +479,40 @@ export default async function scanRoutes(fastify: FastifyInstance) {
               .send({ error: 'Ticket is for a different event', result: 'wrong_event' });
           }
           const authorizedVenueId = venueId || auth.codeData?.venueId || null;
-          if (deviceId && authorizedVenueId) {
-            const deviceCheck = await validateScannerDevice(
-              fastify.db,
-              deviceId,
-              authorizedVenueId,
-            );
-            if (!deviceCheck.valid) {
-              return reply.status(403).send({ error: deviceCheck.error, result: 'device_invalid' });
-            }
+          const deviceCheck = await validateScannerDevice(fastify.db, deviceId, authorizedVenueId);
+          if (!deviceCheck.valid) {
+            return reply.status(403).send({ error: deviceCheck.error, result: 'device_invalid' });
+          }
+
+          const preview = await previewTicketJwtScan({
+            db: fastify.db,
+            token: qrData.trim(),
+            eventId: eventId || jwtEventId,
+            scannerId: scannedBy?.uid || request.scannerSessionId || 'scanner',
+            deviceId,
+          });
+          if (!preview.success) {
+            return reply.status(preview.result === 'wrong_event' ? 400 : 409).send({
+              error: preview.error || 'Entry denied',
+              result: preview.result || 'invalid',
+            });
+          }
+          if (preview.requiresConfirmation) {
+            return reply.send({
+              success: true,
+              result: 'confirmation_required',
+              requiresConfirmation: true,
+              confirmationToken: preview.confirmationToken,
+              ticket: {
+                orderId: preview.ticket.orderId,
+                eventId: preview.ticket.eventId,
+                ticketName: preview.ticket.tierName,
+                quantity: 2,
+                entryType: 'couple',
+                userName: preview.ticket.userName || 'Guest',
+              },
+              message: 'Confirm that both guests are present',
+            });
           }
 
           const jwtScan = await processTicketJwtScan({
@@ -480,7 +598,16 @@ export default async function scanRoutes(fastify: FastifyInstance) {
             message: 'Entry approved',
           };
         } else {
-          payload = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
+          fastify.log.warn(
+            { requestId: request.id, eventId, deviceId },
+            'Legacy non-JWT scanner payload rejected',
+          );
+          return reply.status(410).send({
+            error: 'Legacy QR format is no longer accepted',
+            code: 'LEGACY_QR_RETIRED',
+            result: 'invalid',
+            retryable: false,
+          });
         }
       } catch (e) {
         return reply.status(400).send({ error: 'Invalid QR format', result: 'invalid' });
@@ -617,7 +744,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
       const operator = getOperatorDetails(scannedBy);
       const liveEventId = eventId || payload.e;
 
-      const isSignatureValid = payload.sig === 'jwt_verified' ? true : verifyScanSignature(payload);
+      const isSignatureValid = verifyScanSignature(payload);
       if (!isSignatureValid) {
         await recordScanAttempt(fastify.db, {
           orderId: payload.o,
@@ -931,6 +1058,103 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         },
         message: `Entry approved — ${order?.userName || 'Guest'}`,
       };
+    },
+  );
+
+  fastify.post(
+    '/confirm-couple',
+    {
+      preHandler: [fastify.validate({ body: ConfirmCoupleScanBody })],
+    },
+    async (request: any, reply) => {
+      const { confirmationToken, eventId, venueId, deviceId, eventCode, gate } = request.body;
+      const auth = await validateScannerAccess(fastify, request);
+      if (!auth.authorized || !auth.operator) return scannerSessionError(reply);
+      if (!matchesScannerContext(auth, { eventId, venueId, deviceId, eventCode })) {
+        return scannerSessionError(reply);
+      }
+      const deviceCheck = await validateScannerDevice(fastify.db, deviceId, venueId);
+      if (!deviceCheck.valid) {
+        return reply.status(403).send({ error: deviceCheck.error, result: 'device_invalid' });
+      }
+
+      const { confirmCoupleTicketScan } =
+        // @ts-ignore — JS-only core module, no .d.ts yet
+        await import('@c1rcle/core/ticket-checkout-wallet-service');
+      const result = await confirmCoupleTicketScan({
+        db: fastify.db,
+        confirmationToken,
+        eventId,
+        scannerId: auth.operator.uid,
+        deviceId,
+        gate: gate || null,
+      });
+      if (!result.success) {
+        return reply.status(result.result === 'already_scanned' ? 409 : 400).send({
+          error: result.error || 'Couple admission denied',
+          result: result.result || 'invalid',
+        });
+      }
+
+      const scannedAt = new Date().toISOString();
+      await Promise.allSettled([
+        recordScannerLiveEvent(
+          fastify.db,
+          {
+            eventId,
+            venueId,
+            orderId: result.ticket.orderId,
+            ticketId: result.ticket.id,
+            guestDisplayName: result.ticket.userName || 'Guest',
+            result: 'valid',
+            source: 'scanner',
+            scannedAt,
+            deviceId,
+            operatorUid: auth.operator.uid,
+            operatorName: auth.operator.name,
+            operatorRole: auth.operator.role,
+            gate: gate || null,
+            ticketTierId: result.ticket.tierId || null,
+            ticketTierName: result.ticket.tierName || null,
+          },
+          { totalScans: 1, checkedIn: 2 },
+          {
+            checkedInIncrement: 2,
+            entryType: 'couple',
+            entryTypeQuantity: 2,
+          },
+        ),
+        auth.sessionRef ? touchScannerSession(auth.sessionRef, scannedAt) : Promise.resolve(),
+      ]);
+      fastify.broadcast(
+        {
+          type: 'TICKET_CHECKED_IN',
+          payload: {
+            eventId,
+            ticketId: result.ticket.id,
+            entitlementId: result.entitlementId,
+            scanId: result.scanId,
+            quantity: 2,
+            scannedAt,
+          },
+        },
+        `event:${eventId}`,
+      );
+      return reply.send({
+        success: true,
+        result: 'valid',
+        message: 'Couple entry approved',
+        ticket: {
+          orderId: result.ticket.orderId,
+          eventId,
+          userName: result.ticket.userName || 'Guest',
+          ticketName: result.ticket.tierName || 'Couple Entry',
+          quantity: 2,
+          entryType: 'couple',
+        },
+        scanCountUsed: 2,
+        scanCountAllowed: 2,
+      });
     },
   );
 
@@ -2112,7 +2336,18 @@ export default async function scanRoutes(fastify: FastifyInstance) {
             },
             now,
           ),
-          auth.sessionRef ? touchScannerSession(auth.sessionRef, now) : Promise.resolve(),
+          auth.sessionRef
+            ? auth.sessionRef.set(
+                {
+                  deviceId,
+                  venueId,
+                  eventId: resolvedEventId,
+                  deviceBoundAt: now,
+                  lastUsedAt: now,
+                },
+                { merge: true },
+              )
+            : Promise.resolve(),
         ]);
       }
 
@@ -2346,7 +2581,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/entitlements/:id/qr',
     {
-      preHandler: [fastify.validate({ params: EntitlementsParam })],
+      preHandler: [fastify.requireAuth, fastify.validate({ params: EntitlementsParam })],
     },
     async (request: any, reply) => {
       const { id } = request.params as any;
@@ -2354,17 +2589,27 @@ export default async function scanRoutes(fastify: FastifyInstance) {
 
       if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
-      const entDoc = await fastify.db.collection('entitlements').doc(id).get();
-      if (!entDoc.exists) return reply.status(404).send({ error: 'Entitlement not found' });
-
-      const entitlement = entDoc.data() as any;
-      if (entitlement.ownerUserId !== userId) {
-        return reply.status(403).send({ error: 'Forbidden' });
+      try {
+        const qr = await createTicketQrForEntitlement({
+          db: fastify.db,
+          userId,
+          entitlementId: id,
+        });
+        reply.header('Cache-Control', 'private, no-store');
+        return {
+          ...qr,
+          rawData: qr.qrPayload,
+        };
+      } catch (error: any) {
+        const status = error?.code === 'TICKET_MIGRATION_REQUIRED' ? 409 : 404;
+        return reply.status(status).send({
+          error:
+            status === 409
+              ? 'Ticket requires migration before it can be scanned'
+              : 'Entitlement not found',
+          code: error?.code || 'NOT_FOUND',
+        });
       }
-
-      const { generateEntitlementQR } = await import('@c1rcle/core/entitlement-engine');
-      const qr = generateEntitlementQR(id);
-      return { ...qr, rawData: JSON.stringify(qr) };
     },
   );
 
@@ -2382,8 +2627,12 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     async (request: any, reply) => {
       const { idToken, email, password } = request.body as any;
 
-      if (!idToken && (!email || !password)) {
-        return reply.status(400).send({ error: 'Either idToken or email/password is required' });
+      if (!idToken) {
+        return reply.status(410).send({
+          error: 'Password-only scanner login is retired. Sign in with Firebase.',
+          code: 'LEGACY_SCANNER_LOGIN_RETIRED',
+          retryable: false,
+        });
       }
 
       let normalizedEmail = '';
@@ -2391,7 +2640,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
 
       if (idToken) {
         try {
-          const decodedToken = await fastify.auth.verifyIdToken(idToken);
+          const decodedToken = await fastify.auth.verifyIdToken(idToken, true);
           normalizedEmail = decodedToken.email?.toLowerCase().trim() || '';
           verifiedUid = decodedToken.uid;
         } catch (error) {
@@ -2435,25 +2684,11 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         return reply.status(401).send({ error: 'Token does not match staff account' });
       }
 
-      // Check if password matches if not using idToken
-      if (!idToken) {
-        let isMatch = false;
-        if (staffData.password) {
-          isMatch = verifyPassword(password, staffData.password);
-        } else if (staffData.tempPassword) {
-          isMatch = password === decrypt(staffData.tempPassword);
-        }
-
-        if (!isMatch) {
-          return reply.status(401).send({ error: 'Invalid email or password' });
-        }
-      }
-
       return {
         success: true,
         userId: staffData.userId || staffDoc.id,
         venueId: staffData.venueId,
-        role: staffData.role || 'DOOR',
+        role: String(staffData.role || 'door').toLowerCase(),
       };
     },
   );
@@ -2469,6 +2704,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     },
     async (request: any, reply) => {
       const { venueId, date } = request.query as any;
+      const auth = await validateScannerAccess(fastify, request);
+      if (!auth.authorized || !auth.usingFirebase) return scannerSessionError(reply);
+      if (!matchesScannerContext(auth, { venueId })) return scannerSessionError(reply);
 
       let targetDateStr = date;
       if (date === 'today') {
@@ -2484,8 +2722,21 @@ export default async function scanRoutes(fastify: FastifyInstance) {
 
       const snap = await query.get();
       const events = snap.docs
-        .map((d: any) => ({ id: d.id, ...d.data() }))
-        .filter((e: any) => !e.isDeleted && e.status !== 'draft');
+        .map((d: any) => {
+          const event = d.data();
+          return {
+            id: d.id,
+            title: event.title || event.name || 'Event',
+            venueId: event.venueId,
+            venueName: event.venueName || event.venue || null,
+            startDate: event.startDate || null,
+            startTime: event.startTime || null,
+            endTime: event.endTime || null,
+            capacity: Number(event.capacity || 0),
+            status: event.status || null,
+          };
+        })
+        .filter((event: any) => event.status !== 'draft');
 
       return { events };
     },
@@ -2498,13 +2749,30 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/staff/session',
     {
-      preHandler: [fastify.validate({ body: StaffSessionBody })],
+      preHandler: [fastify.validate({ body: StaffSessionBody }), fastify.requireAuth],
     },
     async (request: any, reply) => {
-      const { eventId, venueId, userId, role } = request.body as any;
+      const { eventId, venueId, deviceId, deviceName, gate } = request.body as any;
+      const auth = await validateScannerAccess(fastify, request);
+      if (!auth.authorized || !auth.usingFirebase || !auth.operator) {
+        return reply.status(403).send({
+          error: 'Forbidden',
+          code: 'SCANNER_STAFF_REQUIRED',
+        });
+      }
+      if (!matchesScannerContext(auth, { eventId, venueId, deviceId })) {
+        return reply.status(403).send({
+          error: 'Forbidden',
+          code: 'SCANNER_CONTEXT_MISMATCH',
+        });
+      }
 
       const eventDoc = await fastify.db.collection('events').doc(eventId).get();
-      if (!eventDoc.exists || eventDoc.data()?.isDeleted) {
+      if (
+        !eventDoc.exists ||
+        eventDoc.data()?.isDeleted ||
+        String(eventDoc.data()?.venueId || '') !== venueId
+      ) {
         return reply.status(404).send({ error: 'Event not found' });
       }
 
@@ -2512,25 +2780,44 @@ export default async function scanRoutes(fastify: FastifyInstance) {
 
       const sessionToken = randomBytes(24).toString('hex');
       const sessionId = hashScannerSessionToken(sessionToken);
-      const sessionExpiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
-
-      await fastify.db
-        .collection('scanner_auth_sessions')
-        .doc(sessionId)
-        .set({
-          codeId: 'staff_' + userId,
-          code: 'STAFF',
-          codeType: 'full',
-          eventId,
+      const sessionExpiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      const now = new Date().toISOString();
+      const sessionRef = fastify.db.collection('scanner_auth_sessions').doc(sessionId);
+      const deviceRef = fastify.db.collection('bound_devices').doc(`${venueId}_${deviceId}`);
+      const batch = fastify.db.batch();
+      batch.set(
+        deviceRef,
+        {
+          deviceId,
           venueId,
-          createdAt: new Date().toISOString(),
-          lastUsedAt: new Date().toISOString(),
-          expiresAt: sessionExpiresAt,
-          revokedAt: null,
-          isStaffSession: true,
-          userId,
-          role,
-        });
+          userId: auth.operator.uid,
+          role: auth.operator.role,
+          deviceName: deviceName || 'C1RCLE Scanner',
+          bound: true,
+          status: 'active',
+          registeredAt: now,
+          lastActiveAt: now,
+        },
+        { merge: true },
+      );
+      batch.set(sessionRef, {
+        codeId: 'staff_' + auth.operator.uid,
+        code: 'STAFF',
+        codeType: 'scan_only',
+        eventId,
+        venueId,
+        deviceId,
+        gate: gate || null,
+        createdAt: now,
+        lastUsedAt: now,
+        expiresAt: sessionExpiresAt,
+        revokedAt: null,
+        isStaffSession: true,
+        userId: auth.operator.uid,
+        userName: auth.operator.name,
+        role: auth.operator.role,
+      });
+      await batch.commit();
 
       const stats = await getScannerSummarySnapshot(fastify.db, eventId);
 
@@ -2580,7 +2867,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         },
         permissions: {
           canScan: true,
-          canDoorEntry: true,
+          canDoorEntry: ['owner', 'manager', 'floor_manager', 'ops', 'security', 'door'].includes(
+            auth.operator.role,
+          ),
         },
         tiers,
         gate: 'Main Gate',

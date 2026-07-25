@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import Image from 'next/image';
 import { type AccentName, getAccentToken } from '../../lib/design-system/tokens';
 
 type AvatarSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -49,7 +50,13 @@ export const Avatar = ({
       {...rest}
     >
       {src ? (
-        <img src={src} alt={alt || name || 'Guest avatar'} className="h-full w-full object-cover" />
+        <Image
+          src={src}
+          alt={alt || name || 'Guest avatar'}
+          fill
+          sizes={size === 'lg' ? '80px' : size === 'md' ? '56px' : size === 'sm' ? '40px' : '32px'}
+          className="object-cover"
+        />
       ) : (
         <span className="flex h-full w-full items-center justify-center bg-black/30">
           {initials || '??'}

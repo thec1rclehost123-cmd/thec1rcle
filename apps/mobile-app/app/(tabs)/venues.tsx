@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { useShallow } from 'zustand/react/shallow';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -305,16 +306,13 @@ function CuratedRail({ title, venues }: { title: string; venues: Venue[] }) {
   return (
     <Animated.View entering={FadeInDown.delay(200)} style={styles.railSection}>
       <Text style={styles.railTitle}>{title}</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.railScroll}
-      >
-        {venues.map((v, i) => {
+      <FlashList
+        data={venues}
+        keyExtractor={(venue) => venue.id}
+        renderItem={({ item: v }) => {
           const image = getVenueImage(v);
           return (
             <Pressable
-              key={v.id}
               style={styles.railCard}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -342,8 +340,11 @@ function CuratedRail({ title, venues }: { title: string; venues: Venue[] }) {
               </View>
             </Pressable>
           );
-        })}
-      </ScrollView>
+        }}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.railScroll}
+      />
     </Animated.View>
   );
 }
@@ -374,37 +375,31 @@ function ZomatoVenueCard({ venue }: { venue: Venue }) {
           />
 
           {venue.isVerified && (
-            <BlurView
-              blurMethod="dimezisBlurView"
-              intensity={40}
-              tint="dark"
+            <LinearGradient
+              colors={['rgba(20,20,28,0.88)', 'rgba(10,10,15,0.96)']}
               style={styles.zBadgeVerified}
             >
               <Text style={styles.zBadgeText}>✓ Verified</Text>
-            </BlurView>
+            </LinearGradient>
           )}
 
           <View style={styles.zBadgesBottom}>
             {venue.upcomingEventsCount ? (
-              <BlurView
-                blurMethod="dimezisBlurView"
-                intensity={40}
-                tint="dark"
+              <LinearGradient
+                colors={['rgba(20,20,28,0.88)', 'rgba(10,10,15,0.96)']}
                 style={styles.zBadgePill}
               >
                 <Ticket size={10} color="#fff" style={{ marginRight: 4 }} />
                 <Text style={styles.zBadgeText}>{venue.upcomingEventsCount} Events</Text>
-              </BlurView>
+              </LinearGradient>
             ) : null}
-            <BlurView
-              blurMethod="dimezisBlurView"
-              intensity={40}
-              tint="dark"
+            <LinearGradient
+              colors={['rgba(20,20,28,0.88)', 'rgba(10,10,15,0.96)']}
               style={styles.zBadgePill}
             >
               <Heart size={10} color="#F44A22" style={{ marginRight: 4 }} />
               <Text style={styles.zBadgeText}>{formatCompactCount(venue.followers)}</Text>
-            </BlurView>
+            </LinearGradient>
           </View>
         </View>
 
@@ -437,8 +432,17 @@ export default function VenuesTab() {
   const [activeFilter, setActiveFilter] = useState<VenueFilter>('all');
   const fetchedCityRef = useRef<string | null>(null);
 
-  const { venues, loading, error, fetchVenues } = useVenuesStore();
-  const { events, fetchEvents } = useEventsStore();
+  const { venues, loading, error, fetchVenues } = useVenuesStore(
+    useShallow((state) => ({
+      venues: state.venues,
+      loading: state.loading,
+      error: state.error,
+      fetchVenues: state.fetchVenues,
+    })),
+  );
+  const { events, fetchEvents } = useEventsStore(
+    useShallow((state) => ({ events: state.events, fetchEvents: state.fetchEvents })),
+  );
   const { user, initialized } = useAuth();
   const profile = useProfileStore((s) => s.profile);
   const { fetchFollows } = useFollowStore();

@@ -4,20 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   CheckCircle2,
   Clock,
-  AlertCircle,
-  XCircle,
-  ArrowRight,
   Building2,
-  CreditCard,
   ShieldCheck,
   Download,
   RefreshCw,
   Banknote,
-  Plus,
   Info,
   ArrowLeft,
 } from 'lucide-react';
-import Link from 'next/link';
 import { VenuePageShell, VenueActionButton } from '@/components/venue-layout/VenuePageShell';
 import { AppleHeroStat } from '@/components/ui/AppleHeroStat';
 import { VenueStatStrip } from '@/components/ui/VenueStatStrip';
@@ -30,7 +24,6 @@ import {
   SETTLEMENT_STATUS_CONFIG,
   type PayoutRecord,
   type PayoutSettingsState,
-  type PayoutMethod,
 } from '@/lib/finance/definitions';
 
 // ── Payout Settings Page ──────────────────────────────────────────────────────
@@ -47,28 +40,52 @@ export default function VenuePayoutsSettingsClient() {
   const [showSetup, setShowSetup] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   const fetchPayouts = useCallback(async () => {
     if (!venueId) return;
     setLoading(true);
+    setLoadError('');
     try {
       const token = typeof getIdToken === 'function' ? await getIdToken() : '';
-      const res = await fetch(
-        `/api/partners/venues/finance/overview?venueId=${venueId}&period=90d`,
-        {
+      const [overviewResponse, payoutsResponse, accountsResponse] = await Promise.all([
+        fetch(`/api/venue/finance/overview?venueId=${venueId}&period=90d`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
-        },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setAvailableBalance(data.metrics?.availableBalance || 0);
-        setTotalSettled(data.metrics?.settledPayouts || 0);
-        const rawPayoutState = (data.metrics as any)?.payoutState as
-          PayoutSettingsState | undefined;
-        if (rawPayoutState) setSettingsState(rawPayoutState);
+        }),
+        fetch(`/api/venue/finance/payouts?venueId=${venueId}&limit=50`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }),
+        fetch(`/api/venue/finance/bank-accounts?venueId=${venueId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }),
+      ]);
+      if (!overviewResponse.ok || !payoutsResponse.ok || !accountsResponse.ok) {
+        throw new Error('Canonical payout data is unavailable.');
       }
-    } catch {
-      // keep defaults
+      const [overviewBody, payoutsBody, accountsBody] = await Promise.all([
+        overviewResponse.json(),
+        payoutsResponse.json(),
+        accountsResponse.json(),
+      ]);
+      const metrics = overviewBody.metrics || overviewBody.data?.metrics || {};
+      setAvailableBalance(Number(metrics.availableBalance || 0));
+      setTotalSettled(Number(metrics.settledPayouts || 0));
+      const accounts = accountsBody.accounts || accountsBody.data?.accounts || [];
+      setSettingsState(accounts.length > 0 ? 'active' : 'unconnected');
+      setPayouts(
+        (payoutsBody.payouts || payoutsBody.data?.payouts || []).map((payout: any) => ({
+          id: String(payout.id),
+          amount: Number(payout.amount || 0),
+          status: payout.status || 'pending',
+          paymentMethod: payout.paymentMethod || 'bank_transfer',
+          destination: payout.destination || 'Verified payout account',
+          requestedAt: payout.requestedAt || payout.arrivalDate,
+          completedAt: payout.completedAt,
+        })),
+      );
+    } catch (error: any) {
+      setPayouts([]);
+      setLoadError(error.message || 'Canonical payout data is unavailable.');
     } finally {
       setLoading(false);
     }
@@ -119,6 +136,15 @@ export default function VenuePayoutsSettingsClient() {
         </VenueActionButton>
       }
     >
+      {loadError && (
+        <div
+          role="alert"
+          className="rounded-xl px-4 py-3 text-[13px]"
+          style={{ background: 'rgba(239,68,68,0.12)', color: '#F87171' }}
+        >
+          {loadError}
+        </div>
+      )}
       {/* Payout status card */}
       {settingsState === 'unconnected' && !showSetup ? (
         <UnconnectedPayoutState venueId={venueId} onStartSetup={() => setShowSetup(true)} />
@@ -155,31 +181,21 @@ export default function VenuePayoutsSettingsClient() {
           <AppleHeroStat
             label="AVAILABLE BALANCE"
             value={loading ? '—' : formatINR(availableBalance)}
-            subtitle="Eligible for immediate withdrawal"
+            subtitle="Ledger-settled balance"
             loading={loading}
             noData={!loading && !availableBalance}
-            cta={{ label: 'Withdraw Now', href: '#' }}
           />
 
           {/* Stats */}
           <VenueStatStrip
-            columns={3}
+            columns={2}
             stats={[
               {
                 label: 'TOTAL SETTLED (90D)',
                 value: loading ? '—' : formatINRCompact(totalSettled),
                 loading,
               },
-              {
-                label: 'PAYOUT SCHEDULE',
-                value: 'Weekly (Mon)',
-                icon: <Clock className="w-3.5 h-3.5" />,
-              },
-              {
-                label: 'ACTIVE ACCOUNT',
-                value: 'HDFC •••• 8821',
-                icon: <CreditCard className="w-3.5 h-3.5" />,
-              },
+              { label: 'PAYOUT MUTATIONS', value: 'Provider verification pending' },
             ]}
           />
 
@@ -191,8 +207,6 @@ export default function VenuePayoutsSettingsClient() {
       {/* Bank account section */}
       <BankAccountSection state={settingsState} />
 
-      {/* Payout schedule section */}
-      <PayoutScheduleSection />
     </VenuePageShell>
   );
 }
@@ -260,10 +274,7 @@ function UnconnectedPayoutState({
         </p>
         <div className="grid grid-cols-2 gap-2">
           {[
-            'Instant balance withdrawal',
-            'Automated weekly payouts',
             'Payout history & receipts',
-            'Partner settlement controls',
             'Tax document generation',
             'PDF statements',
           ].map((cap) => (
@@ -286,16 +297,6 @@ function UnconnectedPayoutState({
         >
           Start Payout Setup
         </button>
-        <button
-          className="px-5 py-3.5 rounded-xl text-[14px] font-semibold"
-          style={{
-            background: 'var(--v-elevated)',
-            color: 'var(--v-text-secondary)',
-            border: '1px solid var(--v-border)',
-          }}
-        >
-          Learn More
-        </button>
       </div>
     </div>
   );
@@ -310,17 +311,9 @@ function BankAccountSection({ state }: { state: PayoutSettingsState }) {
         <div className="flex items-center justify-between w-full">
           <span className="v-label">BANK ACCOUNT</span>
           {state === 'active' && (
-            <button
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold"
-              style={{
-                background: 'var(--v-elevated)',
-                color: 'var(--v-text-secondary)',
-                border: '1px solid var(--v-border)',
-              }}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Account
-            </button>
+            <span className="text-[11px]" style={{ color: 'var(--v-text-muted)' }}>
+              Managed through verified setup
+            </span>
           )}
         </div>
       }
@@ -345,10 +338,10 @@ function BankAccountSection({ state }: { state: PayoutSettingsState }) {
           </div>
           <div>
             <p className="text-[14px] font-semibold" style={{ color: 'var(--v-text-primary)' }}>
-              HDFC Bank
+              Verified payout account
             </p>
             <p className="text-[12px]" style={{ color: 'var(--v-text-muted)' }}>
-              Account ending •••• 8821 · RTGS/NEFT enabled
+              Sensitive account details are available only from the finance API.
             </p>
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -365,61 +358,39 @@ function BankAccountSection({ state }: { state: PayoutSettingsState }) {
   );
 }
 
-// ── Payout Schedule ───────────────────────────────────────────────────────────
-
-function PayoutScheduleSection() {
-  const [schedule, setSchedule] = useState<'daily' | 'weekly' | 'monthly' | 'manual'>('weekly');
-
-  const options = [
-    { value: 'daily', label: 'Daily', desc: 'Every business day' },
-    { value: 'weekly', label: 'Weekly', desc: 'Every Monday' },
-    { value: 'monthly', label: 'Monthly', desc: '1st of each month' },
-    { value: 'manual', label: 'Manual', desc: 'On-demand only' },
-  ] as const;
-
-  return (
-    <BentoCard header={<span className="v-label">PAYOUT SCHEDULE</span>}>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {options.map((opt) => {
-          const active = schedule === opt.value;
-          return (
-            <button
-              key={opt.value}
-              onClick={() => setSchedule(opt.value)}
-              className="flex flex-col items-start gap-1 p-4 rounded-xl text-left transition-all duration-150"
-              style={{
-                background: active
-                  ? 'rgba(var(--v-orange-rgb, 244,74,34),0.1)'
-                  : 'var(--v-elevated)',
-                border: `1px solid ${active ? 'rgba(var(--v-orange-rgb, 244,74,34),0.3)' : 'var(--v-border)'}`,
-              }}
-            >
-              <span
-                className="text-[13px] font-bold"
-                style={{ color: active ? 'var(--v-orange)' : 'var(--v-text-primary)' }}
-              >
-                {opt.label}
-              </span>
-              <span className="text-[11px]" style={{ color: 'var(--v-text-muted)' }}>
-                {opt.desc}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </BentoCard>
-  );
-}
-
 // ── Payout History Table ──────────────────────────────────────────────────────
 
 function PayoutHistoryTable({ payouts, loading }: { payouts: PayoutRecord[]; loading: boolean }) {
+  const exportCsv = useCallback(() => {
+    const rows = [
+      ['Payout ID', 'Amount', 'Status', 'Requested At', 'Completed At'],
+      ...payouts.map((payout) => [
+        payout.id,
+        String(payout.amount),
+        payout.status,
+        payout.requestedAt || '',
+        payout.completedAt || '',
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'venue-payouts.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [payouts]);
+
   return (
     <BentoCard
       header={
         <div className="flex items-center justify-between w-full">
           <span className="v-label">SETTLEMENT HISTORY</span>
           <button
+            onClick={exportCsv}
+            disabled={payouts.length === 0}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold"
             style={{
               background: 'var(--v-elevated)',
@@ -467,9 +438,6 @@ function PayoutHistoryTable({ payouts, loading }: { payouts: PayoutRecord[]; loa
               >
                 {cfg.label}
               </span>
-              <button style={{ color: 'var(--v-text-muted)' }}>
-                <Download className="w-3.5 h-3.5" />
-              </button>
             </div>
           );
         })}

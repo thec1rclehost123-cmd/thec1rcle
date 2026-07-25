@@ -290,6 +290,7 @@ function TicketOriginEventView({
                 source={{ uri: poster }}
                 style={styles.goingPoster}
                 contentFit="cover"
+                cachePolicy="memory-disk"
                 transition={250}
               />
             ) : (
@@ -356,6 +357,7 @@ function TicketOriginEventView({
                       source={{ uri: poster }}
                       style={styles.sharePreviewPoster}
                       contentFit="cover"
+                      cachePolicy="memory-disk"
                     />
                   ) : (
                     <View style={styles.sharePreviewPoster} />
@@ -1308,6 +1310,7 @@ export default memo(function EventDetailScreen() {
           style={StyleSheet.absoluteFill}
           blurRadius={20}
           contentFit="cover"
+          cachePolicy="memory-disk"
         />
       ) : null}
       <LinearGradient
@@ -1546,6 +1549,7 @@ export default memo(function EventDetailScreen() {
                           style={StyleSheet.absoluteFill}
                           contentFit="cover"
                           contentPosition="center"
+                          cachePolicy="memory-disk"
                         />
                       ) : (
                         <Text style={styles.interestedAvatarText}>{initial}</Text>

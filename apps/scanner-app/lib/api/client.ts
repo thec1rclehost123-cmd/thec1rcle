@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { auth } from '../firebase';
+import { getScannerSessionToken } from '../deviceIdentity';
 
 const getApiBase = () => {
   let url = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
@@ -40,9 +41,20 @@ export async function scannerFetch(path: string, options: FetchOptions = {}): Pr
     ...options.headers,
   };
 
-  await auth.authStateReady();
-  const currentUser = auth.currentUser;
-  if (currentUser) {
+  const requiresFirebaseIdentity =
+    path === '/scan/staff-login' ||
+    path.startsWith('/scan/events') ||
+    path === '/scan/staff/session';
+  const scannerSession = requiresFirebaseIdentity ? null : await getScannerSessionToken();
+
+  if (scannerSession) {
+    headers['x-scanner-code'] = scannerSession;
+  } else {
+    await auth.authStateReady();
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('Scanner authentication is required');
+    }
     try {
       const idToken = await currentUser.getIdToken();
       headers['Authorization'] = `Bearer ${idToken}`;

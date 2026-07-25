@@ -902,10 +902,8 @@ function QRModal({
                                 },
                               ]}
                             >
-                              <BlurView
-                                blurMethod="dimezisBlurView"
-                                intensity={50}
-                                tint="light"
+                              <LinearGradient
+                                colors={['rgba(255,255,255,0.92)', 'rgba(225,225,230,0.86)']}
                                 style={StyleSheet.absoluteFill}
                               />
                               <LinearGradient
@@ -954,10 +952,8 @@ function QRModal({
                               { elevation: 0, shadowOpacity: 0, overflow: 'hidden' },
                             ]}
                           >
-                            <BlurView
-                              blurMethod="dimezisBlurView"
-                              intensity={50}
-                              tint="light"
+                            <LinearGradient
+                              colors={['rgba(255,255,255,0.92)', 'rgba(225,225,230,0.86)']}
                               style={StyleSheet.absoluteFill}
                             />
                             <LinearGradient
@@ -1132,10 +1128,8 @@ function QRModal({
                 {activeWallet && (
                   <View style={[ms.walletCardWrap, { width: cardWidth, alignSelf: 'center' }]}>
                     <View style={ms.walletGlassCard}>
-                      <BlurView
-                        blurMethod="dimezisBlurView"
-                        intensity={40}
-                        tint="dark"
+                      <LinearGradient
+                        colors={['rgba(20,20,28,0.88)', 'rgba(10,10,15,0.96)']}
                         style={StyleSheet.absoluteFill}
                       />
                       <LinearGradient
@@ -1207,10 +1201,8 @@ function QRModal({
                           <View style={ms.walletQrContainer}>
                             {qrRotating ? (
                               <>
-                                <BlurView
-                                  blurMethod="dimezisBlurView"
-                                  intensity={30}
-                                  tint="light"
+                                <LinearGradient
+                                  colors={['rgba(255,255,255,0.92)', 'rgba(225,225,230,0.86)']}
                                   style={StyleSheet.absoluteFill}
                                 />
                                 <QRCode

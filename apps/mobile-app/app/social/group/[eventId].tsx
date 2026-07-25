@@ -215,9 +215,10 @@ export default function EventGroupChatScreen() {
             checkEventEntitlement(user!.uid, eventId!),
             getEventGroupChat(eventId!),
             apiFetch<any>(`/api/v1/events/${eventId}`, { requireAuth: false }).catch(() => null),
-            apiFetch<any>(`/api/v1/social/chat/${eventId}?limit=50`, { requireAuth: true }).catch(
-              () => null,
-            ),
+            apiFetch<any>(
+              `/api/v1/chats/${encodeURIComponent(eventId!)}/messages?limit=50`,
+              { requireAuth: true },
+            ).catch(() => null),
           ]);
           if (!active) return;
 
@@ -246,8 +247,10 @@ export default function EventGroupChatScreen() {
 
           // Pre-populate messages if the parallel fetch succeeded
           let initialMessages: GroupMessage[] = [];
-          if (initialChatResponse?.messages) {
-            const normalized = initialChatResponse.messages
+          const initialResponseMessages =
+            initialChatResponse?.data?.messages || initialChatResponse?.messages;
+          if (initialResponseMessages) {
+            const normalized = initialResponseMessages
               .map((m: any) => ({
                 id: String(m.id || m.messageId),
                 eventId: String(m.eventId || eventId),

@@ -52,7 +52,11 @@ export default function ScannerCodeScreen() {
       if (result.valid) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await setEventData(result);
-        if (result.permissions.canScan && result.sessionToken && result.event.venueId) {
+        if (
+          (result.permissions.canScan || result.permissions.canCharge) &&
+          result.sessionToken &&
+          result.event.venueId
+        ) {
           const registration = await registerScannerDevice(
             result.event.venueId,
             result.sessionToken,

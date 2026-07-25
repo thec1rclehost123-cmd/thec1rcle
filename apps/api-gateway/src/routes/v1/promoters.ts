@@ -517,158 +517,12 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
     {
       preHandler: [fastify.requireAuth],
     },
-    async (request: any, reply) => {
-      const body = request.body as Record<string, any>;
-      const promoterId = String(body.promoterId || '');
-      const eventId = String(body.eventId || '');
-
-      if (!promoterId || !eventId) {
-        return reply.status(400).send({ error: 'promoterId and eventId are required' });
-      }
-
-      await fastify.verifyPartnerAccess(request, promoterId).catch(() => {
-        throw reply.status(403).send({ error: 'Forbidden' });
-      });
-
-      const existingSnap = await fastify.db
-        .collection('promoter_links')
-        .where('promoterId', '==', promoterId)
-        .where('eventId', '==', eventId)
-        .where('isActive', '==', true)
-        .limit(1)
-        .get();
-
-      const eventDoc = await fastify.db.collection('events').doc(eventId).get();
-      if (!eventDoc.exists) {
-        return reply.status(404).send({ error: 'Event not found' });
-      }
-
-      const event: Record<string, any> = { id: eventDoc.id, ...(eventDoc.data() || {}) };
-
-      // 1. Validate event lifecycle
-      if (!['scheduled', 'live'].includes(event.lifecycle)) {
-        return reply.status(400).send({ error: 'Event is not currently active' });
-      }
-
-      // 2. Validate promoters are enabled globally for this event
-      const globallyEnabled =
-        event.promotersEnabled === true || event.promoterSettings?.enabled === true;
-      if (!globallyEnabled) {
-        return reply.status(403).send({ error: 'Promoters are not enabled for this event' });
-      }
-
-      // 3. Validate promoter is in whitelist (if one exists)
-      const allowedIds = Array.isArray(event.promoterSettings?.allowedPromoterIds)
-        ? event.promoterSettings.allowedPromoterIds.map((id: any) => String(id))
-        : [];
-      if (allowedIds.length > 0 && !allowedIds.includes(promoterId)) {
-        return reply.status(403).send({ error: 'You are not authorized to promote this event' });
-      }
-
-      if (existingSnap.empty === false) {
-        const existing = { id: existingSnap.docs[0].id, ...existingSnap.docs[0].data() };
-        return {
-          link: buildLegacyLink(existing, event),
-          duplicate: true,
-        };
-      }
-
-      const promoterRef = fastify.db.collection('promoters').doc(promoterId);
-      const promoterDoc = await promoterRef.get();
-      let trackingCode = promoterDoc.exists ? promoterDoc.data()?.trackingCode : null;
-
-      if (!trackingCode) {
-        if (body.customTrackingCode) {
-          const cleanCode = String(body.customTrackingCode)
-            .toLowerCase()
-            .replace(/[^a-z0-9]/g, '');
-          if (cleanCode.length < 3)
-            return reply.status(400).send({ error: 'Custom code must be at least 3 characters' });
-          const existingGlobal = await fastify.db
-            .collection('promoters')
-            .where('trackingCode', '==', cleanCode)
-            .limit(1)
-            .get();
-          if (!existingGlobal.empty) {
-            return reply
-              .status(409)
-              .send({ error: 'This custom code is already taken. Please choose another.' });
-          }
-          trackingCode = cleanCode;
-        } else {
-          const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
-          let base = (body.promoterName || 'promo').toLowerCase().replace(/[^a-z0-9]/g, '');
-          if (base.length > 10) base = base.substring(0, 10);
-          if (base.length < 3) base = 'promo';
-
-          let isUnique = false;
-          let newCode = '';
-          while (!isUnique) {
-            const suffix = Array.from(
-              { length: 3 },
-              () => chars[Math.floor(Math.random() * chars.length)],
-            ).join('');
-            newCode = `${base}${suffix}`;
-            const existingGlobal = await fastify.db
-              .collection('promoters')
-              .where('trackingCode', '==', newCode)
-              .limit(1)
-              .get();
-            if (existingGlobal.empty) {
-              isUnique = true;
-            }
-          }
-          trackingCode = newCode;
-        }
-        await promoterRef.set({ trackingCode }, { merge: true });
-      }
-
-      let resolvedRate = body.commissionRate ?? resolveEventCommissionRate(event, promoterId);
-      const resolvedType = resolveEventCommissionType(event, promoterId);
-      let resolvedTierCommissions = null;
-      if (event.promoterCompensation) {
-        const pc = normalizeCompensationForRead(event.promoterCompensation);
-        resolvedTierCommissions = resolveEffectiveCommission(pc, promoterId).tierCommissions;
-      }
-
-      if (resolvedType === 'percentage') {
-        resolvedRate = normalizePromoterCommissionRate(resolvedRate);
-      }
-
-      const code = trackingCode;
-      const now = new Date().toISOString();
-      const id = randomUUID();
-      const link = {
-        id,
-        promoterId,
-        promoterName: body.promoterName || '',
-        eventId,
-        eventTitle: pickString(body.eventTitle, event.title, event.name),
-        campaignLabel: pickString(body.campaignLabel),
-        ticketTierIds: Array.isArray(body.ticketTierIds) ? body.ticketTierIds : [],
-        commissionRate: resolvedRate,
-        commissionType: resolvedType,
-        tierCommissions: resolvedTierCommissions,
-        code,
-        clicks: 0,
-        conversions: 0,
-        revenue: 0,
-        commission: 0,
-        isActive: true,
-        status: 'active',
-        fullUrl: pickString(body.fullUrl) || null,
-        vanityPrefix: pickString(body.vanityPrefix) || null,
-        vanitySlug: pickString(body.editableSlug) || null,
-        vanityAlias: pickString(body.editableSlug) || null,
-        channel: pickString(body.channel, 'organic'),
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      await fastify.db.collection('promoter_links').doc(id).set(link);
-      return reply.status(201).send({
-        link: buildLegacyLink(link, event),
-        duplicate: false,
+    async (_request: any, reply) => {
+      return reply.status(410).send({
+        error: 'Legacy promoter link mutation has been retired',
+        code: 'LEGACY_PROMOTER_LINK_MUTATION_RETIRED',
+        retryable: false,
+        replacement: '/api/v1/partners/promoters/links',
       });
     },
   );
@@ -678,53 +532,13 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
     {
       preHandler: [fastify.requireAuth],
     },
-    async (request: any, reply) => {
-      const { id } = request.params as { id: string };
-      const body = request.body as Record<string, any>;
-      const promoterId = String(body.promoterId || '');
-      if (!promoterId) return reply.status(400).send({ error: 'promoterId required' });
-      await fastify.verifyPartnerAccess(request, promoterId).catch(() => {
-        throw reply.status(403).send({ error: 'Forbidden' });
+    async (_request: any, reply) => {
+      return reply.status(410).send({
+        error: 'Legacy promoter link mutation has been retired',
+        code: 'LEGACY_PROMOTER_LINK_MUTATION_RETIRED',
+        retryable: false,
+        replacement: '/api/v1/partners/promoters/links/:linkId',
       });
-
-      const ref = fastify.db.collection('promoter_links').doc(id);
-      const doc = await ref.get();
-      if (!doc.exists) return reply.status(404).send({ error: 'Link not found' });
-
-      const current = { id: doc.id, ...(doc.data() || {}) } as Record<string, any>;
-      if (String(current.promoterId || '') !== promoterId)
-        return reply.status(403).send({ error: 'Forbidden' });
-
-      const action = String(body.action || '').toLowerCase();
-      const editableSlug = pickString(body.editableSlug);
-      const updates: Record<string, any> = { updatedAt: new Date().toISOString() };
-
-      if (action === 'deactivate') {
-        updates.isActive = false;
-        updates.status = 'deactivated';
-      } else if (action === 'reactivate') {
-        updates.isActive = true;
-        updates.status = 'active';
-      } else if (action === 'update_alias') {
-        updates.vanitySlug = editableSlug;
-        updates.vanityAlias = editableSlug;
-      } else {
-        return reply.status(400).send({ error: 'Unsupported link action' });
-      }
-
-      await ref.update(updates);
-      const updatedDoc = await ref.get();
-      const updated: Record<string, any> = { id: updatedDoc.id, ...(updatedDoc.data() || {}) };
-      const eventDoc = updated.eventId
-        ? await fastify.db.collection('events').doc(String(updated.eventId)).get()
-        : null;
-      const event: Record<string, any> = eventDoc?.exists
-        ? { id: eventDoc.id, ...(eventDoc.data() || {}) }
-        : {};
-      return {
-        success: true,
-        link: buildLegacyLink(updated, event),
-      };
     },
   );
 

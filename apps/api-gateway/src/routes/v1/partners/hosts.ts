@@ -2915,8 +2915,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
           await updateEventPromoterCompensation(fastify.db, evtId, body);
 
-          // Create / update promoter_assignments for all enabled promoters (fire-and-forget)
-          (async () => {
+          // Assignment terms authorize checkout commission, so this work is
+          // part of the command's success boundary and must be awaited.
+          await (async () => {
             try {
               const eventDoc = await fastify.db
                 .collection('events')
@@ -2994,6 +2995,10 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
                         commissionRate: effective.rate,
                         commissionType: effective.type,
                         tierCommissions: effective.tierCommissions,
+                        assignmentVersion: 2,
+                        termsVersion: 2,
+                        approvedByPartnerId: ctx.partnerId,
+                        approvedByPartnerType: 'host',
                         linkCode: trackingCode || null,
                         totalSales: 0,
                         totalRevenue: 0,
@@ -3066,6 +3071,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               }
             } catch (err: any) {
               fastify.log.error(`[Promoter] Assignment sync error: ${err.message}`);
+              throw err;
             }
           })();
 

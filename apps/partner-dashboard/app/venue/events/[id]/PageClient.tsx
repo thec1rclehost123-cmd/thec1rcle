@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useDeferredValue, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -48,8 +48,14 @@ import {
   Plus,
 } from 'lucide-react';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
-import EventAnalyticsClient from '@/components/analytics/EventAnalyticsClient';
 import EventTeamTab from '@/app/host/events/[id]/EventTeamTab';
+import { HostOverviewTab } from '@/components/events/workspace-tabs/HostOverviewTab';
+import { HostTicketsTab } from '@/components/events/workspace-tabs/HostTicketsTab';
+import {
+  HostAttendeesTab,
+  type AttendeeFilters,
+} from '@/components/events/workspace-tabs/HostAttendeesTab';
+import { HostSettingsTab } from '@/components/events/workspace-tabs/HostSettingsTab';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { TextArea } from '@/components/ui/TextArea';
@@ -601,27 +607,15 @@ export default function VenueEventWorkspacePage() {
 
   const [activeSection, setActiveSection] = useState('analytics');
   const [eventInfoDraft, setEventInfoDraft] = useState<EventInfoDraft>(EMPTY_EVENT_INFO_DRAFT);
-  const [settingsDraft, setSettingsDraft] = useState<EventSettings>(EMPTY_SETTINGS);
-  const [ticketDrafts, setTicketDrafts] = useState<Record<string, TicketTierDraft>>({});
-  const [savingTierId, setSavingTierId] = useState<string | null>(null);
-  const [expandedTierId, setExpandedTierId] = useState<string | null>(null);
-  const [savingBlockId, setSavingBlockId] = useState<string | null>(null);
+  const [savingBlockId, setSavingBlockId] = useState<SettingsBlockId | null>(null);
   const [activeSettingsBlock, setActiveSettingsBlock] = useState<SettingsBlockId | null>(null);
 
-  const [attendeeSearch, setAttendeeSearch] = useState('');
-  const deferredAttendeeSearch = useDeferredValue(attendeeSearch);
-  const [attendeeSource, setAttendeeSource] = useState('');
-  const [attendeeStatus, setAttendeeStatus] = useState('');
-  const [attendeeTierId, setAttendeeTierId] = useState('');
-  const [attendeeSort, setAttendeeSort] = useState('newest');
-  const [attendeePage, setAttendeePage] = useState(1);
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [selectedPromoterIds, setSelectedPromoterIds] = useState<string[]>([]);
 
   const [ticketsRefreshedAt, setTicketsRefreshedAt] = useState<Date | null>(null);
   const [revenueRefreshedAt, setRevenueRefreshedAt] = useState<Date | null>(null);
-  const [attendeesRefreshedAt, setAttendeesRefreshedAt] = useState<Date | null>(null);
 
   const syncWorkspaceQuery = useCallback(
     (
@@ -694,10 +688,6 @@ export default function VenueEventWorkspacePage() {
     });
   }, [syncWorkspaceQuery]);
 
-  useEffect(() => {
-    setAttendeePage(1);
-  }, [deferredAttendeeSearch, attendeeSource, attendeeStatus, attendeeTierId, attendeeSort]);
-
   const authedFetch = useCallback(
     async (url: string, options: RequestInit = {}) => {
       if (!user) throw new Error('Not authenticated');
@@ -769,39 +759,6 @@ export default function VenueEventWorkspacePage() {
     enabled: Boolean(
       eventId && user && partnerId && !isHostManagedEvent && activeSection === 'revenue',
     ),
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
-
-  const attendeesQuery = useQuery({
-    queryKey: [
-      'venue-event-attendees',
-      eventId,
-      deferredAttendeeSearch,
-      attendeeSource,
-      attendeeStatus,
-      attendeeTierId,
-      attendeeSort,
-      attendeePage,
-    ],
-    queryFn: async () => {
-      const searchParams = new URLSearchParams({
-        page: String(attendeePage),
-        limit: '25',
-        sort: attendeeSort,
-      });
-
-      if (deferredAttendeeSearch.trim()) searchParams.set('q', deferredAttendeeSearch.trim());
-      if (attendeeSource) searchParams.set('source', attendeeSource);
-      if (attendeeStatus) searchParams.set('status', attendeeStatus);
-      if (attendeeTierId) searchParams.set('tierId', attendeeTierId);
-
-      return (await authedJson(
-        `/api/partners/venues/events/${eventId}/attendees?${searchParams.toString()}`,
-      )) as AttendeesResponse;
-    },
-    enabled: Boolean(eventId && user && partnerId && activeSection === 'attendees'),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
@@ -910,7 +867,6 @@ export default function VenueEventWorkspacePage() {
   const overview = overviewQuery.data;
   const tickets = ticketsQuery.data;
   const finance = financeQuery.data;
-  const attendees = attendeesQuery.data;
   const attendeeDetail = attendeeDetailQuery.data;
   const promotersData = promotersQuery.data;
   const selectedOrder =
@@ -926,9 +882,6 @@ export default function VenueEventWorkspacePage() {
   useEffect(() => {
     if (financeQuery.data && !revenueRefreshedAt) setRevenueRefreshedAt(new Date());
   }, [financeQuery.data]);
-  useEffect(() => {
-    if (attendeesQuery.data && !attendeesRefreshedAt) setAttendeesRefreshedAt(new Date());
-  }, [attendeesQuery.data]);
   useEffect(() => {
     if (!attendeeDetailQuery.data) return;
     setSelectedOrderId(
@@ -999,7 +952,6 @@ export default function VenueEventWorkspacePage() {
   useEffect(() => {
     if (!event) return;
     setEventInfoDraft(buildEventInfoDraft(event));
-    setSettingsDraft(hydrateSettings(event.settings));
   }, [event]);
 
   useEffect(() => {
@@ -1016,16 +968,6 @@ export default function VenueEventWorkspacePage() {
       setSelectedPromoterIds(event.promoterSettings.allowedPromoterIds.map((id) => String(id)));
     }
   }, [event?.promoterSettings?.allowedPromoterIds, promotersData]);
-
-  useEffect(() => {
-    if (!tickets?.tiers?.length) return;
-    setTicketDrafts(
-      tickets.tiers.reduce<Record<string, TicketTierDraft>>((accumulator, tier) => {
-        accumulator[tier.id] = buildTicketTierDraft(tier);
-        return accumulator;
-      }, {}),
-    );
-  }, [tickets]);
 
   const headerImage = event?.coverImage || event?.image || null;
   const heroLoading = eventQuery.isLoading || overviewQuery.isLoading;
@@ -1058,33 +1000,41 @@ export default function VenueEventWorkspacePage() {
     }
   }, [canEditFoundation, event, eventInfoDraft, saveEventMutation]);
 
-  const handleSaveSettingsBlock = useCallback(
-    async (blockId: SettingsBlockId) => {
-      setSavingBlockId(blockId);
-      try {
-        await saveEventMutation.mutateAsync(buildSettingsPayload(blockId, settingsDraft));
-      } finally {
-        setSavingBlockId(null);
-      }
+  const saveSettingsBlock = useCallback(
+    async (blockId: SettingsBlockId, settings: EventSettings) => {
+      await saveEventMutation.mutateAsync(buildSettingsPayload(blockId, settings));
     },
-    [saveEventMutation, settingsDraft],
+    [saveEventMutation],
   );
 
-  const handleSaveTier = useCallback(
-    async (tierId: string) => {
-      const draft = ticketDrafts[tierId];
-      if (!draft) return;
-      setSavingTierId(tierId);
-      try {
-        await saveTierMutation.mutateAsync({
-          tierId,
-          ...draft,
-        });
-      } finally {
-        setSavingTierId(null);
-      }
+  const saveTicketTier = useCallback(
+    async (tierId: string, draft: TicketTierDraft) => {
+      await saveTierMutation.mutateAsync({
+        tierId,
+        ...draft,
+      });
     },
-    [saveTierMutation, ticketDrafts],
+    [saveTierMutation],
+  );
+
+  const loadAttendees = useCallback(
+    async (filters: AttendeeFilters) => {
+      const query = new URLSearchParams({
+        page: String(filters.page),
+        limit: '25',
+        sort: filters.sort,
+      });
+
+      if (filters.search.trim()) query.set('q', filters.search.trim());
+      if (filters.source) query.set('source', filters.source);
+      if (filters.status) query.set('status', filters.status);
+      if (filters.tierId) query.set('tierId', filters.tierId);
+
+      return (await authedJson(
+        `/api/partners/venues/events/${eventId}/attendees?${query.toString()}`,
+      )) as AttendeesResponse;
+    },
+    [authedJson, eventId],
   );
 
   const handleTogglePromoter = useCallback((promoterId: string) => {
@@ -1345,369 +1295,387 @@ export default function VenueEventWorkspacePage() {
         </div>
 
         {activeSection === 'analytics' && (
-          <section className="space-y-6">
-            <EventSectionHeader title="Analytics" />
-            <div className="pt-1">
-              <EventAnalyticsClient role="venue" idParam="venueId" eventId={event.id} embedded />
-            </div>
-          </section>
+          <HostOverviewTab role="venue" idParam="venueId" eventId={event.id} />
         )}
 
         {activeSection === 'tickets' && (
-          <section>
-            <div className="space-y-6">
-              <EventSectionHeader
-                title="Ticket Types"
-                actions={
-                  !isHostManagedEvent ? (
-                    <Link
-                      href={`/venue/create?id=${event.id}`}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/6 bg-[#232427] px-5 text-[13px] font-semibold text-white transition-all hover:border-white/10 hover:bg-[#2A2B2F]"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add Ticket Type
-                    </Link>
-                  ) : null
-                }
-              />
+          <HostTicketsTab
+            tiers={tickets?.tiers}
+            buildDraft={buildTicketTierDraft}
+            onSaveTier={saveTicketTier}
+          >
+            {({
+              ticketDrafts,
+              setTicketDrafts,
+              savingTierId,
+              expandedTierId,
+              setExpandedTierId,
+              handleSaveTier,
+            }) => (
+              <section>
+                <div className="space-y-6">
+                  <EventSectionHeader
+                    title="Ticket Types"
+                    actions={
+                      !isHostManagedEvent ? (
+                        <Link
+                          href={`/venue/create?id=${event.id}`}
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/6 bg-[#232427] px-5 text-[13px] font-semibold text-white transition-all hover:border-white/10 hover:bg-[#2A2B2F]"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Ticket Type
+                        </Link>
+                      ) : null
+                    }
+                  />
 
-              <RefreshBar
-                refreshedAt={ticketsRefreshedAt}
-                isLoading={ticketsQuery.isFetching}
-                onRefresh={() => {
-                  ticketsQuery.refetch();
-                  setTicketsRefreshedAt(new Date());
-                }}
-              />
+                  <RefreshBar
+                    refreshedAt={ticketsRefreshedAt}
+                    isLoading={ticketsQuery.isFetching}
+                    onRefresh={() => {
+                      ticketsQuery.refetch();
+                      setTicketsRefreshedAt(new Date());
+                    }}
+                  />
 
-              <div className="overflow-hidden rounded-[28px] border border-white/6 bg-[#1C1C1F]">
-                <div className="hidden grid-cols-[minmax(280px,2.2fr)_1fr_0.8fr_1fr_1fr_1fr_120px] gap-4 px-6 py-5 text-[12px] font-semibold text-white/90 lg:grid">
-                  <div>Name</div>
-                  <div>Status</div>
-                  <div>Price</div>
-                  <div>Sold</div>
-                  <div>Open Sale</div>
-                  <div>End Sale</div>
-                  <div />
-                </div>
+                  <div className="overflow-hidden rounded-[28px] border border-white/6 bg-[#1C1C1F]">
+                    <div className="hidden grid-cols-[minmax(280px,2.2fr)_1fr_0.8fr_1fr_1fr_1fr_120px] gap-4 px-6 py-5 text-[12px] font-semibold text-white/90 lg:grid">
+                      <div>Name</div>
+                      <div>Status</div>
+                      <div>Price</div>
+                      <div>Sold</div>
+                      <div>Open Sale</div>
+                      <div>End Sale</div>
+                      <div />
+                    </div>
 
-                <div className="divide-y divide-white/[0.035]">
-                  {(tickets?.tiers || []).map((tier) => {
-                    const draft = ticketDrafts[tier.id] || buildTicketTierDraft(tier);
+                    <div className="divide-y divide-white/[0.035]">
+                      {(tickets?.tiers || []).map((tier) => {
+                        const draft = ticketDrafts[tier.id] || buildTicketTierDraft(tier);
 
-                    const dirty =
-                      draft.name !== tier.name ||
-                      draft.description !== tier.description ||
-                      draft.entryType !== tier.entryType ||
-                      draft.price !== tier.price ||
-                      draft.quantity !== tier.quantity ||
-                      draft.salesStart !== formatLocalDateTimeInput(tier.startSale) ||
-                      draft.salesEnd !== formatLocalDateTimeInput(tier.endSale) ||
-                      draft.minPerOrder !== tier.minPurchaseQuantity ||
-                      draft.maxPerOrder !== tier.maxPurchaseQuantity ||
-                      draft.promoterEnabled !== tier.promoterEnabled;
+                        const dirty =
+                          draft.name !== tier.name ||
+                          draft.description !== tier.description ||
+                          draft.entryType !== tier.entryType ||
+                          draft.price !== tier.price ||
+                          draft.quantity !== tier.quantity ||
+                          draft.salesStart !== formatLocalDateTimeInput(tier.startSale) ||
+                          draft.salesEnd !== formatLocalDateTimeInput(tier.endSale) ||
+                          draft.minPerOrder !== tier.minPurchaseQuantity ||
+                          draft.maxPerOrder !== tier.maxPurchaseQuantity ||
+                          draft.promoterEnabled !== tier.promoterEnabled;
 
-                    return (
-                      <div
-                        key={tier.id}
-                        className={cn(
-                          'overflow-hidden transition-all',
-                          expandedTierId === tier.id
-                            ? 'bg-[#232326]'
-                            : 'bg-[#262628] hover:bg-[#2A2A2D]',
-                        )}
-                      >
-                        <div className="grid items-center gap-4 px-6 py-5 lg:grid-cols-[minmax(280px,2.2fr)_1fr_0.8fr_1fr_1fr_1fr_120px]">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-3">
-                              <Menu className="h-5 w-5 shrink-0 text-white/55" />
+                        return (
+                          <div
+                            key={tier.id}
+                            className={cn(
+                              'overflow-hidden transition-all',
+                              expandedTierId === tier.id
+                                ? 'bg-[#232326]'
+                                : 'bg-[#262628] hover:bg-[#2A2A2D]',
+                            )}
+                          >
+                            <div className="grid items-center gap-4 px-6 py-5 lg:grid-cols-[minmax(280px,2.2fr)_1fr_0.8fr_1fr_1fr_1fr_120px]">
                               <div className="min-w-0">
-                                <p className="truncate text-[15px] font-medium text-white">
-                                  {tier.name}
-                                </p>
-                                {tier.description ? (
-                                  <p className="mt-1 truncate text-[12px] text-white/45">
-                                    {tier.description}
-                                  </p>
-                                ) : null}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="text-[13px] font-medium">
-                            <span
-                              className={cn(
-                                tier.status === 'on_sale'
-                                  ? 'text-[#41A546]'
-                                  : tier.status === 'hidden'
-                                    ? 'text-white/40'
-                                    : 'text-white/65',
-                              )}
-                            >
-                              {humanizeLabel(tier.status)}
-                            </span>
-                          </div>
-
-                          <div className="text-[13px] font-medium tabular-nums text-white/88">
-                            {tier.price > 0 ? formatINR(tier.price) : 'FREE'}
-                          </div>
-
-                          <div className="text-[13px] font-medium tabular-nums text-white/88">
-                            {formatNumber(tier.sold)} / {formatNumber(tier.quantity)}
-                          </div>
-
-                          <div className="text-[13px] text-white/65">
-                            {tier.startSale ? formatDate(tier.startSale) : 'No date'}
-                          </div>
-
-                          <div className="text-[13px] text-white/65">
-                            {tier.endSale ? formatDate(tier.endSale) : 'No date'}
-                          </div>
-
-                          <div className="flex items-center justify-start gap-3 lg:justify-end">
-                            <button
-                              type="button"
-                              onClick={handleCopyEventLink}
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white transition-all hover:bg-black/75"
-                              aria-label="Copy event link"
-                            >
-                              <Link2 className="h-4 w-4" />
-                            </button>
-                            {!isHostManagedEvent ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setExpandedTierId((current) =>
-                                    current === tier.id ? null : tier.id,
-                                  )
-                                }
-                                className={cn(
-                                  'inline-flex h-10 w-10 items-center justify-center rounded-full text-white transition-all',
-                                  expandedTierId === tier.id
-                                    ? 'bg-[rgba(244,74,34,0.22)] ring-1 ring-[rgba(244,74,34,0.55)]'
-                                    : 'bg-black/55 hover:bg-black/75',
-                                )}
-                                aria-label="Edit ticket tier"
-                              >
-                                <Edit3 className="h-4 w-4" />
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        {!isHostManagedEvent && expandedTierId === tier.id && (
-                          <div className="border-t border-white/[0.05] bg-[#1E1E21] px-6 py-6">
-                            <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                              <div>
-                                <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-[var(--v-text-secondary)]">
-                                  Edit Ticket Tier
-                                </p>
-                                <p className="mt-2 text-sm text-[var(--v-text-secondary)]">
-                                  Update the same fields available in the create-event wizard.
-                                </p>
-                              </div>
-                              <div className="flex items-start justify-end">
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  icon={
-                                    savingTierId === tier.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <Save className="h-4 w-4" />
-                                    )
-                                  }
-                                  onClick={() => handleSaveTier(tier.id)}
-                                  disabled={!dirty || savingTierId === tier.id}
-                                >
-                                  Save
-                                </Button>
-                              </div>
-                            </div>
-
-                            <div className="grid gap-4 lg:grid-cols-2">
-                              <Input
-                                label="Tier Name"
-                                value={draft.name}
-                                onChange={(eventTarget) =>
-                                  setTicketDrafts((current) => ({
-                                    ...current,
-                                    [tier.id]: { ...draft, name: eventTarget.target.value },
-                                  }))
-                                }
-                              />
-                              <div>
-                                <label className="input-label mb-2 block">Entry Type</label>
-                                <select
-                                  value={draft.entryType}
-                                  onChange={(eventTarget) =>
-                                    setTicketDrafts((current) => ({
-                                      ...current,
-                                      [tier.id]: { ...draft, entryType: eventTarget.target.value },
-                                    }))
-                                  }
-                                  className="w-full rounded-xl border border-border-subtle bg-surface-secondary px-4 py-3 text-[14px] text-text-primary outline-none transition-all focus:border-[var(--v-orange)] focus:bg-surface-base"
-                                >
-                                  {ENTRY_TYPE_OPTIONS.map((option) => (
-                                    <option key={option.value} value={option.value}>
-                                      {option.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-
-                              <Input
-                                label="Price"
-                                type="number"
-                                min={0}
-                                value={draft.price}
-                                onChange={(eventTarget) =>
-                                  setTicketDrafts((current) => ({
-                                    ...current,
-                                    [tier.id]: {
-                                      ...draft,
-                                      price: Number(eventTarget.target.value || 0),
-                                    },
-                                  }))
-                                }
-                              />
-                              <div>
-                                <label className="input-label mb-2 block">Total Inventory</label>
-                                <input
-                                  type="number"
-                                  min={tier.sold}
-                                  value={draft.quantity}
-                                  onChange={(eventTarget) =>
-                                    setTicketDrafts((current) => ({
-                                      ...current,
-                                      [tier.id]: {
-                                        ...draft,
-                                        quantity: Number(eventTarget.target.value || 0),
-                                      },
-                                    }))
-                                  }
-                                  className="w-full rounded-xl border border-border-subtle bg-surface-secondary px-4 py-3 text-[14px] text-text-primary outline-none transition-all focus:border-[var(--v-orange)] focus:bg-surface-base"
-                                />
-                                <p className="mt-2 text-[12px] text-[var(--v-text-muted)]">
-                                  {formatNumber(tier.remaining)} remaining ·{' '}
-                                  {formatPercent(tier.sellThrough, 1)} sell-through
-                                </p>
-                              </div>
-
-                              <Input
-                                label="Sale Start"
-                                type="datetime-local"
-                                value={draft.salesStart}
-                                onChange={(eventTarget) =>
-                                  setTicketDrafts((current) => ({
-                                    ...current,
-                                    [tier.id]: { ...draft, salesStart: eventTarget.target.value },
-                                  }))
-                                }
-                              />
-                              <Input
-                                label="Sale End"
-                                type="datetime-local"
-                                value={draft.salesEnd}
-                                onChange={(eventTarget) =>
-                                  setTicketDrafts((current) => ({
-                                    ...current,
-                                    [tier.id]: { ...draft, salesEnd: eventTarget.target.value },
-                                  }))
-                                }
-                              />
-
-                              <Input
-                                label="Min Per Order"
-                                type="number"
-                                min={1}
-                                value={draft.minPerOrder}
-                                onChange={(eventTarget) =>
-                                  setTicketDrafts((current) => ({
-                                    ...current,
-                                    [tier.id]: {
-                                      ...draft,
-                                      minPerOrder: Math.max(
-                                        Number(eventTarget.target.value || 1),
-                                        1,
-                                      ),
-                                    },
-                                  }))
-                                }
-                              />
-                              <Input
-                                label="Max Per Order"
-                                type="number"
-                                min={1}
-                                value={draft.maxPerOrder}
-                                onChange={(eventTarget) =>
-                                  setTicketDrafts((current) => ({
-                                    ...current,
-                                    [tier.id]: {
-                                      ...draft,
-                                      maxPerOrder: Math.max(
-                                        Number(eventTarget.target.value || 1),
-                                        1,
-                                      ),
-                                    },
-                                  }))
-                                }
-                              />
-
-                              <div className="rounded-[22px] border border-white/8 bg-white/[0.03] px-4 py-4">
-                                <div className="flex items-center justify-between gap-4">
-                                  <div>
-                                    <p className="text-[12px] font-semibold text-[var(--v-text-primary)]">
-                                      Available via promoters
+                                <div className="flex items-center gap-3">
+                                  <Menu className="h-5 w-5 shrink-0 text-white/55" />
+                                  <div className="min-w-0">
+                                    <p className="truncate text-[15px] font-medium text-white">
+                                      {tier.name}
                                     </p>
-                                    <p className="mt-1 text-[12px] text-[var(--v-text-muted)]">
-                                      Matches the create wizard ticket setting.
-                                    </p>
+                                    {tier.description ? (
+                                      <p className="mt-1 truncate text-[12px] text-white/45">
+                                        {tier.description}
+                                      </p>
+                                    ) : null}
                                   </div>
-                                  <Toggle
-                                    checked={draft.promoterEnabled}
-                                    onChange={(value) =>
-                                      setTicketDrafts((current) => ({
-                                        ...current,
-                                        [tier.id]: { ...draft, promoterEnabled: value },
-                                      }))
-                                    }
-                                  />
                                 </div>
                               </div>
 
-                              <div className="lg:col-span-2">
-                                <TextArea
-                                  label="Description"
-                                  rows={4}
-                                  value={draft.description}
-                                  onChange={(eventTarget) =>
-                                    setTicketDrafts((current) => ({
-                                      ...current,
-                                      [tier.id]: {
-                                        ...draft,
-                                        description: eventTarget.target.value,
-                                      },
-                                    }))
-                                  }
-                                />
+                              <div className="text-[13px] font-medium">
+                                <span
+                                  className={cn(
+                                    tier.status === 'on_sale'
+                                      ? 'text-[#41A546]'
+                                      : tier.status === 'hidden'
+                                        ? 'text-white/40'
+                                        : 'text-white/65',
+                                  )}
+                                >
+                                  {humanizeLabel(tier.status)}
+                                </span>
+                              </div>
+
+                              <div className="text-[13px] font-medium tabular-nums text-white/88">
+                                {tier.price > 0 ? formatINR(tier.price) : 'FREE'}
+                              </div>
+
+                              <div className="text-[13px] font-medium tabular-nums text-white/88">
+                                {formatNumber(tier.sold)} / {formatNumber(tier.quantity)}
+                              </div>
+
+                              <div className="text-[13px] text-white/65">
+                                {tier.startSale ? formatDate(tier.startSale) : 'No date'}
+                              </div>
+
+                              <div className="text-[13px] text-white/65">
+                                {tier.endSale ? formatDate(tier.endSale) : 'No date'}
+                              </div>
+
+                              <div className="flex items-center justify-start gap-3 lg:justify-end">
+                                <button
+                                  type="button"
+                                  onClick={handleCopyEventLink}
+                                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white transition-all hover:bg-black/75"
+                                  aria-label="Copy event link"
+                                >
+                                  <Link2 className="h-4 w-4" />
+                                </button>
+                                {!isHostManagedEvent ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setExpandedTierId((current) =>
+                                        current === tier.id ? null : tier.id,
+                                      )
+                                    }
+                                    className={cn(
+                                      'inline-flex h-10 w-10 items-center justify-center rounded-full text-white transition-all',
+                                      expandedTierId === tier.id
+                                        ? 'bg-[rgba(244,74,34,0.22)] ring-1 ring-[rgba(244,74,34,0.55)]'
+                                        : 'bg-black/55 hover:bg-black/75',
+                                    )}
+                                    aria-label="Edit ticket tier"
+                                  >
+                                    <Edit3 className="h-4 w-4" />
+                                  </button>
+                                ) : null}
                               </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
 
-                  {!tickets?.tiers?.length && (
-                    <div className="overflow-hidden bg-[#262628]">
-                      <EmptyPanelCopy copy="No ticket tiers found for this event yet." />
+                            {!isHostManagedEvent && expandedTierId === tier.id && (
+                              <div className="border-t border-white/[0.05] bg-[#1E1E21] px-6 py-6">
+                                <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                  <div>
+                                    <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-[var(--v-text-secondary)]">
+                                      Edit Ticket Tier
+                                    </p>
+                                    <p className="mt-2 text-sm text-[var(--v-text-secondary)]">
+                                      Update the same fields available in the create-event wizard.
+                                    </p>
+                                  </div>
+                                  <div className="flex items-start justify-end">
+                                    <Button
+                                      variant="secondary"
+                                      size="sm"
+                                      icon={
+                                        savingTierId === tier.id ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <Save className="h-4 w-4" />
+                                        )
+                                      }
+                                      onClick={() => handleSaveTier(tier.id)}
+                                      disabled={!dirty || savingTierId === tier.id}
+                                    >
+                                      Save
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                <div className="grid gap-4 lg:grid-cols-2">
+                                  <Input
+                                    label="Tier Name"
+                                    value={draft.name}
+                                    onChange={(eventTarget) =>
+                                      setTicketDrafts((current) => ({
+                                        ...current,
+                                        [tier.id]: { ...draft, name: eventTarget.target.value },
+                                      }))
+                                    }
+                                  />
+                                  <div>
+                                    <label className="input-label mb-2 block">Entry Type</label>
+                                    <select
+                                      value={draft.entryType}
+                                      onChange={(eventTarget) =>
+                                        setTicketDrafts((current) => ({
+                                          ...current,
+                                          [tier.id]: {
+                                            ...draft,
+                                            entryType: eventTarget.target.value,
+                                          },
+                                        }))
+                                      }
+                                      className="w-full rounded-xl border border-border-subtle bg-surface-secondary px-4 py-3 text-[14px] text-text-primary outline-none transition-all focus:border-[var(--v-orange)] focus:bg-surface-base"
+                                    >
+                                      {ENTRY_TYPE_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                          {option.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  <Input
+                                    label="Price"
+                                    type="number"
+                                    min={0}
+                                    value={draft.price}
+                                    onChange={(eventTarget) =>
+                                      setTicketDrafts((current) => ({
+                                        ...current,
+                                        [tier.id]: {
+                                          ...draft,
+                                          price: Number(eventTarget.target.value || 0),
+                                        },
+                                      }))
+                                    }
+                                  />
+                                  <div>
+                                    <label className="input-label mb-2 block">
+                                      Total Inventory
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min={tier.sold}
+                                      value={draft.quantity}
+                                      onChange={(eventTarget) =>
+                                        setTicketDrafts((current) => ({
+                                          ...current,
+                                          [tier.id]: {
+                                            ...draft,
+                                            quantity: Number(eventTarget.target.value || 0),
+                                          },
+                                        }))
+                                      }
+                                      className="w-full rounded-xl border border-border-subtle bg-surface-secondary px-4 py-3 text-[14px] text-text-primary outline-none transition-all focus:border-[var(--v-orange)] focus:bg-surface-base"
+                                    />
+                                    <p className="mt-2 text-[12px] text-[var(--v-text-muted)]">
+                                      {formatNumber(tier.remaining)} remaining ·{' '}
+                                      {formatPercent(tier.sellThrough, 1)} sell-through
+                                    </p>
+                                  </div>
+
+                                  <Input
+                                    label="Sale Start"
+                                    type="datetime-local"
+                                    value={draft.salesStart}
+                                    onChange={(eventTarget) =>
+                                      setTicketDrafts((current) => ({
+                                        ...current,
+                                        [tier.id]: {
+                                          ...draft,
+                                          salesStart: eventTarget.target.value,
+                                        },
+                                      }))
+                                    }
+                                  />
+                                  <Input
+                                    label="Sale End"
+                                    type="datetime-local"
+                                    value={draft.salesEnd}
+                                    onChange={(eventTarget) =>
+                                      setTicketDrafts((current) => ({
+                                        ...current,
+                                        [tier.id]: { ...draft, salesEnd: eventTarget.target.value },
+                                      }))
+                                    }
+                                  />
+
+                                  <Input
+                                    label="Min Per Order"
+                                    type="number"
+                                    min={1}
+                                    value={draft.minPerOrder}
+                                    onChange={(eventTarget) =>
+                                      setTicketDrafts((current) => ({
+                                        ...current,
+                                        [tier.id]: {
+                                          ...draft,
+                                          minPerOrder: Math.max(
+                                            Number(eventTarget.target.value || 1),
+                                            1,
+                                          ),
+                                        },
+                                      }))
+                                    }
+                                  />
+                                  <Input
+                                    label="Max Per Order"
+                                    type="number"
+                                    min={1}
+                                    value={draft.maxPerOrder}
+                                    onChange={(eventTarget) =>
+                                      setTicketDrafts((current) => ({
+                                        ...current,
+                                        [tier.id]: {
+                                          ...draft,
+                                          maxPerOrder: Math.max(
+                                            Number(eventTarget.target.value || 1),
+                                            1,
+                                          ),
+                                        },
+                                      }))
+                                    }
+                                  />
+
+                                  <div className="rounded-[22px] border border-white/8 bg-white/[0.03] px-4 py-4">
+                                    <div className="flex items-center justify-between gap-4">
+                                      <div>
+                                        <p className="text-[12px] font-semibold text-[var(--v-text-primary)]">
+                                          Available via promoters
+                                        </p>
+                                        <p className="mt-1 text-[12px] text-[var(--v-text-muted)]">
+                                          Matches the create wizard ticket setting.
+                                        </p>
+                                      </div>
+                                      <Toggle
+                                        checked={draft.promoterEnabled}
+                                        onChange={(value) =>
+                                          setTicketDrafts((current) => ({
+                                            ...current,
+                                            [tier.id]: { ...draft, promoterEnabled: value },
+                                          }))
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="lg:col-span-2">
+                                    <TextArea
+                                      label="Description"
+                                      rows={4}
+                                      value={draft.description}
+                                      onChange={(eventTarget) =>
+                                        setTicketDrafts((current) => ({
+                                          ...current,
+                                          [tier.id]: {
+                                            ...draft,
+                                            description: eventTarget.target.value,
+                                          },
+                                        }))
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {!tickets?.tiers?.length && (
+                        <div className="overflow-hidden bg-[#262628]">
+                          <EmptyPanelCopy copy="No ticket tiers found for this event yet." />
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            </div>
-          </section>
+              </section>
+            )}
+          </HostTicketsTab>
         )}
 
         {activeSection === 'revenue' && (
@@ -1873,280 +1841,298 @@ export default function VenueEventWorkspacePage() {
         )}
 
         {activeSection === 'attendees' && (
-          <section className="space-y-6">
-            <EventSectionHeader title="Attendees" />
+          <HostAttendeesTab
+            queryKey={['venue-event-attendees', eventId]}
+            enabled={Boolean(eventId && user && partnerId)}
+            loadAttendees={loadAttendees}
+          >
+            {({
+              attendeeSearch,
+              setAttendeeSearch,
+              attendeeSource,
+              setAttendeeSource,
+              attendeeStatus,
+              setAttendeeStatus,
+              attendeePage,
+              setAttendeePage,
+              attendees,
+              attendeesRefreshedAt,
+              attendeesQuery,
+              refreshAttendees,
+            }) => (
+              <section className="space-y-6">
+                <EventSectionHeader title="Attendees" />
 
-            <RefreshBar
-              refreshedAt={attendeesRefreshedAt}
-              isLoading={attendeesQuery.isFetching}
-              onRefresh={() => {
-                attendeesQuery.refetch();
-                setAttendeesRefreshedAt(new Date());
-              }}
-            />
-
-            <div className="space-y-3">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--v-text-secondary)]" />
-                <input
-                  value={attendeeSearch}
-                  onChange={(eventTarget) => setAttendeeSearch(eventTarget.target.value)}
-                  placeholder="Search by name, email or phone"
-                  className="h-12 w-full rounded-full border border-white/[0.05] bg-[#090A0C] pl-11 pr-5 text-[15px] text-white outline-none ring-0 placeholder:text-white/35"
+                <RefreshBar
+                  refreshedAt={attendeesRefreshedAt}
+                  isLoading={attendeesQuery.isFetching}
+                  onRefresh={refreshAttendees}
                 />
-              </div>
 
-              <div className="flex flex-wrap gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAttendeeSource('');
-                    setAttendeeStatus('');
-                  }}
-                  className={`rounded-full px-4 py-2 text-[11px] font-semibold tracking-wide uppercase transition-all ${
-                    !attendeeSource && !attendeeStatus
-                      ? 'bg-white text-black'
-                      : 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-white'
-                  }`}
-                >
-                  All
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAttendeeSource('walkin');
-                    setAttendeeStatus('');
-                  }}
-                  className={`rounded-full px-4 py-2 text-[11px] font-semibold tracking-wide uppercase transition-all ${
-                    attendeeSource === 'walkin' && !attendeeStatus
-                      ? 'bg-white text-black'
-                      : 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-white'
-                  }`}
-                >
-                  Walk-in
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAttendeeSource('online');
-                    setAttendeeStatus('');
-                  }}
-                  className={`rounded-full px-4 py-2 text-[11px] font-semibold tracking-wide uppercase transition-all ${
-                    attendeeSource === 'online' && !attendeeStatus
-                      ? 'bg-white text-black'
-                      : 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-white'
-                  }`}
-                >
-                  Online
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAttendeeSource('');
-                    setAttendeeStatus('checked_in');
-                  }}
-                  className={`rounded-full px-4 py-2 text-[11px] font-semibold tracking-wide uppercase transition-all ${
-                    !attendeeSource && attendeeStatus === 'checked_in'
-                      ? 'bg-white text-black'
-                      : 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-white'
-                  }`}
-                >
-                  Checked In
-                </button>
-              </div>
-            </div>
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--v-text-secondary)]" />
+                    <input
+                      value={attendeeSearch}
+                      onChange={(eventTarget) => setAttendeeSearch(eventTarget.target.value)}
+                      placeholder="Search by name, email or phone"
+                      className="h-12 w-full rounded-full border border-white/[0.05] bg-[#090A0C] pl-11 pr-5 text-[15px] text-white outline-none ring-0 placeholder:text-white/35"
+                    />
+                  </div>
 
-            <div className="overflow-hidden rounded-[28px] border border-white/[0.05] bg-[#161719]">
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse">
-                  <thead>
-                    <tr className="border-b border-white/[0.04] bg-[#1D1E21] text-left text-[12px] font-semibold text-white/88">
-                      <th className="w-12 px-5 py-4" />
-                      <th className="px-5 py-4">Name</th>
-                      <th className="px-5 py-4">Tickets</th>
-                      <th className="px-5 py-4">Total Spend</th>
-                      <th className="px-5 py-4">Contact</th>
-                      <th className="px-5 py-4">Tags</th>
-                      <th className="px-5 py-4">Last Activity</th>
-                      <th className="w-12 px-5 py-4" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(attendees?.attendees || []).map((attendee) => {
-                      const tagItems = [
-                        ...(attendee.tags || []).slice(0, 2),
-                        attendee.isVip ? 'VIP' : '',
-                        attendee.source ? humanizeLabel(attendee.source) : '',
-                      ]
-                        .filter(Boolean)
-                        .slice(0, 2);
-
-                      return (
-                        <tr
-                          key={attendee.id}
-                          className="cursor-pointer border-t border-white/[0.035] bg-[#232326] transition-colors hover:bg-[#29292D]"
-                          onClick={() => {
-                            setSelectedAttendeeId(attendee.attendeeId || attendee.id);
-                            setSelectedOrderId(attendee.orderId || null);
-                          }}
-                        >
-                          <td className="px-5 py-4 align-middle">
-                            <span className="block h-6 w-6 rounded-full border border-white/25 bg-[#111214]" />
-                          </td>
-                          <td className="px-5 py-4 align-middle">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-white/10 text-[12px] font-bold text-white">
-                                {attendee.fullName?.slice(0, 1).toUpperCase() || 'A'}
-                              </div>
-                              <div>
-                                <div className="text-[14px] font-medium text-white">
-                                  {attendee.fullName}
-                                </div>
-                                <div className="text-[12px] text-white/45">
-                                  {attendee.ticketTier}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 align-middle text-[14px] tabular-nums text-white/88">
-                            {formatNumber(attendee.quantity)}
-                          </td>
-                          <td className="px-5 py-4 align-middle text-[14px] tabular-nums text-white/88">
-                            {formatINR(attendee.totalSpend)}
-                          </td>
-                          <td className="px-5 py-4 align-middle">
-                            <div className="flex items-center gap-2 text-white">
-                              {attendee.instagram ? (
-                                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/45">
-                                  <Instagram className="h-4 w-4" />
-                                </span>
-                              ) : null}
-                              {attendee.email ? (
-                                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/45">
-                                  <Mail className="h-4 w-4" />
-                                </span>
-                              ) : null}
-                              {attendee.phone ? (
-                                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/45">
-                                  <Phone className="h-4 w-4" />
-                                </span>
-                              ) : null}
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 align-middle">
-                            <div className="flex items-center gap-2">
-                              {tagItems.length > 0 ? (
-                                tagItems.map((tag) => (
-                                  <span
-                                    key={`${attendee.id}-${tag}`}
-                                    className="rounded-full bg-black/45 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/88"
-                                  >
-                                    {tag}
-                                  </span>
-                                ))
-                              ) : (
-                                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white">
-                                  +
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 align-middle text-[14px] text-white/78">
-                            {attendee.checkedInAt
-                              ? formatDate(attendee.checkedInAt)
-                              : attendee.purchasedAt
-                                ? formatDate(attendee.purchasedAt)
-                                : 'No date'}
-                          </td>
-                          <td className="px-5 py-4 align-middle">
-                            <button
-                              type="button"
-                              onClick={(eventTarget) => {
-                                eventTarget.stopPropagation();
-                                const thisId = attendee.attendeeId || attendee.id;
-                                if (selectedAttendeeId === thisId) {
-                                  clearAttendeeProfileSelection();
-                                } else {
-                                  setSelectedAttendeeId(thisId);
-                                  setSelectedOrderId(attendee.orderId || null);
-                                }
-                              }}
-                              className={cn(
-                                'inline-flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors',
-                                selectedAttendeeId === (attendee.attendeeId || attendee.id)
-                                  ? 'bg-white text-black hover:bg-white/90'
-                                  : 'bg-black/45 hover:bg-black/65',
-                              )}
-                              aria-label="View attendee"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {attendeesQuery.isLoading && (
-                <div className="flex items-center justify-center gap-3 px-6 py-10 text-sm text-[var(--v-text-secondary)]">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading attendees...
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttendeeSource('');
+                        setAttendeeStatus('');
+                      }}
+                      className={`rounded-full px-4 py-2 text-[11px] font-semibold tracking-wide uppercase transition-all ${
+                        !attendeeSource && !attendeeStatus
+                          ? 'bg-white text-black'
+                          : 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-white'
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttendeeSource('walkin');
+                        setAttendeeStatus('');
+                      }}
+                      className={`rounded-full px-4 py-2 text-[11px] font-semibold tracking-wide uppercase transition-all ${
+                        attendeeSource === 'walkin' && !attendeeStatus
+                          ? 'bg-white text-black'
+                          : 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-white'
+                      }`}
+                    >
+                      Walk-in
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttendeeSource('online');
+                        setAttendeeStatus('');
+                      }}
+                      className={`rounded-full px-4 py-2 text-[11px] font-semibold tracking-wide uppercase transition-all ${
+                        attendeeSource === 'online' && !attendeeStatus
+                          ? 'bg-white text-black'
+                          : 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-white'
+                      }`}
+                    >
+                      Online
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttendeeSource('');
+                        setAttendeeStatus('checked_in');
+                      }}
+                      className={`rounded-full px-4 py-2 text-[11px] font-semibold tracking-wide uppercase transition-all ${
+                        !attendeeSource && attendeeStatus === 'checked_in'
+                          ? 'bg-white text-black'
+                          : 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-white'
+                      }`}
+                    >
+                      Checked In
+                    </button>
+                  </div>
                 </div>
-              )}
 
-              {!attendeesQuery.isLoading && !attendees?.attendees?.length && (
-                <EmptyPanelCopy copy="No attendees matched the current filters." />
-              )}
-            </div>
+                <div className="overflow-hidden rounded-[28px] border border-white/[0.05] bg-[#161719]">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-white/[0.04] bg-[#1D1E21] text-left text-[12px] font-semibold text-white/88">
+                          <th className="w-12 px-5 py-4" />
+                          <th className="px-5 py-4">Name</th>
+                          <th className="px-5 py-4">Tickets</th>
+                          <th className="px-5 py-4">Total Spend</th>
+                          <th className="px-5 py-4">Contact</th>
+                          <th className="px-5 py-4">Tags</th>
+                          <th className="px-5 py-4">Last Activity</th>
+                          <th className="w-12 px-5 py-4" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(attendees?.attendees || []).map((attendee) => {
+                          const tagItems = [
+                            ...(attendee.tags || []).slice(0, 2),
+                            attendee.isVip ? 'VIP' : '',
+                            attendee.source ? humanizeLabel(attendee.source) : '',
+                          ]
+                            .filter(Boolean)
+                            .slice(0, 2);
 
-            <div className="flex items-center justify-center gap-5 py-2">
-              <button
-                type="button"
-                onClick={() => setAttendeePage((current) => Math.max(current - 1, 1))}
-                disabled={(attendees?.pagination.page || 1) <= 1}
-                className="inline-flex h-[27px] w-[27px] items-center justify-center rounded-full border border-white/12 bg-white/[0.05] text-[var(--v-text-primary)] transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-35"
-                aria-label="Previous attendees page"
-              >
-                <ArrowLeft className="h-[10px] w-[10px]" />
-              </button>
+                          return (
+                            <tr
+                              key={attendee.id}
+                              className="cursor-pointer border-t border-white/[0.035] bg-[#232326] transition-colors hover:bg-[#29292D]"
+                              onClick={() => {
+                                setSelectedAttendeeId(attendee.attendeeId || attendee.id);
+                                setSelectedOrderId(attendee.orderId || null);
+                              }}
+                            >
+                              <td className="px-5 py-4 align-middle">
+                                <span className="block h-6 w-6 rounded-full border border-white/25 bg-[#111214]" />
+                              </td>
+                              <td className="px-5 py-4 align-middle">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-white/10 text-[12px] font-bold text-white">
+                                    {attendee.fullName?.slice(0, 1).toUpperCase() || 'A'}
+                                  </div>
+                                  <div>
+                                    <div className="text-[14px] font-medium text-white">
+                                      {attendee.fullName}
+                                    </div>
+                                    <div className="text-[12px] text-white/45">
+                                      {attendee.ticketTier}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-5 py-4 align-middle text-[14px] tabular-nums text-white/88">
+                                {formatNumber(attendee.quantity)}
+                              </td>
+                              <td className="px-5 py-4 align-middle text-[14px] tabular-nums text-white/88">
+                                {formatINR(attendee.totalSpend)}
+                              </td>
+                              <td className="px-5 py-4 align-middle">
+                                <div className="flex items-center gap-2 text-white">
+                                  {attendee.instagram ? (
+                                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/45">
+                                      <Instagram className="h-4 w-4" />
+                                    </span>
+                                  ) : null}
+                                  {attendee.email ? (
+                                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/45">
+                                      <Mail className="h-4 w-4" />
+                                    </span>
+                                  ) : null}
+                                  {attendee.phone ? (
+                                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/45">
+                                      <Phone className="h-4 w-4" />
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="px-5 py-4 align-middle">
+                                <div className="flex items-center gap-2">
+                                  {tagItems.length > 0 ? (
+                                    tagItems.map((tag) => (
+                                      <span
+                                        key={`${attendee.id}-${tag}`}
+                                        className="rounded-full bg-black/45 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/88"
+                                      >
+                                        {tag}
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white">
+                                      +
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-5 py-4 align-middle text-[14px] text-white/78">
+                                {attendee.checkedInAt
+                                  ? formatDate(attendee.checkedInAt)
+                                  : attendee.purchasedAt
+                                    ? formatDate(attendee.purchasedAt)
+                                    : 'No date'}
+                              </td>
+                              <td className="px-5 py-4 align-middle">
+                                <button
+                                  type="button"
+                                  onClick={(eventTarget) => {
+                                    eventTarget.stopPropagation();
+                                    const thisId = attendee.attendeeId || attendee.id;
+                                    if (selectedAttendeeId === thisId) {
+                                      clearAttendeeProfileSelection();
+                                    } else {
+                                      setSelectedAttendeeId(thisId);
+                                      setSelectedOrderId(attendee.orderId || null);
+                                    }
+                                  }}
+                                  className={cn(
+                                    'inline-flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors',
+                                    selectedAttendeeId === (attendee.attendeeId || attendee.id)
+                                      ? 'bg-white text-black hover:bg-white/90'
+                                      : 'bg-black/45 hover:bg-black/65',
+                                  )}
+                                  aria-label="View attendee"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
 
-              <div className="min-w-[12px] text-center text-[15px] font-semibold leading-none tracking-[-0.05em] text-white">
-                {attendees?.pagination.page || 1}
-              </div>
+                  {attendeesQuery.isLoading && (
+                    <div className="flex items-center justify-center gap-3 px-6 py-10 text-sm text-[var(--v-text-secondary)]">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading attendees...
+                    </div>
+                  )}
 
-              <button
-                type="button"
-                onClick={() =>
-                  setAttendeePage((current) =>
-                    Math.min(current + 1, attendees?.pagination.totalPages || current),
-                  )
-                }
-                disabled={
-                  (attendees?.pagination.page || 1) >= (attendees?.pagination.totalPages || 1)
-                }
-                className="inline-flex h-[27px] w-[27px] items-center justify-center rounded-full border border-white/12 bg-white/[0.05] text-[var(--v-text-primary)] transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-35"
-                aria-label="Next attendees page"
-              >
-                <ArrowLeft className="h-[10px] w-[10px] rotate-180" />
-              </button>
-            </div>
+                  {!attendeesQuery.isLoading && !attendees?.attendees?.length && (
+                    <EmptyPanelCopy copy="No attendees matched the current filters." />
+                  )}
+                </div>
 
-            {(selectedAttendeeId || attendeeDetailQuery.isFetching) && (
-              <AttendeeTrackingPanel
-                attendeeDetail={attendeeDetail}
-                selectedOrder={selectedOrder}
-                selectedOrderId={selectedOrderId}
-                onSelectOrder={setSelectedOrderId}
-                onClose={clearAttendeeProfileSelection}
-                isLoading={attendeeDetailQuery.isFetching}
-                isSendingReceipt={resendReceiptMutation.isPending}
-                canResendReceipt={canResendReceipt}
-                onResendReceipt={(orderId) => resendReceiptMutation.mutate(orderId)}
-              />
+                <div className="flex items-center justify-center gap-5 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setAttendeePage((current) => Math.max(current - 1, 1))}
+                    disabled={(attendees?.pagination.page || 1) <= 1}
+                    className="inline-flex h-[27px] w-[27px] items-center justify-center rounded-full border border-white/12 bg-white/[0.05] text-[var(--v-text-primary)] transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-35"
+                    aria-label="Previous attendees page"
+                  >
+                    <ArrowLeft className="h-[10px] w-[10px]" />
+                  </button>
+
+                  <div className="min-w-[12px] text-center text-[15px] font-semibold leading-none tracking-[-0.05em] text-white">
+                    {attendees?.pagination.page || 1}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAttendeePage((current) =>
+                        Math.min(current + 1, attendees?.pagination.totalPages || current),
+                      )
+                    }
+                    disabled={
+                      (attendees?.pagination.page || 1) >= (attendees?.pagination.totalPages || 1)
+                    }
+                    className="inline-flex h-[27px] w-[27px] items-center justify-center rounded-full border border-white/12 bg-white/[0.05] text-[var(--v-text-primary)] transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-35"
+                    aria-label="Next attendees page"
+                  >
+                    <ArrowLeft className="h-[10px] w-[10px] rotate-180" />
+                  </button>
+                </div>
+
+                {(selectedAttendeeId || attendeeDetailQuery.isFetching) && (
+                  <AttendeeTrackingPanel
+                    attendeeDetail={attendeeDetail}
+                    selectedOrder={selectedOrder}
+                    selectedOrderId={selectedOrderId}
+                    onSelectOrder={setSelectedOrderId}
+                    onClose={clearAttendeeProfileSelection}
+                    isLoading={attendeeDetailQuery.isFetching}
+                    isSendingReceipt={resendReceiptMutation.isPending}
+                    canResendReceipt={canResendReceipt}
+                    onResendReceipt={(orderId) => resendReceiptMutation.mutate(orderId)}
+                  />
+                )}
+              </section>
             )}
-          </section>
+          </HostAttendeesTab>
         )}
 
         {activeSection === 'team' && eventId && (
@@ -2238,557 +2224,581 @@ export default function VenueEventWorkspacePage() {
         )}
 
         {activeSection === 'settings' && activeSettingsBlock && (
-          <section className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-            <div className="flex items-center gap-4 mb-8">
-              <button
-                onClick={closeSettingsBlock}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
-              <h2 className="text-2xl font-bold text-white tracking-tight">
-                {humanizeLabel(activeSettingsBlock)}
-              </h2>
-            </div>
+          <HostSettingsTab
+            sourceSettings={event.settings}
+            hydrateSettings={hydrateSettings}
+            externalSavingBlockId={savingBlockId}
+            onSaveSettingsBlock={saveSettingsBlock}
+          >
+            {({ settingsDraft, setSettingsDraft, savingBlockId, handleSaveSettingsBlock }) => (
+              <section className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+                <div className="flex items-center gap-4 mb-8">
+                  <button
+                    onClick={closeSettingsBlock}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
+                  <h2 className="text-2xl font-bold text-white tracking-tight">
+                    {humanizeLabel(activeSettingsBlock)}
+                  </h2>
+                </div>
 
-            <div className="grid gap-6">
-              {activeSettingsBlock === 'eventInfo' && (
-                <SettingsBlock
-                  icon={Info}
-                  title="Event Info"
-                  description={
-                    canEditFoundation
-                      ? 'Update event identity, schedule, venue details, capacity, and poster.'
-                      : 'Published events keep title, schedule, venue, and capacity locked. Description and artwork remain editable.'
-                  }
-                  action={
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      icon={
-                        savingBlockId === 'eventInfo' ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Save className="h-4 w-4" />
-                        )
+                <div className="grid gap-6">
+                  {activeSettingsBlock === 'eventInfo' && (
+                    <SettingsBlock
+                      icon={Info}
+                      title="Event Info"
+                      description={
+                        canEditFoundation
+                          ? 'Update event identity, schedule, venue details, capacity, and poster.'
+                          : 'Published events keep title, schedule, venue, and capacity locked. Description and artwork remain editable.'
                       }
-                      onClick={handleSaveEventInfo}
-                      disabled={savingBlockId === 'eventInfo'}
+                      action={
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          icon={
+                            savingBlockId === 'eventInfo' ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Save className="h-4 w-4" />
+                            )
+                          }
+                          onClick={handleSaveEventInfo}
+                          disabled={savingBlockId === 'eventInfo'}
+                        >
+                          Save Event Info
+                        </Button>
+                      }
                     >
-                      Save Event Info
-                    </Button>
-                  }
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Input
-                      label="Event title"
-                      value={eventInfoDraft.title}
-                      onChange={(eventTarget) =>
-                        setEventInfoDraft((current) => ({
-                          ...current,
-                          title: eventTarget.target.value,
-                        }))
-                      }
-                      disabled={!canEditFoundation}
-                    />
-                    <Input
-                      label="Cover image URL"
-                      value={eventInfoDraft.coverImage}
-                      onChange={(eventTarget) =>
-                        setEventInfoDraft((current) => ({
-                          ...current,
-                          coverImage: eventTarget.target.value,
-                        }))
-                      }
-                    />
-                    <div className="md:col-span-2">
-                      <TextArea
-                        label="Short description"
-                        value={eventInfoDraft.shortDescription}
-                        onChange={(eventTarget) =>
-                          setEventInfoDraft((current) => ({
-                            ...current,
-                            shortDescription: eventTarget.target.value,
-                          }))
-                        }
-                        rows={3}
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <TextArea
-                        label="Full description"
-                        value={eventInfoDraft.description}
-                        onChange={(eventTarget) =>
-                          setEventInfoDraft((current) => ({
-                            ...current,
-                            description: eventTarget.target.value,
-                          }))
-                        }
-                        rows={5}
-                      />
-                    </div>
-                    <Input
-                      label="Venue name"
-                      value={eventInfoDraft.venue}
-                      onChange={(eventTarget) =>
-                        setEventInfoDraft((current) => ({
-                          ...current,
-                          venue: eventTarget.target.value,
-                        }))
-                      }
-                      disabled={!canEditFoundation}
-                    />
-                    <Input
-                      label="Venue address"
-                      value={eventInfoDraft.venueAddress}
-                      onChange={(eventTarget) =>
-                        setEventInfoDraft((current) => ({
-                          ...current,
-                          venueAddress: eventTarget.target.value,
-                        }))
-                      }
-                      disabled={!canEditFoundation}
-                    />
-                    <Input
-                      label="City"
-                      value={eventInfoDraft.city}
-                      onChange={(eventTarget) =>
-                        setEventInfoDraft((current) => ({
-                          ...current,
-                          city: eventTarget.target.value,
-                        }))
-                      }
-                      disabled={!canEditFoundation}
-                    />
-                    <Input
-                      label="Timezone"
-                      value={eventInfoDraft.timezone}
-                      onChange={(eventTarget) =>
-                        setEventInfoDraft((current) => ({
-                          ...current,
-                          timezone: eventTarget.target.value,
-                        }))
-                      }
-                      disabled={!canEditFoundation}
-                    />
-                    <Input
-                      label="Start date"
-                      type="datetime-local"
-                      value={eventInfoDraft.startDate}
-                      onChange={(eventTarget) =>
-                        setEventInfoDraft((current) => ({
-                          ...current,
-                          startDate: eventTarget.target.value,
-                        }))
-                      }
-                      disabled={!canEditFoundation}
-                    />
-                    <Input
-                      label="End date"
-                      type="datetime-local"
-                      value={eventInfoDraft.endDate}
-                      onChange={(eventTarget) =>
-                        setEventInfoDraft((current) => ({
-                          ...current,
-                          endDate: eventTarget.target.value,
-                        }))
-                      }
-                      disabled={!canEditFoundation}
-                    />
-                    <Input
-                      label="Capacity"
-                      type="number"
-                      value={String(eventInfoDraft.capacity)}
-                      onChange={(eventTarget) =>
-                        setEventInfoDraft((current) => ({
-                          ...current,
-                          capacity: Number(eventTarget.target.value || 0),
-                        }))
-                      }
-                      disabled={!canEditFoundation}
-                    />
-                  </div>
-                </SettingsBlock>
-              )}
-
-              {activeSettingsBlock === 'checkout' && (
-                <SettingsBlock
-                  icon={ShoppingCart}
-                  title="Checkout"
-                  description="Confirmation copy and checkout surface controls."
-                  action={buildBlockAction('checkout', savingBlockId, handleSaveSettingsBlock)}
-                >
-                  <div className="grid gap-4">
-                    <TextArea
-                      label="Confirmation message"
-                      value={settingsDraft.checkout.confirmationMessage}
-                      onChange={(eventTarget) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          checkout: {
-                            ...current.checkout,
-                            confirmationMessage: eventTarget.target.value,
-                          },
-                        }))
-                      }
-                      rows={3}
-                    />
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <Input
-                        label="Submit button text"
-                        value={settingsDraft.checkout.submitButtonText}
-                        onChange={(eventTarget) =>
-                          setSettingsDraft((current) => ({
-                            ...current,
-                            checkout: {
-                              ...current.checkout,
-                              submitButtonText: eventTarget.target.value,
-                            },
-                          }))
-                        }
-                      />
-                      <Input
-                        label="Helper text"
-                        value={settingsDraft.checkout.helperText}
-                        onChange={(eventTarget) =>
-                          setSettingsDraft((current) => ({
-                            ...current,
-                            checkout: { ...current.checkout, helperText: eventTarget.target.value },
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <ToggleRow
-                        label="Include fees in ticket price"
-                        description="Display all-in pricing during checkout."
-                        checked={settingsDraft.checkout.includeFeesInPrice}
-                        onChange={(value) =>
-                          setSettingsDraft((current) => ({
-                            ...current,
-                            checkout: { ...current.checkout, includeFeesInPrice: value },
-                          }))
-                        }
-                      />
-                      <ToggleRow
-                        label="Use long-form CTA button"
-                        description="Longer add-to-cart button treatment."
-                        checked={settingsDraft.checkout.longFormButton}
-                        onChange={(value) =>
-                          setSettingsDraft((current) => ({
-                            ...current,
-                            checkout: { ...current.checkout, longFormButton: value },
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
-                </SettingsBlock>
-              )}
-
-              {activeSettingsBlock === 'marketing' && (
-                <SettingsBlock
-                  icon={Megaphone}
-                  title="Marketing"
-                  description="Pixels, external distribution, and tracking configuration."
-                  action={buildBlockAction('marketing', savingBlockId, handleSaveSettingsBlock)}
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <ToggleRow
-                      label="Third-party site display"
-                      description="Allow the event to appear on connected marketplaces."
-                      checked={settingsDraft.marketing.thirdPartySiteDisplay}
-                      onChange={(value) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          marketing: { ...current.marketing, thirdPartySiteDisplay: value },
-                        }))
-                      }
-                    />
-                    <div />
-                    <Input
-                      label="Facebook Pixel ID"
-                      value={settingsDraft.marketing.facebookPixelId}
-                      onChange={(eventTarget) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          marketing: {
-                            ...current.marketing,
-                            facebookPixelId: eventTarget.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <Input
-                      label="TikTok Pixel ID"
-                      value={settingsDraft.marketing.tiktokPixelId}
-                      onChange={(eventTarget) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          marketing: {
-                            ...current.marketing,
-                            tiktokPixelId: eventTarget.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <Input
-                      label="Google Tag Manager ID"
-                      value={settingsDraft.marketing.gtmId}
-                      onChange={(eventTarget) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          marketing: { ...current.marketing, gtmId: eventTarget.target.value },
-                        }))
-                      }
-                    />
-                  </div>
-                </SettingsBlock>
-              )}
-
-              {activeSettingsBlock === 'promoters' && (
-                <PromotersSettingsPanel
-                  promoters={promotersData?.promoters || []}
-                  summary={promotersData?.summary}
-                  promoterSettings={
-                    promotersData?.promoterSettings || {
-                      enabled: Boolean(event?.promoterSettings?.enabled),
-                      allowedPromoterIds: event?.promoterSettings?.allowedPromoterIds || [],
-                      mode: event?.promoterSettings?.enabled
-                        ? (event?.promoterSettings?.allowedPromoterIds || []).length > 0
-                          ? 'selected'
-                          : 'all'
-                        : 'none',
-                    }
-                  }
-                  selectedPromoterIds={selectedPromoterIds}
-                  isLoading={promotersQuery.isLoading}
-                  isSaving={savingBlockId === 'promoters'}
-                  onTogglePromoter={handleTogglePromoter}
-                  onEnableAll={() => handleSavePromoters('all')}
-                  onEnableSelected={() => handleSavePromoters('selected')}
-                  onDisableSelected={handleDisableSelectedPromoters}
-                  onDisableAll={() => handleSavePromoters('none')}
-                />
-              )}
-
-              {activeSettingsBlock === 'socialFeatures' && (
-                <SettingsBlock
-                  icon={Users}
-                  title="Social Features"
-                  description="Guestlist presentation and social activity controls."
-                  action={buildBlockAction(
-                    'socialFeatures',
-                    savingBlockId,
-                    handleSaveSettingsBlock,
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <Input
+                          label="Event title"
+                          value={eventInfoDraft.title}
+                          onChange={(eventTarget) =>
+                            setEventInfoDraft((current) => ({
+                              ...current,
+                              title: eventTarget.target.value,
+                            }))
+                          }
+                          disabled={!canEditFoundation}
+                        />
+                        <Input
+                          label="Cover image URL"
+                          value={eventInfoDraft.coverImage}
+                          onChange={(eventTarget) =>
+                            setEventInfoDraft((current) => ({
+                              ...current,
+                              coverImage: eventTarget.target.value,
+                            }))
+                          }
+                        />
+                        <div className="md:col-span-2">
+                          <TextArea
+                            label="Short description"
+                            value={eventInfoDraft.shortDescription}
+                            onChange={(eventTarget) =>
+                              setEventInfoDraft((current) => ({
+                                ...current,
+                                shortDescription: eventTarget.target.value,
+                              }))
+                            }
+                            rows={3}
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <TextArea
+                            label="Full description"
+                            value={eventInfoDraft.description}
+                            onChange={(eventTarget) =>
+                              setEventInfoDraft((current) => ({
+                                ...current,
+                                description: eventTarget.target.value,
+                              }))
+                            }
+                            rows={5}
+                          />
+                        </div>
+                        <Input
+                          label="Venue name"
+                          value={eventInfoDraft.venue}
+                          onChange={(eventTarget) =>
+                            setEventInfoDraft((current) => ({
+                              ...current,
+                              venue: eventTarget.target.value,
+                            }))
+                          }
+                          disabled={!canEditFoundation}
+                        />
+                        <Input
+                          label="Venue address"
+                          value={eventInfoDraft.venueAddress}
+                          onChange={(eventTarget) =>
+                            setEventInfoDraft((current) => ({
+                              ...current,
+                              venueAddress: eventTarget.target.value,
+                            }))
+                          }
+                          disabled={!canEditFoundation}
+                        />
+                        <Input
+                          label="City"
+                          value={eventInfoDraft.city}
+                          onChange={(eventTarget) =>
+                            setEventInfoDraft((current) => ({
+                              ...current,
+                              city: eventTarget.target.value,
+                            }))
+                          }
+                          disabled={!canEditFoundation}
+                        />
+                        <Input
+                          label="Timezone"
+                          value={eventInfoDraft.timezone}
+                          onChange={(eventTarget) =>
+                            setEventInfoDraft((current) => ({
+                              ...current,
+                              timezone: eventTarget.target.value,
+                            }))
+                          }
+                          disabled={!canEditFoundation}
+                        />
+                        <Input
+                          label="Start date"
+                          type="datetime-local"
+                          value={eventInfoDraft.startDate}
+                          onChange={(eventTarget) =>
+                            setEventInfoDraft((current) => ({
+                              ...current,
+                              startDate: eventTarget.target.value,
+                            }))
+                          }
+                          disabled={!canEditFoundation}
+                        />
+                        <Input
+                          label="End date"
+                          type="datetime-local"
+                          value={eventInfoDraft.endDate}
+                          onChange={(eventTarget) =>
+                            setEventInfoDraft((current) => ({
+                              ...current,
+                              endDate: eventTarget.target.value,
+                            }))
+                          }
+                          disabled={!canEditFoundation}
+                        />
+                        <Input
+                          label="Capacity"
+                          type="number"
+                          value={String(eventInfoDraft.capacity)}
+                          onChange={(eventTarget) =>
+                            setEventInfoDraft((current) => ({
+                              ...current,
+                              capacity: Number(eventTarget.target.value || 0),
+                            }))
+                          }
+                          disabled={!canEditFoundation}
+                        />
+                      </div>
+                    </SettingsBlock>
                   )}
-                >
-                  <div className="grid gap-3">
-                    <ToggleRow
-                      label="Public guestlist"
-                      description="Show attendee list visibility on the event page."
-                      checked={settingsDraft.socialFeatures.publicGuestlist}
-                      onChange={(value) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          socialFeatures: { ...current.socialFeatures, publicGuestlist: value },
-                        }))
-                      }
-                    />
-                    <ToggleRow
-                      label="Disable guestlist"
-                      description="Hide guestlist entirely, even for approved visitors."
-                      checked={settingsDraft.socialFeatures.disableGuestlist}
-                      onChange={(value) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          socialFeatures: { ...current.socialFeatures, disableGuestlist: value },
-                        }))
-                      }
-                    />
-                    <ToggleRow
-                      label="Hide number attending"
-                      description="Suppress the visible attendance count."
-                      checked={settingsDraft.socialFeatures.hideNumberAttending}
-                      onChange={(value) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          socialFeatures: { ...current.socialFeatures, hideNumberAttending: value },
-                        }))
-                      }
-                    />
-                    <ToggleRow
-                      label="Activity enabled"
-                      description="Let new guest actions appear on the event activity feed."
-                      checked={settingsDraft.socialFeatures.activityEnabled}
-                      onChange={(value) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          socialFeatures: { ...current.socialFeatures, activityEnabled: value },
-                        }))
-                      }
-                    />
-                    <Input
-                      label="Guestlist display threshold"
-                      type="number"
-                      value={String(settingsDraft.socialFeatures.guestlistDisplayThreshold)}
-                      onChange={(eventTarget) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          socialFeatures: {
-                            ...current.socialFeatures,
-                            guestlistDisplayThreshold: Number(eventTarget.target.value || 0),
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-                </SettingsBlock>
-              )}
 
-              {activeSettingsBlock === 'privacy' && (
-                <SettingsBlock
-                  icon={Lock}
-                  title="Privacy"
-                  description="Password-protect the page when stricter access is required."
-                  action={buildBlockAction('privacy', savingBlockId, handleSaveSettingsBlock)}
-                >
-                  <div className="grid gap-4">
-                    <ToggleRow
-                      label="Password protection"
-                      description="Require a password before visitors can access the event page."
-                      checked={settingsDraft.privacy.passwordProtected}
-                      onChange={(value) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          privacy: { ...current.privacy, passwordProtected: value },
-                        }))
-                      }
-                    />
-                    <Input
-                      label="Event password"
-                      value={settingsDraft.privacy.eventPassword}
-                      onChange={(eventTarget) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          privacy: { ...current.privacy, eventPassword: eventTarget.target.value },
-                        }))
-                      }
-                    />
-                  </div>
-                </SettingsBlock>
-              )}
+                  {activeSettingsBlock === 'checkout' && (
+                    <SettingsBlock
+                      icon={ShoppingCart}
+                      title="Checkout"
+                      description="Confirmation copy and checkout surface controls."
+                      action={buildBlockAction('checkout', savingBlockId, handleSaveSettingsBlock)}
+                    >
+                      <div className="grid gap-4">
+                        <TextArea
+                          label="Confirmation message"
+                          value={settingsDraft.checkout.confirmationMessage}
+                          onChange={(eventTarget) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              checkout: {
+                                ...current.checkout,
+                                confirmationMessage: eventTarget.target.value,
+                              },
+                            }))
+                          }
+                          rows={3}
+                        />
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <Input
+                            label="Submit button text"
+                            value={settingsDraft.checkout.submitButtonText}
+                            onChange={(eventTarget) =>
+                              setSettingsDraft((current) => ({
+                                ...current,
+                                checkout: {
+                                  ...current.checkout,
+                                  submitButtonText: eventTarget.target.value,
+                                },
+                              }))
+                            }
+                          />
+                          <Input
+                            label="Helper text"
+                            value={settingsDraft.checkout.helperText}
+                            onChange={(eventTarget) =>
+                              setSettingsDraft((current) => ({
+                                ...current,
+                                checkout: {
+                                  ...current.checkout,
+                                  helperText: eventTarget.target.value,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <ToggleRow
+                            label="Include fees in ticket price"
+                            description="Display all-in pricing during checkout."
+                            checked={settingsDraft.checkout.includeFeesInPrice}
+                            onChange={(value) =>
+                              setSettingsDraft((current) => ({
+                                ...current,
+                                checkout: { ...current.checkout, includeFeesInPrice: value },
+                              }))
+                            }
+                          />
+                          <ToggleRow
+                            label="Use long-form CTA button"
+                            description="Longer add-to-cart button treatment."
+                            checked={settingsDraft.checkout.longFormButton}
+                            onChange={(value) =>
+                              setSettingsDraft((current) => ({
+                                ...current,
+                                checkout: { ...current.checkout, longFormButton: value },
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    </SettingsBlock>
+                  )}
 
-              {activeSettingsBlock === 'policies' && (
-                <SettingsBlock
-                  icon={ShieldCheck}
-                  title="Policies"
-                  description="Terms and refund language shown with the event."
-                  action={buildBlockAction('policies', savingBlockId, handleSaveSettingsBlock)}
-                >
-                  <div className="grid gap-4">
-                    <TextArea
-                      label="Terms of service"
-                      value={settingsDraft.policies.termsOfService}
-                      onChange={(eventTarget) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          policies: {
-                            ...current.policies,
-                            termsOfService: eventTarget.target.value,
-                          },
-                        }))
-                      }
-                      rows={4}
-                    />
-                    <TextArea
-                      label="Refund policy"
-                      value={settingsDraft.policies.refundPolicy}
-                      onChange={(eventTarget) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          policies: { ...current.policies, refundPolicy: eventTarget.target.value },
-                        }))
-                      }
-                      rows={4}
-                    />
-                  </div>
-                </SettingsBlock>
-              )}
+                  {activeSettingsBlock === 'marketing' && (
+                    <SettingsBlock
+                      icon={Megaphone}
+                      title="Marketing"
+                      description="Pixels, external distribution, and tracking configuration."
+                      action={buildBlockAction('marketing', savingBlockId, handleSaveSettingsBlock)}
+                    >
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <ToggleRow
+                          label="Third-party site display"
+                          description="Allow the event to appear on connected marketplaces."
+                          checked={settingsDraft.marketing.thirdPartySiteDisplay}
+                          onChange={(value) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              marketing: { ...current.marketing, thirdPartySiteDisplay: value },
+                            }))
+                          }
+                        />
+                        <div />
+                        <Input
+                          label="Facebook Pixel ID"
+                          value={settingsDraft.marketing.facebookPixelId}
+                          onChange={(eventTarget) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              marketing: {
+                                ...current.marketing,
+                                facebookPixelId: eventTarget.target.value,
+                              },
+                            }))
+                          }
+                        />
+                        <Input
+                          label="TikTok Pixel ID"
+                          value={settingsDraft.marketing.tiktokPixelId}
+                          onChange={(eventTarget) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              marketing: {
+                                ...current.marketing,
+                                tiktokPixelId: eventTarget.target.value,
+                              },
+                            }))
+                          }
+                        />
+                        <Input
+                          label="Google Tag Manager ID"
+                          value={settingsDraft.marketing.gtmId}
+                          onChange={(eventTarget) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              marketing: { ...current.marketing, gtmId: eventTarget.target.value },
+                            }))
+                          }
+                        />
+                      </div>
+                    </SettingsBlock>
+                  )}
 
-              {activeSettingsBlock === 'branding' && (
-                <SettingsBlock
-                  icon={Palette}
-                  title="Branding"
-                  description="Organization name and visual identity presented with the event."
-                  action={buildBlockAction('branding', savingBlockId, handleSaveSettingsBlock)}
-                >
-                  <div className="grid gap-4">
-                    <Input
-                      label="Organization display name"
-                      value={settingsDraft.branding.organizationDisplayName}
-                      onChange={(eventTarget) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          branding: {
-                            ...current.branding,
-                            organizationDisplayName: eventTarget.target.value,
-                          },
-                        }))
+                  {activeSettingsBlock === 'promoters' && (
+                    <PromotersSettingsPanel
+                      promoters={promotersData?.promoters || []}
+                      summary={promotersData?.summary}
+                      promoterSettings={
+                        promotersData?.promoterSettings || {
+                          enabled: Boolean(event?.promoterSettings?.enabled),
+                          allowedPromoterIds: event?.promoterSettings?.allowedPromoterIds || [],
+                          mode: event?.promoterSettings?.enabled
+                            ? (event?.promoterSettings?.allowedPromoterIds || []).length > 0
+                              ? 'selected'
+                              : 'all'
+                            : 'none',
+                        }
                       }
+                      selectedPromoterIds={selectedPromoterIds}
+                      isLoading={promotersQuery.isLoading}
+                      isSaving={savingBlockId === 'promoters'}
+                      onTogglePromoter={handleTogglePromoter}
+                      onEnableAll={() => handleSavePromoters('all')}
+                      onEnableSelected={() => handleSavePromoters('selected')}
+                      onDisableSelected={handleDisableSelectedPromoters}
+                      onDisableAll={() => handleSavePromoters('none')}
                     />
-                    <Input
-                      label="Organization logo URL"
-                      value={settingsDraft.branding.organizationDisplayLogo}
-                      onChange={(eventTarget) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          branding: {
-                            ...current.branding,
-                            organizationDisplayLogo: eventTarget.target.value,
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-                </SettingsBlock>
-              )}
+                  )}
 
-              {activeSettingsBlock === 'embed' && (
-                <SettingsBlock
-                  icon={Code2}
-                  title="Embed"
-                  description="Surface this event checkout on external pages."
-                  action={buildBlockAction('embed', savingBlockId, handleSaveSettingsBlock)}
-                >
-                  <div className="grid gap-4">
-                    <ToggleRow
-                      label="Embed enabled"
-                      description="Allow third-party sites to display the event checkout."
-                      checked={settingsDraft.embed.enabled}
-                      onChange={(value) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          embed: { ...current.embed, enabled: value },
-                        }))
-                      }
-                    />
-                    <TextArea
-                      label="Embed code"
-                      value={settingsDraft.embed.embedCode}
-                      onChange={(eventTarget) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          embed: { ...current.embed, embedCode: eventTarget.target.value },
-                        }))
-                      }
-                      rows={5}
-                    />
-                  </div>
-                </SettingsBlock>
-              )}
-            </div>
-          </section>
+                  {activeSettingsBlock === 'socialFeatures' && (
+                    <SettingsBlock
+                      icon={Users}
+                      title="Social Features"
+                      description="Guestlist presentation and social activity controls."
+                      action={buildBlockAction(
+                        'socialFeatures',
+                        savingBlockId,
+                        handleSaveSettingsBlock,
+                      )}
+                    >
+                      <div className="grid gap-3">
+                        <ToggleRow
+                          label="Public guestlist"
+                          description="Show attendee list visibility on the event page."
+                          checked={settingsDraft.socialFeatures.publicGuestlist}
+                          onChange={(value) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              socialFeatures: { ...current.socialFeatures, publicGuestlist: value },
+                            }))
+                          }
+                        />
+                        <ToggleRow
+                          label="Disable guestlist"
+                          description="Hide guestlist entirely, even for approved visitors."
+                          checked={settingsDraft.socialFeatures.disableGuestlist}
+                          onChange={(value) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              socialFeatures: {
+                                ...current.socialFeatures,
+                                disableGuestlist: value,
+                              },
+                            }))
+                          }
+                        />
+                        <ToggleRow
+                          label="Hide number attending"
+                          description="Suppress the visible attendance count."
+                          checked={settingsDraft.socialFeatures.hideNumberAttending}
+                          onChange={(value) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              socialFeatures: {
+                                ...current.socialFeatures,
+                                hideNumberAttending: value,
+                              },
+                            }))
+                          }
+                        />
+                        <ToggleRow
+                          label="Activity enabled"
+                          description="Let new guest actions appear on the event activity feed."
+                          checked={settingsDraft.socialFeatures.activityEnabled}
+                          onChange={(value) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              socialFeatures: { ...current.socialFeatures, activityEnabled: value },
+                            }))
+                          }
+                        />
+                        <Input
+                          label="Guestlist display threshold"
+                          type="number"
+                          value={String(settingsDraft.socialFeatures.guestlistDisplayThreshold)}
+                          onChange={(eventTarget) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              socialFeatures: {
+                                ...current.socialFeatures,
+                                guestlistDisplayThreshold: Number(eventTarget.target.value || 0),
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    </SettingsBlock>
+                  )}
+
+                  {activeSettingsBlock === 'privacy' && (
+                    <SettingsBlock
+                      icon={Lock}
+                      title="Privacy"
+                      description="Password-protect the page when stricter access is required."
+                      action={buildBlockAction('privacy', savingBlockId, handleSaveSettingsBlock)}
+                    >
+                      <div className="grid gap-4">
+                        <ToggleRow
+                          label="Password protection"
+                          description="Require a password before visitors can access the event page."
+                          checked={settingsDraft.privacy.passwordProtected}
+                          onChange={(value) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              privacy: { ...current.privacy, passwordProtected: value },
+                            }))
+                          }
+                        />
+                        <Input
+                          label="Event password"
+                          value={settingsDraft.privacy.eventPassword}
+                          onChange={(eventTarget) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              privacy: {
+                                ...current.privacy,
+                                eventPassword: eventTarget.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    </SettingsBlock>
+                  )}
+
+                  {activeSettingsBlock === 'policies' && (
+                    <SettingsBlock
+                      icon={ShieldCheck}
+                      title="Policies"
+                      description="Terms and refund language shown with the event."
+                      action={buildBlockAction('policies', savingBlockId, handleSaveSettingsBlock)}
+                    >
+                      <div className="grid gap-4">
+                        <TextArea
+                          label="Terms of service"
+                          value={settingsDraft.policies.termsOfService}
+                          onChange={(eventTarget) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              policies: {
+                                ...current.policies,
+                                termsOfService: eventTarget.target.value,
+                              },
+                            }))
+                          }
+                          rows={4}
+                        />
+                        <TextArea
+                          label="Refund policy"
+                          value={settingsDraft.policies.refundPolicy}
+                          onChange={(eventTarget) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              policies: {
+                                ...current.policies,
+                                refundPolicy: eventTarget.target.value,
+                              },
+                            }))
+                          }
+                          rows={4}
+                        />
+                      </div>
+                    </SettingsBlock>
+                  )}
+
+                  {activeSettingsBlock === 'branding' && (
+                    <SettingsBlock
+                      icon={Palette}
+                      title="Branding"
+                      description="Organization name and visual identity presented with the event."
+                      action={buildBlockAction('branding', savingBlockId, handleSaveSettingsBlock)}
+                    >
+                      <div className="grid gap-4">
+                        <Input
+                          label="Organization display name"
+                          value={settingsDraft.branding.organizationDisplayName}
+                          onChange={(eventTarget) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              branding: {
+                                ...current.branding,
+                                organizationDisplayName: eventTarget.target.value,
+                              },
+                            }))
+                          }
+                        />
+                        <Input
+                          label="Organization logo URL"
+                          value={settingsDraft.branding.organizationDisplayLogo}
+                          onChange={(eventTarget) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              branding: {
+                                ...current.branding,
+                                organizationDisplayLogo: eventTarget.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    </SettingsBlock>
+                  )}
+
+                  {activeSettingsBlock === 'embed' && (
+                    <SettingsBlock
+                      icon={Code2}
+                      title="Embed"
+                      description="Surface this event checkout on external pages."
+                      action={buildBlockAction('embed', savingBlockId, handleSaveSettingsBlock)}
+                    >
+                      <div className="grid gap-4">
+                        <ToggleRow
+                          label="Embed enabled"
+                          description="Allow third-party sites to display the event checkout."
+                          checked={settingsDraft.embed.enabled}
+                          onChange={(value) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              embed: { ...current.embed, enabled: value },
+                            }))
+                          }
+                        />
+                        <TextArea
+                          label="Embed code"
+                          value={settingsDraft.embed.embedCode}
+                          onChange={(eventTarget) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              embed: { ...current.embed, embedCode: eventTarget.target.value },
+                            }))
+                          }
+                          rows={5}
+                        />
+                      </div>
+                    </SettingsBlock>
+                  )}
+                </div>
+              </section>
+            )}
+          </HostSettingsTab>
         )}
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Image, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Modal } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft, Plus, X, Ruler, Wine, UserCircle2, ChevronRight } from 'lucide-react-native';
@@ -172,7 +173,12 @@ export default function EditNightlifeScreen() {
             <View key={i} style={[styles.photoSlot, url && styles.photoSlotFilled]}>
               {url ? (
                 <>
-                  <Image source={{ uri: url }} style={styles.image} />
+                  <Image
+                    source={{ uri: url }}
+                    style={styles.image}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                  />
                   <Pressable style={styles.removeBtn} onPress={() => handleRemovePhoto(i)}>
                     <X size={16} color={colors.midnight} />
                   </Pressable>

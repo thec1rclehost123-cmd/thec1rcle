@@ -7,7 +7,15 @@ export interface DecodedUser {
 }
 
 export type TokenVerificationStatus =
-  'valid' | 'expired' | 'malformed' | 'session_cookie_mismatch' | 'invalid' | 'error';
+  | 'valid'
+  | 'expired'
+  | 'malformed'
+  | 'session_cookie_mismatch'
+  | 'invalid'
+  | 'error'
+  | 'revoked'
+  | 'disabled'
+  | 'credential_mismatch';
 
 export type TokenVerificationSource = 'id_token' | 'session_cookie';
 
@@ -15,6 +23,8 @@ export interface TokenVerificationResult {
   status: TokenVerificationStatus;
   user: DecodedUser | null;
   source: TokenVerificationSource | null;
+  revokedChecked: boolean;
+  disabledChecked: boolean;
   errorCode?: string | null;
   errorMessage?: string | null;
 }

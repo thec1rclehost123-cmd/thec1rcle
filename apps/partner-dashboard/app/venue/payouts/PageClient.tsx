@@ -126,9 +126,8 @@ export default function PayoutsPage() {
       <VenueStatStrip
         stats={[
           {
-            label: 'TOTAL SETTLED (JAN)',
+            label: 'TOTAL SETTLED',
             value: fmtCurrency(totalSettled),
-            trend: { value: '+12% vs Dec', direction: 'up' },
           },
           {
             label: 'PENDING PAYOUT',

@@ -22,6 +22,11 @@ import {
 } from '../../../lib/signed-urls.js';
 import { getAdminStorage } from '@c1rcle/core/admin';
 import { resolveEffectiveCommission, normalizeCompensationForRead } from '../events.js';
+// @ts-ignore - JS module with runtime exports
+import {
+  signPromoterAttribution,
+  verifyPromoterAttribution,
+} from '@c1rcle/core/promoter-attribution';
 
 const AnalyticsQuerySchema = z
   .object({
@@ -45,10 +50,13 @@ const LinksQuerySchema = z
 
 const CreateLinkSchema = z
   .object({
-    eventId: z.string().optional(),
-    commissionRate: z.coerce.number().min(0).max(10000).optional(),
+    eventId: z.string().min(1),
+    ticketTierIds: z.array(z.string()).max(50).optional(),
+    customTrackingCode: z.string().min(3).max(32).optional(),
+    campaignLabel: z.string().max(120).optional(),
+    channel: z.string().max(60).optional(),
   })
-  .passthrough();
+  .strict();
 
 const UpdateLinkSchema = z
   .object({
@@ -565,14 +573,11 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       err.code = 'BAD_REQUEST';
       throw err;
     }
-    const assignmentSnap = await fastify.db
+    const assignmentId = `${promoterId}_${eventId}`;
+    const assignmentDoc = await fastify.db
       .collection('promoter_assignments')
-      .where('promoterId', '==', promoterId)
-      .where('eventId', '==', eventId)
-      .limit(1)
+      .doc(assignmentId)
       .get();
-
-    let assignment;
     const eventDoc = await fastify.db.collection('events').doc(eventId).get();
 
     if (!eventDoc.exists) {
@@ -585,35 +590,31 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     const event: Record<string, any> = { id: eventDoc.id, ...(eventDoc.data() || {}) };
 
     const status = event.lifecycle || event.status || 'draft';
-    if (status !== 'published' && status !== 'live') {
+    if (!['scheduled', 'published', 'live'].includes(String(status).toLowerCase())) {
       const err: any = new Error('This event is not active or accepting promoters');
       err.statusCode = 403;
       err.code = 'FORBIDDEN';
       throw err;
     }
 
-    if (assignmentSnap.empty) {
-      if (!isPromoterAllowedForEvent(event, promoterId)) {
-        const err: any = new Error('Promoter is not assigned to this event');
-        err.statusCode = 403;
-        err.code = 'FORBIDDEN';
-        throw err;
-      }
-      // Auto-create assignment
-      const assignmentRef = fastify.db.collection('promoter_assignments').doc();
-      assignment = {
-        id: assignmentRef.id,
-        promoterId,
-        eventId,
-        eventName: encrypt(event.title || event.name || 'Event'),
-        venueName: encrypt(event.venueName || event.venue || ''),
-        status: 'active',
-        commissionRate: resolveEventCommissionRate(event, promoterId),
-        createdAt: new Date().toISOString(),
-      };
-      await assignmentRef.set(assignment);
-    } else {
-      assignment = assignmentSnap.docs[0].data();
+    if (!assignmentDoc.exists) {
+      const err: any = new Error('Promoter is not assigned to this event');
+      err.statusCode = 403;
+      err.code = 'PROMOTER_ASSIGNMENT_REQUIRED';
+      throw err;
+    }
+    const assignment = assignmentDoc.data() as any;
+    if (
+      assignment.status !== 'active' ||
+      assignment.promoterId !== promoterId ||
+      assignment.eventId !== eventId ||
+      Number(assignment.assignmentVersion || 0) < 2 ||
+      !assignment.approvedByPartnerId
+    ) {
+      const err: any = new Error('Approved promoter assignment is invalid');
+      err.statusCode = 403;
+      err.code = 'PROMOTER_ASSIGNMENT_REQUIRED';
+      throw err;
     }
 
     const existingSnap = await fastify.db
@@ -624,10 +625,27 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       .limit(1)
       .get();
 
-    if (!existingSnap.empty) {
-      const existing = { id: existingSnap.docs[0].id, ...(existingSnap.docs[0].data() || {}) };
+    const currentExisting = existingSnap.docs.find(
+      (doc: any) =>
+        Number(doc.data().assignmentVersion || 0) >= 2 && Boolean(doc.data().attributionSignature),
+    );
+    if (currentExisting) {
+      const existing = { id: currentExisting.id, ...(currentExisting.data() || {}) };
       return { link: buildLegacyLink(existing, event), duplicate: true };
     }
+    await Promise.all(
+      existingSnap.docs.map((doc: any) =>
+        doc.ref.set(
+          {
+            isActive: false,
+            active: false,
+            status: 'quarantined_unverified_assignment',
+            quarantinedAt: new Date().toISOString(),
+          },
+          { merge: true },
+        ),
+      ),
+    );
 
     const promoterRef = fastify.db.collection('promoters').doc(promoterId);
     const promoterDoc = await promoterRef.get();
@@ -687,14 +705,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     let code = trackingCode;
 
     const now = new Date().toISOString();
-    const id = randomUUID();
-    let resolvedRate = assignment.commissionRate ?? resolveEventCommissionRate(event, promoterId);
-    const resolvedType = resolveEventCommissionType(event, promoterId);
-    let resolvedTierCommissions = null;
-    if (event.promoterCompensation) {
-      const pc = normalizeCompensationForRead(event.promoterCompensation);
-      resolvedTierCommissions = resolveEffectiveCommission(pc, promoterId).tierCommissions;
-    }
+    const id = assignmentId;
+    let resolvedRate = Number(assignment.commissionRate || 0);
+    const resolvedType = assignment.commissionType || 'percentage';
+    const resolvedTierCommissions = assignment.tierCommissions || null;
 
     if (resolvedType === 'percentage') {
       resolvedRate = normalizePromoterCommissionRate(resolvedRate);
@@ -711,6 +725,9 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       commissionRate: resolvedRate,
       commissionType: resolvedType,
       tierCommissions: resolvedTierCommissions,
+      assignmentId,
+      assignmentVersion: Number(assignment.assignmentVersion),
+      termsVersion: Number(assignment.termsVersion || assignment.assignmentVersion),
       code,
       clicks: 0,
       conversions: 0,
@@ -727,6 +744,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       createdAt: now,
       updatedAt: now,
     };
+    (link as any).attributionSignature = signPromoterAttribution(link);
     await fastify.db.collection('promoter_links').doc(id).set(link);
     return { link: buildLegacyLink(link, event), duplicate: false };
   };
@@ -752,6 +770,27 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       throw err;
     }
     const action = String(body.action || deriveLinkAction(body) || '').toLowerCase();
+    if (action !== 'deactivate') {
+      const assignmentId = `${promoterId}_${current.eventId}`;
+      const assignmentDoc = await fastify.db
+        .collection('promoter_assignments')
+        .doc(assignmentId)
+        .get();
+      const assignment = assignmentDoc.exists ? assignmentDoc.data() : null;
+      if (
+        !assignment ||
+        assignment.status !== 'active' ||
+        current.assignmentId !== assignmentId ||
+        Number(current.assignmentVersion || 0) < 2 ||
+        Number(assignment.assignmentVersion || 0) !== Number(current.assignmentVersion || 0) ||
+        !verifyPromoterAttribution(current, current.attributionSignature)
+      ) {
+        const err: any = new Error('Link is not backed by an active signed assignment');
+        err.statusCode = 409;
+        err.code = 'PROMOTER_LINK_QUARANTINED';
+        throw err;
+      }
+    }
     const editableSlug = pickString(body.editableSlug);
     const updates: Record<string, any> = { updatedAt: new Date().toISOString() };
     if (action === 'deactivate') {

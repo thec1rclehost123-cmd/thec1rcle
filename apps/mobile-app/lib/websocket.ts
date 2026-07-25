@@ -15,6 +15,11 @@ interface WebSocketManagerConfig {
   onAuthFailure?: () => void;
 }
 
+// WHATWG WebSocket readyState values are stable across browsers and React
+// Native. Referencing WebSocket.OPEN through the global constructor is unsafe
+// in non-DOM runtimes (for example Jest) even when no socket is being created.
+const WS_OPEN = 1;
+
 class WebSocketManager {
   private ws: WebSocket | null = null;
   private subscriptions = new Map<string, Set<MessageHandler>>();
@@ -26,6 +31,7 @@ class WebSocketManager {
   private pingInterval: ReturnType<typeof setInterval> | null = null;
   private connectTimeout: ReturnType<typeof setTimeout> | null = null;
   private authenticated = false;
+  private pendingSubscriptions = new Set<string>();
 
   constructor(config?: WebSocketManagerConfig) {
     this.authFailureCallback = config?.onAuthFailure ?? null;
@@ -56,12 +62,13 @@ class WebSocketManager {
     this.ws?.close(1000, 'app_background');
     this.ws = null;
     this.authenticated = false;
+    this.pendingSubscriptions.clear();
     this.subscriptions.clear();
   }
 
   updateToken(token: string | null) {
     this.token = token;
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    if (this.ws?.readyState === WS_OPEN) {
       this.ws.close(1000, 'token_updated');
     }
   }
@@ -69,7 +76,8 @@ class WebSocketManager {
   subscribe(topic: string, handler: MessageHandler) {
     if (!this.subscriptions.has(topic)) {
       this.subscriptions.set(topic, new Set());
-      if (this.ws?.readyState === WebSocket.OPEN && this.authenticated) {
+      if (this.ws?.readyState === WS_OPEN && this.authenticated) {
+        this.pendingSubscriptions.add(topic);
         this.ws.send(JSON.stringify({ type: 'SUBSCRIBE', topic }));
       }
     }
@@ -83,14 +91,19 @@ class WebSocketManager {
     handlers.delete(handler);
     if (handlers.size === 0) {
       this.subscriptions.delete(topic);
-      if (this.ws?.readyState === WebSocket.OPEN) {
+      this.pendingSubscriptions.delete(topic);
+      if (this.ws?.readyState === WS_OPEN) {
         this.ws.send(JSON.stringify({ type: 'UNSUBSCRIBE', topic }));
       }
     }
   }
 
   get isConnected() {
-    return this.ws?.readyState === WebSocket.OPEN;
+    return (
+      this.ws?.readyState === WS_OPEN &&
+      this.authenticated &&
+      this.pendingSubscriptions.size === 0
+    );
   }
 
   onAppForeground() {
@@ -109,9 +122,10 @@ class WebSocketManager {
     const ws = new WebSocket(url);
     this.ws = ws;
     this.authenticated = false;
+    this.pendingSubscriptions = new Set(this.subscriptions.keys());
 
     this.connectTimeout = setTimeout(() => {
-      if (ws.readyState !== WebSocket.OPEN) {
+      if (ws.readyState !== WS_OPEN) {
         ws.close(4000, 'connect_timeout');
       }
     }, 10_000);
@@ -137,7 +151,14 @@ class WebSocketManager {
       if (msg.type === 'AUTH_SUCCESS') {
         this.authenticated = true;
         for (const topic of this.subscriptions.keys()) {
+          this.pendingSubscriptions.add(topic);
           ws.send(JSON.stringify({ type: 'SUBSCRIBE', topic }));
+        }
+        return;
+      }
+      if (msg.type === 'SUBSCRIBE_ACK') {
+        if (typeof msg.payload?.topic === 'string') {
+          this.pendingSubscriptions.delete(msg.payload.topic);
         }
         return;
       }
@@ -177,6 +198,7 @@ class WebSocketManager {
       this.connectTimeout = null;
       this.ws = null;
       this.authenticated = false;
+      this.pendingSubscriptions = new Set(this.subscriptions.keys());
       if (!this.enabled) return;
       if (event.code === 4001 || event.code === 4003) {
         this.authFailureCallback?.();
@@ -194,7 +216,7 @@ class WebSocketManager {
   private startPing() {
     this.stopPing();
     this.pingInterval = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
+      if (this.ws?.readyState === WS_OPEN) {
         this.ws.send(JSON.stringify({ type: 'ping' }));
       }
     }, 30_000);

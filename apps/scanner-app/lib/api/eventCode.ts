@@ -5,6 +5,11 @@ import { scannerFetch } from './client';
 
 import { auth } from '../firebase';
 import { EventData } from '@/store/eventContext';
+import {
+  clearScannerSessionToken,
+  getOrCreateScannerDeviceId,
+  setScannerSessionToken,
+} from '../deviceIdentity';
 
 const SCANNER_CODE_KEY = 'scanner_active_code';
 
@@ -13,7 +18,7 @@ export async function getActiveCode(): Promise<string | null> {
 }
 
 export async function clearActiveCode(): Promise<void> {
-  // Deprecated, no-op
+  await clearScannerSessionToken();
 }
 
 // Validate code, stats, and mock events were removed as they are deprecated.
@@ -92,6 +97,23 @@ export async function fetchStaffEvents(venueId: string): Promise<any[]> {
     `/scan/events?venueId=${encodeURIComponent(venueId)}&date=${today}`,
   );
   return Array.isArray(data?.events) ? data.events : [];
+}
+
+export async function establishStaffSession(
+  eventId: string,
+  venueId: string,
+  deviceName = 'C1RCLE Scanner',
+): Promise<EventData> {
+  const deviceId = await getOrCreateScannerDeviceId();
+  const data = await scannerFetch('/scan/staff/session', {
+    method: 'POST',
+    body: JSON.stringify({ eventId, venueId, deviceId, deviceName }),
+  });
+  if (!data?.valid || !data?.sessionToken || !data?.event) {
+    throw new Error('Scanner session could not be established');
+  }
+  await setScannerSessionToken(data.sessionToken);
+  return data as EventData;
 }
 
 function getMockEventData(code: string): EventData & { valid: boolean } {

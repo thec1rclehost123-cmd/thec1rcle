@@ -3321,8 +3321,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
           await updateEventPromoterCompensation(fastify.db, evtId, body);
 
-          // Create / update promoter_assignments and notifications (fire-and-forget)
-          (async () => {
+          // Assignment terms authorize checkout commission, so this work is
+          // part of the command's success boundary and must be awaited.
+          await (async () => {
             try {
               // If event is a draft, do not assign or notify promoters
               if (event.lifecycle === 'draft' || event.status === 'draft') {
@@ -3400,6 +3401,10 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                         commissionRate: effective.rate,
                         commissionType: effective.type,
                         tierCommissions: effective.tierCommissions,
+                        assignmentVersion: 2,
+                        termsVersion: 2,
+                        approvedByPartnerId: ctx.partnerId,
+                        approvedByPartnerType: 'venue',
                         linkCode: trackingCode || null,
                         totalSales: 0,
                         totalRevenue: 0,
@@ -3472,6 +3477,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               }
             } catch (err: any) {
               fastify.log.error(`[Promoter] Assignment sync error: ${err.message}`);
+              throw err;
             }
           })();
 
@@ -3735,6 +3741,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 venueId: liveSlot.venueId,
                 venueName: liveSlot.venueName,
                 shouldNotify: false,
+                shouldSync: action === 'approve' && !!liveSlot.eventId,
               };
             const mutableStatuses = new Set([
               'pending',
@@ -3801,7 +3808,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                   updatedAt: now,
                 };
                 if (action === 'approve')
-                  ((eventUpdates.lifecycle = 'scheduled'), (eventUpdates.approvedAt = now));
+                  ((eventUpdates.lifecycle = 'scheduled'),
+                    (eventUpdates.visibility = 'public'),
+                    (eventUpdates.approvedAt = now));
                 else if (action === 'reject') eventUpdates.lifecycle = 'denied';
                 transaction.update(eventRef, eventUpdates);
               }
@@ -3813,6 +3822,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               venueId: liveSlot.venueId,
               venueName: liveSlot.venueName,
               shouldNotify: action === 'approve' && !!liveSlot.eventId,
+              shouldSync: action === 'approve' && !!liveSlot.eventId,
             };
           });
           if (result.shouldNotify) {
@@ -3828,15 +3838,11 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               read: false,
               createdAt: now,
             });
-            // Slot approval moves event to 'scheduled' — stamp visibility and sync public index
-            if (result.eventId) {
-              await fastify.db
-                .collection('events')
-                .doc(result.eventId)
-                .update({ visibility: 'public', updatedAt: now })
-                .catch(() => {});
-              await fastify.publicDiscoveryService.syncEventReadModels(result.eventId);
-            }
+          }
+          if (result.shouldSync && result.eventId) {
+            await fastify.publicDiscoveryService.syncEventReadModels(result.eventId);
+            await fastify.invalidatePublicDiscovery('all');
+            await fastify.revalidateGuestEvent(result.eventId, 'approved');
           }
           return reply.send({ success: true, status: result.status });
         }

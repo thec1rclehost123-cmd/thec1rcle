@@ -149,11 +149,18 @@ export async function sendDirectMessage(
   replyToId?: string,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    return await apiFetch(`/api/v1/social/dm/${conversationId}/send`, {
+    const response = await apiFetch<any>(
+      `/api/v1/chats/${encodeURIComponent(conversationId)}/messages`,
+      {
       method: 'POST',
       body: JSON.stringify({ text: content, replyToId }),
       requireAuth: true,
-    });
+      },
+    );
+    return {
+      success: true,
+      messageId: response.data?.message?.id || response.message?.id,
+    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -166,11 +173,18 @@ export async function sendDirectImageMessage(
   imageUrl: string,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    return await apiFetch(`/api/v1/social/dm/${conversationId}/send`, {
+    const response = await apiFetch<any>(
+      `/api/v1/chats/${encodeURIComponent(conversationId)}/messages`,
+      {
       method: 'POST',
-      body: JSON.stringify({ imageUrl }),
+      body: JSON.stringify({ imageUrl, type: 'image' }),
       requireAuth: true,
-    });
+      },
+    );
+    return {
+      success: true,
+      messageId: response.data?.message?.id || response.message?.id,
+    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -232,15 +246,19 @@ export function subscribeToDirectMessages(
   async function fetchHistory() {
     if (!active) return;
     try {
-      const response = await apiFetch<{ messages: DirectMessage[] }>(
-        `/api/v1/social/dm/${conversationId}/messages?limit=${safeMessageLimit}`,
+      const response = await apiFetch<{
+        data?: { messages: DirectMessage[] };
+        messages?: DirectMessage[];
+      }>(
+        `/api/v1/chats/${encodeURIComponent(conversationId)}/messages?limit=${safeMessageLimit}`,
         { requireAuth: true },
       );
-      if (active && response.messages) {
+      const responseMessages = response.data?.messages || response.messages;
+      if (active && responseMessages) {
         publishMessages(
           mergeMessages(
             latestMessages,
-            response.messages
+            responseMessages
               .map((message) => normalizeDirectMessage(message, conversationId))
               .filter((message): message is DirectMessage => Boolean(message)),
             safeMessageLimit,

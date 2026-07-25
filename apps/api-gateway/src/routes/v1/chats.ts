@@ -41,7 +41,8 @@ const SendChatMessageBody = z
     text: z.string().trim().max(1000).optional(),
     imageUrl: z.string().url().optional(),
     type: z.enum(['text', 'image']).optional(),
-    metadata: z.record(z.string(), z.unknown()).optional(),
+    replyToId: z.string().min(1).max(180).optional(),
+    clientMessageId: z.string().min(8).max(100).optional(),
   })
   .strict()
   .refine((body) => Boolean(body.text || body.imageUrl), {
@@ -200,7 +201,29 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       }
 
       try {
-        const result = await sendChatMessage(fastify.db, userId, request.params.id, request.body);
+        const result = await sendChatMessage(fastify.db, userId, request.params.id, {
+          text: request.body.text,
+          imageUrl: request.body.imageUrl,
+          type: request.body.type,
+          metadata: { replyTo: request.body.replyToId || null },
+        });
+        const topic =
+          result.chat?.type === 'event'
+            ? `event-chat:${result.chat.eventId}`
+            : `dm:${result.chat?.id || request.params.id}`;
+        fastify.broadcast(
+          {
+            type: result.chat?.type === 'event' ? 'chat:new_message' : 'dm:new_message',
+            payload: {
+              topic,
+              eventId: result.chat?.eventId || null,
+              conversationId:
+                result.chat?.type === 'direct' ? result.chat?.id || request.params.id : null,
+              message: result.message,
+            },
+          },
+          topic,
+        );
         return reply.status(201).send(buildSuccessResponse(result));
       } catch (error: any) {
         const status = statusForChatError(error.message);

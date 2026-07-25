@@ -9,6 +9,8 @@ const RequestBody = z
     reason: z.string().optional(),
     amountPaise: z.number().int().positive().nullable().optional(),
     amount: z.number().positive().nullable().optional(),
+    ticketIds: z.array(z.string().min(1)).min(1).max(50).optional(),
+    entitlementIds: z.array(z.string().min(1)).min(1).max(50).optional(),
     // `source` is accepted for backward compatibility but ignored — it is
     // derived server-side from the authenticated actor, never trusted.
     source: z.string().optional(),
@@ -206,6 +208,8 @@ export default async function refundRoutes(fastify: FastifyInstance) {
         reason = '',
         amountPaise: requestedAmountPaise,
         amount = null,
+        ticketIds = [],
+        entitlementIds = [],
       } = request.body;
       const requestedBy = request.user;
       if (!requestedBy) return reply.status(401).send({ error: 'Unauthorized' });
@@ -289,6 +293,57 @@ export default async function refundRoutes(fastify: FastifyInstance) {
         const autoApprove =
           refundAmountPaise < AUTO_APPROVE_THRESHOLD * 100 && order.status !== 'checked_in';
         const fullyRefunded = refundAmountPaise >= remainingPaise;
+        if (
+          !fullyRefunded &&
+          (ticketIds.length === 0 ||
+            entitlementIds.length === 0 ||
+            ticketIds.length !== entitlementIds.length)
+        ) {
+          return {
+            ok: false as const,
+            status: 400,
+            message: 'Partial refunds require exact ticket and entitlement IDs',
+          };
+        }
+
+        if (!fullyRefunded) {
+          const [selectedTickets, selectedEntitlements] = await Promise.all([
+            Promise.all(
+              ticketIds.map((ticketId: string) =>
+                t.get(fastify.db.collection('tickets').doc(ticketId)),
+              ),
+            ),
+            Promise.all(
+              entitlementIds.map((entitlementId: string) =>
+                t.get(fastify.db.collection('entitlements').doc(entitlementId)),
+              ),
+            ),
+          ]);
+          const selectedTicketIds = new Set(ticketIds);
+          const mappingIsValid =
+            selectedTickets.every(
+              (ticket: any) =>
+                ticket.exists &&
+                String(ticket.data()?.orderId || '') === orderId &&
+                !['refunded', 'revoked'].includes(
+                  String(ticket.data()?.status || '').toLowerCase(),
+                ),
+            ) &&
+            selectedEntitlements.every(
+              (entitlement: any) =>
+                entitlement.exists &&
+                String(entitlement.data()?.orderId || '') === orderId &&
+                selectedTicketIds.has(String(entitlement.data()?.ticketDocumentId || '')) &&
+                String(entitlement.data()?.state || '').toUpperCase() === 'ACTIVE',
+            );
+          if (!mappingIsValid) {
+            return {
+              ok: false as const,
+              status: 400,
+              message: 'Refund admission mapping is invalid',
+            };
+          }
+        }
 
         const refundRequest: any = {
           id,
@@ -299,6 +354,9 @@ export default async function refundRoutes(fastify: FastifyInstance) {
           amountPaise: refundAmountPaise,
           isPartial: refundAmountPaise < paidPaise,
           fullyRefunded,
+          revokeAdmission: true,
+          ticketIds: fullyRefunded ? [] : ticketIds,
+          entitlementIds: fullyRefunded ? [] : entitlementIds,
           reason,
           source,
           requestedBy: { uid: requestedBy.uid, role: requestedBy.role },

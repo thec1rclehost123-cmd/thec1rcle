@@ -19,6 +19,8 @@ import {
 import { telemetry } from '@c1rcle/core/telemetry';
 // @ts-ignore
 import { getAdminDb } from '@c1rcle/core/admin';
+// @ts-ignore
+import { verifyPromoterAttribution } from '@c1rcle/core/promoter-attribution';
 
 /**
  * Optimized Checkout Orchestrator
@@ -109,7 +111,7 @@ export class CheckoutService {
         deviceId: params.deviceId || null,
         items: [item],
         workspaceId,
-        reservationMinutes: params.reservationMinutes || 5,
+        reservationMinutes: params.reservationMinutes || 10,
         strictMode: true,
       });
 
@@ -383,6 +385,50 @@ export class CheckoutService {
               'ORDER_ATTRIBUTION_MISSING',
             );
           }
+          const assignmentId = `${link.promoterId}_${reservation.eventId}`;
+          if (
+            link.assignmentId !== assignmentId ||
+            Number(link.assignmentVersion || 0) < 2 ||
+            !link.attributionSignature ||
+            !verifyPromoterAttribution(link, link.attributionSignature)
+          ) {
+            throw this.withCode(
+              new Error('Promoter attribution is not backed by signed assignment terms'),
+              'ORDER_ATTRIBUTION_MISSING',
+            );
+          }
+          const assignmentSnapshot = await transaction.get(
+            db.collection('promoter_assignments').doc(assignmentId),
+          );
+          const assignment = assignmentSnapshot.exists ? assignmentSnapshot.data() : null;
+          if (
+            !assignment ||
+            assignment.status !== 'active' ||
+            assignment.promoterId !== link.promoterId ||
+            assignment.eventId !== reservation.eventId ||
+            Number(assignment.assignmentVersion || 0) !== Number(link.assignmentVersion || 0) ||
+            Number(assignment.termsVersion || assignment.assignmentVersion || 0) !==
+              Number(link.termsVersion || 0) ||
+            Number(assignment.commissionRate || 0) !== Number(link.commissionRate || 0) ||
+            String(assignment.commissionType || '') !== String(link.commissionType || '')
+          ) {
+            throw this.withCode(
+              new Error('Promoter assignment terms have changed or are inactive'),
+              'ORDER_ATTRIBUTION_MISSING',
+            );
+          }
+          const permittedTierIds = Array.isArray(link.ticketTierIds)
+            ? link.ticketTierIds.map(String)
+            : [];
+          if (
+            permittedTierIds.length > 0 &&
+            reservation.items.some((item: any) => !permittedTierIds.includes(String(item.tierId)))
+          ) {
+            throw this.withCode(
+              new Error('Promoter link does not cover the selected ticket tier'),
+              'ORDER_ATTRIBUTION_MISSING',
+            );
+          }
 
           const rate = Number(link.commissionRate || 0);
           const commissionType = link.commissionType || 'percentage';
@@ -402,7 +448,11 @@ export class CheckoutService {
               commissionType,
               commissionBasePaise,
               promoterCommissionPaise,
-              schemaVersion: 1,
+              assignmentId,
+              assignmentVersion: Number(link.assignmentVersion),
+              termsVersion: Number(link.termsVersion),
+              attributionSignature: link.attributionSignature,
+              schemaVersion: 2,
             },
           };
         }

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { clearScannerSessionToken } from '@/lib/deviceIdentity';
 
 // Types
 export interface EventTier {
@@ -84,6 +85,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
   };
 
   const clearEvent = async () => {
+    await clearScannerSessionToken();
     await setEventData(null);
   };
 

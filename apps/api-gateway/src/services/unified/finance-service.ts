@@ -25,6 +25,22 @@ const REVENUE_FIELDS_BY_TYPE = {
   promoter_commission: 'promoterCommission',
 } as const;
 
+function financeUnavailable(message: string, cause?: unknown) {
+  const error: any = new Error(message);
+  if (cause !== undefined) error.cause = cause;
+  error.code = 'FINANCE_DATA_UNAVAILABLE';
+  error.statusCode = 503;
+  return error;
+}
+
+function requirePaise(value: unknown, recordLabel: string) {
+  const amountPaise = Number(value);
+  if (!Number.isSafeInteger(amountPaise)) {
+    throw financeUnavailable(`${recordLabel} is missing canonical integer amountPaise`);
+  }
+  return amountPaise;
+}
+
 type RevenueFieldName = (typeof REVENUE_FIELDS_BY_TYPE)[keyof typeof REVENUE_FIELDS_BY_TYPE];
 type AggregateBalances = Record<LedgerEntryStatus, number>;
 
@@ -104,10 +120,7 @@ export class FinanceService {
     // Sum all successful payouts
     const paidOutPaise = payoutsSnap.docs.reduce((sum, d) => {
       const payout = d.data();
-      const amountPaise =
-        payout.amountPaise == null
-          ? Math.round(toNum(payout.amount) * 100)
-          : toNum(payout.amountPaise);
+      const amountPaise = requirePaise(payout.amountPaise, `Payout ${d.id}`);
       return sum + Math.abs(amountPaise);
     }, 0);
 
@@ -124,7 +137,7 @@ export class FinanceService {
       .get();
 
     const refundPendingPaise = pendingRefundsSnap.docs.reduce(
-      (sum, d) => sum + Math.abs(toNum(d.data().amountPaise ?? d.data().amount)),
+      (sum, d) => sum + Math.abs(requirePaise(d.data().amountPaise, `Ledger entry ${d.id}`)),
       0,
     );
 
@@ -133,8 +146,7 @@ export class FinanceService {
       .collection('tickets')
       .where('hostId', '==', partnerId)
       .where('status', 'in', ['active', 'used', 'transferred'])
-      .get()
-      .catch(() => ({ size: 0, docs: [] }));
+      .get();
 
     const totalTicketsSold = (ticketsSnap as any).size;
 
@@ -247,7 +259,7 @@ export class FinanceService {
           },
           'Ledger fallback query failed',
         );
-        return { data: [], hasMore: false, nextCursor: null };
+        throw financeUnavailable('Canonical payout data is unavailable', fallbackErr);
       }
     }
 
@@ -471,14 +483,14 @@ export class FinanceService {
         },
         'Disputes query failed',
       );
-      return { docs: [] };
+      throw financeUnavailable('Canonical dispute data is unavailable', err);
     });
     const items = (snap as any).docs.map((doc: any) => {
       const d = doc.data() as Record<string, any>;
       return {
         disputeId: doc.id,
         orderId: safeStr(d.orderId),
-        amount: toNum(d.amount),
+        amount: requirePaise(d.amountPaise, `Dispute ${doc.id}`) / 100,
         status: safeStr(d.status || 'open'),
         reason: d.reason ?? null,
         createdAt: toIso(d.createdAt),
@@ -526,8 +538,7 @@ export class FinanceService {
     doc: FirebaseFirestore.DocumentSnapshot | FirebaseFirestore.QueryDocumentSnapshot,
   ): LedgerEntry {
     const d = (doc.data() ?? {}) as Record<string, any>;
-    const amountPaise =
-      d.amountPaise == null ? Math.round(toNum(d.amount) * 100) : toNum(d.amountPaise);
+    const amountPaise = requirePaise(d.amountPaise, `Ledger entry ${doc.id}`);
     return {
       entryId: doc.id,
       eventId: safeStr(d.eventId),
@@ -546,9 +557,11 @@ export class FinanceService {
 
   private docToPayout(doc: FirebaseFirestore.QueryDocumentSnapshot): Payout {
     const d = doc.data() as Record<string, any>;
+    const amountPaise = requirePaise(d.amountPaise, `Payout ${doc.id}`);
     return {
       payoutId: doc.id,
-      amount: toNum(d.amount),
+      amountPaise,
+      amount: amountPaise / 100,
       status: safeStr(d.status || 'pending'),
       paymentMethod: d.paymentMethod ?? null,
       requestedAt: toIso(d.requestedAt ?? d.createdAt),
@@ -680,7 +693,7 @@ export class FinanceService {
       const data = doc.data() as Record<string, any>;
       const status = (data.status || 'pending') as LedgerEntryStatus;
       const type = (data.type || 'ticket_revenue') as LedgerEntryType;
-      const amount = toNum(data.amountPaise ?? data.amount);
+      const amount = requirePaise(data.amountPaise, `Ledger entry ${doc.id}`);
       balances[status] = (balances[status] ?? 0) + amount;
       totalsByType[type] = (totalsByType[type] ?? 0) + amount;
 

@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CoupleConfirmModal from '@/components/Scanner/CoupleConfirmModal';
 import ScanResult from '@/components/Scanner/ScanResult';
-import { processQRScan } from '@/lib/api/scan';
+import { confirmCoupleScan, processQRScan } from '@/lib/api/scan';
 import { useEvent } from '@/store/eventContext';
 
 const { width } = Dimensions.get('window');
@@ -103,11 +103,12 @@ export default function ScanScreen() {
         qrData: data,
         eventId: eventData?.event.id || '',
         eventCode: eventData?.code || '',
+        venueId: eventData?.event.venueId || '',
         gate: eventData?.gate,
       });
 
       // Check for couple ticket that needs partner confirmation
-      if (result.success && result.ticket?.entryType === 'couple') {
+      if (result.success && result.requiresConfirmation && result.confirmationToken) {
         setPendingCoupleData(result);
         setShowCoupleModal(true);
         return;
@@ -144,12 +145,24 @@ export default function ScanScreen() {
     }
   };
 
-  const handleCoupleConfirm = (partnerPresent: boolean) => {
+  const handleCoupleConfirm = async (partnerPresent: boolean) => {
     setShowCoupleModal(false);
 
     if (partnerPresent && pendingCoupleData) {
-      // Complete the couple entry
-      handleScanResult(pendingCoupleData);
+      try {
+        const confirmed = await confirmCoupleScan(pendingCoupleData.confirmationToken, {
+          eventId: eventData?.event.id || '',
+          eventCode: eventData?.code || '',
+          venueId: eventData?.event.venueId || '',
+          gate: eventData?.gate,
+        });
+        handleScanResult(confirmed);
+      } catch (error: any) {
+        showResult({
+          type: 'invalid',
+          message: error.message || 'Couple admission could not be confirmed',
+        });
+      }
     } else {
       // Reject - partner not present
       showResult({

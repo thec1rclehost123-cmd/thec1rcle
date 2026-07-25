@@ -185,6 +185,7 @@ export interface FinanceOverview {
 
 export interface Payout {
   payoutId: string;
+  amountPaise: number;
   amount: number;
   status: string;
   paymentMethod: string | null;

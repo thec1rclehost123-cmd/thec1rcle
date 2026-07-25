@@ -74,17 +74,29 @@ export const useChatStore = create<ChatState>((set, get) => {
         try {
           const [chatsResponse, matchesResponse] = await Promise.all([
             deduplicateRequest<{
-              chats: EventChat[];
-              eventChats: EventChat[];
-              privateChats: DirectChat[];
-              totalUnread: number;
-            }>(`chatStore:my-chats:${userId}`, () =>
-              apiFetch<{
+              data?: {
                 chats: EventChat[];
                 eventChats: EventChat[];
                 privateChats: DirectChat[];
                 totalUnread: number;
-              }>('/api/v1/social/my-chats', { requireAuth: true }),
+              };
+              chats?: EventChat[];
+              eventChats?: EventChat[];
+              privateChats?: DirectChat[];
+              totalUnread?: number;
+            }>(`chatStore:my-chats:${userId}`, () =>
+              apiFetch<{
+                data?: {
+                  chats: EventChat[];
+                  eventChats: EventChat[];
+                  privateChats: DirectChat[];
+                  totalUnread: number;
+                };
+                chats?: EventChat[];
+                eventChats?: EventChat[];
+                privateChats?: DirectChat[];
+                totalUnread?: number;
+              }>('/api/v1/chats?type=all&limit=50', { requireAuth: true }),
             ),
             deduplicateRequest<{ matches: NewMatch[] }>(`chatStore:matches:${userId}`, () =>
               apiFetch<{ matches: NewMatch[] }>('/api/v1/social/matches', {
@@ -95,12 +107,13 @@ export const useChatStore = create<ChatState>((set, get) => {
 
           if (generation !== requestGeneration || get().ownerUserId !== userId) return;
 
-          const allEventChats = chatsResponse.eventChats || chatsResponse.chats || [];
+          const canonicalChats = chatsResponse.data || chatsResponse;
+          const allEventChats = canonicalChats.eventChats || canonicalChats.chats || [];
 
           set({
             eventChats: allEventChats,
-            privateChats: chatsResponse.privateChats || [],
-            totalUnread: chatsResponse.totalUnread || 0,
+            privateChats: canonicalChats.privateChats || [],
+            totalUnread: canonicalChats.totalUnread || 0,
             newMatches: matchesResponse.matches || [],
             loading: false,
           });
@@ -258,10 +271,10 @@ export const useChatStore = create<ChatState>((set, get) => {
       // One bounded fallback refresh replaces one polling timer per conversation.
       // The authenticated websocket remains authoritative while connected.
       const inboxFallbackTimer = setInterval(() => {
-        if (!wsManager.isConnected && AppState.currentState === 'active') {
+        if (AppState.currentState === 'active') {
           void get().fetchAll(userId);
         }
-      }, 120_000);
+      }, wsManager.isConnected ? 30_000 : 5_000);
 
       const unsubscribe = () => {
         for (const unsub of subscriptions.values()) unsub();

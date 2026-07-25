@@ -60,7 +60,10 @@ export async function getCachedData<T>(
 
     const parsed: CachedData<T> = JSON.parse(raw);
     const age = Date.now() - parsed.timestamp;
-    const isStale = age > (parsed.ttl || maxAge);
+    // A cache entry is no longer fresh at the exact TTL boundary. Using `>`
+    // creates an extra millisecond of undocumented validity and makes short-TTL
+    // behavior dependent on scheduler timing.
+    const isStale = age >= (parsed.ttl || maxAge);
 
     return { data: parsed.data, isStale };
   } catch (error) {

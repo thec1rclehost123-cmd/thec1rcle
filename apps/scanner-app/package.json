@@ -9,7 +9,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "eslint app components",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "node --test __tests__/*.test.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -44,6 +45,6 @@
     "@types/react": "^19.1.1",
     "eslint": "^8.57.1",
     "eslint-config-universe": "^14.0.0",
-    "typescript": "~5.9.2"
+    "typescript": "5.9.3"
   }
 }

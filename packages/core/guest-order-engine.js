@@ -1,4 +1,3 @@
-import { issueWallet } from '@c1rcle/core/cover-charge-engine';
 import { getAdminDb, isFirebaseConfigured } from '@c1rcle/core/admin';
 import { getEvent } from '@c1rcle/core/event-engine';
 import { getPromoterLinkByCode, recordConversion } from '@c1rcle/core/promoter-engine';
@@ -1218,53 +1217,6 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
     } catch (err) {
       console.error('[OrderStore] Failed to publish sale notification:', err);
     }
-  }
-
-  // Cover Wallet issuance — fire-and-forget after transaction
-  // Iterate tickets and issue wallets for any tier with coverChargeConfig.enabled
-  if (isFirebaseConfigured()) {
-    (async () => {
-      for (let tierIndex = 0; tierIndex < order.tickets.length; tierIndex++) {
-        const tier = order.tickets[tierIndex];
-        if (!tier.coverChargeConfig?.enabled) continue;
-        try {
-          await issueWallet({
-            orderId,
-            eventId: order.eventId,
-            venueId: event.venueId || null,
-            userId: order.userId,
-            tierConfig: tier.coverChargeConfig,
-            eventStartIso: event.startDate,
-            tzOffset: '+05:30',
-            termsAcceptedAt: now,
-          });
-          console.log(`[OrderStore] Cover wallet issued for order ${orderId} tier ${tierIndex}`);
-        } catch (err) {
-          console.error(
-            `[OrderStore] Cover wallet issuance failed for order ${orderId} tier ${tierIndex}:`,
-            err,
-          );
-          try {
-            const db = getAdminDb();
-            await db.collection('cover_wallet_issuance_failures').add({
-              orderId,
-              userId: order.userId,
-              eventId: order.eventId,
-              tierIndex,
-              error: err.message,
-              status: 'pending',
-              retryCount: 0,
-              createdAt: new Date().toISOString(),
-            });
-          } catch (outboxErr) {
-            console.error(
-              '[OrderStore] Failed to write cover_wallet_issuance_failures:',
-              outboxErr,
-            );
-          }
-        }
-      }
-    })().catch((err) => console.error('[OrderStore] Cover wallet loop failed:', err));
   }
 
   return { ...order, ...updates };

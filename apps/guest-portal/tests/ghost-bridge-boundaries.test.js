@@ -42,14 +42,16 @@ test('Guest Portal app/api only contains approved BFF route handlers', () => {
   const relativeRouteFiles = routeFiles.map((filePath) =>
     relative(root, filePath).replace(/\\/g, '/'),
   );
+  const approvedInternalRoutes = new Set(['app/api/internal/revalidate/route.ts']);
   const disallowedRoutes = relativeRouteFiles.filter(
-    (relativePath) => !relativePath.startsWith('app/api/app/'),
+    (relativePath) =>
+      !relativePath.startsWith('app/api/app/') && !approvedInternalRoutes.has(relativePath),
   );
 
   assert.deepEqual(
     disallowedRoutes,
     [],
-    'app/api must stay scoped to approved /api/app BFF handlers',
+    'app/api must stay scoped to approved /api/app BFF handlers and signed internal consumers',
   );
 });
 
@@ -175,7 +177,10 @@ test('Auth and profile client runtime no longer imports Firebase SDK modules', (
 });
 
 test('about route no longer keeps dead host modal scaffolding', () => {
-  const source = readFileSync(join(root, 'app/about/page.js'), 'utf8');
+  const source = [
+    readFileSync(join(root, 'app/about/page.js'), 'utf8'),
+    readFileSync(join(root, 'components/page-animations/AboutPageContent.jsx'), 'utf8'),
+  ].join('\n');
 
   assert.equal(
     source.includes('showHostModal'),

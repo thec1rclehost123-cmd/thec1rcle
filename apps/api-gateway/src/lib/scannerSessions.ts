@@ -120,8 +120,11 @@ export async function validateScannerSession(
       code: sessionData.code || 'STAFF',
       eventId: sessionData.eventId,
       venueId: sessionData.venueId,
+      deviceId: sessionData.deviceId,
       type: 'full',
       isStaffSession: true,
+      userId: sessionData.userId,
+      role: sessionData.role,
     };
     return {
       authorized: true,

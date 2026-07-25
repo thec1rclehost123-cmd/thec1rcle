@@ -39,6 +39,31 @@ type ScheduleAvailabilityState = {
   reason: string;
 };
 
+const PROTECTED_EVENT_PATCH_FIELDS = new Set([
+  'id',
+  'creatorId',
+  'creatorRole',
+  'workspaceId',
+  'hostId',
+  'venueId',
+  'lifecycle',
+  'status',
+  'visibility',
+  'approvalState',
+  'approvedBy',
+  'approvedAt',
+  'publishedAt',
+  'cancelledAt',
+  'financialAttribution',
+  'splitRuleSnapshot',
+]);
+
+function createSafeEventPatch(payload: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(payload).filter(([field]) => !PROTECTED_EVENT_PATCH_FIELDS.has(field)),
+  );
+}
+
 // Step Configuration
 const STEPS: StepConfig[] = [
   {
@@ -1142,7 +1167,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
             const res = await authedFetch(`/api/events/${savedDraftId}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
+              body: JSON.stringify(createSafeEventPatch(payload)),
             });
             if (!res.ok) throw new Error('Update failed');
           } else {
@@ -1260,7 +1285,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                 role,
                 partnerId: profile?.activeMembership?.partnerId,
               },
-              updates: draftPayload,
+              updates: createSafeEventPatch(draftPayload),
               action: 'draft',
             }),
           });
@@ -1296,7 +1321,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                     role: role,
                     partnerId: profile?.activeMembership?.partnerId,
                   },
-                  updates: payload,
+                  updates: createSafeEventPatch(payload),
                   action: isDraft ? 'draft' : role === 'venue' ? 'publish' : 'submit',
                 }
               : payload,

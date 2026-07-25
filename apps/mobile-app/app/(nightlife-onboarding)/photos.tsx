@@ -7,8 +7,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Image,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -141,7 +141,12 @@ export default function NightlifePhotosScreen() {
             >
               {photoUrl ? (
                 <>
-                  <Image source={{ uri: photoUrl }} style={styles.image} />
+                  <Image
+                    source={{ uri: photoUrl }}
+                    style={styles.image}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                  />
                   <Pressable style={styles.removeBtn} onPress={() => removeImage(index)}>
                     <X size={16} color={colors.midnight} />
                   </Pressable>

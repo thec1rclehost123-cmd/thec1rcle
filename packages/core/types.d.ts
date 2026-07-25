@@ -32,6 +32,15 @@ declare module '@c1rcle/core/ticket-checkout-wallet-service' {
     qrExpiresAt: string;
     qrExpiresInSeconds: number;
   };
+  export function createTicketQrForEntitlement(params: {
+    db?: any;
+    userId: string;
+    entitlementId: string;
+  }): Promise<{
+    qrPayload: string;
+    qrExpiresAt: string;
+    qrExpiresInSeconds: number;
+  }>;
   export function generateTicketsForOrder(params: { db?: any; orderId: string }): Promise<any>;
   export function finalizeRazorpayTicketPurchase(params: {
     db?: any;

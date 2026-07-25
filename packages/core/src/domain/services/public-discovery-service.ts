@@ -824,24 +824,20 @@ export class PublicDiscoveryService {
   private async syncEventReadModelsFromSnapshot(doc: any) {
     if (!doc.exists) {
       await this.events.delete(doc.id);
-      return;
+    } else {
+      const serialized = serializeDoc(doc);
+      const rawEvent = mapEventForClient(doc.data(), doc.id) || serialized;
+      const event = { ...serialized, ...rawEvent };
+      if (!isGuestEventPublic(event)) {
+        await this.events.delete(doc.id);
+      } else {
+        const card = buildEventCardReadModel(event, {
+          readModelVersion: EVENT_CARD_INDEX_VERSION,
+        });
+        await this.events.upsert(event.id, card);
+      }
     }
-    const serialized = serializeDoc(doc);
-    const rawEvent = mapEventForClient(doc.data(), doc.id) || serialized;
-    const event = { ...serialized, ...rawEvent };
-    if (!isGuestEventPublic(event)) {
-      await this.events.delete(doc.id);
-      return;
-    }
-    const card = buildEventCardReadModel(event, { readModelVersion: EVENT_CARD_INDEX_VERSION });
-    await this.events.upsert(event.id, card);
-    // ⚡ Performance: Invalidate the public discovery cache for events
-    await bumpCacheVersion('events').catch((error: any) => {
-      console.error('[PublicDiscoveryService] bumpCacheVersion failed for events:', error);
-    });
-    await bumpCacheVersion('search').catch((error: any) => {
-      console.error('[PublicDiscoveryService] bumpCacheVersion failed for search:', error);
-    });
+    await Promise.all([bumpCacheVersion('events'), bumpCacheVersion('search')]);
   }
 
   async syncHostReadModels(hostId: string) {
