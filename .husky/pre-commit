@@ -1,1 +1,1 @@
-npx lint-staged --concurrent 1
+npx --no -- lint-staged --config lint-staged.config.js --concurrent 1
