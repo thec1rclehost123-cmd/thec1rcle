@@ -233,13 +233,11 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
 
       const session = await requireChargeSession(fastify, request);
       if (!session) {
-        return reply
-          .status(401)
-          .send({
-            success: false,
-            code: 'CHARGE_SESSION_REQUIRED',
-            message: 'Charge session required',
-          });
+        return reply.status(401).send({
+          success: false,
+          code: 'CHARGE_SESSION_REQUIRED',
+          message: 'Charge session required',
+        });
       }
 
       // Velocity check (Redis-backed)

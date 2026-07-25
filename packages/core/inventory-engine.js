@@ -598,9 +598,7 @@ export async function createReservation(event, customerId, deviceId, items, opti
         }
       } catch (e) {
         recordCircuitFailure();
-        throw new InventoryUnavailableError(
-          `Unable to verify existing reservations: ${e.message}`,
-        );
+        throw new InventoryUnavailableError(`Unable to verify existing reservations: ${e.message}`);
       }
     }
 

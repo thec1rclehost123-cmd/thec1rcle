@@ -75,10 +75,9 @@ describe('private DM API contract', () => {
     await Promise.resolve();
 
     expect(mockApiFetch).toHaveBeenCalledTimes(1);
-    expect(mockApiFetch).toHaveBeenCalledWith(
-      '/api/v1/chats/conversation_1/messages?limit=50',
-      { requireAuth: true },
-    );
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/v1/chats/conversation_1/messages?limit=50', {
+      requireAuth: true,
+    });
     expect(wsManager.subscribe).toHaveBeenCalledWith('dm:conversation_1', expect.any(Function));
     expect(onMessages).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'message_1', content: 'Earlier message' }),

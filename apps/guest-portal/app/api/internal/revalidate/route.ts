@@ -17,8 +17,7 @@ function signaturesMatch(rawBody: string, supplied: string | null, secret: strin
   const actualBuffer = Buffer.from(supplied);
   const expectedBuffer = Buffer.from(expected);
   return (
-    actualBuffer.length === expectedBuffer.length &&
-    timingSafeEqual(actualBuffer, expectedBuffer)
+    actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer)
   );
 }
 

@@ -25,7 +25,8 @@ describe('signed promoter attribution', () => {
   const originalSecret = process.env.PROMOTER_ATTRIBUTION_SECRET;
 
   beforeEach(() => {
-    process.env.PROMOTER_ATTRIBUTION_SECRET = 'test-secret-that-is-longer-than-thirty-two-characters';
+    process.env.PROMOTER_ATTRIBUTION_SECRET =
+      'test-secret-that-is-longer-than-thirty-two-characters';
   });
 
   afterEach(() => {
@@ -42,7 +43,10 @@ describe('signed promoter attribution', () => {
   it('rejects a one-paise-equivalent commission manipulation', () => {
     const signature = signPromoterAttribution(terms);
     expect(
-      verifyPromoterAttribution({ ...terms, commissionRate: terms.commissionRate + 0.01 }, signature),
+      verifyPromoterAttribution(
+        { ...terms, commissionRate: terms.commissionRate + 0.01 },
+        signature,
+      ),
     ).toBe(false);
   });
 
@@ -55,8 +59,6 @@ describe('signed promoter attribution', () => {
         vip: { rate: 500, type: 'fixed' },
       },
     };
-    expect(buildPromoterAttributionPayload(reordered)).toBe(
-      buildPromoterAttributionPayload(terms),
-    );
+    expect(buildPromoterAttributionPayload(reordered)).toBe(buildPromoterAttributionPayload(terms));
   });
 });

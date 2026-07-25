@@ -620,14 +620,14 @@ export async function finalizeTicketPayment({
         outboxSnapshot,
         paymentLinks,
       ] = await Promise.all([
-          Promise.all(ticketRefs.map((ref) => transaction.get(ref))),
-          Promise.all(entitlementRefs.map((ref) => transaction.get(ref))),
-          Promise.all(coverWalletRefs.map((ref) => transaction.get(ref))),
-          Promise.all(ledgerRefs.map((ref) => transaction.get(ref))),
-          transaction.get(markerRef),
-          transaction.get(outboxRef),
-          transaction.get(paymentLinkQuery),
-        ]);
+        Promise.all(ticketRefs.map((ref) => transaction.get(ref))),
+        Promise.all(entitlementRefs.map((ref) => transaction.get(ref))),
+        Promise.all(coverWalletRefs.map((ref) => transaction.get(ref))),
+        Promise.all(ledgerRefs.map((ref) => transaction.get(ref))),
+        transaction.get(markerRef),
+        transaction.get(outboxRef),
+        transaction.get(paymentLinkQuery),
+      ]);
 
       const conflictingPayment = paymentLinks.docs?.find((doc) => doc.data().orderId !== order.id);
       if (conflictingPayment) {

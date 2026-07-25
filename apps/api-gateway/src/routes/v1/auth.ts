@@ -690,7 +690,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         return reply.status(503).send(
           buildErrorResponse({
             code: 'AUTH_LOGOUT_REVOCATION_FAILED',
-            message: 'The local session was cleared, but server session revocation must be retried.',
+            message:
+              'The local session was cleared, but server session revocation must be retried.',
             requestId: request.id,
           }),
         );

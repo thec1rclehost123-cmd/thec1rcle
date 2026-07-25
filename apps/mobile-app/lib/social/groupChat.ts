@@ -268,10 +268,9 @@ export function subscribeToGroupChat(
       const response = await apiFetch<{
         data?: { messages: GroupMessage[] };
         messages?: GroupMessage[];
-      }>(
-        `/api/v1/chats/${encodeURIComponent(eventId)}/messages?limit=${safeMessageLimit}`,
-        { requireAuth: true },
-      );
+      }>(`/api/v1/chats/${encodeURIComponent(eventId)}/messages?limit=${safeMessageLimit}`, {
+        requireAuth: true,
+      });
       const responseMessages = response.data?.messages || response.messages;
       if (active && responseMessages) {
         publishMessages(
@@ -346,10 +345,9 @@ export async function getRecentGroupMessages(
     const response = await apiFetch<{
       data?: { messages: GroupMessage[] };
       messages?: GroupMessage[];
-    }>(
-      `/api/v1/chats/${encodeURIComponent(eventId)}/messages?limit=${safeMessageLimit}`,
-      { requireAuth: true },
-    );
+    }>(`/api/v1/chats/${encodeURIComponent(eventId)}/messages?limit=${safeMessageLimit}`, {
+      requireAuth: true,
+    });
     return mergeMessages(
       [],
       (response.data?.messages || response.messages || [])

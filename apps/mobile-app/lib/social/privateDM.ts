@@ -152,9 +152,9 @@ export async function sendDirectMessage(
     const response = await apiFetch<any>(
       `/api/v1/chats/${encodeURIComponent(conversationId)}/messages`,
       {
-      method: 'POST',
-      body: JSON.stringify({ text: content, replyToId }),
-      requireAuth: true,
+        method: 'POST',
+        body: JSON.stringify({ text: content, replyToId }),
+        requireAuth: true,
       },
     );
     return {
@@ -176,9 +176,9 @@ export async function sendDirectImageMessage(
     const response = await apiFetch<any>(
       `/api/v1/chats/${encodeURIComponent(conversationId)}/messages`,
       {
-      method: 'POST',
-      body: JSON.stringify({ imageUrl, type: 'image' }),
-      requireAuth: true,
+        method: 'POST',
+        body: JSON.stringify({ imageUrl, type: 'image' }),
+        requireAuth: true,
       },
     );
     return {
@@ -249,10 +249,9 @@ export function subscribeToDirectMessages(
       const response = await apiFetch<{
         data?: { messages: DirectMessage[] };
         messages?: DirectMessage[];
-      }>(
-        `/api/v1/chats/${encodeURIComponent(conversationId)}/messages?limit=${safeMessageLimit}`,
-        { requireAuth: true },
-      );
+      }>(`/api/v1/chats/${encodeURIComponent(conversationId)}/messages?limit=${safeMessageLimit}`, {
+        requireAuth: true,
+      });
       const responseMessages = response.data?.messages || response.messages;
       if (active && responseMessages) {
         publishMessages(

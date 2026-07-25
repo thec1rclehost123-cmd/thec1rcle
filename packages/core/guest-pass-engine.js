@@ -181,8 +181,12 @@ export async function buildGuestPassPreview({
   const event = order.eventId && resolveEvent ? (await resolveEvent(order.eventId)) || {} : {};
 
   const isApple = platform === 'apple';
-  const isEnabled = isApple ? env.APPLE_WALLET_ENABLED === 'true' : env.GOOGLE_WALLET_ENABLED === 'true';
-  const template = isApple ? env.APPLE_WALLET_PASS_URL_TEMPLATE : env.GOOGLE_WALLET_SAVE_URL_TEMPLATE;
+  const isEnabled = isApple
+    ? env.APPLE_WALLET_ENABLED === 'true'
+    : env.GOOGLE_WALLET_ENABLED === 'true';
+  const template = isApple
+    ? env.APPLE_WALLET_PASS_URL_TEMPLATE
+    : env.GOOGLE_WALLET_SAVE_URL_TEMPLATE;
 
   if (template && !isEnabled) {
     return {

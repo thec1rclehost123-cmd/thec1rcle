@@ -4,10 +4,7 @@ import { resolvePartnerContext } from '../../../lib/partner-context.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
 import { buildPayoutAccountRecord } from '../../../lib/partner-hardening.js';
-import {
-  getPermissionsForRole,
-  type Permission,
-} from '../../../lib/rbac-permissions.js';
+import { getPermissionsForRole, type Permission } from '../../../lib/rbac-permissions.js';
 
 const LedgerQuerySchema = z
   .object({
@@ -61,10 +58,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
     redis: fastify.redis,
   });
 
-  const resolveAuthorizedFinanceContext = async (
-    request: any,
-    permission: Permission,
-  ) => {
+  const resolveAuthorizedFinanceContext = async (request: any, permission: Permission) => {
     await fastify.enrichAuthContext(request);
     const ctx = await resolvePartnerContext(fastify.db, request);
     if (!ctx) return null;
@@ -77,9 +71,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
     );
 
     let role = membership?.role ? String(membership.role) : '';
-    const partnerType = membership?.partnerType
-      ? String(membership.partnerType)
-      : String(ctx.type);
+    const partnerType = membership?.partnerType ? String(membership.partnerType) : String(ctx.type);
 
     if (!role) {
       if (ctx.roles.includes('venue_owner') || ctx.roles.includes('host_owner')) {
@@ -106,9 +98,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
     }
 
     const requiredPermission: Permission =
-      request.method === 'GET' || request.method === 'HEAD'
-        ? 'VIEW_FINANCIALS'
-        : 'MANAGE_PAYOUTS';
+      request.method === 'GET' || request.method === 'HEAD' ? 'VIEW_FINANCIALS' : 'MANAGE_PAYOUTS';
     const ctx = await resolveAuthorizedFinanceContext(request, requiredPermission);
     if (!ctx) {
       request.log.warn(

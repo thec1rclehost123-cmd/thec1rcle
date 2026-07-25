@@ -51,7 +51,9 @@ async function registerRoutes() {
     db: {
       collection: vi.fn((collection: string) => ({
         doc: vi.fn(() => ({
-          get: vi.fn(async () => (collection === 'bound_devices' ? boundDeviceDoc : { exists: false })),
+          get: vi.fn(async () =>
+            collection === 'bound_devices' ? boundDeviceDoc : { exists: false },
+          ),
         })),
       })),
     },

@@ -145,8 +145,7 @@ export async function getGuestWalletTicket(dbOrUserId, authOrTicketId, maybeUser
 
   if (ticket && ticket.status === 'active' && !ticket.genderMismatch && !ticket.isTransferPending) {
     if (ticket.entitlementId && hasDb(db)) {
-      const { createTicketQrForEntitlement } =
-        await import('./ticket-checkout-wallet-service.js');
+      const { createTicketQrForEntitlement } = await import('./ticket-checkout-wallet-service.js');
       const qr = await createTicketQrForEntitlement({
         db,
         userId,

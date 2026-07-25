@@ -282,11 +282,7 @@ export default fp(async (fastify) => {
       });
     }
 
-    const tokenSource = bearerToken
-      ? 'bearer'
-      : sessionCookie
-        ? 'session_cookie'
-        : null;
+    const tokenSource = bearerToken ? 'bearer' : sessionCookie ? 'session_cookie' : null;
     const token = bearerToken || sessionCookie;
 
     if (!token) return;

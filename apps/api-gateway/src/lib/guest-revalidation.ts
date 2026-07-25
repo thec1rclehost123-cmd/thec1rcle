@@ -12,18 +12,15 @@ export async function revalidateGuestEvent(eventId: string, mutation: string) {
 
   const payload = JSON.stringify({ eventId, mutation, timestamp: Date.now() });
   const signature = createHmac('sha256', secret).update(payload).digest('hex');
-  const response = await fetch(
-    `${baseUrl.replace(/\/+$/, '')}/api/internal/revalidate`,
-    {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-c1rcle-signature': signature,
-      },
-      body: payload,
-      signal: AbortSignal.timeout(5_000),
+  const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/internal/revalidate`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-c1rcle-signature': signature,
     },
-  );
+    body: payload,
+    signal: AbortSignal.timeout(5_000),
+  });
   if (!response.ok) {
     throw new Error(`Guest Portal revalidation failed with ${response.status}`);
   }

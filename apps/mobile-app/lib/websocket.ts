@@ -100,9 +100,7 @@ class WebSocketManager {
 
   get isConnected() {
     return (
-      this.ws?.readyState === WS_OPEN &&
-      this.authenticated &&
-      this.pendingSubscriptions.size === 0
+      this.ws?.readyState === WS_OPEN && this.authenticated && this.pendingSubscriptions.size === 0
     );
   }
 

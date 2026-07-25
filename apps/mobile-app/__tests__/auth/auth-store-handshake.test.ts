@@ -45,7 +45,11 @@ jest.mock('../../lib/api', () => ({
   syncAuthSession: jest.fn(),
   apiFetch: jest.fn(async () => ({
     success: true,
-    data: { token: 'realtime-session-token', expiresAt: '2099-01-01T00:00:00.000Z', expiresInSeconds: 60 },
+    data: {
+      token: 'realtime-session-token',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+      expiresInSeconds: 60,
+    },
   })),
 }));
 

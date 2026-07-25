@@ -107,8 +107,7 @@ async function authorizeTopic(
       .get();
     return (
       snapshot.docs.length === 1 &&
-      (snapshot.docs[0].data().isActive === true ||
-        snapshot.docs[0].data().status === 'active')
+      (snapshot.docs[0].data().isActive === true || snapshot.docs[0].data().status === 'active')
     );
   }
 
@@ -188,11 +187,7 @@ export default fp(async (fastify: FastifyInstance) => {
       if (!topic) return;
       const messageStr = JSON.stringify(payload);
       for (const client of clients) {
-        if (
-          client.userId &&
-          client.socket.readyState === 1 &&
-          client.subscriptions.has(topic)
-        ) {
+        if (client.userId && client.socket.readyState === 1 && client.subscriptions.has(topic)) {
           client.socket.send(messageStr);
         }
       }
@@ -318,11 +313,7 @@ export default fp(async (fastify: FastifyInstance) => {
     } else {
       const messageStr = JSON.stringify(payload);
       for (const client of clients) {
-        if (
-          client.userId &&
-          client.socket.readyState === 1 &&
-          client.subscriptions.has(topic)
-        ) {
+        if (client.userId && client.socket.readyState === 1 && client.subscriptions.has(topic)) {
           client.socket.send(messageStr);
         }
       }

@@ -104,9 +104,7 @@ export async function finalizeProcessedRefund({
       (ticketsToRevoke.length !==
         (refund.fullyRefunded ? ticketsSnapshot.docs.length : requestedTicketIds.size) ||
         entitlementsToRevoke.length !==
-          (refund.fullyRefunded
-            ? entitlementsSnapshot.docs.length
-            : requestedEntitlementIds.size))
+          (refund.fullyRefunded ? entitlementsSnapshot.docs.length : requestedEntitlementIds.size))
     ) {
       throw Object.assign(new Error('Refund admission mapping does not belong to this order'), {
         code: 'REFUND_ADMISSION_MAPPING_INVALID',
@@ -118,10 +116,9 @@ export async function finalizeProcessedRefund({
       for (const entitlement of entitlementsToRevoke) {
         const ticketDocumentId = String(entitlement.data()?.ticketDocumentId || '');
         if (!selectedTicketIds.has(ticketDocumentId)) {
-          throw Object.assign(
-            new Error('Refund ticket and entitlement mapping is inconsistent'),
-            { code: 'REFUND_ADMISSION_MAPPING_INVALID' },
-          );
+          throw Object.assign(new Error('Refund ticket and entitlement mapping is inconsistent'), {
+            code: 'REFUND_ADMISSION_MAPPING_INVALID',
+          });
         }
       }
     }

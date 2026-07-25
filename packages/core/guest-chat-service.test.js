@@ -127,10 +127,7 @@ function createDb(seed = {}) {
         },
         set(ref, data, options = {}) {
           const current = getCollection(ref.collection).get(ref.id) || {};
-          getCollection(ref.collection).set(
-            ref.id,
-            options.merge ? { ...current, ...data } : data,
-          );
+          getCollection(ref.collection).set(ref.id, options.merge ? { ...current, ...data } : data);
         },
         create(ref, data) {
           if (getCollection(ref.collection).has(ref.id)) throw new Error('already exists');

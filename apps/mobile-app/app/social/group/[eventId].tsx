@@ -215,10 +215,9 @@ export default function EventGroupChatScreen() {
             checkEventEntitlement(user!.uid, eventId!),
             getEventGroupChat(eventId!),
             apiFetch<any>(`/api/v1/events/${eventId}`, { requireAuth: false }).catch(() => null),
-            apiFetch<any>(
-              `/api/v1/chats/${encodeURIComponent(eventId!)}/messages?limit=50`,
-              { requireAuth: true },
-            ).catch(() => null),
+            apiFetch<any>(`/api/v1/chats/${encodeURIComponent(eventId!)}/messages?limit=50`, {
+              requireAuth: true,
+            }).catch(() => null),
           ]);
           if (!active) return;
 

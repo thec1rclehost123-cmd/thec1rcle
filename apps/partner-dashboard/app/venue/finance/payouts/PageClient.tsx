@@ -206,7 +206,6 @@ export default function VenuePayoutsSettingsClient() {
 
       {/* Bank account section */}
       <BankAccountSection state={settingsState} />
-
     </VenuePageShell>
   );
 }
@@ -273,11 +272,7 @@ function UnconnectedPayoutState({
           UNLOCKED AFTER SETUP
         </p>
         <div className="grid grid-cols-2 gap-2">
-          {[
-            'Payout history & receipts',
-            'Tax document generation',
-            'PDF statements',
-          ].map((cap) => (
+          {['Payout history & receipts', 'Tax document generation', 'PDF statements'].map((cap) => (
             <div key={cap} className="flex items-center gap-2">
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" style={{ color: '#34D399' }} />
               <span className="text-[12px]" style={{ color: 'var(--v-text-secondary)' }}>

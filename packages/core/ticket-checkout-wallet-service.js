@@ -490,11 +490,7 @@ export function createTicketQrJwt(ticket, options = {}) {
   };
 }
 
-export async function createTicketQrForEntitlement({
-  db = getAdminDb(),
-  userId,
-  entitlementId,
-}) {
+export async function createTicketQrForEntitlement({ db = getAdminDb(), userId, entitlementId }) {
   if (!userId) throw codedError('Unauthorized', 'UNAUTHORIZED');
   if (!entitlementId) throw codedError('Entitlement is required', 'NOT_FOUND');
 
