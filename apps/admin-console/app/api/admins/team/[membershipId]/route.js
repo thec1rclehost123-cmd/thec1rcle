@@ -52,14 +52,20 @@ async function patchHandler(req, { params }) {
       return NextResponse.json({ error: 'Admin team member not found' }, { status: 404 });
     }
 
+    // 'role' is the coarse admin-or-not class and must stay the constant 'admin' --
+    // only 'admin_role' carries the fine-grained permission tier. Writing the tier
+    // string into 'role' here previously let it silently drift from the auth claim
+    // (which is correctly pinned to 'admin' below), corrupting any code that reads
+    // the Firestore doc's 'role' field to decide admin-or-not.
     await adminRef.update({
       admin_role: role,
-      role,
+      role: 'admin',
       updatedAt: new Date().toISOString(),
     });
 
     // Update Firebase Auth custom claims
     const auth = getAdminAuth();
+    let claimsSynced = true;
     try {
       await auth.setCustomUserClaims(membershipId, {
         role: 'admin',
@@ -67,7 +73,11 @@ async function patchHandler(req, { params }) {
         admin_role: role,
       });
     } catch (err) {
-      console.warn('[Admin PATCH] Claims update failed (non-critical):', err);
+      claimsSynced = false;
+      console.error(
+        `[Admin PATCH] Claims update failed for ${membershipId} -- Firestore says '${role}' but the auth token is stale until this is retried:`,
+        err,
+      );
     }
 
     // Update user profile document in Firestore
@@ -78,9 +88,14 @@ async function patchHandler(req, { params }) {
         admin_role: role,
         updatedAt: new Date().toISOString(),
       })
-      .catch(() => null);
+      .catch((err) => {
+        console.error(`[Admin PATCH] users/${membershipId} profile sync failed:`, err);
+      });
 
-    return NextResponse.json({ success: true });
+    // Surface claims-sync failure explicitly rather than reporting a silent
+    // full success -- the caller (admin UI) can warn the operator that the
+    // member may need to re-login before their new role takes effect.
+    return NextResponse.json({ success: true, claimsSynced });
   } catch (error) {
     console.error(`[Admin Team PATCH] Error for member ${membershipId}:`, error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -121,12 +136,24 @@ async function deleteHandler(req, { params }) {
       updatedAt: new Date().toISOString(),
     });
 
-    // Clear Firebase Auth custom claims (demotes from admin)
+    // Clear only the admin-related custom claims (demotes from admin) --
+    // setCustomUserClaims() *replaces* the whole claims object, so wiping it to {}
+    // would also nuke any unrelated claims the account holds (e.g. partner or
+    // onboarding claims), silently revoking access this action was never meant to touch.
     const auth = getAdminAuth();
+    let claimsSynced = true;
     try {
-      await auth.setCustomUserClaims(membershipId, {});
+      const existingUser = await auth.getUser(membershipId);
+      const {
+        role: _droppedRole,
+        admin: _droppedAdmin,
+        admin_role: _droppedAdminRole,
+        ...preservedClaims
+      } = existingUser.customClaims || {};
+      await auth.setCustomUserClaims(membershipId, preservedClaims);
     } catch (err) {
-      console.warn('[Admin DELETE] Claims clear failed:', err);
+      claimsSynced = false;
+      console.error(`[Admin DELETE] Claims clear failed for ${membershipId}:`, err);
     }
 
     // Demote user profile document in Firestore
@@ -139,9 +166,11 @@ async function deleteHandler(req, { params }) {
         admin_role: null,
         updatedAt: new Date().toISOString(),
       })
-      .catch(() => null);
+      .catch((err) => {
+        console.error(`[Admin DELETE] users/${membershipId} profile demote failed:`, err);
+      });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, claimsSynced });
   } catch (error) {
     console.error(`[Admin Team DELETE] Error for member ${membershipId}:`, error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

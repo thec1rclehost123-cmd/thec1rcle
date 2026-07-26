@@ -19,8 +19,8 @@ export const dynamic = 'force-dynamic';
 const GOVERNANCE_CONFIG = {
   DUAL_APPROVAL: {
     EVENT_PAUSE: true,
-    VENUE_SUSPEND: false,
-    VENUE_REINSTATE: false,
+    VENUE_SUSPEND: true,
+    VENUE_REINSTATE: true,
   },
 };
 
@@ -148,280 +148,262 @@ async function handler(req) {
     }
 
     // --- 🚀 EXECUTION ENGINE ---
-    await adminStore.runWithContext(
-      {
-        adminId,
-        adminRole,
-        actorEmail: req.user.email || null,
-        actorName: req.user.name || null,
-        ipAddress: req.user.ipAddress,
-        userAgent: req.user.userAgent,
-        requestId: req.user.requestId,
-        skipInternalLog: true, // skip internal logging during database mutations
-      },
-      async () => {
-        switch (action) {
-          case 'DISCOVERY_WEIGHT_ADJUST':
-            await adminStore.setDiscoveryWeight(
-              params.type,
-              targetId,
-              params.weight,
-              adminId,
-              reason,
-            );
-            break;
-          case 'VERIFICATION_ISSUE':
-            await adminStore.setVerificationStatus(params.type, targetId, true, adminId, reason);
-            break;
-          case 'VERIFICATION_REVOKE':
-            await adminStore.setVerificationStatus(params.type, targetId, false, adminId, reason);
-            break;
-          case 'WARNING_ISSUE':
-            await adminStore.issueWarning(params.type, targetId, params.message, adminId, reason);
-            break;
-          case 'VENUE_SUSPEND':
-            await adminStore.updateVenueStatus(
-              targetId,
-              'suspended',
-              adminId,
-              reason,
-              evidence,
-              context,
-            );
-            break;
-          case 'VENUE_REINSTATE':
-            await adminStore.updateVenueStatus(
-              targetId,
-              'reinstated',
-              adminId,
-              reason,
-              evidence,
-              context,
-            );
-            break;
-          case 'HOST_SUSPEND':
-            await adminStore.updateHostStatus(
-              targetId,
-              'suspended',
-              adminId,
-              reason,
-              evidence,
-              context,
-            );
-            break;
-          case 'HOST_REINSTATE':
-            await adminStore.updateHostStatus(
-              targetId,
-              'active',
-              adminId,
-              reason,
-              evidence,
-              context,
-            );
-            break;
-          case 'EVENT_PAUSE':
-            await adminStore.setEventStatus(targetId, 'pause', adminId, reason, evidence);
-            break;
-          case 'EVENT_RESUME':
-            await adminStore.setEventStatus(targetId, 'resume', adminId, reason, evidence);
-            break;
-          case 'FEATURE_EVENT_PIN':
-            await adminStore.setEventFeatured(targetId, true, adminId, reason);
-            break;
-          case 'FEATURE_EVENT_UNPIN':
-            await adminStore.setEventFeatured(targetId, false, adminId, reason);
-            break;
-          case 'ACTION_APPROVE':
-            await adminStore.resolveProposal(
-              targetId,
-              adminId,
-              adminRole,
-              'approved',
-              null,
-              context,
-            );
-            break;
-          case 'ACTION_REJECT':
-            await adminStore.resolveProposal(
-              targetId,
-              adminId,
-              adminRole,
-              'rejected',
-              reason,
-              context,
-            );
-            break;
-          case 'USER_BAN':
-            await adminStore.setUserBanStatus(targetId, true, adminId, reason);
-            break;
-          case 'USER_UNBAN':
-            await adminStore.setUserBanStatus(targetId, false, adminId, reason);
-            break;
-          case 'ONBOARDING_APPROVE':
-            await adminStore.approveOnboarding(targetId, adminId, adminRole, reason, context);
-            break;
-          case 'ONBOARDING_REJECT':
-            await adminStore.rejectOnboarding(targetId, adminId, adminRole, reason, context);
-            break;
-          case 'ONBOARDING_REQUEST_CHANGES':
-            await adminStore.requestOnboardingChanges(
-              targetId,
-              adminId,
-              adminRole,
-              reason,
-              context,
-            );
-            break;
-          case 'ADMIN_PROVISION':
-            await adminStore.adminProvision(params, adminId, adminRole, reason);
-            break;
-          case 'FINANCIAL_REFUND':
-            await adminStore.financialRefund(targetId, adminId, reason, evidence, params);
-            break;
-          case 'COMMISSION_ADJUST':
-            await adminStore.commissionAdjust(
-              targetId,
-              params.type,
-              params.rate,
-              adminId,
-              reason,
-              evidence,
-            );
-            break;
-          case 'PAYOUT_BATCH_RUN':
-            await adminStore.executePayoutBatch(targetId, adminId, reason, evidence);
-            break;
-          case 'PAYOUT_RELEASE':
-            await adminStore.payoutIntervention(
-              targetId,
-              params?.type || 'host',
-              false,
-              adminId,
-              reason,
-              evidence,
-            );
-            break;
-          case 'PROMOTER_SUSPEND':
-            await adminStore.updatePromoterStatus(targetId, 'suspended', adminId, reason);
-            break;
-          case 'PROMOTER_ACTIVATE':
-            await adminStore.updatePromoterStatus(targetId, 'active', adminId, reason);
-            break;
-          case 'PROMOTER_DISABLE':
-            await adminStore.updatePromoterStatus(targetId, 'disabled', adminId, reason);
-            break;
-          case 'WEBHOOK_RETRY':
-            await adminStore.retryWebhook(targetId, adminId, reason);
-            break;
-          case 'SUPPORT_RESOLVE':
-            await adminStore.resolveSupportTicket(targetId, adminId, reason);
-            break;
-          case 'SUPPORT_ASSIGN':
-            await adminStore.assignSupportTicket(
-              targetId,
-              params?.agentId,
-              params?.agentName,
-              adminId,
-            );
-            break;
-          case 'SUPPORT_CHANGE_PRIORITY':
-            await adminStore.changeSupportTicketPriority(targetId, params?.priority, adminId);
-            break;
-          case 'SUPPORT_REPLY':
-            await adminStore.replyToSupportTicket(
-              targetId,
-              params?.message,
-              adminId,
-              req.user?.email || params?.adminEmail || 'Support Agent',
-            );
-            break;
-          case 'SUPPORT_MERGE':
-            await adminStore.mergeDuplicateSupportTicket(
-              targetId,
-              params?.duplicateTicketId,
-              adminId,
-            );
-            break;
-          case 'SUPPORT_LINK':
-            await adminStore.linkSupportTicket(
-              targetId,
-              params?.entityType,
-              params?.entityId,
-              params?.entityName,
-              adminId,
-            );
-            break;
-          case 'SUPPORT_ADD_INTERNAL_NOTE':
-            await adminStore.addSupportTicketInternalNote(
-              targetId,
-              params?.note,
-              adminId,
-              req.user?.email || params?.adminEmail || 'Support Agent',
-            );
-            break;
-          case 'SUPPORT_ESCALATE':
-            await adminStore.escalateSupportTicket(targetId, adminId);
-            break;
-          case 'SUPPORT_CLOSE':
-            await adminStore.closeSupportTicket(targetId, adminId);
-            break;
-          case 'SUPPORT_REOPEN':
-            await adminStore.reopenSupportTicket(targetId, adminId);
-            break;
-          case 'ANNOUNCEMENT_CREATE':
-            await adminStore.createPlatformAnnouncement(
-              params?.title,
-              params?.content,
-              params?.tag,
-              adminId,
-            );
-            break;
-          case 'ANNOUNCEMENT_DELETE':
-            await adminStore.deletePlatformAnnouncement(targetId, adminId);
-            break;
-          case 'SAFETY_REPORT_DISMISS':
-            await adminStore.dismissSafetyReport(targetId, adminId, reason);
-            break;
-          case 'ADMIN_ROLE_UPDATE':
-            await adminStore.adminRoleUpdate(targetId, params?.admin_role, adminId, reason);
-            break;
-          case 'MEDIA_REPORT_DISMISS':
-            await adminStore.dismissMediaReport(targetId, adminId, reason);
-            break;
-          case 'CONTENT_REMOVE':
-            await adminStore.removeContent(targetId, params?.type, adminId, reason);
-            break;
-          case 'DATABASE_CORRECTION': {
-            if (adminRole !== 'super') {
-              throw new Error('Not Found');
-            }
-            const parsedParams = DatabaseCorrectionParamsSchema.safeParse(params);
-            if (!parsedParams.success) {
-              throw new Error('Invalid params');
-            }
-            await adminStore.databaseCorrection(
-              targetId,
-              parsedParams.data.id || 'global',
-              parsedParams.data.after,
-              adminId,
-              reason,
-              context,
-            );
-            break;
+    // Held as a named reference (not an inline literal) so the before/after state
+    // that individual mutators stash into it via logAdminAction's skip path
+    // (see adminStore.js) is still readable here after runWithContext resolves --
+    // AsyncLocalStorage.run() shares the same object identity with getStore().
+    const executionContext = {
+      adminId,
+      adminRole,
+      actorEmail: req.user.email || null,
+      actorName: req.user.name || null,
+      ipAddress: req.user.ipAddress,
+      userAgent: req.user.userAgent,
+      requestId: req.user.requestId,
+      skipInternalLog: true, // skip internal logging during database mutations
+    };
+    await adminStore.runWithContext(executionContext, async () => {
+      switch (action) {
+        case 'DISCOVERY_WEIGHT_ADJUST':
+          await adminStore.setDiscoveryWeight(
+            params.type,
+            targetId,
+            params.weight,
+            adminId,
+            reason,
+          );
+          break;
+        case 'VERIFICATION_ISSUE':
+          await adminStore.setVerificationStatus(params.type, targetId, true, adminId, reason);
+          break;
+        case 'VERIFICATION_REVOKE':
+          await adminStore.setVerificationStatus(params.type, targetId, false, adminId, reason);
+          break;
+        case 'WARNING_ISSUE':
+          await adminStore.issueWarning(params.type, targetId, params.message, adminId, reason);
+          break;
+        case 'VENUE_SUSPEND':
+          await adminStore.updateVenueStatus(
+            targetId,
+            'suspended',
+            adminId,
+            reason,
+            evidence,
+            context,
+          );
+          break;
+        case 'VENUE_REINSTATE':
+          await adminStore.updateVenueStatus(
+            targetId,
+            'reinstated',
+            adminId,
+            reason,
+            evidence,
+            context,
+          );
+          break;
+        case 'HOST_SUSPEND':
+          await adminStore.updateHostStatus(
+            targetId,
+            'suspended',
+            adminId,
+            reason,
+            evidence,
+            context,
+          );
+          break;
+        case 'HOST_REINSTATE':
+          await adminStore.updateHostStatus(targetId, 'active', adminId, reason, evidence, context);
+          break;
+        case 'EVENT_PAUSE':
+          await adminStore.setEventStatus(targetId, 'pause', adminId, reason, evidence);
+          break;
+        case 'EVENT_RESUME':
+          await adminStore.setEventStatus(targetId, 'resume', adminId, reason, evidence);
+          break;
+        case 'FEATURE_EVENT_PIN':
+          await adminStore.setEventFeatured(targetId, true, adminId, reason);
+          break;
+        case 'FEATURE_EVENT_UNPIN':
+          await adminStore.setEventFeatured(targetId, false, adminId, reason);
+          break;
+        case 'ACTION_APPROVE':
+          await adminStore.resolveProposal(targetId, adminId, adminRole, 'approved', null, context);
+          break;
+        case 'ACTION_REJECT':
+          await adminStore.resolveProposal(
+            targetId,
+            adminId,
+            adminRole,
+            'rejected',
+            reason,
+            context,
+          );
+          break;
+        case 'USER_BAN':
+          await adminStore.setUserBanStatus(targetId, true, adminId, reason);
+          break;
+        case 'USER_UNBAN':
+          await adminStore.setUserBanStatus(targetId, false, adminId, reason);
+          break;
+        case 'ONBOARDING_APPROVE':
+          await adminStore.approveOnboarding(targetId, adminId, adminRole, reason, context);
+          break;
+        case 'ONBOARDING_REJECT':
+          await adminStore.rejectOnboarding(targetId, adminId, adminRole, reason, context);
+          break;
+        case 'ONBOARDING_REQUEST_CHANGES':
+          await adminStore.requestOnboardingChanges(targetId, adminId, adminRole, reason, context);
+          break;
+        case 'ADMIN_PROVISION':
+          await adminStore.adminProvision(params, adminId, adminRole, reason);
+          break;
+        case 'FINANCIAL_REFUND':
+          await adminStore.financialRefund(targetId, adminId, reason, evidence, params);
+          break;
+        case 'COMMISSION_ADJUST':
+          await adminStore.commissionAdjust(
+            targetId,
+            params.type,
+            params.rate,
+            adminId,
+            reason,
+            evidence,
+          );
+          break;
+        case 'PAYOUT_BATCH_RUN':
+          await adminStore.executePayoutBatch(targetId, adminId, reason, evidence);
+          break;
+        case 'PAYOUT_RELEASE':
+          await adminStore.payoutIntervention(
+            targetId,
+            params?.type || 'host',
+            false,
+            adminId,
+            reason,
+            evidence,
+          );
+          break;
+        case 'PROMOTER_SUSPEND':
+          await adminStore.updatePromoterStatus(targetId, 'suspended', adminId, reason);
+          break;
+        case 'PROMOTER_ACTIVATE':
+          await adminStore.updatePromoterStatus(targetId, 'active', adminId, reason);
+          break;
+        case 'PROMOTER_DISABLE':
+          await adminStore.updatePromoterStatus(targetId, 'disabled', adminId, reason);
+          break;
+        case 'WEBHOOK_RETRY':
+          await adminStore.retryWebhook(targetId, adminId, reason);
+          break;
+        case 'SUPPORT_RESOLVE':
+          await adminStore.resolveSupportTicket(targetId, adminId, reason);
+          break;
+        case 'SUPPORT_ASSIGN':
+          await adminStore.assignSupportTicket(
+            targetId,
+            params?.agentId,
+            params?.agentName,
+            adminId,
+          );
+          break;
+        case 'SUPPORT_CHANGE_PRIORITY':
+          await adminStore.changeSupportTicketPriority(targetId, params?.priority, adminId);
+          break;
+        case 'SUPPORT_REPLY':
+          await adminStore.replyToSupportTicket(
+            targetId,
+            params?.message,
+            adminId,
+            req.user?.email || params?.adminEmail || 'Support Agent',
+          );
+          break;
+        case 'SUPPORT_MERGE':
+          await adminStore.mergeDuplicateSupportTicket(
+            targetId,
+            params?.duplicateTicketId,
+            adminId,
+          );
+          break;
+        case 'SUPPORT_LINK':
+          await adminStore.linkSupportTicket(
+            targetId,
+            params?.entityType,
+            params?.entityId,
+            params?.entityName,
+            adminId,
+          );
+          break;
+        case 'SUPPORT_ADD_INTERNAL_NOTE':
+          await adminStore.addSupportTicketInternalNote(
+            targetId,
+            params?.note,
+            adminId,
+            req.user?.email || params?.adminEmail || 'Support Agent',
+          );
+          break;
+        case 'SUPPORT_ESCALATE':
+          await adminStore.escalateSupportTicket(targetId, adminId);
+          break;
+        case 'SUPPORT_CLOSE':
+          await adminStore.closeSupportTicket(targetId, adminId);
+          break;
+        case 'SUPPORT_REOPEN':
+          await adminStore.reopenSupportTicket(targetId, adminId);
+          break;
+        case 'ANNOUNCEMENT_CREATE':
+          await adminStore.createPlatformAnnouncement(
+            params?.title,
+            params?.content,
+            params?.tag,
+            adminId,
+          );
+          break;
+        case 'ANNOUNCEMENT_DELETE':
+          await adminStore.deletePlatformAnnouncement(targetId, adminId);
+          break;
+        case 'SAFETY_REPORT_DISMISS':
+          await adminStore.dismissSafetyReport(targetId, adminId, reason);
+          break;
+        case 'ADMIN_ROLE_UPDATE':
+          await adminStore.adminRoleUpdate(targetId, params?.admin_role, adminId, reason);
+          break;
+        case 'MEDIA_REPORT_DISMISS':
+          await adminStore.dismissMediaReport(targetId, adminId, reason);
+          break;
+        case 'CONTENT_REMOVE':
+          await adminStore.removeContent(targetId, params?.type, adminId, reason);
+          break;
+        case 'DATABASE_CORRECTION': {
+          if (adminRole !== 'super') {
+            throw new Error('Not Found');
           }
-          case 'PARTNER_REPROVISION':
-            await adminStore.partnerReprovision(
-              { uid: targetId, partnerType: params?.partnerType, partnerName: params?.partnerName },
-              adminId,
-              adminRole,
-              reason,
-            );
-            break;
-          default:
-            throw new Error('Unknown action');
+          const parsedParams = DatabaseCorrectionParamsSchema.safeParse(params);
+          if (!parsedParams.success) {
+            throw new Error('Invalid params');
+          }
+          await adminStore.databaseCorrection(
+            targetId,
+            parsedParams.data.id || 'global',
+            parsedParams.data.after,
+            adminId,
+            reason,
+            context,
+          );
+          break;
         }
-      },
-    );
+        case 'PARTNER_REPROVISION':
+          await adminStore.partnerReprovision(
+            { uid: targetId, partnerType: params?.partnerType, partnerName: params?.partnerName },
+            adminId,
+            adminRole,
+            reason,
+          );
+          break;
+        default:
+          throw new Error('Unknown action');
+      }
+    });
 
     // Write one single unified audit log for the action
     try {
@@ -445,6 +427,8 @@ async function handler(req) {
         reason:
           reason || `Performed administrative action ${action.toLowerCase().replace(/_/g, ' ')}`,
         evidence,
+        before: executionContext.capturedBefore ?? null,
+        after: executionContext.capturedAfter ?? null,
         context,
       });
     } catch (err) {
@@ -505,12 +489,16 @@ async function handler(req) {
       error: error.message,
       requestId: req.user?.requestId,
     });
+
+    const statusCode = error.statusCode || 500;
+    const errorMessage = statusCode === 500 ? 'Internal server error' : error.message;
+
     return NextResponse.json(
       {
-        error: 'Internal server error',
+        error: errorMessage,
         correlationId: req.user?.requestId || 'N/A',
       },
-      { status: error.statusCode || 500 },
+      { status: statusCode },
     );
   }
 }

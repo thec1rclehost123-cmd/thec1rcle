@@ -22,7 +22,7 @@ export async function sendAdminInvitationEmail({
   name,
   roleLabel,
   acceptLink,
-  tempPassword = null,
+  setPasswordLink = null,
 }) {
   if (!resend) {
     console.warn('Resend API key not found. Skipping email send (mock).');
@@ -31,15 +31,18 @@ export async function sendAdminInvitationEmail({
 
   const fromAddr = 'THE C1RCLE <noreply@thec1rcle.com>';
 
-  // tempPassword is only present for a brand-new account. A re-invite of an
-  // email that already has Firebase Auth credentials (e.g. reactivating a
-  // suspended admin) must never touch or re-issue their existing password.
-  const credentialBlock = tempPassword
+  // setPasswordLink is a genuine Firebase-signed, single-use, time-limited
+  // reset link -- only present for a brand-new account. No password value is
+  // ever generated for transmission; the recipient sets their own. A
+  // re-invite of an email that already has Firebase Auth credentials (e.g.
+  // reactivating a suspended admin) must never touch their existing password,
+  // hence no link in that case either.
+  const credentialBlock = setPasswordLink
     ? `
             <div style="background-color:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;margin:28px 0;text-align:center;box-sizing:border-box;">
-              <span style="font-size:11px;color:#71717a;letter-spacing:0.1em;font-weight:bold;text-transform:uppercase;display:block;margin-bottom:8px;">Temporary Password</span>
-              <code style="font-family:monospace;font-size:20px;color:#ffffff;font-weight:bold;letter-spacing:0.05em;background-color:rgba(0,0,0,0.3);padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);display:inline-block;">${tempPassword}</code>
-              <span style="font-size:11px;color:#71717a;display:block;margin-top:12px;">You will be prompted to set a permanent secure password upon first access.</span>
+              <span style="font-size:11px;color:#71717a;letter-spacing:0.1em;font-weight:bold;text-transform:uppercase;display:block;margin-bottom:12px;">Set Your Password</span>
+              <a href="${setPasswordLink}" style="background-color:rgba(99,102,241,0.15);color:#818cf8;text-decoration:none;padding:12px 24px;font-size:13px;font-weight:bold;border-radius:8px;display:inline-block;border:1px solid rgba(99,102,241,0.3);text-transform:uppercase;letter-spacing:0.05em;">Choose a Password</a>
+              <span style="font-size:11px;color:#71717a;display:block;margin-top:12px;">This link is single-use and expires shortly. Use it before accepting the invitation below.</span>
             </div>
           `
     : `

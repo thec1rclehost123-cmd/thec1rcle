@@ -97,7 +97,21 @@ export async function POST(req) {
     // for an account whose credentials are already settled; it never sets,
     // resets, or reads a password, so there is nothing here for a leaked
     // invite link to hijack.
-    const userRecord = await auth.getUserByEmail(email);
+    let userRecord;
+    try {
+      userRecord = await auth.getUserByEmail(email);
+    } catch (authErr) {
+      if (authErr.code === 'auth/user-not-found') {
+        return NextResponse.json(
+          {
+            error:
+              'Invitation expired: the associated user account no longer exists. Contact a Super Admin.',
+          },
+          { status: 410 },
+        );
+      }
+      throw authErr;
+    }
     const uid = userRecord.uid;
 
     // 1. Set/refresh the Firestore users profile
@@ -126,7 +140,7 @@ export async function POST(req) {
         });
     }
 
-    // 2. Set Admin Custom Claims
+    // 2. Set Admin Custom Claims — 'role' is the admin class, 'admin_role' is the specific role
     const claims = { role: 'admin', admin: true, admin_role: role };
     await auth.setCustomUserClaims(uid, claims);
 
@@ -142,7 +156,7 @@ export async function POST(req) {
         email,
         displayName: name,
         admin_role: role,
-        role,
+        role: 'admin',
         status: 'active',
         provisionedBy: invData.invitedBy || 'system',
         mustChangePassword: Boolean(invData.isNewAccount),

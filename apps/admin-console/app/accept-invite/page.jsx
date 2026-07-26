@@ -198,7 +198,7 @@ function AcceptInviteContent() {
                 <h2 className="text-lg font-bold text-white mb-1">Invitation Accepted</h2>
                 <p className="text-xs text-zinc-400">
                   {isNewAccount
-                    ? 'Check your email for your temporary password, then sign in.'
+                    ? 'Check your email to set your password, then sign in.'
                     : 'Sign in with your existing password.'}
                 </p>
               </div>

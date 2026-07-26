@@ -62,34 +62,52 @@ async function handler(req) {
     const auth = getAdminAuth();
     const db = getAdminDb();
 
-    // 2. Update the user password in Firebase Auth
+    // 2. Update the user password in Firebase Auth -- this is the
+    // authoritative, security-relevant step and it has already succeeded
+    // once we reach here.
     await auth.updateUser(userId, { password: newPassword });
 
-    // 3. Clear mustChangePassword flag in Firestore 'users' collection
-    await db
-      .collection('users')
-      .doc(userId)
-      .update({
-        mustChangePassword: false,
-        updatedAt: new Date().toISOString(),
-      })
-      .catch((err) => {
-        console.error('[Change Password BFF] Failed to update user record in Firestore:', err);
-      });
+    // 3/4. Clear the mustChangePassword flag on both denormalized records.
+    // These are best-effort UX bookkeeping, not security-relevant (the real
+    // password already changed above) -- a transient failure here shouldn't
+    // fail the whole request. But it must not be silently swallowed either,
+    // or the admin gets stuck re-prompted to change an already-changed
+    // password with no diagnostic trail. One retry, then report explicitly.
+    const clearMustChangeFlag = async (collection) => {
+      const ref = db.collection(collection).doc(userId);
+      const payload = { mustChangePassword: false, updatedAt: new Date().toISOString() };
+      try {
+        await ref.update(payload);
+        return true;
+      } catch (firstErr) {
+        console.error(
+          `[Change Password BFF] Failed to clear mustChangePassword on ${collection}/${userId} (retrying once):`,
+          firstErr,
+        );
+        try {
+          await ref.update(payload);
+          return true;
+        } catch (retryErr) {
+          console.error(
+            `[Change Password BFF] Retry also failed for ${collection}/${userId}:`,
+            retryErr,
+          );
+          return false;
+        }
+      }
+    };
 
-    // 4. Clear mustChangePassword flag in Firestore 'admins' collection
-    await db
-      .collection('admins')
-      .doc(userId)
-      .update({
-        mustChangePassword: false,
-        updatedAt: new Date().toISOString(),
-      })
-      .catch((err) => {
-        console.error('[Change Password BFF] Failed to update admin record in Firestore:', err);
-      });
+    const [userFlagCleared, adminFlagCleared] = await Promise.all([
+      clearMustChangeFlag('users'),
+      clearMustChangeFlag('admins'),
+    ]);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      // Password itself is changed regardless; this only tells the client
+      // whether it may need to re-prompt on next login due to a stale flag.
+      flagsCleared: userFlagCleared && adminFlagCleared,
+    });
   } catch (error) {
     console.error('[Change Password BFF] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

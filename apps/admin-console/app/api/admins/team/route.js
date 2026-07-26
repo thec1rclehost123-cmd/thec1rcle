@@ -3,6 +3,7 @@ import { getAdminDb, getAdminAuth } from '@/lib/firebase/admin';
 import { withAdminAuth } from '@/lib/server/adminMiddleware';
 import { sendAdminInvitationEmail } from '@/lib/email';
 import { randomInt, randomUUID } from 'node:crypto';
+import { env } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +88,46 @@ async function listHandler(req) {
   }
 }
 
+function getSecureOrigin(req) {
+  if (env.NEXT_PUBLIC_ADMIN_URL) {
+    return env.NEXT_PUBLIC_ADMIN_URL;
+  }
+
+  const forwardedHost = req.headers.get('x-forwarded-host');
+  const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+  const referer = req.headers.get('referer');
+  const headerOrigin = req.headers.get('origin');
+
+  let rawOrigin = null;
+  if (forwardedHost) {
+    rawOrigin = `${forwardedProto}://${forwardedHost}`;
+  } else if (referer) {
+    try {
+      rawOrigin = new URL(referer).origin;
+    } catch {}
+  } else if (headerOrigin) {
+    rawOrigin = headerOrigin;
+  }
+
+  if (rawOrigin) {
+    try {
+      const parsed = new URL(rawOrigin);
+      const hostname = parsed.hostname;
+
+      const isLocal =
+        hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local');
+      const isMainDomain = hostname === 'thec1rcle.com' || hostname.endsWith('.thec1rcle.com');
+      const isVercelDomain = hostname.endsWith('.vercel.app');
+
+      if (isLocal || isMainDomain || isVercelDomain) {
+        return rawOrigin;
+      }
+    } catch {}
+  }
+
+  return 'http://localhost:3002';
+}
+
 // POST: Invite a new admin team member
 async function inviteHandler(req) {
   // Enforce Super Admin only for management operations
@@ -145,16 +186,20 @@ async function inviteHandler(req) {
       );
     }
 
-    // 3. Provision (or locate) the Firebase Auth account up front, so the
-    // password never has to round-trip through Firestore. A brand-new
-    // account gets a fresh temp password, emailed once and never persisted.
+    // 3. Provision (or locate) the Firebase Auth account up front, so no
+    // password value ever has to round-trip through Firestore, an API
+    // response, or an email body. A brand-new account gets an internal,
+    // throwaway password purely to satisfy Auth's createUser() signature --
+    // it is never logged, stored, returned, or emailed. The invitee instead
+    // gets a genuine Firebase-signed, single-use, time-limited password-reset
+    // link (below) so they set their own first password; nobody else -- not
+    // this app, not Firestore, not a mail relay -- ever holds a valid one.
     // An email that already has Firebase Auth credentials (e.g. reactivating
     // a previously-suspended admin) keeps its existing password untouched --
     // this invite flow only ever grants/updates *role*, never credentials,
     // for an account that already exists.
     const auth = getAdminAuth();
     const name = firstName && lastName ? `${firstName} ${lastName}` : 'Team Member';
-    let tempPassword = null;
     let isNewAccount = false;
 
     try {
@@ -162,8 +207,12 @@ async function inviteHandler(req) {
       // Existing account -- leave credentials alone.
     } catch (lookupErr) {
       if (lookupErr.code !== 'auth/user-not-found') throw lookupErr;
-      tempPassword = generateTemporaryPassword();
-      await auth.createUser({ email: cleanEmail, password: tempPassword, displayName: name });
+      const throwawayPassword = generateTemporaryPassword();
+      await auth.createUser({
+        email: cleanEmail,
+        password: throwawayPassword,
+        displayName: name,
+      });
       isNewAccount = true;
     }
 
@@ -172,7 +221,7 @@ async function inviteHandler(req) {
     const inviteExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const now = new Date().toISOString();
 
-    await db.collection('admin_team_invitations').add({
+    const inviteRef = await db.collection('admin_team_invitations').add({
       email: cleanEmail,
       firstName: firstName || null,
       lastName: lastName || null,
@@ -185,20 +234,8 @@ async function inviteHandler(req) {
       invitedBy: req.user.uid,
     });
 
-    // 5. Construct accept link
-    let origin = 'http://localhost:3000';
-    const referer = req.headers.get('referer');
-    const headerOrigin = req.headers.get('origin');
-    if (referer) {
-      try {
-        origin = new URL(referer).origin;
-      } catch {
-        if (headerOrigin) origin = headerOrigin;
-      }
-    } else if (headerOrigin) {
-      origin = headerOrigin;
-    }
-
+    // 5. Construct accept link with header-injection protection
+    const origin = getSecureOrigin(req);
     const acceptLink = `${origin}/accept-invite?code=${inviteToken}`;
     const roleLabels = {
       super: 'Super Admin',
@@ -210,27 +247,59 @@ async function inviteHandler(req) {
     };
     const roleLabel = roleLabels[resolvedRole] || 'Admin';
 
+    // 5b. For a brand-new account, mint a real Firebase password-reset link
+    // instead of ever transmitting a password value. Best-effort: if link
+    // generation fails (e.g. Auth action-URL isn't configured for this
+    // domain yet), log it and continue -- the invite itself still succeeds;
+    // the recipient falls back to "Forgot password" on the login screen.
+    let setPasswordLink = null;
+    if (isNewAccount) {
+      try {
+        setPasswordLink = await auth.generatePasswordResetLink(cleanEmail, {
+          url: `${origin}/login`,
+        });
+      } catch (linkErr) {
+        console.error('[Admin Invite] Failed to generate password-reset link:', linkErr);
+      }
+    }
+
     // 6. Send invitation email
     if (process.env.NODE_ENV === 'development') {
-      const credentialLine = tempPassword
-        ? `🔑  Temporary Password: ${tempPassword}`
-        : '🔑  Existing account -- no new password issued';
+      const credentialLine = setPasswordLink
+        ? `🔑  Set-Password Link: ${setPasswordLink}`
+        : isNewAccount
+          ? '🔑  New account -- reset-link generation failed, use "Forgot password"'
+          : '🔑  Existing account -- no new credential issued';
       console.log(
         `\n✉️  [dev] Admin Invitation for ${cleanEmail}:\n🔗  Accept Link: ${acceptLink}\n${credentialLine}\n`,
       );
     }
 
-    await sendAdminInvitationEmail({
+    const emailResult = await sendAdminInvitationEmail({
       to: cleanEmail,
       name,
       roleLabel,
       acceptLink,
-      tempPassword,
+      setPasswordLink,
     }).catch((err) => {
       console.error('[Admin Invite] Failed to send invitation email:', err);
+      return { success: false, error: err?.message || 'send failed' };
     });
 
-    return NextResponse.json({ success: true });
+    // Surface delivery failure instead of silently pretending success -- a
+    // pending invitation whose email never arrived was previously invisible
+    // to everyone. It's now flagged on the record (queryable / resendable
+    // from the team-management UI) and in the response itself.
+    if (!emailResult?.success) {
+      await inviteRef
+        .update({
+          emailDeliveryStatus: 'failed',
+          emailDeliveryError: emailResult?.error ? String(emailResult.error) : 'unknown error',
+        })
+        .catch((err) => console.error('[Admin Invite] Failed to flag email delivery status:', err));
+    }
+
+    return NextResponse.json({ success: true, emailDelivered: Boolean(emailResult?.success) });
   } catch (error) {
     console.error('[Admin Team POST] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

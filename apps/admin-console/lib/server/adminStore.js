@@ -101,18 +101,26 @@ export const adminStore = {
   // --- 🔐 0. Authority & Governance ---
   async validateAuthority(adminId, role, action, targetId) {
     if (!ALLOWLIST_ACTIONS.includes(action) && !TIER3_ACTIONS.includes(action)) {
-      throw new Error(`Unauthorized Action: ${action} is not a valid administrative primitive.`);
+      const err = new Error(
+        `Unauthorized Action: ${action} is not a valid administrative primitive.`,
+      );
+      err.statusCode = 400;
+      throw err;
     }
 
     // Tier 3 always requires Super Admin
     if (TIER3_ACTIONS.includes(action) && role !== 'super') {
-      throw new Error(`Authority Error: ${action} requires Tier 3 (Super Admin) clearance.`);
+      const err = new Error(`Authority Error: ${action} requires Tier 3 (Super Admin) clearance.`);
+      err.statusCode = 403;
+      throw err;
     }
 
     // Tier 2 requires Ops-level or above
     const tier2MinRoles = ['super', 'admin', 'ops', 'finance'];
     if (TIER2_ACTIONS.includes(action) && !tier2MinRoles.includes(role)) {
-      throw new Error(`Authority Error: ${action} requires Tier 2 (Ops) clearance.`);
+      const err = new Error(`Authority Error: ${action} requires Tier 2 (Ops) clearance.`);
+      err.statusCode = 403;
+      throw err;
     }
 
     return true;
@@ -738,6 +746,7 @@ export const adminStore = {
     const uid = user.uid;
 
     await auth.setCustomUserClaims(uid, {
+      role: 'admin',
       admin: true,
       admin_role: role,
     });
@@ -747,7 +756,8 @@ export const adminStore = {
       uid,
       email,
       displayName: name,
-      role,
+      admin_role: role,
+      role: 'admin',
       status: 'active',
       provisionedBy: adminId,
       createdAt: FieldValue.serverTimestamp(),
@@ -975,7 +985,14 @@ export const adminStore = {
     const activeCtx = adminStoreContext.getStore() || {};
 
     if (activeCtx.skipInternalLog) {
-      // Skip internal logging to let actions/route.js write a single unified log
+      // Skip the Firestore write here to avoid a duplicate entry -- actions/route.js
+      // writes a single unified log after the action completes. But the mutator
+      // methods below are where before/after state is actually known, so stash it
+      // on the shared context object (same reference the caller holds) rather than
+      // silently discarding it -- actions/route.js reads these back into its own
+      // unified logAdminAction call so the audit trail keeps its state delta.
+      if (before !== undefined) activeCtx.capturedBefore = before;
+      if (after !== undefined) activeCtx.capturedAfter = after;
       return;
     }
 
@@ -1625,10 +1642,15 @@ export const adminStore = {
     if (!snap.exists) throw Object.assign(new Error('Admin not found'), { statusCode: 404 });
     await ref.update({
       admin_role: newRole,
+      role: 'admin',
       updatedAt: FieldValue.serverTimestamp(),
     });
     try {
-      await auth.setCustomUserClaims(adminId, { admin_role: newRole });
+      await auth.setCustomUserClaims(adminId, {
+        role: 'admin',
+        admin: true,
+        admin_role: newRole,
+      });
     } catch (error) {
       console.error(`[adminStore] Failed to set custom user claims for admin ${adminId}:`, error);
       throw error;
