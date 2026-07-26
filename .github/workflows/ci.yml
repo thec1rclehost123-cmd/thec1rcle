@@ -164,23 +164,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-
-      - uses: actions/cache@v4
-        id: nm-cache
-        with:
-          path: |
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-
-      - name: Install dependencies
-        if: steps.nm-cache.outputs.cache-hit != 'true'
-        run: npm ci
 
       - name: Audit dependencies
-        run: npm audit --audit-level=critical --omit=optional
+        run: npm audit --audit-level=critical --omit=optional --package-lock-only
 
       - name: Secret scanning (Trufflehog)
         uses: trufflesecurity/trufflehog@v3.82.6
