@@ -778,6 +778,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
               { err, userId },
               'Failed to clear mustChangePassword flag in Firestore',
             );
+            throw err;
           });
 
         if (userRecord.email) {
@@ -802,6 +803,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
               { err, email: userRecord.email },
               'Failed to clear venue_staff mustChangePassword flag in Firestore',
             );
+            throw err;
           }
         }
 

@@ -258,18 +258,23 @@ export class HostService {
         return { docs: [] };
       });
 
-    return (snap as any).docs.map((doc: any) => {
-      const d = doc.data() as Record<string, any>;
-      return {
-        memberId: doc.id,
-        uid: safeStr(d.uid),
-        displayName: safeStr(d.displayName || d.name || d.email),
-        email: safeStr(d.email),
-        role: safeStr(d.role || 'staff'),
-        isActive: d.isActive !== false,
-        joinedAt: toIso(d.createdAt),
-      } satisfies TeamMember;
-    });
+    return (snap as any).docs
+      .map((doc: any) => {
+        const d = doc.data() as Record<string, any>;
+        if (d.removedAt !== undefined && d.removedAt !== null) {
+          return null;
+        }
+        return {
+          memberId: doc.id,
+          uid: safeStr(d.uid),
+          displayName: safeStr(d.displayName || d.name || d.email),
+          email: safeStr(d.email),
+          role: safeStr(d.role || 'staff'),
+          isActive: d.isActive !== false,
+          joinedAt: toIso(d.createdAt),
+        } satisfies TeamMember;
+      })
+      .filter(Boolean) as TeamMember[];
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────

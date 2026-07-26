@@ -26,40 +26,71 @@ async function handler(req) {
       ),
     );
 
-    await Promise.all(
-      uniqueTargets.map(async (targetKey) => {
+    // Map target keys to their corresponding DocumentReferences
+    const refs = uniqueTargets
+      .map((targetKey) => {
         const [type, id] = targetKey.split(':');
-        if (!id || id === 'undefined' || id === 'null') return;
+        if (!id || id === 'undefined' || id === 'null') return null;
 
-        let name = null;
-        try {
-          if (type === 'venue') {
-            const doc = await db.collection('venues').doc(id).get();
-            if (doc.exists) name = doc.data().name || doc.data().venueName;
-          } else if (type === 'host') {
-            const doc = await db.collection('hosts').doc(id).get();
-            if (doc.exists) name = doc.data().name;
-          } else if (type === 'promoter') {
-            const doc = await db.collection('promoters').doc(id).get();
-            if (doc.exists) name = doc.data().name;
-          } else if (type === 'event') {
-            const doc = await db.collection('events').doc(id).get();
-            if (doc.exists) name = doc.data().title || doc.data().name;
-          } else if (type === 'user') {
-            const doc = await db.collection('users').doc(id).get();
-            if (doc.exists) name = doc.data().displayName || doc.data().name || doc.data().email;
-          } else if (type === 'onboarding_request') {
-            const doc = await db.collection('onboarding_requests').doc(id).get();
-            if (doc.exists) {
-              const data = doc.data();
-              name = data.data?.name || data.name;
-            }
-          }
-        } catch (_) {
-          // ignore name lookup failures
+        let collectionName = null;
+        if (type === 'venue') collectionName = 'venues';
+        else if (type === 'host') collectionName = 'hosts';
+        else if (type === 'promoter') collectionName = 'promoters';
+        else if (type === 'event') collectionName = 'events';
+        else if (type === 'user') collectionName = 'users';
+        else if (type === 'onboarding_request') collectionName = 'onboarding_requests';
+
+        if (collectionName) {
+          return {
+            ref: db.collection(collectionName).doc(id),
+            key: targetKey,
+            type,
+          };
         }
-        if (name) {
-          targetMap.set(targetKey, name);
+        return null;
+      })
+      .filter(Boolean);
+
+    // Chunk refs to batches of 100 to avoid payload size/limit issues
+    const chunks = [];
+    for (let i = 0; i < refs.length; i += 100) {
+      chunks.push(refs.slice(i, i + 100));
+    }
+
+    await Promise.all(
+      chunks.map(async (chunkRefs) => {
+        try {
+          const docRefs = chunkRefs.map((r) => r.ref);
+          const snapshots = await db.getAll(...docRefs);
+          snapshots.forEach((doc, idx) => {
+            try {
+              const { key, type } = chunkRefs[idx];
+              if (doc.exists) {
+                let name = null;
+                const data = doc.data();
+                if (type === 'venue') {
+                  name = data.name || data.venueName;
+                } else if (type === 'host') {
+                  name = data.name;
+                } else if (type === 'promoter') {
+                  name = data.name;
+                } else if (type === 'event') {
+                  name = data.title || data.name;
+                } else if (type === 'user') {
+                  name = data.displayName || data.name || data.email;
+                } else if (type === 'onboarding_request') {
+                  name = data.data?.name || data.name;
+                }
+                if (name) {
+                  targetMap.set(key, name);
+                }
+              }
+            } catch (_) {
+              // ignore individual parsing failures
+            }
+          });
+        } catch (_) {
+          // ignore batch lookup failures
         }
       }),
     );

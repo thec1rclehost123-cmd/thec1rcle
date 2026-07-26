@@ -101,18 +101,26 @@ export const adminStore = {
   // --- 🔐 0. Authority & Governance ---
   async validateAuthority(adminId, role, action, targetId) {
     if (!ALLOWLIST_ACTIONS.includes(action) && !TIER3_ACTIONS.includes(action)) {
-      throw new Error(`Unauthorized Action: ${action} is not a valid administrative primitive.`);
+      const err = new Error(
+        `Unauthorized Action: ${action} is not a valid administrative primitive.`,
+      );
+      err.statusCode = 400;
+      throw err;
     }
 
     // Tier 3 always requires Super Admin
     if (TIER3_ACTIONS.includes(action) && role !== 'super') {
-      throw new Error(`Authority Error: ${action} requires Tier 3 (Super Admin) clearance.`);
+      const err = new Error(`Authority Error: ${action} requires Tier 3 (Super Admin) clearance.`);
+      err.statusCode = 403;
+      throw err;
     }
 
     // Tier 2 requires Ops-level or above
     const tier2MinRoles = ['super', 'admin', 'ops', 'finance'];
     if (TIER2_ACTIONS.includes(action) && !tier2MinRoles.includes(role)) {
-      throw new Error(`Authority Error: ${action} requires Tier 2 (Ops) clearance.`);
+      const err = new Error(`Authority Error: ${action} requires Tier 2 (Ops) clearance.`);
+      err.statusCode = 403;
+      throw err;
     }
 
     return true;
@@ -165,7 +173,11 @@ export const adminStore = {
 
     return await db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(propRef);
-      if (!snapshot.exists) throw new Error('Proposal not found.');
+      if (!snapshot.exists) {
+        const err = new Error('Proposal not found.');
+        err.statusCode = 404;
+        throw err;
+      }
       const proposal = snapshot.data();
 
       if (proposal.status !== 'pending') {
@@ -173,9 +185,11 @@ export const adminStore = {
       }
 
       if (proposal.proposerId === resolverId) {
-        throw new Error(
+        const err = new Error(
           'Governance Violation: Proposer cannot resolve their own authority request (Dual-Control Policy).',
         );
+        err.statusCode = 403;
+        throw err;
       }
 
       transaction.update(propRef, {

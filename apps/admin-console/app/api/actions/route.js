@@ -393,11 +393,15 @@ async function handler(req) {
             break;
           case 'DATABASE_CORRECTION': {
             if (adminRole !== 'super') {
-              throw new Error('Not Found');
+              const err = new Error('Not Found');
+              err.statusCode = 404;
+              throw err;
             }
             const parsedParams = DatabaseCorrectionParamsSchema.safeParse(params);
             if (!parsedParams.success) {
-              throw new Error('Invalid params');
+              const err = new Error('Invalid params');
+              err.statusCode = 400;
+              throw err;
             }
             await adminStore.databaseCorrection(
               targetId,
@@ -417,8 +421,11 @@ async function handler(req) {
               reason,
             );
             break;
-          default:
-            throw new Error('Unknown action');
+          default: {
+            const err = new Error('Unknown action');
+            err.statusCode = 400;
+            throw err;
+          }
         }
       },
     );
@@ -505,12 +512,41 @@ async function handler(req) {
       error: error.message,
       requestId: req.user?.requestId,
     });
+
+    let statusCode = error.statusCode || 500;
+
+    // Fallback: Map known error text patterns to their corresponding HTTP status codes
+    if (!error.statusCode && error.message) {
+      const msg = error.message.toLowerCase();
+      if (msg.includes('not found')) {
+        statusCode = 404;
+      } else if (
+        msg.includes('unauthorized') ||
+        msg.includes('authority error') ||
+        msg.includes('governance violation') ||
+        msg.includes('clearance')
+      ) {
+        statusCode = 403;
+      } else if (
+        msg.includes('invalid') ||
+        msg.includes('unknown action') ||
+        msg.includes('out of bounds') ||
+        msg.includes('violation') ||
+        msg.includes('already') ||
+        msg.includes('cannot')
+      ) {
+        statusCode = 400;
+      }
+    }
+
+    const errorMessage = statusCode === 500 ? 'Internal server error' : error.message;
+
     return NextResponse.json(
       {
-        error: 'Internal server error',
+        error: errorMessage,
         correlationId: req.user?.requestId || 'N/A',
       },
-      { status: error.statusCode || 500 },
+      { status: statusCode },
     );
   }
 }

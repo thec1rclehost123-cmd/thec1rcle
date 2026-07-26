@@ -4,6 +4,8 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Shield, Loader2, CheckCircle } from 'lucide-react';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
+import { signInWithCustomToken } from 'firebase/auth';
+import { getFirebaseAuth } from '@/lib/firebase/client';
 
 const ROLE_LABELS: Record<string, string> = {
   STAFF: 'Employee',
@@ -97,11 +99,16 @@ function StaffInviteContent() {
         return;
       }
 
-      const tempPassword = data.tempPassword;
-
-      // Sign in with the temp password (used in-memory only; never persisted to
-      // browser storage or the URL — staff re-enter it on the change-password page).
-      await signIn(inviteInfo?.email || data.email, tempPassword);
+      if (data.customToken) {
+        // Sign in securely using the Firebase custom token
+        const auth = getFirebaseAuth();
+        await signInWithCustomToken(auth, data.customToken);
+      } else if (data.tempPassword) {
+        // Fallback for legacy invitation flows
+        await signIn(inviteInfo?.email || data.email, data.tempPassword);
+      } else {
+        throw new Error('No authentication credentials returned by the server.');
+      }
 
       setStep('success');
       setTimeout(() => {

@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Shield, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 const ROLE_LABELS = {
   super: 'Super Admin',
@@ -16,6 +17,7 @@ const ROLE_LABELS = {
 function AcceptInviteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { login } = useAuth();
 
   const code = searchParams.get('code') || '';
 
@@ -23,7 +25,7 @@ function AcceptInviteContent() {
   const [inviteInfo, setInviteInfo] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [isNewAccount, setIsNewAccount] = useState(true);
+  const [alreadyExists, setAlreadyExists] = useState(false);
 
   useEffect(() => {
     if (!code) {
@@ -72,10 +74,24 @@ function AcceptInviteContent() {
         return;
       }
 
-      // The password (temp, for a new account, or their existing one) was
-      // delivered by email, not by this response -- sign in on the login
-      // page rather than attempting a silent login here.
-      setIsNewAccount(Boolean(data.isNewAccount));
+      if (data.alreadyExists) {
+        setAlreadyExists(true);
+        setStep('success');
+        setTimeout(() => {
+          router.replace('/login');
+        }, 2000);
+        return;
+      }
+
+      // Log in using temp password if available
+      if (data.tempPassword) {
+        try {
+          await login(inviteInfo?.email || data.email, data.tempPassword);
+        } catch (loginErr) {
+          console.error('Silent login failed:', loginErr);
+        }
+      }
+
       setStep('success');
       setTimeout(() => {
         router.replace('/login');
@@ -197,9 +213,9 @@ function AcceptInviteContent() {
               <div>
                 <h2 className="text-lg font-bold text-white mb-1">Invitation Accepted</h2>
                 <p className="text-xs text-zinc-400">
-                  {isNewAccount
-                    ? 'Check your email for your temporary password, then sign in.'
-                    : 'Sign in with your existing password.'}
+                  {alreadyExists
+                    ? 'Your account has been granted admin access. Redirecting to login...'
+                    : 'Redirecting to set your secure passcode...'}
                 </p>
               </div>
             </div>

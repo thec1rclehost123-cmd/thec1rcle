@@ -528,7 +528,16 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         .where('partnerId', '==', hostId)
         .where('partnerType', '==', 'host')
         .get();
-      return { members: snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) };
+      const members = snap.docs
+        .map((d: any) => {
+          const data = d.data();
+          if (data.removedAt !== undefined && data.removedAt !== null) {
+            return null;
+          }
+          return { id: d.id, ...data };
+        })
+        .filter(Boolean);
+      return { members };
     },
   );
 

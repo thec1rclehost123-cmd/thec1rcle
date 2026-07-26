@@ -3,6 +3,7 @@ import { getAdminDb, getAdminAuth } from '@/lib/firebase/admin';
 import { withAdminAuth } from '@/lib/server/adminMiddleware';
 import { sendAdminInvitationEmail } from '@/lib/email';
 import { randomInt, randomUUID } from 'node:crypto';
+import { env } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,6 +86,50 @@ async function listHandler(req) {
     console.error('[Admin Team GET] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+function getSecureOrigin(req) {
+  // 1. Prioritize explicitly configured environment variable
+  if (env.NEXT_PUBLIC_ADMIN_URL) {
+    return env.NEXT_PUBLIC_ADMIN_URL;
+  }
+
+  // 2. Derive from headers if they match a strict trusted domain whitelist
+  const forwardedHost = req.headers.get('x-forwarded-host');
+  const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+  const referer = req.headers.get('referer');
+  const headerOrigin = req.headers.get('origin');
+
+  let rawOrigin = null;
+  if (forwardedHost) {
+    rawOrigin = `${forwardedProto}://${forwardedHost}`;
+  } else if (referer) {
+    try {
+      rawOrigin = new URL(referer).origin;
+    } catch {}
+  } else if (headerOrigin) {
+    rawOrigin = headerOrigin;
+  }
+
+  if (rawOrigin) {
+    try {
+      const parsed = new URL(rawOrigin);
+      const hostname = parsed.hostname;
+
+      // Whitelist local dev, our custom domain, and Vercel deployments
+      const isLocal =
+        hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local');
+      const isMainDomain = hostname === 'thec1rcle.com' || hostname.endsWith('.thec1rcle.com');
+      const isVercelDomain = hostname.endsWith('.vercel.app');
+
+      if (isLocal || isMainDomain || isVercelDomain) {
+        return rawOrigin;
+      }
+    } catch {}
+  }
+
+  // 3. Secure default fallback for local development
+  return 'http://localhost:3002';
 }
 
 // POST: Invite a new admin team member
@@ -185,20 +230,8 @@ async function inviteHandler(req) {
       invitedBy: req.user.uid,
     });
 
-    // 5. Construct accept link
-    let origin = 'http://localhost:3000';
-    const referer = req.headers.get('referer');
-    const headerOrigin = req.headers.get('origin');
-    if (referer) {
-      try {
-        origin = new URL(referer).origin;
-      } catch {
-        if (headerOrigin) origin = headerOrigin;
-      }
-    } else if (headerOrigin) {
-      origin = headerOrigin;
-    }
-
+    // 4. Construct accept link
+    const origin = getSecureOrigin(req);
     const acceptLink = `${origin}/accept-invite?code=${inviteToken}`;
     const roleLabels = {
       super: 'Super Admin',

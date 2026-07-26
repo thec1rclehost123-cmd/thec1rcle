@@ -1932,9 +1932,20 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       }
 
       if (invData.status === 'accepted' || invData.status === 'active') {
+        let customToken = '';
+        try {
+          const userRecord = await fastify.auth.getUserByEmail(invData.email);
+          customToken = await fastify.auth.createCustomToken(userRecord.uid);
+        } catch (tokenErr) {
+          fastify.log.error(
+            { err: tokenErr },
+            'Failed to generate custom token for already accepted invite',
+          );
+        }
         return reply.send({
           success: true,
           email: invData.email,
+          customToken,
           alreadyAccepted: true,
         });
       }
@@ -2020,7 +2031,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         updatedAt: new Date().toISOString(),
       });
 
-      return reply.send({ success: true, email });
+      const customToken = await fastify.auth.createCustomToken(uid);
+      return reply.send({ success: true, email, customToken });
     } catch (err: any) {
       fastify.log.error({ err }, 'POST /partners/hosts/team/accept failed');
       return reply.status(500).send(
@@ -3262,6 +3274,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               name: firstName && lastName ? `${firstName} ${lastName}` : 'Team Member',
               roleLabel,
               partnerName: pName,
+              tempPassword,
               acceptLink,
             }).catch((err: any) => {
               fastify.log.error({ err }, 'Failed to send host invitation email');

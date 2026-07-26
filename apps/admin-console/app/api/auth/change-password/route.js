@@ -75,6 +75,7 @@ async function handler(req) {
       })
       .catch((err) => {
         console.error('[Change Password BFF] Failed to update user record in Firestore:', err);
+        throw err;
       });
 
     // 4. Clear mustChangePassword flag in Firestore 'admins' collection
@@ -87,6 +88,7 @@ async function handler(req) {
       })
       .catch((err) => {
         console.error('[Change Password BFF] Failed to update admin record in Firestore:', err);
+        throw err;
       });
 
     return NextResponse.json({ success: true });

@@ -90,41 +90,70 @@ export async function POST(req) {
     const role = invData.role;
 
     const auth = getAdminAuth();
+    let userRecord;
+    const alreadyExists = !invData.isNewAccount;
 
-    // The Firebase Auth account (and its password, for a new account) was
-    // already provisioned when the invite was created -- see
-    // app/api/admins/team/route.js. This step only ever grants role/claims
-    // for an account whose credentials are already settled; it never sets,
-    // resets, or reads a password, so there is nothing here for a leaked
-    // invite link to hijack.
-    const userRecord = await auth.getUserByEmail(email);
-    const uid = userRecord.uid;
+    // 1. Create or update Firebase auth user
+    try {
+      userRecord = await auth.getUserByEmail(email);
 
-    // 1. Set/refresh the Firestore users profile
-    const userDoc = await db.collection('users').doc(uid).get();
-    const profileFields = {
-      role: 'admin',
-      admin: true,
-      admin_role: role,
-      isApproved: true,
-      onboardingComplete: true,
-      mustChangePassword: Boolean(invData.isNewAccount),
-      updatedAt: new Date().toISOString(),
-    };
-    if (userDoc.exists) {
-      await db.collection('users').doc(uid).update(profileFields);
-    } else {
-      await db
-        .collection('users')
-        .doc(uid)
-        .set({
-          uid,
+      // Update firestore users profile
+      const userDocRef = db.collection('users').doc(userRecord.uid);
+      const userDocSnap = await userDocRef.get();
+      if (userDocSnap.exists) {
+        await userDocRef.update({
+          role: 'admin',
+          admin: true,
+          admin_role: role,
+          isApproved: true,
+          onboardingComplete: true,
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        await userDocRef.set({
+          uid: userRecord.uid,
           email,
           displayName: name,
+          role: 'admin',
+          admin: true,
+          admin_role: role,
+          isApproved: true,
+          onboardingComplete: true,
+          mustChangePassword: false,
           createdAt: new Date().toISOString(),
-          ...profileFields,
+          updatedAt: new Date().toISOString(),
         });
+      }
+    } catch (authErr) {
+      if (authErr.code === 'auth/user-not-found') {
+        // Fallback if auth user was somehow deleted
+        const tempPassword = Math.random().toString(36).substring(2, 10) + 'A1!';
+        userRecord = await auth.createUser({
+          email,
+          password: tempPassword,
+          displayName: name,
+        });
+
+        // Set firestore users profile
+        await db.collection('users').doc(userRecord.uid).set({
+          uid: userRecord.uid,
+          email,
+          displayName: name,
+          role: 'admin',
+          admin: true,
+          admin_role: role,
+          isApproved: true,
+          onboardingComplete: true,
+          mustChangePassword: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        throw authErr;
+      }
     }
+
+    const uid = userRecord.uid;
 
     // 2. Set Admin Custom Claims
     const claims = { role: 'admin', admin: true, admin_role: role };
@@ -145,8 +174,8 @@ export async function POST(req) {
         role: 'admin',
         status: 'active',
         provisionedBy: invData.invitedBy || 'system',
-        mustChangePassword: Boolean(invData.isNewAccount),
-        ...(adminDoc.exists ? {} : { createdAt: new Date().toISOString() }),
+        mustChangePassword: !alreadyExists,
+        createdAt: adminDoc.exists ? adminDoc.data().createdAt : new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
       { merge: true },
@@ -162,7 +191,7 @@ export async function POST(req) {
     return NextResponse.json({
       success: true,
       email,
-      isNewAccount: Boolean(invData.isNewAccount),
+      alreadyExists,
     });
   } catch (error) {
     console.error('[Accept Invite POST] Error:', error);

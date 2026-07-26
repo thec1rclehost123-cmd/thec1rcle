@@ -1691,9 +1691,20 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       }
 
       if (staffData.status === 'active') {
+        let customToken = '';
+        try {
+          const userRecord = await fastify.auth.getUserByEmail(staffData.email);
+          customToken = await fastify.auth.createCustomToken(userRecord.uid);
+        } catch (tokenErr) {
+          fastify.log.error(
+            { err: tokenErr },
+            'Failed to generate custom token for already active staff',
+          );
+        }
         return {
           success: true,
           email: staffData.email,
+          customToken,
           alreadyAccepted: true,
         };
       }
@@ -1790,7 +1801,8 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         updatedAt: new Date().toISOString(),
       });
 
-      return { success: true, email };
+      const customToken = await fastify.auth.createCustomToken(uid);
+      return { success: true, email, customToken };
     } catch (error: any) {
       fastify.log.error({ error: error.message }, 'POST /venue/staff/accept failed');
       return reply.status(500).send({ error: 'Internal Server Error' });

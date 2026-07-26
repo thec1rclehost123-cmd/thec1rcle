@@ -123,12 +123,14 @@ export async function sendHostInvitationEmail({
   name,
   roleLabel,
   partnerName,
+  tempPassword,
   acceptLink,
 }: {
   recipient: string;
   name: string;
   roleLabel: string;
   partnerName: string;
+  tempPassword: string;
   acceptLink: string;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
@@ -161,6 +163,12 @@ export async function sendHostInvitationEmail({
             <p style="font-size:16px;line-height:1.6;color:#3f3f46;margin:0 0 24px 0;font-family:sans-serif;">
               You've been invited to join the host team <strong style="color:#09090b;">${partnerName}</strong> as a <span style="background-color:#fef3c7;color:#d97706;padding:2px 8px;border-radius:6px;font-weight:bold;font-size:14px;white-space:nowrap;display:inline-block;vertical-align:middle;margin:0 2px;">${roleLabel}</span> on The C1rcle Partner Dashboard.
             </p>
+            
+            <div style="background-color:#f4f4f5;padding:20px;border-radius:16px;margin:24px 0;border:1px solid #e4e4e7;box-sizing:border-box;">
+              <p style="margin:0 0 10px 0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#71717a;font-weight:bold;font-family:sans-serif;">Temporary Login Credentials</p>
+              <p style="margin:5px 0;font-size:14px;color:#18181b;font-family:sans-serif;"><strong>Email:</strong> ${recipient}</p>
+              <p style="margin:5px 0;font-size:14px;color:#18181b;font-family:sans-serif;"><strong>Temporary Password:</strong> <code style="background-color:#e4e4e7;padding:3px 6px;border-radius:4px;color:#e11d48;font-weight:bold;font-family:monospace;font-size:13px;">${tempPassword}</code></p>
+            </div>
             
             <div style="text-align:center;margin:32px 0 24px 0;">
               <a href="${acceptLink}" style="background:linear-gradient(135deg, #f97316, #e11d48);color:#ffffff;text-decoration:none;padding:16px 36px;font-size:15px;font-weight:bold;border-radius:12px;display:inline-block;box-shadow:0 4px 15px rgba(249,115,22,0.3);text-transform:none;letter-spacing:0;font-family:sans-serif;">Accept Invitation</a>
