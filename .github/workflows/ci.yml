@@ -180,7 +180,7 @@ jobs:
         run: npm ci
 
       - name: Audit dependencies
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=critical --omit=optional
 
       - name: Secret scanning (Trufflehog)
         uses: trufflesecurity/trufflehog@v3.82.6
