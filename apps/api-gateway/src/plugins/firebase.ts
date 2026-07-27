@@ -290,14 +290,17 @@ export default fp(async (fastify) => {
     // Validate internal system-to-system key before attempting Firebase verification
     const internalKey = process.env.INTERNAL_API_KEY;
     if (internalKey && token === internalKey) {
-      // Enforce IP allowlist check for internal system keys if configured
+      const isDev = process.env.NODE_ENV === 'development';
       const internalAllowlist = process.env.INTERNAL_IP_ALLOWLIST;
-      if (internalAllowlist) {
+
+      if (!isDev || internalAllowlist) {
         const allowedIPs = internalAllowlist
-          .split(',')
-          .map((ip: string) => ip.trim())
-          .filter(Boolean);
-        if (allowedIPs.length > 0 && !allowedIPs.includes(request.ip)) {
+          ? internalAllowlist
+              .split(',')
+              .map((ip: string) => ip.trim())
+              .filter(Boolean)
+          : [];
+        if (allowedIPs.length === 0 || !allowedIPs.includes(request.ip)) {
           request.log.error(
             { ip: request.ip, allowedIPs, requestId: request.id },
             'SECURITY: System bypass blocked — Request IP not in INTERNAL_IP_ALLOWLIST',
@@ -518,14 +521,17 @@ export default fp(async (fastify) => {
       return reply.status(403).send({ error: 'Forbidden: Admin access required' });
     }
 
-    // IP allowlist — enforced only when the env var is explicitly set
+    // IP allowlist — enforced fail-closed in production/test or if explicitly set
+    const isDev = process.env.NODE_ENV === 'development';
     const allowlist = process.env.ADMIN_IP_ALLOWLIST;
-    if (allowlist) {
+    if (!isDev || allowlist) {
       const allowedIPs = allowlist
-        .split(',')
-        .map((ip: string) => ip.trim())
-        .filter(Boolean);
-      if (allowedIPs.length > 0 && !allowedIPs.includes(request.ip)) {
+        ? allowlist
+            .split(',')
+            .map((ip: string) => ip.trim())
+            .filter(Boolean)
+        : [];
+      if (allowedIPs.length === 0 || !allowedIPs.includes(request.ip)) {
         fastify.log.error(
           {
             uid: request.user.uid,
