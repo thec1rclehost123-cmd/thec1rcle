@@ -61,14 +61,14 @@
     "tmp": ">=0.2.7"
   },
   "dependencies": {
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.4.2"
   },
   "optionalDependencies": {
     "@esbuild/darwin-arm64": "^0.28.1",
     "@esbuild/darwin-x64": "^0.28.1",
     "@esbuild/linux-x64": "^0.28.1",
     "@esbuild/win32-x64": "^0.28.1",
-    "@next/swc-linux-x64-gnu": "^16.2.9",
-    "@next/swc-linux-x64-musl": "^16.2.9"
+    "@next/swc-linux-x64-gnu": "^16.2.12",
+    "@next/swc-linux-x64-musl": "^16.2.12"
   }
 }
