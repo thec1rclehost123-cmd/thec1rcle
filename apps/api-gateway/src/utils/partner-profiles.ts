@@ -530,16 +530,22 @@ export async function getPartnerProfileWithPii(
   const hasPermission =
     isSelf || (connection && (connection.status === 'active' || connection.status === 'approved'));
 
+  // Clone profile and nested socialLinks to avoid mutating shared/cached references
+  const clonedProfile = {
+    ...profile,
+    socialLinks: profile.socialLinks ? { ...profile.socialLinks } : undefined,
+  };
+
   if (hasPermission) {
-    (profile as any).email = resolvedEmail;
-    (profile as any).phone = resolvedPhone;
-    if (profile.socialLinks) {
-      if (resolvedEmail) profile.socialLinks.email = resolvedEmail;
-      if (resolvedPhone) profile.socialLinks.phone = resolvedPhone;
+    (clonedProfile as any).email = resolvedEmail;
+    (clonedProfile as any).phone = resolvedPhone;
+    if (clonedProfile.socialLinks) {
+      if (resolvedEmail) clonedProfile.socialLinks.email = resolvedEmail;
+      if (resolvedPhone) clonedProfile.socialLinks.phone = resolvedPhone;
     }
   }
 
-  return { profile, connection };
+  return { profile: clonedProfile, connection };
 }
 
 export async function getConnectionForViewer(
