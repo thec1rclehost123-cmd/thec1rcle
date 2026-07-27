@@ -6,9 +6,9 @@
 |---|---|
 | Audit started | 2026-07-25T18:17:13Z |
 | Authoritative checkout | `/Users/aayushdivase/Desktop/thec1rcle` |
-| Branch | `pre-staging` |
-| Frozen test SHA | `bce259da564bf2c66de2cef8252b0e7930fa5de6` |
-| Remote parity | `origin/pre-staging` resolved to the same SHA at audit start |
+| Branch | `codex/full-ecosystem-launch-qa` |
+| Frozen remediation source SHA | `aea059421d4808c5b070524d02216493da555cbe` |
+| Integrated upstream baseline | `origin/pre-staging` at `7eadeabb96230a1606e44ef7a9479f06e7528395` |
 | Required runtime | Node 20 LTS / npm 10.8.2 |
 | Evidence rule | No observed evidence means no PASS |
 | Current launch verdict | **NO-GO — QA execution in progress on re-frozen baseline** |
@@ -35,13 +35,28 @@ from the earlier SHA cannot authorize promotion of the current branch.
   `bce259da564bf2c66de2cef8252b0e7930fa5de6`.
 - Refreshed `origin/pre-staging`; it has advanced to
   `7eadeabb96230a1606e44ef7a9479f06e7528395` through nine additional commits.
-- Upstream overlaps the local QA patch in:
+- The QA remediation patch was checkpointed with the repository's real
+  pre-commit hook, then rebased onto that upstream baseline. Upstream overlaps
+  in:
   - `apps/api-gateway/src/routes/v1/partners/venues.ts`
   - `apps/api-gateway/src/routes/v1/venues.ts`
-- The QA patch must be validated and checkpointed before integrating those
-  commits by intent. Existing live PASS evidence remains historical evidence
-  for the tested base; it cannot authorize the eventual merged SHA.
-- Current G0 status: **IN PROGRESS — new authoritative merged SHA not frozen**.
+  integrated cleanly without merge conflicts.
+- The resulting frozen remediation source is
+  `aea059421d4808c5b070524d02216493da555cbe`.
+- The hook received only the 53 reviewed staged source, test, documentation,
+  script, and manifest files. It did not enumerate or scan `node_modules`,
+  quarantined dependencies, backup checkouts, or raw QA runtime artifacts.
+- Post-rebase validation on the frozen remediation source:
+  - root type-check: `9/9` packages passed;
+  - root tests: `7/7` configured workspaces passed;
+  - no merge-conflict markers remained in the integrated files.
+- An earlier attempt ran the full root type-check and test graph concurrently.
+  Partner and Gateway tests timed out under local CPU/memory contention. That
+  run is classified as invalid environmental evidence, not a product failure.
+  Every affected suite passed when rerun sequentially, and the full sequential
+  root graph then exited zero.
+- Current G0 status: **IN PROGRESS — source SHA frozen and upstream integrated;
+  exhaustive manifest execution/classification is still incomplete**.
 
 ## 2. Frozen journey matrix
 
@@ -147,21 +162,31 @@ from the earlier SHA cannot authorize promotion of the current branch.
 
 - Command: `npm run type-check`
 - Toolchain: Node `v20.20.2`, npm `10.8.2`
-- Turbo result: `8 successful, 8 total`
+- Frozen source: `aea059421d4808c5b070524d02216493da555cbe`
+- Turbo result: `9 successful, 9 total`
 - Errors: `0`
-- Runtime: `4.285s`
+- Execution policy: run sequentially from the repository root so the result is
+  not distorted by a concurrent full test graph.
 - Verdict: **PASS**
 
 ### QA-AUTO-02 — Root test orchestration
 
 - Command: `npm test`
 - Toolchain: Node `v20.20.2`, npm `10.8.2`
+- Frozen source: `aea059421d4808c5b070524d02216493da555cbe`
 - Turbo result: `7 successful, 7 total`
 - Failed suites: `0`
 - Mobile evidence: `51` suites and `409` assertions passed.
+- Core evidence: `35` files and `215` assertions passed, including `30` Cover
+  Charge engine assertions.
+- Gateway evidence: `34` files and `175` assertions passed, including the
+  existing Cover Charge security suite.
+- Partner evidence: `13` files and `38` assertions passed.
+- Focused post-contention proof: Partner `5` files / `11` assertions and
+  Gateway `2` files / `24` assertions passed sequentially before the full root
+  rerun.
 - The run emitted expected negative-path logs from mocked Redis, provider,
   boundary, and error-state tests. The root command exited zero.
-- Runtime: `4.3s` with Turbo cache reuse.
 - Verdict: **PASS for the configured root test graph**
 
 ## 5. Live runtime and workflow evidence
