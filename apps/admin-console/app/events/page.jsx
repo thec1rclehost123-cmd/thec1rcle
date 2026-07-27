@@ -22,9 +22,11 @@ import { mapEventForClient } from '@c1rcle/core/events';
 import { DataTable } from '@/components/ui/DataTable';
 import { ActionDrawer } from '@/components/ui/ActionDrawer';
 import AdminConfirmModal from '@/components/admin/AdminConfirmModal';
+import { useToast } from '@/components/providers/ToastProvider';
 
 export default function AdminEvents() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -108,6 +110,10 @@ export default function AdminEvents() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Action failed');
 
+      if (json.message) {
+        toast({ type: 'success', message: json.message });
+      }
+
       const freshEvents = await fetchEvents();
       if (
         modalConfig.action === 'FEATURE_EVENT_PIN' ||
@@ -122,7 +128,7 @@ export default function AdminEvents() {
         if (updated) setSelectedEvent(updated);
       }
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      toast({ type: 'error', message: err.message });
       throw err;
     }
   };

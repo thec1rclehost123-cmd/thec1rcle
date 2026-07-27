@@ -18,9 +18,11 @@ import {
 import { DataTable } from '@/components/ui/DataTable';
 import { ActionDrawer } from '@/components/ui/ActionDrawer';
 import AdminConfirmModal from '@/components/admin/AdminConfirmModal';
+import { useToast } from '@/components/providers/ToastProvider';
 
 export default function AdminUsers() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -76,12 +78,13 @@ export default function AdminUsers() {
       if (!res.ok) {
         throw new Error(json.error || 'Action failed');
       }
-      if (json.message) alert(json.message);
+      if (json.message) {
+        toast({ type: 'success', message: json.message });
+      }
 
       await fetchUsers();
       setModalConfig(null);
     } catch (err) {
-      alert(`Error: ${err.message}`);
       throw err;
     }
   };
