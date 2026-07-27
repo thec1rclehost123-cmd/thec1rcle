@@ -2251,7 +2251,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       try {
         const ctx = await resolvePartnerContext(fastify.db, request);
         // Debug: log partner context resolution
-         
+
         console.debug('[hosts.upload] resolvePartnerContext', {
           requestId: request.id,
           hasCtx: !!ctx,
