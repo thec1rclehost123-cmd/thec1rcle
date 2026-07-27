@@ -3,6 +3,7 @@ import { AuthProvider } from '@/components/providers/AuthProvider';
 import AdminConsoleShell from '@/components/admin/AdminConsoleShell';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { WebVitals } from '@/components/WebVitals';
+import ToastProvider from '@/components/providers/ToastProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,9 @@ export default function AdminLayout({ children }) {
         <WebVitals />
         <QueryProvider>
           <AuthProvider>
-            <AdminConsoleShell>{children}</AdminConsoleShell>
+            <ToastProvider>
+              <AdminConsoleShell>{children}</AdminConsoleShell>
+            </ToastProvider>
           </AuthProvider>
         </QueryProvider>
       </body>

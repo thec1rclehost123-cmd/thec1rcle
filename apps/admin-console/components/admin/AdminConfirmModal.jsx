@@ -202,9 +202,6 @@ export default function AdminConfirmModal({
                 placeholder="Enter your admin password..."
                 className={`w-full bg-black/20 border rounded-lg p-3.5 text-sm focus:outline-none transition-all text-white ${passwordError ? 'border-iris/40 focus:ring-iris/20' : 'border-[#ffffff08] focus:ring-1 focus:ring-white/10 focus:bg-zinc-900'}`}
               />
-              {passwordError && (
-                <p className="text-[10px] text-iris font-semibold mt-1 pl-1">{passwordError}</p>
-              )}
             </div>
           )}
 
@@ -231,6 +228,13 @@ export default function AdminConfirmModal({
               className={`w-full bg-black/20 border rounded-lg p-4 text-sm focus:outline-none transition-all min-h-[100px] font-medium resize-none placeholder:text-zinc-700 text-white ${!isReasonValid && reason ? 'border-amber-500/40' : 'border-[#ffffff08] focus:ring-1 focus:ring-white/10 focus:bg-zinc-900'}`}
             />
           </div>
+
+          {passwordError && (
+            <div className="p-4 rounded-xl bg-iris/10 border border-iris/20 text-iris text-[11px] font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-4.5 w-4.5" />
+              <span>{passwordError}</span>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-4">
             <button
