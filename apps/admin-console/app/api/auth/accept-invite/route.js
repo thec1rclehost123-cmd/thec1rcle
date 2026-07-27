@@ -39,6 +39,7 @@ export async function GET(req) {
       email: invData.email,
       role: invData.role,
       status: invData.status,
+      isNewAccount: invData.isNewAccount || false,
     });
   } catch (error) {
     console.error('[Accept Invite GET] Error:', error);
@@ -50,7 +51,7 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { inviteCode } = body;
+    const { inviteCode, password } = body;
 
     if (!inviteCode) {
       return NextResponse.json({ error: 'Invite code is required' }, { status: 400 });
@@ -93,9 +94,22 @@ export async function POST(req) {
     let userRecord;
     const alreadyExists = !invData.isNewAccount;
 
+    // Validate password for new accounts
+    if (!alreadyExists && (!password || password.length < 8)) {
+      return NextResponse.json(
+        { error: 'Password is required and must be at least 8 characters long' },
+        { status: 400 },
+      );
+    }
+
     // 1. Create or update Firebase auth user
     try {
       userRecord = await auth.getUserByEmail(email);
+
+      // If it is a new account, set the user's chosen password
+      if (!alreadyExists && password) {
+        await auth.updateUser(userRecord.uid, { password });
+      }
 
       // Update firestore users profile
       const userDocRef = db.collection('users').doc(userRecord.uid);
@@ -127,10 +141,10 @@ export async function POST(req) {
     } catch (authErr) {
       if (authErr.code === 'auth/user-not-found') {
         // Fallback if auth user was somehow deleted
-        const tempPassword = Math.random().toString(36).substring(2, 10) + 'A1!';
+        const actualPassword = password || Math.random().toString(36).substring(2, 10) + 'A1!';
         userRecord = await auth.createUser({
           email,
-          password: tempPassword,
+          password: actualPassword,
           displayName: name,
         });
 
@@ -144,7 +158,7 @@ export async function POST(req) {
           admin_role: role,
           isApproved: true,
           onboardingComplete: true,
-          mustChangePassword: true,
+          mustChangePassword: false,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
@@ -174,7 +188,7 @@ export async function POST(req) {
         role: 'admin',
         status: 'active',
         provisionedBy: invData.invitedBy || 'system',
-        mustChangePassword: !alreadyExists,
+        mustChangePassword: false,
         createdAt: adminDoc.exists ? adminDoc.data().createdAt : new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },

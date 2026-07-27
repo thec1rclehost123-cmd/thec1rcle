@@ -45,6 +45,7 @@ function subDays(date: Date, days: number): Date {
 // ── Local helpers (mirrors PageClient design tokens) ─────────────────────────
 
 function humanizeLabel(value: string) {
+  if (value === 'door' || value === 'manual') return 'Walk-in';
   return String(value || '')
     .replace(/([A-Z])/g, ' $1')
     .replace(/[_-]+/g, ' ')

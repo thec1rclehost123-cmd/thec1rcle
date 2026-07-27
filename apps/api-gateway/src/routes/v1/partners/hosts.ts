@@ -2251,7 +2251,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       try {
         const ctx = await resolvePartnerContext(fastify.db, request);
         // Debug: log partner context resolution
-        // eslint-disable-next-line no-console
+         
         console.debug('[hosts.upload] resolvePartnerContext', {
           requestId: request.id,
           hasCtx: !!ctx,
@@ -2753,7 +2753,13 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
           // Apply filters
           if (query.source && query.source !== 'all') {
-            attendeesList = attendeesList.filter((a: any) => a.source === query.source);
+            if (query.source === 'walkin') {
+              attendeesList = attendeesList.filter(
+                (a: any) => a.source === 'door' || a.source === 'manual',
+              );
+            } else {
+              attendeesList = attendeesList.filter((a: any) => a.source === query.source);
+            }
           }
           if (query.status && query.status !== 'all') {
             if (query.status === 'checked_in') {
