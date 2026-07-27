@@ -39,7 +39,6 @@ export const guestV1OpenApi = {
     '/auth/login': { post: { operationId: 'loginGuest', tags: ['auth'] } },
     '/auth/register': { post: { operationId: 'registerGuest', tags: ['auth'] } },
     '/auth/logout': { post: { operationId: 'logoutGuest', tags: ['auth'] } },
-    '/auth/check': { post: { operationId: 'checkGuestEmail', tags: ['auth'] } },
     '/auth/change-password': { post: { operationId: 'changeGuestPassword', tags: ['auth'] } },
     '/auth/password-reset': { post: { operationId: 'requestGuestPasswordReset', tags: ['auth'] } },
     '/auth/otp/send': { post: { operationId: 'sendGuestOtp', tags: ['auth'] } },

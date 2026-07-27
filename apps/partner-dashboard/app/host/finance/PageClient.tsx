@@ -111,167 +111,6 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (value: boolean) => v
   );
 }
 
-function InitiatePayoutModal({
-  available,
-  currency,
-  onClose,
-  instantFeeRate = 0,
-}: {
-  available: number;
-  currency: string;
-  onClose: () => void;
-  instantFeeRate?: number;
-}) {
-  const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<'standard' | 'instant'>('standard');
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-
-  const fee = method === 'instant' ? Number(amount || 0) * instantFeeRate : 0;
-
-  const handleSubmit = async () => {
-    if (!amount || Number(amount) <= 0) return;
-    setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setSuccess(true);
-    setLoading(false);
-    setTimeout(onClose, 1200);
-  };
-
-  return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 16 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ duration: 0.2 }}
-        className="relative w-full max-w-[480px] overflow-hidden rounded-[28px]"
-        style={{ background: '#17171b', border: '1px solid rgba(255,255,255,0.08)' }}
-      >
-        <div className="flex items-center justify-end px-6 pt-5">
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full"
-            style={{ color: 'rgba(255,255,255,0.46)' }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-        <div className="px-8 pb-8">
-          <h2
-            className="mb-6 text-center text-[26px] font-bold"
-            style={{ color: 'rgba(255,255,255,0.96)' }}
-          >
-            Initiate Payout
-          </h2>
-
-          {success ? (
-            <p className="py-8 text-center text-[15px] font-semibold" style={{ color: '#86efac' }}>
-              Payout initiated successfully.
-            </p>
-          ) : (
-            <>
-              <div className="mb-2 flex items-center justify-center gap-3">
-                <span className="text-[20px] font-bold" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                  {currency === 'INR' ? '₹' : '$'}
-                </span>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  placeholder="0"
-                  max={available}
-                  className="w-40 bg-transparent text-center text-[56px] font-bold tabular-nums outline-none"
-                  style={{ color: 'rgba(255,255,255,0.96)' }}
-                />
-              </div>
-              <p
-                className="mb-6 text-center text-[13px]"
-                style={{ color: 'rgba(255,255,255,0.42)' }}
-              >
-                Transfer up to {fmt(available, currency)}
-              </p>
-
-              <div className="mb-6 grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setMethod('standard')}
-                  className="rounded-[18px] p-4 text-center"
-                  style={{
-                    background:
-                      method === 'standard' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${method === 'standard' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)'}`,
-                  }}
-                >
-                  <Landmark
-                    className="mx-auto mb-2"
-                    size={24}
-                    style={{ color: 'rgba(255,255,255,0.72)' }}
-                  />
-                  <span
-                    className="block text-[13px] font-bold"
-                    style={{ color: 'rgba(255,255,255,0.92)' }}
-                  >
-                    2-3 Biz Days
-                  </span>
-                  <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.42)' }}>
-                    No Fee
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMethod('instant')}
-                  className="rounded-[18px] p-4 text-center"
-                  style={{
-                    background:
-                      method === 'instant' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${method === 'instant' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)'}`,
-                  }}
-                >
-                  <Zap className="mx-auto mb-2" size={24} style={{ color: '#c4b5fd' }} />
-                  <span
-                    className="block text-[13px] font-bold"
-                    style={{ color: 'rgba(255,255,255,0.92)' }}
-                  >
-                    Instant
-                  </span>
-                  <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.42)' }}>
-                    3% Fee
-                  </span>
-                </button>
-              </div>
-
-              {method === 'instant' && Number(amount) > 0 ? (
-                <p
-                  className="mb-4 text-center text-[12px]"
-                  style={{ color: 'rgba(255,255,255,0.42)' }}
-                >
-                  Fee: {fmt(fee, currency)} · You receive {fmt(Number(amount) - fee, currency)}
-                </p>
-              ) : null}
-
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!amount || Number(amount) <= 0 || loading}
-                className="w-full rounded-[18px] py-4 text-[15px] font-bold"
-                style={{
-                  background: 'rgba(255,255,255,0.92)',
-                  color: '#050505',
-                  opacity: !amount || Number(amount) <= 0 ? 0.45 : 1,
-                }}
-              >
-                {loading ? 'Processing...' : 'Transfer Balance'}
-              </button>
-            </>
-          )}
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
 function AddBankModal({
   onClose,
   onAdded,
@@ -473,10 +312,8 @@ export default function HostFinancePageClient() {
     statementDescriptor: 'C1RCLE',
     dailyPayouts: false,
   });
-  const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [showAddBankModal, setShowAddBankModal] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
-  const [instantFeeRate, setInstantFeeRate] = useState(0);
 
   const getAuthHeaders = useCallback(
     async (includeJson = false) => {
@@ -546,15 +383,6 @@ export default function HostFinancePageClient() {
     fetchAccounts();
     setRefreshedAt(new Date());
   }, [fetchAccounts, fetchBalance, fetchPayouts]);
-
-  useEffect(() => {
-    fetch('/api/finance/payout-config')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.instantFeeRate != null) setInstantFeeRate(data.instantFeeRate);
-      })
-      .catch(() => {});
-  }, []);
 
   const handleRefreshAll = () => {
     fetchBalance();
@@ -694,8 +522,6 @@ export default function HostFinancePageClient() {
         settingsRows={settingsRows}
         bankAccounts={bankAccounts}
         payouts={payoutRows}
-        balanceActionLabel="Transfer Balance"
-        onBalanceAction={() => setShowPayoutModal(true)}
         onRefresh={handleRefreshAll}
         refreshing={payoutsLoading || balanceLoading}
         lastUpdatedLabel={
@@ -760,17 +586,6 @@ export default function HostFinancePageClient() {
           ) : null
         }
       />
-
-      <AnimatePresence>
-        {showPayoutModal ? (
-          <InitiatePayoutModal
-            available={balance.available}
-            currency={settings.currency}
-            onClose={() => setShowPayoutModal(false)}
-            instantFeeRate={instantFeeRate}
-          />
-        ) : null}
-      </AnimatePresence>
 
       <AnimatePresence>
         {showAddBankModal ? (

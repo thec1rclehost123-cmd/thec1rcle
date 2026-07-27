@@ -10,7 +10,7 @@ import {
   buildSignupUrl,
   getReturnUrl,
 } from '../../../lib/auth/guestRouteAccess';
-import { checkGuestEmail, sendGuestOtp, verifyGuestOtp } from '../api/authApi';
+import { sendGuestOtp, verifyGuestOtp } from '../api/authApi';
 import {
   baseAuthForm,
   buildCleanAuthForm,
@@ -220,27 +220,7 @@ export function useLoginFlow() {
     }
 
     if (nextAction.type === 'resolve_login') {
-      setSubmitting(true);
-      try {
-        const data = await checkGuestEmail(form.email);
-        if (data.exists) {
-          setIsLoginMode(true);
-          await handleInitialAuth();
-          return;
-        }
-        setIsLoginMode(false);
-        setIsNewUser(true);
-        setStatus({ message: 'No account found. Set your password to join.', type: 'info' });
-      } catch (error) {
-        console.error('Check protocol failed:', error);
-        if (isLoginMode) {
-          await handleInitialAuth();
-          return;
-        }
-        setStatus({ message: 'Unable to verify email. Please try again.', type: 'error' });
-      } finally {
-        setSubmitting(false);
-      }
+      await handleInitialAuth();
       return;
     }
 

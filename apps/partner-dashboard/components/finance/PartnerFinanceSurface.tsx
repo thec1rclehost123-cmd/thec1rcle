@@ -51,8 +51,8 @@ interface PartnerFinanceSurfaceProps {
   settingsRows: FinanceSettingRow[];
   bankAccounts: FinanceBankAccount[];
   payouts: FinancePayoutRow[];
-  balanceActionLabel: string;
-  onBalanceAction: () => void;
+  balanceActionLabel?: string;
+  onBalanceAction?: () => void;
   balanceActionDisabled?: boolean;
   onRefresh?: () => void;
   refreshing?: boolean;
@@ -239,24 +239,26 @@ export function PartnerFinanceSurface({
                 ))}
               </div>
 
-              <button
-                type="button"
-                onClick={onBalanceAction}
-                disabled={balanceActionDisabled}
-                className="relative mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-[20px] px-4 text-[14px] font-bold transition-opacity disabled:cursor-not-allowed"
-                style={{
-                  background:
-                    'linear-gradient(145deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.1) 100%)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  color: '#fff',
-                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18)',
-                  backdropFilter: 'blur(18px)',
-                  WebkitBackdropFilter: 'blur(18px)',
-                  opacity: balanceActionDisabled ? 0.45 : 1,
-                }}
-              >
-                {balanceActionLabel}
-              </button>
+              {balanceActionLabel && onBalanceAction ? (
+                <button
+                  type="button"
+                  onClick={onBalanceAction}
+                  disabled={balanceActionDisabled}
+                  className="relative mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-[20px] px-4 text-[14px] font-bold transition-opacity disabled:cursor-not-allowed"
+                  style={{
+                    background:
+                      'linear-gradient(145deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.1) 100%)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#fff',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18)',
+                    backdropFilter: 'blur(18px)',
+                    WebkitBackdropFilter: 'blur(18px)',
+                    opacity: balanceActionDisabled ? 0.45 : 1,
+                  }}
+                >
+                  {balanceActionLabel}
+                </button>
+              ) : null}
             </div>
           </section>
         ) : (
@@ -301,20 +303,22 @@ export function PartnerFinanceSurface({
                 ))}
               </div>
 
-              <button
-                type="button"
-                onClick={onBalanceAction}
-                disabled={balanceActionDisabled}
-                className="mt-7 w-full rounded-[18px] px-4 py-3.5 text-[14px] font-bold transition-opacity disabled:cursor-not-allowed"
-                style={{
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  color: 'rgba(255,255,255,0.92)',
-                  opacity: balanceActionDisabled ? 0.45 : 1,
-                }}
-              >
-                {balanceActionLabel}
-              </button>
+              {balanceActionLabel && onBalanceAction ? (
+                <button
+                  type="button"
+                  onClick={onBalanceAction}
+                  disabled={balanceActionDisabled}
+                  className="mt-7 w-full rounded-[18px] px-4 py-3.5 text-[14px] font-bold transition-opacity disabled:cursor-not-allowed"
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    color: 'rgba(255,255,255,0.92)',
+                    opacity: balanceActionDisabled ? 0.45 : 1,
+                  }}
+                >
+                  {balanceActionLabel}
+                </button>
+              ) : null}
             </>
           </FinanceCard>
         )}

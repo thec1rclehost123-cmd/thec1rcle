@@ -203,7 +203,6 @@ export const guestApi = Object.freeze({
     login: (body, options) => guestApiOperationJson('loginGuest', { body, ...options }),
     register: (body, options) => guestApiOperationJson('registerGuest', { body, ...options }),
     logout: (options) => guestApiOperationJson('logoutGuest', options),
-    check: (body, options) => guestApiOperationJson('checkGuestEmail', { body, ...options }),
     changePassword: (body, options) =>
       guestApiOperationJson('changeGuestPassword', { body, ...options }),
     passwordReset: (body, options) =>

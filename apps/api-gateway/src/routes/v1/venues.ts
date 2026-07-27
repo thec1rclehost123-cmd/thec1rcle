@@ -11,6 +11,7 @@ import {
   getEventCommerceMetrics,
   getPartnerCommerceRows,
 } from '../../lib/canonicalCommerceMetrics';
+import { isBlockingCalendarEvent } from '../../lib/calendar-visibility.js';
 
 const VenueIdQuery = z.object({ venueId: z.string() });
 const VenueCrmQuery = z.object({
@@ -1469,7 +1470,10 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       const events = eventsSnap.docs
         .map((d) => ({ id: d.id, ...(d.data() as any) }))
         .filter(
-          (e) => (!startDate || e.startDate >= startDate) && (!endDate || e.startDate <= endDate),
+          (e) =>
+            isBlockingCalendarEvent(e) &&
+            (!startDate || e.startDate >= startDate) &&
+            (!endDate || e.startDate <= endDate),
         );
       const slots = slotsSnap.docs
         .map((doc: any) => normalizeSlotRecord(doc))

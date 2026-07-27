@@ -473,7 +473,7 @@ export default function CheckoutContainer({ event, initialSummary = null, initia
                 transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
                 className="absolute -bottom-1/4 -left-1/4 w-[70vw] h-[70vw] bg-iris/20 rounded-full blur-[100px]"
               />
-              <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] pointer-events-none" />
+              <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-[0.03] pointer-events-none" />
             </div>
 
             <div className="relative w-40 h-40 mb-10">

@@ -9,7 +9,6 @@ export const guestV1Operations = Object.freeze({
   loginGuest: { method: 'POST', path: '/auth/login' },
   registerGuest: { method: 'POST', path: '/auth/register' },
   logoutGuest: { method: 'POST', path: '/auth/logout' },
-  checkGuestEmail: { method: 'POST', path: '/auth/check' },
   changeGuestPassword: { method: 'POST', path: '/auth/change-password' },
   requestGuestPasswordReset: { method: 'POST', path: '/auth/password-reset' },
   sendGuestOtp: { method: 'POST', path: '/auth/otp/send' },

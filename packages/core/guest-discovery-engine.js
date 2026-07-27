@@ -362,13 +362,48 @@ export function buildSearchText(parts = []) {
 }
 
 export function derivePriceRange(rawEvent = {}, priceMin = 0, priceMax = priceMin) {
-  if (rawEvent.priceRange && typeof rawEvent.priceRange === 'object') {
-    return rawEvent.priceRange;
-  }
   return {
+    ...(rawEvent.priceRange && typeof rawEvent.priceRange === 'object' ? rawEvent.priceRange : {}),
     min: priceMin,
     max: priceMax,
-    currency: rawEvent.currency || 'INR',
+    currency: rawEvent.currency || rawEvent.priceRange?.currency || 'INR',
+  };
+}
+
+export function deriveTicketPriceBounds(rawEvent = {}) {
+  const prices = Array.isArray(rawEvent.tickets)
+    ? rawEvent.tickets
+        .map((ticket) => Number(ticket?.price))
+        .filter((price) => Number.isFinite(price) && price >= 0)
+    : [];
+
+  if (prices.length > 0) {
+    return {
+      priceMin: Math.min(...prices),
+      priceMax: Math.max(...prices),
+    };
+  }
+
+  const rawMin = Number(
+    rawEvent.priceMin ??
+      rawEvent.ticketPrice ??
+      rawEvent.minPrice ??
+      rawEvent.startingPrice ??
+      rawEvent.price ??
+      rawEvent.priceRange?.min ??
+      0,
+  );
+  const priceMin = Number.isFinite(rawMin) && rawMin >= 0 ? rawMin : 0;
+  const rawMax = Number(
+    rawEvent.priceMax ??
+      rawEvent.ticketPrice ??
+      rawEvent.maxPrice ??
+      rawEvent.priceRange?.max ??
+      priceMin,
+  );
+  return {
+    priceMin,
+    priceMax: Number.isFinite(rawMax) && rawMax >= priceMin ? rawMax : priceMin,
   };
 }
 
@@ -442,8 +477,7 @@ export function buildEventCardReadModel(rawEvent = {}, { readModelVersion = 2 } 
   const areaKey = slugify(event.area || event.neighborhood || '');
   const title = event.title || event.name || 'Untitled Event';
   const slug = event.slug || slugify(title);
-  const priceMin = Number(event.priceMin ?? event.ticketPrice ?? event.minPrice ?? 0);
-  const priceMax = Number(event.priceMax ?? event.ticketPrice ?? event.maxPrice ?? priceMin);
+  const { priceMin, priceMax } = deriveTicketPriceBounds(event);
   const isFree = Boolean(event.isFree || (priceMin <= 0 && priceMax <= 0));
   const startAt = toIso(event.startAt || event.startDate || event.startDateTime);
   const endAt = toIso(event.endAt || event.endDate);

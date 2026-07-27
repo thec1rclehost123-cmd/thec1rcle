@@ -501,9 +501,7 @@ export default function VenueFinancePageClient() {
   });
 
   // Modals
-  const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [showAddBankModal, setShowAddBankModal] = useState(false);
-  const [instantFeeRate, setInstantFeeRate] = useState(0);
 
   // ── Fetchers ──────────────────────────────────────────────────────────────
 
@@ -575,21 +573,6 @@ export default function VenueFinancePageClient() {
     fetchPayouts(1);
     fetchAccounts();
   }, [fetchBalance, fetchPayouts, fetchAccounts]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const token = await getToken();
-        const res = await fetch('/api/finance/payout-config', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const data = await res.json();
-        if (data?.instantFeeRate != null) setInstantFeeRate(data.instantFeeRate);
-      } catch (err) {
-        console.error('[Finance] Failed to load payout config:', err);
-      }
-    })();
-  }, [getToken]);
 
   const handlePageChange = (next: number) => {
     setPage(next);
@@ -701,18 +684,6 @@ export default function VenueFinancePageClient() {
                 </div>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={() => setShowPayoutModal(true)}
-              className="w-full py-3 rounded-xl text-[13px] font-bold transition-all hover:scale-[1.02] active:scale-95"
-              style={{
-                background: 'var(--v-elevated)',
-                color: 'var(--v-text-primary)',
-                border: '1px solid var(--v-border)',
-              }}
-            >
-              Transfer Balance
-            </button>
           </div>
 
           {/* SETTINGS */}
@@ -1014,16 +985,6 @@ export default function VenueFinancePageClient() {
       </div>
 
       {/* Modals */}
-      <AnimatePresence>
-        {showPayoutModal && (
-          <InitiatePayoutModal
-            available={balance.available}
-            currency={settings.currency}
-            onClose={() => setShowPayoutModal(false)}
-            instantFeeRate={instantFeeRate}
-          />
-        )}
-      </AnimatePresence>
       <AnimatePresence>
         {showAddBankModal && (
           <AddBankModal

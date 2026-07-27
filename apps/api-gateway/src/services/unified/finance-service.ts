@@ -473,19 +473,35 @@ export class FinanceService {
 
     if (status) q = q.where('status', '==', status);
 
-    const snap = await q.get().catch((err: any) => {
-      this.log.error(
+    let snap;
+    try {
+      snap = await q.get();
+    } catch (err: any) {
+      this.log.warn(
         {
           service: 'FinanceService',
           method: 'getDisputes',
           partnerId: ctx.partnerId,
           error: err?.message ?? String(err),
         },
-        'Disputes query failed',
+        'Indexed disputes query failed, attempting canonical in-memory ordering',
       );
-      throw financeUnavailable('Canonical dispute data is unavailable', err);
-    });
-    const items = (snap as any).docs.map((doc: any) => {
+      try {
+        snap = await this.db.collection('disputes').where('partnerId', '==', ctx.partnerId).get();
+      } catch (fallbackErr: any) {
+        this.log.error(
+          {
+            service: 'FinanceService',
+            method: 'getDisputes',
+            partnerId: ctx.partnerId,
+            error: fallbackErr?.message ?? String(fallbackErr),
+          },
+          'Canonical disputes fallback query failed',
+        );
+        throw financeUnavailable('Canonical dispute data is unavailable', fallbackErr);
+      }
+    }
+    let items = (snap as any).docs.map((doc: any) => {
       const d = doc.data() as Record<string, any>;
       return {
         disputeId: doc.id,
@@ -496,6 +512,11 @@ export class FinanceService {
         createdAt: toIso(d.createdAt),
       } satisfies Dispute;
     });
+    if (status) items = items.filter((item: Dispute) => item.status === status);
+    items.sort((left: Dispute, right: Dispute) =>
+      String(right.createdAt || '').localeCompare(String(left.createdAt || '')),
+    );
+    items = items.slice(0, 50);
 
     return { data: items, hasMore: false, nextCursor: null };
   }

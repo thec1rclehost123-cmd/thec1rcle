@@ -65,3 +65,71 @@ describe('FinanceService.recordTicketSale', () => {
     });
   });
 });
+
+describe('FinanceService.getDisputes', () => {
+  it('keeps canonical dispute reads available when the composite index is not deployed yet', async () => {
+    const docs = [
+      {
+        id: 'dispute_old',
+        data: () => ({
+          partnerId: 'host_1',
+          orderId: 'order_old',
+          amountPaise: 1000,
+          status: 'open',
+          createdAt: '2026-07-25T10:00:00.000Z',
+        }),
+      },
+      {
+        id: 'dispute_new',
+        data: () => ({
+          partnerId: 'host_1',
+          orderId: 'order_new',
+          amountPaise: 2500,
+          status: 'open',
+          createdAt: '2026-07-26T10:00:00.000Z',
+        }),
+      },
+    ];
+    let collectionCalls = 0;
+    const indexedQuery: any = {
+      orderBy: () => indexedQuery,
+      limit: () => indexedQuery,
+      where: () => indexedQuery,
+      get: async () => {
+        throw new Error('FAILED_PRECONDITION: missing index');
+      },
+    };
+    const fallbackQuery: any = {
+      get: async () => ({ docs }),
+    };
+    const service = new FinanceService({
+      db: {
+        collection: () => {
+          collectionCalls += 1;
+          return {
+            where: () => (collectionCalls === 1 ? indexedQuery : fallbackQuery),
+          };
+        },
+      } as any,
+      log: {
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      },
+      redis: undefined,
+    } as any);
+
+    const result = await service.getDisputes({
+      partnerId: 'host_1',
+      uid: 'host_owner',
+      type: 'host',
+      roles: [],
+      venueIds: [],
+      displayName: 'QA Host',
+    });
+
+    expect(result.data.map((item) => item.disputeId)).toEqual(['dispute_new', 'dispute_old']);
+    expect(result.data.map((item) => item.amount)).toEqual([25, 10]);
+    expect(collectionCalls).toBe(2);
+  });
+});

@@ -168,7 +168,7 @@ export default function PromoterDashboardHome() {
           <Link href="/promoter/payouts">
             <VenueActionButton variant="primary">
               <Wallet className="w-4 h-4" />
-              Withdraw {formatCompactINR(overviewQuery.data?.kpis?.commission)}
+              Payout settings · {formatCompactINR(overviewQuery.data?.kpis?.commission)}
             </VenueActionButton>
           </Link>
         </>

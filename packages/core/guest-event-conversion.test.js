@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getEventWaitlistStatus,
   joinEventWaitlist,
+  normalizePublicPhotoUrl,
   selectInterestedUsersForDisplay,
 } from './guest-event-conversion.js';
 
@@ -89,6 +90,17 @@ function createWaitlistDb(
 }
 
 describe('guest event conversion service', () => {
+  it('never exposes device-local photo paths in public event social proof', () => {
+    expect(
+      normalizePublicPhotoUrl(
+        'file:///data/user/0/com.c1rcle.app/cache/ImageManipulator/profile.jpg',
+      ),
+    ).toBeNull();
+    expect(normalizePublicPhotoUrl('https://storage.example.com/profile.jpg')).toBe(
+      'https://storage.example.com/profile.jpg',
+    );
+  });
+
   it('selectInterestedUsersForDisplay keeps the existing social proof mix preference', () => {
     const selected = selectInterestedUsersForDisplay(
       [

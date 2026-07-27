@@ -91,7 +91,10 @@ export default fp(async (fastify: FastifyInstance) => {
       }
 
       // 6. High-risk financial / abuse-prone endpoints
-      if (req.url.includes('/api/v1/partners/promoters/payouts')) {
+      if (
+        req.url.includes('/api/v1/partners/promoters/payouts') &&
+        ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)
+      ) {
         return 5;
       }
 

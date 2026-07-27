@@ -1291,7 +1291,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
       const { code } = request.body as any;
       if (!code) return reply.status(400).send({ valid: false, error: 'code required' });
 
-      // M3: Per-IP rate limiting — 10 attempts/min (graceful if Redis unavailable)
+      // M3: Per-IP rate limiting — 10 attempts/min. Scanner authentication
+      // fails closed when the shared limiter is unavailable so event codes
+      // cannot be brute-forced during an infrastructure incident.
       try {
         const ip = request.ip;
         const rateLimitKey = `scan:auth:${ip}`;
@@ -1302,8 +1304,14 @@ export default async function scanRoutes(fastify: FastifyInstance) {
             .status(429)
             .send({ valid: false, error: 'Too many attempts. Try again in a minute.' });
         }
-      } catch {
-        fastify.log.warn('Redis unavailable — skipping rate limit on /scan/auth');
+      } catch (error) {
+        fastify.log.error({ error }, 'Redis unavailable — denying /scan/auth');
+        return reply.status(503).send({
+          valid: false,
+          code: 'SCANNER_AUTH_RATE_LIMIT_UNAVAILABLE',
+          error: 'Scanner authentication is temporarily unavailable.',
+          retryable: true,
+        });
       }
 
       const normalizedCode = code.toUpperCase().trim();

@@ -308,6 +308,7 @@ export default function StudioShell({
   children,
   title,
   subtitle,
+  role,
   sections,
   onEventChange,
   heroBackground = 'tinted',
@@ -319,30 +320,32 @@ export default function StudioShell({
   const [activeSection, setActiveSection] = useState(sections[0]?.id ?? '');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(urlEventId);
   const [isOpen, setIsOpen] = useState(false);
-  const [venueEvents, setVenueEvents] = useState<{ id: string; title: string }[]>([]);
+  const [events, setEvents] = useState<{ id: string; title: string }[]>([]);
   const userScrolling = useRef(true);
 
   /* ── Fetch events ──────────────────────────────────────────────────── */
   useEffect(() => {
     const pid = profile?.activeMembership?.partnerId;
     if (!pid || !user) return;
+    const routeSegment = role === 'venue' ? 'venues' : role === 'host' ? 'hosts' : 'promoters';
+    const queryKey = role === 'venue' ? 'venueId' : role === 'host' ? 'hostId' : 'promoterId';
     user
       .getIdToken()
       .then((t: any) =>
-        fetch(`/api/partners/venues/events?venueId=${pid}&limit=50`, {
+        fetch(`/api/partners/${routeSegment}/events?${queryKey}=${pid}&limit=50`, {
           headers: { Authorization: `Bearer ${t}` },
         }),
       )
       .then((r: any) => (r.ok ? r.json() : { events: [] }))
       .then(({ events }: { events: any[] }) =>
-        setVenueEvents(
+        setEvents(
           events
             .filter((e: any) => e.lifecycle !== 'draft' && e.status !== 'draft')
             .map((e: any) => ({ id: e.id, title: e.title || e.name || e.id })),
         ),
       )
       .catch(() => {});
-  }, [profile, user]);
+  }, [profile, role, user]);
 
   /* ── URL sync ──────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -372,7 +375,7 @@ export default function StudioShell({
 
   /* ── Helpers ────────────────────────────────────────────────────────── */
   const current = selectedEventId
-    ? (venueEvents.find((e) => e.id === selectedEventId) ?? { title: 'All Events' })
+    ? (events.find((e) => e.id === selectedEventId) ?? { title: 'All Events' })
     : { title: 'All Events' };
 
   const pickEvent = (id: string | null) => {
@@ -540,7 +543,7 @@ export default function StudioShell({
       {/* ── Event picker modal ─────────────────────────────────────── */}
       {isOpen && (
         <EventPickerModal
-          events={venueEvents}
+          events={events}
           selectedId={selectedEventId}
           onSelect={pickEvent}
           onClose={() => setIsOpen(false)}

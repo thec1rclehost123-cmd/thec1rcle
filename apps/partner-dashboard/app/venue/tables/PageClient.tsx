@@ -32,7 +32,7 @@ const TABLE_TYPES = [
 ];
 
 export default function TablesPage() {
-  const { profile } = useDashboardAuth();
+  const { profile, getIdToken } = useDashboardAuth();
   const [mode, setMode] = useState<'setup' | 'tonight'>('setup');
   const [tables, setTables] = useState<any[]>([]);
   const [tonightEvent, setTonightEvent] = useState<any>(null);
@@ -43,11 +43,19 @@ export default function TablesPage() {
   const [editingTable, setEditingTable] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const authedFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
+    const token = await getIdToken();
+    if (!token) throw new Error('Authentication required');
+    const headers = new Headers(init.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+    return fetch(input, { ...init, headers });
+  };
+
   const fetchTables = async () => {
     if (!profile?.activeMembership?.partnerId) return;
     setIsLoading(true);
     try {
-      const res = await fetch(
+      const res = await authedFetch(
         `/api/partners/venues/tables?venueId=${profile.activeMembership.partnerId}`,
       );
       if (res.ok) {
@@ -64,7 +72,7 @@ export default function TablesPage() {
   const fetchTonightEvent = async () => {
     if (!profile?.activeMembership?.partnerId) return;
     try {
-      const res = await fetch(
+      const res = await authedFetch(
         `/api/partners/venues/events?venueId=${profile.activeMembership.partnerId}&limit=1`,
       );
       if (res.ok) {
@@ -81,7 +89,7 @@ export default function TablesPage() {
 
   const fetchEventStatus = async (eventId: string) => {
     try {
-      const res = await fetch(`/api/partners/venues/tables?eventId=${eventId}`);
+      const res = await authedFetch(`/api/partners/venues/tables?eventId=${eventId}`);
       if (res.ok) {
         const data = await res.json();
         setEventTableStatus(data);
@@ -100,7 +108,7 @@ export default function TablesPage() {
     if (!profile?.activeMembership?.partnerId) return;
     setIsSaving(true);
     try {
-      const res = await fetch('/api/partners/venues/tables', {
+      const res = await authedFetch('/api/partners/venues/tables', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -124,7 +132,7 @@ export default function TablesPage() {
     if (!tonightEvent?.id) return;
     setIsSaving(true);
     try {
-      await fetch('/api/partners/venues/tables', {
+      await authedFetch('/api/partners/venues/tables', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -146,7 +154,7 @@ export default function TablesPage() {
   const handleDeleteTable = async (tableId: string) => {
     if (!window.confirm('Delete this table definition?')) return;
     try {
-      const res = await fetch(`/api/partners/venues/tables?tableId=${tableId}`, {
+      const res = await authedFetch(`/api/partners/venues/tables?tableId=${tableId}`, {
         method: 'DELETE',
       });
       if (res.ok) fetchTables();

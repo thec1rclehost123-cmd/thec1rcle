@@ -429,7 +429,7 @@ function GrowthUI() {
   return (
     <div className="absolute inset-0 overflow-hidden">
       <Image
-        src="/events/rave.jpg"
+        src="/events/techno-bunker.jpg"
         alt="Crowd"
         fill
         className="object-cover opacity-40"

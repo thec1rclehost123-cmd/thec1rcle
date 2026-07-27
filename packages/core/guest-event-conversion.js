@@ -25,6 +25,16 @@ export function normalizeInterestedUserGender(value) {
   return 'other';
 }
 
+export function normalizePublicPhotoUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const parsed = new URL(value);
+    return ['http:', 'https:'].includes(parsed.protocol) ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function serialize(value) {
   if (value == null) return value;
   return JSON.parse(
@@ -112,7 +122,7 @@ export async function getEventInterested(db, eventId, limit = 20) {
         id: doc.id,
         name: displayName,
         handle: data.handle || `@${displayName.toLowerCase().replace(/\s/g, '')}`,
-        photoURL: data.photoURL || null,
+        photoURL: normalizePublicPhotoUrl(data.photoURL),
         initials: displayName
           .split(' ')
           .map((part) => part[0])

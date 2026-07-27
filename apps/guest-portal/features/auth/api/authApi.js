@@ -38,10 +38,6 @@ async function request(requestFn, fallbackMessage) {
   return data;
 }
 
-export async function checkGuestEmail(email) {
-  return request(() => guestApi.auth.check({ email }), 'Unable to verify email');
-}
-
 export async function loadGuestBootstrap() {
   const { response, data } = await guestApi.auth.me();
   if (response.status === 401) return null;

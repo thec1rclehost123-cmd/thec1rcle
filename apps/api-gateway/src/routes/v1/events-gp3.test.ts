@@ -447,11 +447,18 @@ describe('event routes GP-3 conversion contracts', () => {
       url: '/api/v1/events/event_1/track',
       payload: { type: 'click', ref: 'PROMO1' },
     });
+    const impression = await server.inject({
+      method: 'POST',
+      url: '/api/v1/events/event_1/track',
+      payload: { type: 'impression' },
+    });
 
     expect(view.statusCode).toBe(200);
     expect(view.json()).toEqual({ ok: true });
     expect(track.statusCode).toBe(200);
     expect(track.json()).toEqual({ ok: true });
+    expect(impression.statusCode).toBe(200);
+    expect(impression.json()).toEqual({ ok: true });
     expect(trackGuestEventView).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ eventId: 'event_1' }),
@@ -460,6 +467,11 @@ describe('event routes GP-3 conversion contracts', () => {
       eventId: 'event_1',
       type: 'click',
       ref: 'PROMO1',
+    });
+    expect(trackGuestEventInteraction).toHaveBeenCalledWith(expect.anything(), {
+      eventId: 'event_1',
+      type: 'impression',
+      ref: undefined,
     });
 
     await server.close();

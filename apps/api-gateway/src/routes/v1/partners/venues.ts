@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { isBlockingCalendarEvent } from '../../../lib/calendar-visibility.js';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
 import { generateTemporaryPassword, sendInvitationEmail } from '../../../lib/email.js';
 import { getPartnerProfileWithPii } from '../../../utils/partner-profiles.js';
@@ -423,15 +424,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
       const block = daySlots.find((slot: any) => isVenueBlock(slot)) || null;
 
       // Filter for confirmed/booked events (exclude draft, deleted, cancelled, denied)
-      const bookedEvents = dayEvents.filter((event: any) => {
-        const lifecycle = String(event.lifecycle || event.status || 'draft').toLowerCase();
-        return (
-          lifecycle !== 'draft' &&
-          lifecycle !== 'deleted' &&
-          lifecycle !== 'cancelled' &&
-          lifecycle !== 'denied'
-        );
-      });
+      const bookedEvents = dayEvents.filter((event: any) => isBlockingCalendarEvent(event));
 
       // Count drafts at the media or review creation steps as pending status
       const pendingDraftsCount = dayEvents.filter((event: any) => {

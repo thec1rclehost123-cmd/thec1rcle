@@ -188,7 +188,7 @@ const PartnerEventCreateBody = z
   .passthrough();
 const EventTrackBody = z
   .object({
-    type: z.enum(['view', 'click', 'share', 'rsvp_intent']),
+    type: z.enum(['view', 'impression', 'click', 'share', 'rsvp_intent']),
     ref: z.string().max(100).optional(),
   })
   .strict();

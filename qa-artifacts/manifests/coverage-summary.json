@@ -1,0 +1,90 @@
+{
+  "generatedAt": "2026-07-27T09:11:38.224Z",
+  "gitSha": "bce259da564bf2c66de2cef8252b0e7930fa5de6",
+  "generator": "scripts/generate-launch-surface-manifests.mjs",
+  "scannedRoots": [
+    "apps/partner-dashboard/app",
+    "apps/guest-portal/app",
+    "apps/mobile-app/app",
+    "apps/scanner-app/app",
+    "apps/api-gateway/src/routes"
+  ],
+  "ignoredDirectories": [
+    ".expo",
+    ".next",
+    ".turbo",
+    "android",
+    "build",
+    "coverage",
+    "dist",
+    "ios",
+    "node_modules"
+  ],
+  "counts": {
+    "partnerDashboard": {
+      "total": 328,
+      "byKind": {
+        "page": 120,
+        "bff_route": 208
+      },
+      "byStatus": {
+        "PENDING": 328
+      }
+    },
+    "guestPortal": {
+      "total": 55,
+      "byKind": {
+        "page": 34,
+        "bff_route": 21
+      },
+      "byStatus": {
+        "PENDING": 55
+      }
+    },
+    "mobile": {
+      "total": 109,
+      "byKind": {
+        "layout": 14,
+        "screen": 95
+      },
+      "byStatus": {
+        "PENDING": 109
+      }
+    },
+    "scanner": {
+      "total": 9,
+      "byKind": {
+        "layout": 2,
+        "screen": 7
+      },
+      "byStatus": {
+        "PENDING": 9
+      }
+    },
+    "gateway": {
+      "total": 543,
+      "byKind": {
+        "gateway_route_module": 20,
+        "gateway_route": 523
+      },
+      "byStatus": {
+        "PENDING": 543
+      }
+    },
+    "featureEndpointMap": {
+      "total": 299,
+      "byKind": {
+        "endpoint_reference": 299
+      },
+      "byStatus": {
+        "PENDING": 299
+      }
+    }
+  },
+  "completion": {
+    "totalRows": 1343,
+    "passedRows": 0,
+    "incompleteRows": 1343,
+    "unclassifiedRows": 926
+  }
+}
