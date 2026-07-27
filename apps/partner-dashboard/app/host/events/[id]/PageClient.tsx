@@ -4003,6 +4003,7 @@ function parseLocalDateTime(value: string) {
 }
 
 function humanizeLabel(value: string) {
+  if (value === 'door' || value === 'manual') return 'Walk-in';
   return String(value || '')
     .replace(/([A-Z])/g, ' $1')
     .replace(/[_-]+/g, ' ')

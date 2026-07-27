@@ -3113,7 +3113,13 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
           // Apply filters
           if (query.source && query.source !== 'all') {
-            attendeesList = attendeesList.filter((a: any) => a.source === query.source);
+            if (query.source === 'walkin') {
+              attendeesList = attendeesList.filter(
+                (a: any) => a.source === 'door' || a.source === 'manual',
+              );
+            } else {
+              attendeesList = attendeesList.filter((a: any) => a.source === query.source);
+            }
           }
           if (query.status && query.status !== 'all') {
             if (query.status === 'checked_in') {

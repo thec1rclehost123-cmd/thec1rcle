@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Shield, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Shield, Loader2, CheckCircle, AlertTriangle, Lock } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 
 const ROLE_LABELS = {
@@ -26,6 +26,8 @@ function AcceptInviteContent() {
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [alreadyExists, setAlreadyExists] = useState(false);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   useEffect(() => {
     if (!code) {
@@ -57,6 +59,22 @@ function AcceptInviteContent() {
 
   const handleAccept = async (e) => {
     e.preventDefault();
+
+    if (inviteInfo?.isNewAccount) {
+      if (!password) {
+        setErrorMsg('Password is required.');
+        return;
+      }
+      if (password.length < 8) {
+        setErrorMsg('Password must be at least 8 characters long.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setErrorMsg('Passwords do not match.');
+        return;
+      }
+    }
+
     setSubmitting(true);
     setErrorMsg('');
 
@@ -64,7 +82,10 @@ function AcceptInviteContent() {
       const res = await fetch('/api/auth/accept-invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inviteCode: code }),
+        body: JSON.stringify({
+          inviteCode: code,
+          password: inviteInfo?.isNewAccount ? password : undefined,
+        }),
       });
       const data = await res.json();
 
@@ -83,10 +104,10 @@ function AcceptInviteContent() {
         return;
       }
 
-      // Log in using temp password if available
-      if (data.tempPassword) {
+      // Log in using the password the user chose
+      if (password) {
         try {
-          await login(inviteInfo?.email || data.email, data.tempPassword);
+          await login(inviteInfo?.email || data.email, password);
         } catch (loginErr) {
           console.error('Silent login failed:', loginErr);
         }
@@ -180,6 +201,39 @@ function AcceptInviteContent() {
                   </label>
                   <p className="text-[10px] font-mono text-zinc-500 break-all">{code}</p>
                 </div>
+
+                {inviteInfo.isNewAccount && (
+                  <>
+                    <div className="space-y-2 mt-4">
+                      <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
+                        <Lock className="h-3 w-3" />
+                        Create Password
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Min 8 characters"
+                        className="w-full bg-black/40 border border-[#ffffff08] rounded-2xl px-5 py-4 text-white placeholder:text-zinc-800 focus:outline-none focus:border-iris/50 focus:ring-1 focus:ring-iris/20 transition-all font-medium text-sm shadow-inner"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
+                        <Lock className="h-3 w-3" />
+                        Confirm Password
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-enter password"
+                        className="w-full bg-black/40 border border-[#ffffff08] rounded-2xl px-5 py-4 text-white placeholder:text-zinc-800 focus:outline-none focus:border-iris/50 focus:ring-1 focus:ring-iris/20 transition-all font-medium text-sm shadow-inner"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {errorMsg && (
@@ -196,8 +250,10 @@ function AcceptInviteContent() {
                 {submitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Accepting...
+                    {inviteInfo.isNewAccount ? 'Updating password...' : 'Accepting...'}
                   </>
+                ) : inviteInfo.isNewAccount ? (
+                  'Update password & Join'
                 ) : (
                   'Accept Invitation'
                 )}
@@ -215,7 +271,7 @@ function AcceptInviteContent() {
                 <p className="text-xs text-zinc-400">
                   {alreadyExists
                     ? 'Your account has been granted admin access. Redirecting to login...'
-                    : 'Redirecting to set your secure passcode...'}
+                    : 'Your password has been successfully set. Redirecting to login...'}
                 </p>
               </div>
             </div>

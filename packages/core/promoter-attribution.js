@@ -3,7 +3,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 function getAttributionSecret() {
   const secret =
     process.env.PROMOTER_ATTRIBUTION_SECRET ||
-    (process.env.NODE_ENV === 'test' ? 'c1rcle-promoter-attribution-test-secret-only' : null);
+    (process.env.NODE_ENV === 'test' ? 'c1rcle-promoter-attribution-test-secret-only' : null) ||
+    (process.env.NODE_ENV !== 'production' ? 'c1rcle-promoter-attribution-dev-secret-only' : null);
   if (!secret || secret.length < 32) {
     const error = new Error('Promoter attribution signing is not configured');
     error.code = 'PROMOTER_ATTRIBUTION_NOT_CONFIGURED';

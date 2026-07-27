@@ -260,8 +260,8 @@ async function inviteHandler(req) {
 
     // 6. Send invitation email
     if (process.env.NODE_ENV === 'development') {
-      const credentialLine = tempPassword
-        ? `🔑  Temporary Password: ${tempPassword}`
+      const credentialLine = isNewAccount
+        ? `🔑  New Account created (temporary/dummy password generated but not emailed)`
         : '🔑  Existing account -- no new password issued';
       console.log(
         `\n✉️  [dev] Admin Invitation for ${cleanEmail}:\n🔗  Accept Link: ${acceptLink}\n${credentialLine}\n`,
