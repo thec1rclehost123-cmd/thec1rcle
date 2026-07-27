@@ -201,6 +201,7 @@ async function inviteHandler(req) {
     const name = firstName && lastName ? `${firstName} ${lastName}` : 'Team Member';
     let tempPassword = null;
     let isNewAccount = false;
+    let createdUser = null;
 
     try {
       await auth.getUserByEmail(cleanEmail);
@@ -208,7 +209,11 @@ async function inviteHandler(req) {
     } catch (lookupErr) {
       if (lookupErr.code !== 'auth/user-not-found') throw lookupErr;
       tempPassword = generateTemporaryPassword();
-      await auth.createUser({ email: cleanEmail, password: tempPassword, displayName: name });
+      createdUser = await auth.createUser({
+        email: cleanEmail,
+        password: tempPassword,
+        displayName: name,
+      });
       isNewAccount = true;
     }
 
@@ -217,18 +222,28 @@ async function inviteHandler(req) {
     const inviteExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const now = new Date().toISOString();
 
-    await db.collection('admin_team_invitations').add({
-      email: cleanEmail,
-      firstName: firstName || null,
-      lastName: lastName || null,
-      role: resolvedRole,
-      status: 'pending',
-      isNewAccount,
-      inviteToken,
-      inviteExpires,
-      createdAt: now,
-      invitedBy: req.user.uid,
-    });
+    let inviteDocRef;
+    try {
+      inviteDocRef = await db.collection('admin_team_invitations').add({
+        email: cleanEmail,
+        firstName: firstName || null,
+        lastName: lastName || null,
+        role: resolvedRole,
+        status: 'pending',
+        isNewAccount,
+        inviteToken,
+        inviteExpires,
+        createdAt: now,
+        invitedBy: req.user.uid,
+      });
+    } catch (dbErr) {
+      if (isNewAccount && createdUser) {
+        await auth.deleteUser(createdUser.uid).catch((cleanErr) => {
+          console.error('[Admin Invite] Cleanup failed: could not delete Firebase user:', cleanErr);
+        });
+      }
+      throw dbErr;
+    }
 
     // 4. Construct accept link
     const origin = getSecureOrigin(req);
@@ -253,20 +268,30 @@ async function inviteHandler(req) {
       );
     }
 
-    await sendAdminInvitationEmail({
+    const emailResult = await sendAdminInvitationEmail({
       to: cleanEmail,
       name,
       roleLabel,
       acceptLink,
       tempPassword,
-    }).catch((err) => {
-      console.error('[Admin Invite] Failed to send invitation email:', err);
     });
+
+    if (!emailResult.success) {
+      await inviteDocRef.delete().catch((cleanErr) => {
+        console.error('[Admin Invite] Cleanup failed: could not delete invitation doc:', cleanErr);
+      });
+      if (isNewAccount && createdUser) {
+        await auth.deleteUser(createdUser.uid).catch((cleanErr) => {
+          console.error('[Admin Invite] Cleanup failed: could not delete Firebase user:', cleanErr);
+        });
+      }
+      throw emailResult.error || new Error('Failed to send invitation email');
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[Admin Team POST] Error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
 
