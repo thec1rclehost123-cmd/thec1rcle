@@ -1129,6 +1129,78 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "rsvp_orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "promoterCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "rsvp_orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "promoterCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "rsvp_orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "promoterCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "rsvp_orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "promoterCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []
