@@ -19,8 +19,12 @@ export const dynamic = 'force-dynamic';
 const GOVERNANCE_CONFIG = {
   DUAL_APPROVAL: {
     EVENT_PAUSE: true,
-    VENUE_SUSPEND: false,
-    VENUE_REINSTATE: false,
+    VENUE_SUSPEND: true,
+    VENUE_REINSTATE: true,
+    HOST_SUSPEND: true,
+    HOST_REINSTATE: true,
+    PROMOTER_SUSPEND: true,
+    PROMOTER_ACTIVATE: true,
   },
 };
 
@@ -237,7 +241,7 @@ async function handler(req) {
               adminId,
               adminRole,
               'approved',
-              null,
+              reason,
               context,
             );
             break;
