@@ -479,8 +479,9 @@ export function buildEventCardReadModel(rawEvent = {}, { readModelVersion = 2 } 
   const slug = event.slug || slugify(title);
   const { priceMin, priceMax } = deriveTicketPriceBounds(event);
   const isFree = Boolean(event.isFree || (priceMin <= 0 && priceMax <= 0));
-  const startAt = toIso(event.startAt || event.startDate || event.startDateTime);
-  const endAt = toIso(event.endAt || event.endDate);
+  const timestamps = getEventTimestamps(event);
+  const startAt = timestamps.startAt ? new Date(timestamps.startAt).toISOString() : null;
+  const endAt = timestamps.endAt ? new Date(timestamps.endAt).toISOString() : null;
   const tickets = deriveTickets(event, priceMin);
   const priceRange = derivePriceRange(event, priceMin, priceMax);
   const heatScore = computeHeatScore(event);
@@ -542,9 +543,9 @@ export function buildEventCardReadModel(rawEvent = {}, { readModelVersion = 2 } 
     city: event.city || event.cityLabel || null,
     date: typeof event.date === 'string' && event.date.trim() ? event.date : startAt || null,
     time: event.time || event.startTime || extractStartTime(startAt),
-    startDate: toIso(event.startDate || event.startDateTime || event.startAt) || startAt,
-    endDate: toIso(event.endDate || event.endAt) || endAt,
-    startDateTime: toIso(event.startDateTime || event.startDate || event.startAt) || startAt,
+    startDate: startAt,
+    endDate: endAt,
+    startDateTime: startAt,
     startTime: event.startTime || event.time || extractStartTime(startAt),
     endTime: event.endTime || extractStartTime(endAt),
     guests: Array.isArray(event.guests) ? event.guests : [],

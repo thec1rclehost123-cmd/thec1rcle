@@ -119,6 +119,7 @@ const CheckoutInitiateBody = z
     userName: z.string().max(120).optional(),
     userEmail: z.string().email().max(254).optional(),
     userPhone: z.string().max(20).optional(),
+    hostUpdatesOptIn: z.boolean().optional(),
   })
   .strict();
 
@@ -320,6 +321,9 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           linkId: resolvedLinkId,
         };
       } catch (error: any) {
+        if (error.code === 'COVER_WALLET_UNFUNDED') {
+          return reply.status(400).send({ success: false, code: error.code, error: error.message });
+        }
         if (isInventoryError(error)) {
           fastify.log.warn(`Inventory service unavailable during calculate: ${error.message}`);
           reply.header('Retry-After', '5');
@@ -569,7 +573,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           return reply.status(404).send({ success: false, error: 'Event not found' });
         }
 
-        if (error.code === 'BAD_REQUEST') {
+        if (error.code === 'BAD_REQUEST' || error.code === 'COVER_WALLET_UNFUNDED') {
           return reply.status(400).send({ success: false, error: error.message });
         }
 
@@ -849,12 +853,17 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             return result;
           }
 
-          const payment = await fastify.checkoutService.preparePayment(result.order.id, userId, {
-            keyId: process.env.RAZORPAY_KEY_ID,
-            keySecret: process.env.RAZORPAY_KEY_SECRET,
-            allowMockPayment: allowMockRazorpay(),
-            forceMockPayment: forceMockRazorpay(),
-          });
+          const payment = await fastify.checkoutService.preparePayment(
+            result.order.id,
+            userId,
+            {
+              keyId: process.env.RAZORPAY_KEY_ID,
+              keySecret: process.env.RAZORPAY_KEY_SECRET,
+              allowMockPayment: allowMockRazorpay(),
+              forceMockPayment: forceMockRazorpay(),
+            },
+            result.order,
+          );
 
           return {
             success: true,
@@ -867,6 +876,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             razorpay: {
               orderId: payment.razorpayOrderId,
               amount: payment.amount,
+              amountPaise: payment.amountPaise,
               currency: payment.currency,
               key: payment.key,
             },
@@ -995,7 +1005,9 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         const resDoc = await fastify.db.collection('cart_reservations').doc(reservationId).get();
         if (!resDoc.exists)
           return reply.status(404).send({ success: false, error: 'Reservation not found' });
-        if ((resDoc.data() as any).userId !== userId) {
+        const reservation = resDoc.data() as any;
+        const reservationOwnerId = reservation.customerId || reservation.userId || null;
+        if (reservationOwnerId !== userId) {
           fastify.log.warn(
             { uid: userId, reservationId, ip: request.ip },
             'SECURITY: Unauthorized cancel attempt on reservation',

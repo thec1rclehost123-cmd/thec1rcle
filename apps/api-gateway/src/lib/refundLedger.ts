@@ -35,14 +35,26 @@ export async function finalizeProcessedRefund({
     }
 
     const orderRef = db.collection('orders').doc(String(refund.orderId));
-    const [orderSnapshot, markerSnapshot, saleSnapshot, ticketsSnapshot, entitlementsSnapshot] =
-      await Promise.all([
-        transaction.get(orderRef),
-        transaction.get(markerRef),
-        transaction.get(db.collection('partner_ledger').where('orderId', '==', refund.orderId)),
-        transaction.get(db.collection('tickets').where('orderId', '==', refund.orderId)),
-        transaction.get(db.collection('entitlements').where('orderId', '==', refund.orderId)),
-      ]);
+    const outboxRef = refund.outboxEventId
+      ? db.collection('domain_event_outbox').doc(String(refund.outboxEventId))
+      : null;
+    const [
+      orderSnapshot,
+      markerSnapshot,
+      saleSnapshot,
+      ticketsSnapshot,
+      entitlementsSnapshot,
+      coverWalletsSnapshot,
+      outboxSnapshot,
+    ] = await Promise.all([
+      transaction.get(orderRef),
+      transaction.get(markerRef),
+      transaction.get(db.collection('partner_ledger').where('orderId', '==', refund.orderId)),
+      transaction.get(db.collection('tickets').where('orderId', '==', refund.orderId)),
+      transaction.get(db.collection('entitlements').where('orderId', '==', refund.orderId)),
+      transaction.get(db.collection('cover_wallets').where('orderId', '==', refund.orderId)),
+      outboxRef ? transaction.get(outboxRef) : Promise.resolve(null),
+    ]);
     if (!orderSnapshot.exists) {
       throw Object.assign(new Error('Refund order not found'), { code: 'ORDER_NOT_FOUND' });
     }
@@ -50,21 +62,6 @@ export async function finalizeProcessedRefund({
     const amountPaise = Number.isSafeInteger(refund.amountPaise)
       ? refund.amountPaise
       : Math.round(Number(refund.amount || 0) * 100);
-    const ledger = writePartnerRefundInTransaction({
-      db,
-      transaction,
-      order,
-      refundId,
-      providerRefundId,
-      amountPaise,
-      createdAt: processedAt,
-      markerSnapshot,
-      saleEntries: saleSnapshot.docs.map((document: any) => ({
-        id: document.id,
-        ...document.data(),
-      })),
-    });
-
     const revokeAdmission = refund.revokeAdmission === true || refund.fullyRefunded === true;
     const requestedTicketIds = new Set(
       Array.isArray(refund.ticketIds)
@@ -122,6 +119,56 @@ export async function finalizeProcessedRefund({
         }
       }
     }
+
+    const coverWalletRows: Array<{
+      document: any;
+      transactionRef: any;
+      transactionSnapshot: any;
+    }> = [];
+    if (revokeAdmission) {
+      for (const ticket of ticketsToRevoke) {
+        const ticketData = ticket.data();
+        const matches = coverWalletsSnapshot.docs.filter((wallet: any) => {
+          const data = wallet.data();
+          return (
+            String(data.tierId || '') === String(ticketData.tierId || '') &&
+            Number(data.unitIndex) === Number(ticketData.slotIndex)
+          );
+        });
+        if (matches.length > 1) {
+          throw Object.assign(new Error('Refund Cover Wallet mapping is ambiguous'), {
+            code: 'REFUND_COVER_WALLET_MAPPING_INVALID',
+          });
+        }
+        if (matches.length === 1) {
+          const document = matches[0];
+          const transactionRef = document.ref
+            .collection('txns')
+            .doc(`REFUND-TERMINATION-${refundId}`);
+          coverWalletRows.push({
+            document,
+            transactionRef,
+            transactionSnapshot: await transaction.get(transactionRef),
+          });
+        }
+      }
+    }
+
+    const ledger = writePartnerRefundInTransaction({
+      db,
+      transaction,
+      order,
+      refundId,
+      providerRefundId,
+      amountPaise,
+      createdAt: processedAt,
+      markerSnapshot,
+      saleEntries: saleSnapshot.docs.map((document: any) => ({
+        id: document.id,
+        ...document.data(),
+      })),
+    });
+
     const terminalOrderStatus =
       refund.terminalOrderStatus ||
       (refund.fullyRefunded ? 'refunded' : refund.previousStatus || 'confirmed');
@@ -139,6 +186,22 @@ export async function finalizeProcessedRefund({
       refundLedgerMarkerId: ledger.markerId,
       updatedAt: processedAt,
     });
+    if (outboxRef) {
+      if (!outboxSnapshot?.exists) {
+        throw Object.assign(new Error('Refund outbox record not found'), {
+          code: 'REFUND_OUTBOX_NOT_FOUND',
+        });
+      }
+      transaction.update(outboxRef, {
+        status: 'dispatched',
+        providerRefundId,
+        dispatchedAt: processedAt,
+        leaseId: null,
+        leaseExpiresAt: null,
+        lastError: null,
+        updatedAt: processedAt,
+      });
+    }
 
     if (revokeAdmission) {
       for (const ticket of ticketsToRevoke) {
@@ -157,6 +220,84 @@ export async function finalizeProcessedRefund({
           updatedAt: processedAt,
         });
       }
+      for (const row of coverWalletRows) {
+        const wallet = { id: row.document.id, ...row.document.data() } as Record<string, any>;
+        const balancePaise = Number(wallet.currentBalancePaise);
+        if (
+          !Number.isSafeInteger(balancePaise) ||
+          balancePaise < 0 ||
+          !Number.isSafeInteger(Number(wallet.txnCount || 0))
+        ) {
+          throw Object.assign(new Error('Refund Cover Wallet monetary state is invalid'), {
+            code: 'REFUND_COVER_WALLET_MAPPING_INVALID',
+          });
+        }
+        const existingTransaction = row.transactionSnapshot.exists
+          ? row.transactionSnapshot.data()
+          : null;
+        if (
+          existingTransaction &&
+          (existingTransaction.type !== 'REFUND_TERMINATION' ||
+            existingTransaction.walletId !== wallet.id ||
+            existingTransaction.refundId !== refundId ||
+            existingTransaction.providerRefundId !== providerRefundId ||
+            wallet.state !== 'TERMINATED' ||
+            balancePaise !== 0 ||
+            existingTransaction.amountPaise !== Number(wallet.totalRefundTerminatedPaise || 0))
+        ) {
+          throw Object.assign(new Error('Refund Cover Wallet artifact conflicts'), {
+            code: 'REFUND_COVER_WALLET_MAPPING_INVALID',
+          });
+        }
+        if (
+          ['TERMINATED', 'EXPIRED'].includes(String(wallet.state).toUpperCase()) &&
+          !existingTransaction
+        ) {
+          throw Object.assign(new Error('Refund Cover Wallet was already terminated differently'), {
+            code: 'REFUND_COVER_WALLET_MAPPING_INVALID',
+          });
+        }
+        if (!['ACTIVE', 'FROZEN', 'TERMINATED'].includes(String(wallet.state).toUpperCase())) {
+          throw Object.assign(new Error('Refund Cover Wallet state is not finalizable'), {
+            code: 'REFUND_COVER_WALLET_MAPPING_INVALID',
+          });
+        }
+        if (!existingTransaction && balancePaise > 0) {
+          transaction.create(row.transactionRef, {
+            id: row.transactionRef.id,
+            walletId: wallet.id,
+            orderId: order.id,
+            eventId: wallet.eventId,
+            venueId: wallet.venueId,
+            type: 'REFUND_TERMINATION',
+            status: 'COMMITTED',
+            idempotencyKey: `REFUND-TERMINATION-${refundId}`,
+            refundId,
+            providerRefundId,
+            amountPaise: balancePaise,
+            balanceAfterPaise: 0,
+            operatorId: 'system',
+            operatorName: 'system',
+            operatorRole: 'system',
+            deviceId: 'system',
+            eventCodeId: 'system',
+            createdAt: processedAt,
+          });
+        }
+        if (!existingTransaction) {
+          transaction.update(row.document.ref, {
+            state: 'TERMINATED',
+            currentBalancePaise: 0,
+            totalRefundTerminatedPaise:
+              Number(wallet.totalRefundTerminatedPaise || 0) + balancePaise,
+            txnCount: Number(wallet.txnCount || 0) + (balancePaise > 0 ? 1 : 0),
+            terminatedAt: processedAt,
+            terminatedBy: 'refund_workflow',
+            terminatedReason: 'ADMISSION_REFUND_PROCESSED',
+            lastActivityAt: processedAt,
+          });
+        }
+      }
     }
 
     return {
@@ -169,6 +310,7 @@ export async function finalizeProcessedRefund({
       entitlementIds: revokeAdmission
         ? entitlementsToRevoke.map((document: any) => document.id)
         : [],
+      coverWalletIds: revokeAdmission ? coverWalletRows.map((row) => row.document.id) : [],
     };
   });
 }

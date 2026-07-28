@@ -1,8 +1,60 @@
 import fp from 'fastify-plugin';
 import rateLimit from '@fastify/rate-limit';
 import { FastifyInstance, FastifyRequest } from 'fastify';
+import { createHash } from 'node:crypto';
 // @ts-ignore
 import { checkAdaptiveRateLimit } from '@c1rcle/core/rate-limiter';
+
+function getCredentialRateLimitKey(request: FastifyRequest): string | null {
+  const authorization = request.headers.authorization;
+  const sessionCookie = request.headers.cookie
+    ?.split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith('session='))
+    ?.slice('session='.length);
+  const credential =
+    typeof authorization === 'string' && authorization.trim()
+      ? `authorization:${authorization.trim()}`
+      : typeof sessionCookie === 'string' && sessionCookie.trim()
+        ? `session:${sessionCookie.trim()}`
+        : null;
+
+  if (!credential) return null;
+  return `credential:${createHash('sha256').update(credential).digest('hex').slice(0, 32)}`;
+}
+
+function getRateLimitPolicyBucket(request: FastifyRequest): string {
+  if (request.url.startsWith('/health') || request.url.startsWith('/metrics')) {
+    return 'system';
+  }
+  if (request.url.startsWith('/api/v1/auth')) return 'auth';
+  if (
+    request.url.includes('/api/v1/tickets/') ||
+    request.url.includes('/api/v1/profiles/') ||
+    request.url.startsWith('/api/v1/matching')
+  ) {
+    return 'identity-sensitive';
+  }
+  if (request.url.startsWith('/api/v1/admin')) return 'admin';
+  if (request.url.startsWith('/api/v1/search')) return 'search';
+  if (
+    request.url.includes('/api/v1/partners/promoters/payouts') &&
+    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)
+  ) {
+    return 'promoter-payout-write';
+  }
+  if (request.url.includes('/api/v1/discovery')) return 'discovery';
+  if (
+    request.url.includes('/checkout/cancel') ||
+    request.url.includes('/refunds/request') ||
+    request.url.includes('/promos/validate') ||
+    request.url.includes('/checkout/promo')
+  ) {
+    return 'commerce-sensitive';
+  }
+  if ((request as any).workspace) return 'workspace';
+  return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) ? 'write' : 'read';
+}
 
 /**
  * 🛡️ Dynamic Rate Limiting Plugin
@@ -140,7 +192,12 @@ export default fp(async (fastify: FastifyInstance) => {
       const workspaceId = req.workspaceId;
       // @ts-ignore - authenticated user key (prevents sharing limit across IPs)
       const uid = req.user?.uid;
-      return workspaceId ? `ws:${workspaceId}` : uid || req.ip;
+      // preValidation executes before Firebase auth decorates request.user. Use a
+      // non-reversible credential fingerprint so authenticated BFF traffic is
+      // not pooled under the Gateway's shared loopback/proxy IP.
+      const credentialKey = getCredentialRateLimitKey(req);
+      const identity = workspaceId ? `ws:${workspaceId}` : uid || credentialKey || req.ip;
+      return `${getRateLimitPolicyBucket(req)}:${identity}`;
     },
     onExceeding: (req: FastifyRequest) => {
       fastify.log.warn(

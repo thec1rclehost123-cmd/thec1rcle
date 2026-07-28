@@ -29,6 +29,7 @@ import { useScannerStore } from '@/store/scannerStore';
 import { fetchWalletByPaymentQr, submitDebit } from '@/lib/scanner';
 import { WalletContext, PresetItem } from '@/lib/scanner/types';
 import { PresetGrid } from '@/components/scanner/PresetGrid';
+import { CoverDeductionOverlay } from '@/components/scanner/CoverDeductionOverlay';
 import { colors } from '@/lib/design/theme';
 
 type ChargeState =
@@ -233,6 +234,8 @@ export default function CoverChargeScreen() {
     safeSetState(setChargeState, 'IDLE');
   };
 
+  const activeSessionToken = sessionToken || eventData?.sessionToken || '';
+
   if (!permission) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -360,6 +363,15 @@ export default function CoverChargeScreen() {
           </Pressable>
         </SafeAreaView>
       )}
+
+      {chargeState === 'WALLET_LOADED' && wallet && activeSessionToken ? (
+        <CoverDeductionOverlay
+          wallet={wallet}
+          sessionToken={activeSessionToken}
+          onSuccess={() => handleNewGuest()}
+          onDismiss={() => handleNewGuest()}
+        />
+      ) : null}
 
       {/* CONFIRM_DEBIT */}
       {chargeState === 'CONFIRM_DEBIT' && wallet && selectedItem && (

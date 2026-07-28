@@ -11,6 +11,8 @@ import { SchedulingService } from '../../../services/unified/scheduling-service.
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
 import { buildPayoutAccountRecord } from '../../../lib/partner-hardening.js';
 import { generateFinanceReportPDF } from '@c1rcle/core/ticket-pdf-engine';
+import { generateReconciliation } from '@c1rcle/core/cover-charge-engine';
+import { loadVenueScopedEvent } from '../../../lib/venueEventScope.js';
 import {
   updateEventPromoterCompensation,
   ensurePromoterLink,
@@ -22,6 +24,7 @@ import {
   getOrderCommerceAmounts,
   getPartnerCommerceRows,
 } from '../../../lib/canonicalCommerceMetrics.js';
+import { getPermissionsForRole, type Permission } from '../../../lib/rbac-permissions.js';
 
 import { uploadPartnerAsset } from '../../../lib/partner-upload.js';
 import {
@@ -46,6 +49,7 @@ const EventFiltersSchema = z
     cursor: z.string().optional(),
     lastId: z.string().optional(),
     limit: z.coerce.number().int().min(1).max(100).optional(),
+    date: z.enum(['today']).optional(),
   })
   .passthrough();
 
@@ -93,6 +97,57 @@ function asRecord(value: unknown): PlainRecord {
 
 function asArray<T = PlainRecord>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
+}
+
+const VENUE_LEDGER_TYPE_ALIASES: Record<string, string> = {
+  ticket_sale: 'venue_share',
+  commission_accrual: 'promoter_commission',
+  chargeback: 'dispute_hold',
+  reserve_hold: 'dispute_hold',
+  reserve_release: 'dispute_release',
+};
+
+const VENUE_LEDGER_CATEGORY_BY_TYPE: Record<string, string> = {
+  ticket_revenue: 'ticket_sale',
+  venue_share: 'ticket_sale',
+  host_payout: 'partner_obligation',
+  promoter_commission: 'commission_accrual',
+  platform_fee: 'platform_fee',
+  refund: 'refund',
+  dispute_hold: 'reserve_hold',
+  dispute_release: 'reserve_release',
+};
+
+const VENUE_LEDGER_STATUS_ALIASES: Record<string, string> = {
+  processing: 'pending',
+  paid: 'settled',
+  held: 'disputed',
+};
+
+function toVenueLedgerTransaction(entry: PlainRecord): PlainRecord {
+  const amountPaise = Number(entry.amountPaise || 0);
+  const category = VENUE_LEDGER_CATEGORY_BY_TYPE[String(entry.type || '')] || entry.type;
+  const status =
+    entry.status === 'settled'
+      ? 'paid'
+      : entry.status === 'disputed'
+        ? 'held'
+        : entry.status || 'pending';
+  return {
+    id: entry.entryId || entry.id,
+    timestamp: entry.createdAt || new Date(0).toISOString(),
+    amount: Math.abs(amountPaise) / 100,
+    amountPaise,
+    currency: entry.currency || 'INR',
+    direction: amountPaise < 0 ? 'out' : 'in',
+    category,
+    status,
+    description: String(entry.type || 'ledger_entry').replace(/_/g, ' '),
+    eventId: entry.eventId || null,
+    partnerId: entry.toPartnerId || null,
+    netAmount: amountPaise / 100,
+    referenceId: entry.referenceId || null,
+  };
 }
 
 import { encrypt, decrypt } from '../../../lib/encryption.js';
@@ -334,6 +389,45 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
     return ctx;
   };
 
+  const requireVenuePermission = async (
+    request: any,
+    reply: any,
+    venueId: string,
+    permission: Permission,
+  ) => {
+    await fastify.enrichAuthContext(request);
+    const membership = request.authContext?.memberships?.find(
+      (candidate: any) =>
+        String(candidate.partnerId) === String(venueId) &&
+        candidate.isActive !== false &&
+        String(candidate.status || 'active').toLowerCase() !== 'removed',
+    );
+    const permissions = getPermissionsForRole(
+      membership?.partnerType || 'venue',
+      membership?.role || '',
+    );
+    if (permissions.includes(permission)) return true;
+
+    request.log.warn(
+      {
+        uid: request.user?.uid,
+        venueId,
+        permission,
+        route: `${request.method} ${request.url}`,
+        requestId: request.id,
+      },
+      'Venue permission denied',
+    );
+    reply.status(403).send(
+      buildErrorResponse({
+        code: 'PERMISSION_REQUIRED',
+        message: `${permission} permission is required`,
+        requestId: request.id,
+      }),
+    );
+    return false;
+  };
+
   const buildLegacyOverviewSummary = async (venueId: string) => {
     const now = new Date();
     const weekAgo = new Date(now);
@@ -455,62 +549,6 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
       cur.setUTCDate(cur.getUTCDate() + 1);
     }
     return dates;
-  };
-
-  const buildLegacyVenueEvents = async (
-    venueId: string,
-    query: Record<string, any>,
-    ownerUid?: string,
-  ) => {
-    const limit = Math.min(parseInt(String(query.limit || '20'), 10) || 20, 100);
-    // Query 1: by venueId. Query 2: creatorId == venueDocId. Query 3 (when uid != docId): creatorId == uid
-    const queries = [
-      fastify.db
-        .collection('events')
-        .where('venueId', '==', venueId)
-        .limit(100)
-        .get()
-        .catch(() => ({ docs: [] as any[] })),
-      fastify.db
-        .collection('events')
-        .where('creatorId', '==', venueId)
-        .limit(100)
-        .get()
-        .catch(() => ({ docs: [] as any[] })),
-    ];
-    if (ownerUid && ownerUid !== venueId) {
-      queries.push(
-        fastify.db
-          .collection('events')
-          .where('creatorId', '==', ownerUid)
-          .limit(100)
-          .get()
-          .catch(() => ({ docs: [] as any[] })),
-      );
-    }
-    const snaps = await Promise.all(queries);
-    const seen = new Set<string>();
-    let events: any[] = [];
-    for (const snap of snaps as any[]) {
-      for (const doc of snap.docs || []) {
-        if (!seen.has(doc.id)) {
-          seen.add(doc.id);
-          events.push({ id: doc.id, ...(doc.data() || {}) });
-        }
-      }
-    }
-    if (query.status && query.status !== 'all') {
-      events = events.filter(
-        (event: any) =>
-          String(event.lifecycle || event.status || '').toLowerCase() ===
-          String(query.status).toLowerCase(),
-      );
-    }
-    events.sort(
-      (a: any, b: any) =>
-        new Date(a.startDate || 0).getTime() - new Date(b.startDate || 0).getTime(),
-    );
-    return { events: events.slice(0, limit) };
   };
 
   const buildLegacyVenuePartnerships = async (venueId: string) => {
@@ -1090,20 +1128,17 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         requireType(ctx, 'venue');
         const filters = {
           status: request.query.status,
+          date: request.query.date,
           cursor: request.query.cursor ?? request.query.lastId,
           limit: request.query.limit,
         };
-        const [result, legacyBody] = await Promise.all([
-          venueService.getEvents(ctx, filters),
-          buildLegacyVenueEvents(ctx.partnerId, request.query, ctx.uid),
-        ]);
-        const events = mergeVenueEvents(asArray(legacyBody.events), asArray(result.data));
+        const result = await venueService.getEvents(ctx, filters);
+        const events = mergeVenueEvents([], asArray(result.data));
         return reply.header('Cache-Control', 'private, max-age=60').send({
-          ...legacyBody,
           events,
           data: events,
-          hasMore: Boolean(result.hasMore ?? (legacyBody as any).hasMore),
-          nextCursor: result.nextCursor ?? (legacyBody as any).nextCursor ?? null,
+          hasMore: Boolean(result.hasMore),
+          nextCursor: result.nextCursor,
         });
       } catch (err: any) {
         if (err.statusCode)
@@ -1363,6 +1398,16 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         const query = asRecord(request.query);
         const body = asRecord(request.body);
 
+        if (rest.startsWith('finance/')) {
+          const requiredPermission: Permission =
+            request.method === 'GET' || request.method === 'HEAD'
+              ? 'VIEW_FINANCIALS'
+              : 'MANAGE_PAYOUTS';
+          if (!(await requireVenuePermission(request, reply, ctx.partnerId, requiredPermission))) {
+            return;
+          }
+        }
+
         if (rest === 'profile' && request.method === 'GET') {
           const doc = await fastify.db.collection('venues').doc(ctx.partnerId).get();
           if (!doc.exists)
@@ -1613,15 +1658,41 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const pageSize = Math.min(parseInt(String(query.limit || '20'), 10) || 20, 100);
           let q: any = fastify.db.collection('orders').where('venueId', '==', ctx.partnerId);
           if (query.status) q = q.where('status', '==', query.status);
-          const snap = await q
-            .limit(500)
-            .get()
-            .catch(() => ({ docs: [] as any[] }));
+          if (query.eventId) q = q.where('eventId', '==', String(query.eventId));
+          if (query.startDate) q = q.where('createdAt', '>=', String(query.startDate));
+          if (query.endDate) q = q.where('createdAt', '<=', String(query.endDate));
+          q = q.orderBy('createdAt', 'desc').limit(pageSize + 1);
+          if (query.cursor) {
+            const cursorDoc = await fastify.db.collection('orders').doc(String(query.cursor)).get();
+            if (cursorDoc.exists) q = q.startAfter(cursorDoc);
+          }
+          let snap;
+          try {
+            snap = await q.get();
+          } catch (error: any) {
+            request.log.error(
+              {
+                venueId: ctx.partnerId,
+                error: error?.message || String(error),
+                requestId: request.id,
+              },
+              'Canonical paginated Venue orders query failed',
+            );
+            return reply.status(503).send(
+              buildErrorResponse({
+                code: 'ORDER_DATA_UNAVAILABLE',
+                message: 'Order data is temporarily unavailable',
+                requestId: request.id,
+              }),
+            );
+          }
+          const docs = ((snap as any).docs || []).slice(0, pageSize);
+          const hasMore = ((snap as any).docs || []).length > pageSize;
           const orderAmounts = await getOrderCommerceAmounts(
             fastify.db,
-            ((snap as any).docs || []).map((doc: any) => doc.id),
+            docs.map((doc: any) => doc.id),
           );
-          const allOrders = ((snap as any).docs || []).map((doc: any) => {
+          let orders = docs.map((doc: any) => {
             const d = doc.data() || {};
             return {
               id: doc.id,
@@ -1641,25 +1712,38 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               promoterCode: d.promoterCode || null,
             };
           });
-          allOrders.sort(
-            (a: any, b: any) =>
-              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
-          );
-          const page = parseInt(String(query.page || '1'), 10) || 1;
-          const start = (page - 1) * pageSize;
-          const orders = allOrders.slice(start, start + pageSize);
-          const hasMore = allOrders.length > start + pageSize;
+          const search = String(query.q || '')
+            .trim()
+            .toLowerCase();
+          if (search) {
+            orders = orders.filter((order: any) =>
+              [order.id, order.customerName, order.email, order.phone, order.eventTitle]
+                .filter(Boolean)
+                .some((value) => String(value).toLowerCase().includes(search)),
+            );
+          }
           return reply.send({
             orders,
             hasMore,
-            nextCursor: hasMore ? orders[orders.length - 1]?.id : null,
-            pagination: { total: allOrders.length, limit: pageSize, page, hasMore },
+            nextCursor: hasMore ? docs[docs.length - 1]?.id : null,
+            pagination: {
+              limit: pageSize,
+              hasMore,
+              nextCursor: hasMore ? docs[docs.length - 1]?.id : null,
+            },
           });
         }
 
         if (rest === 'analytics/time-series' && request.method === 'GET') {
           const range = String(query.range || '1w');
           const metric = String(query.metric || 'revenue');
+          const cacheKey = `venue:${ctx.partnerId}:analytics:time-series:${range}:${metric}:v1`;
+          const cachedSeries = await fastify.cache.get('partner-analytics', cacheKey);
+          if (cachedSeries) {
+            return reply
+              .header('Cache-Control', 'private, max-age=15')
+              .send({ ...cachedSeries, fromCache: true });
+          }
           const now = new Date();
           const points = range === '1d' ? 24 : range === '1w' ? 7 : 30;
           const windowStart = new Date(now);
@@ -1716,13 +1800,16 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               ticketsSold: v.ticketsSold,
             };
           });
-          return reply.send({
+          const responsePayload = {
             series,
             total: series.reduce(
               (sum, point) => sum + (metric === 'revenue' ? point.revenue : point.ticketsSold),
               0,
             ),
-          });
+            fromCache: false,
+          };
+          await fastify.cache.set('partner-analytics', cacheKey, responsePayload, 15);
+          return reply.header('Cache-Control', 'private, max-age=15').send(responsePayload);
         }
 
         if ((rest === 'overview' || rest === 'overview/summary') && request.method === 'GET') {
@@ -1966,6 +2053,12 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 eventName: d.eventTitle || d.eventName || 'Event',
                 entryTime: d.checkedInAt || d.createdAt || null,
                 status: d.checkedInAt ? 'checked_in' : 'paid',
+                marketingConsent: {
+                  allowPlatformMessages: d.marketingConsent?.allowPlatformMessages === true,
+                  allowDirectContactShare: d.marketingConsent?.allowDirectContactShare === true,
+                  consentStatement: d.marketingConsent?.consentStatement || null,
+                  recordedAt: d.marketingConsent?.recordedAt || null,
+                },
               };
             }),
           });
@@ -2260,6 +2353,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                   updatedAt: now,
                 });
               }
+              fastify.invalidateAuthMembershipCache(staffData.userId);
             }
             return reply.send({ success: true });
           }
@@ -2292,6 +2386,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 updatedAt: now,
               });
             }
+            fastify.invalidateAuthMembershipCache(staffData.userId);
           }
 
           return reply.send({ success: true });
@@ -2339,6 +2434,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 updatedAt: now,
               });
             }
+            fastify.invalidateAuthMembershipCache(staffData.userId);
           }
 
           return reply.send({ success: true });
@@ -2354,6 +2450,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
               updatedAt: new Date().toISOString(),
             });
+          fastify.invalidateAuthMembershipCache();
           return reply.send({ success: true });
         }
         if (membershipStaffMatch && request.method === 'DELETE') {
@@ -2361,6 +2458,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             .collection('partner_memberships')
             .doc(membershipStaffMatch[1])
             .update({ isActive: false, removedAt: new Date().toISOString() });
+          fastify.invalidateAuthMembershipCache();
           return reply.send({ success: true });
         }
 
@@ -3020,6 +3118,13 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const page = parseInt(String(query.page || '1'), 10) || 1;
           const limit = Math.min(parseInt(String(query.limit || '50'), 10) || 50, 100);
 
+          // ⚡ Performance: Check Redis cache before expensive 3-collection scan
+          const attendeeCacheKey = `attendees:${evtId}:${query.tierId || 'all'}:${query.source || 'all'}:${query.status || 'all'}:${query.q || ''}:p${page}:l${limit}`;
+          if (fastify.cache) {
+            const cached = await fastify.cache.get('venue:attendees', attendeeCacheKey);
+            if (cached) return reply.send(cached);
+          }
+
           let qOrders: any = fastify.db
             .collection('orders')
             .where('eventId', '==', evtId)
@@ -3146,7 +3251,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             id: t.id || String(i),
             name: t.name || 'Ticket',
           }));
-          return reply.send({
+          const attendeeResponse = {
             attendees,
             pagination: { page, limit, total, totalPages },
             filters: {
@@ -3154,7 +3259,14 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               sourceOptions: ['online', 'door', 'promoter'],
               statusOptions: ['checked_in', 'not_arrived'],
             },
-          });
+          };
+
+          // ⚡ Write-through: cache attendee result for 120s
+          if (fastify.cache) {
+            await fastify.cache.set('venue:attendees', attendeeCacheKey, attendeeResponse, 120);
+          }
+
+          return reply.send(attendeeResponse);
         }
 
         const eventPromotersMatch = rest.match(/^events\/([^/]+)\/promoters$/);
@@ -3997,12 +4109,17 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 new Date(b.startDate || 0).getTime() - new Date(a.startDate || 0).getTime(),
             );
           if (!eventId) return reply.send({ events, reconciliation: null });
-          const reconDoc = await fastify.db
-            .collection('cover_wallet_reconciliations')
-            .doc(eventId)
-            .get();
-          if (!reconDoc.exists) return reply.send({ events, reconciliation: null });
-          const raw = reconDoc.data() as any;
+          const scopedEvent = await loadVenueScopedEvent(fastify.db, eventId, ctx.partnerId);
+          if (!scopedEvent) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Reconciliation not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          const raw = (await generateReconciliation(eventId, ctx.partnerId)) as any;
           const summary = raw.summary ?? raw;
           const grossCollection = Number(summary.openingBalancePaise ?? 0);
           const totalRedeemed = Number(
@@ -4012,11 +4129,15 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             summary.netVenueForfeitedValuePaise ?? summary.expiredBalancePaise ?? 0,
           );
           const walletsIssued = Number(summary.walletsIssued ?? 0);
-          const ticketRevenuePaise = (await getEventCommerceMetrics(fastify.db, eventId))
-            .netRevenuePaise;
-          const payoutTotal = Math.round(ticketRevenuePaise * 0.7) + breakageRevenue;
-          const isLive =
-            eventsSnap.docs.find((doc: any) => doc.id === eventId)?.data()?.status === 'live';
+          const commerce = await getEventCommerceMetrics(fastify.db, eventId);
+          const ticketRevenuePaise = commerce.netRevenuePaise;
+          const canonicalVenueSharePaise = commerce.ledgerEntries
+            .filter(
+              (entry: any) =>
+                entry.type === 'venue_share' && String(entry.toPartnerId) === String(ctx.partnerId),
+            )
+            .reduce((sum: number, entry: any) => sum + Number(entry.amountPaise || 0), 0);
+          const isLive = scopedEvent.data.status === 'live';
           return reply.send({
             events,
             reconciliation: {
@@ -4026,11 +4147,12 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               breakageRevenue,
               walletsIssued,
               ticketRevenuePaise,
-              payoutTotal,
-              venueTicketSplitPct: 70,
+              canonicalVenueSharePaise,
+              payoutTotal: canonicalVenueSharePaise,
               isLive: Boolean(isLive),
               itemDistribution: Array.isArray(raw.itemDistribution) ? raw.itemDistribution : [],
               exceptionList: Array.isArray(summary.exceptionList) ? summary.exceptionList : [],
+              reconciliationDifferencePaise: Number(summary.reconciliationDifferencePaise || 0),
             },
           });
         }
@@ -4368,12 +4490,31 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           }
 
           if (gopsPath === 'scanner/devices' && request.method === 'GET') {
-            const snap = await fastify.db
-              .collection('scanner_devices')
-              .where('venueId', '==', ctx.partnerId)
-              .where('eventId', '==', gopsEventId)
-              .get()
-              .catch(() => ({ docs: [] as any[] }));
+            let snap;
+            try {
+              snap = await fastify.db
+                .collection('scanner_devices')
+                .where('venueId', '==', ctx.partnerId)
+                .where('eventId', '==', gopsEventId)
+                .limit(100)
+                .get();
+            } catch (error: any) {
+              request.log.error(
+                {
+                  venueId: ctx.partnerId,
+                  eventId: gopsEventId,
+                  error: error?.message || String(error),
+                },
+                'Scanner device query failed',
+              );
+              return reply.status(503).send(
+                buildErrorResponse({
+                  code: 'SCANNER_DATA_UNAVAILABLE',
+                  message: 'Scanner device status is temporarily unavailable',
+                  requestId: request.id,
+                }),
+              );
+            }
             return reply.send({
               devices: ((snap as any).docs || []).map((doc: any) => ({
                 id: doc.id,
@@ -4384,22 +4525,41 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
           if (gopsPath === 'scanner/stream' && request.method === 'GET') {
             const limit = Math.min(parseInt(String(query.limit || '50'), 10) || 50, 100);
-            const snap = await fastify.db
-              .collection('ticket_scans')
-              .where('eventId', '==', gopsEventId)
-              .orderBy('scannedAt', 'desc')
-              .limit(limit)
-              .get()
-              .catch(async () => {
+            let snap;
+            try {
+              snap = await fastify.db
+                .collection('ticket_scans')
+                .where('eventId', '==', gopsEventId)
+                .orderBy('scannedAt', 'desc')
+                .limit(limit)
+                .get();
+            } catch {
+              try {
                 // fallback to check_ins
-                return fastify.db
+                snap = await fastify.db
                   .collection('check_ins')
                   .where('eventId', '==', gopsEventId)
                   .orderBy('checkedInAt', 'desc')
                   .limit(limit)
-                  .get()
-                  .catch(() => ({ docs: [] as any[] }));
-              });
+                  .get();
+              } catch (error: any) {
+                request.log.error(
+                  {
+                    venueId: ctx.partnerId,
+                    eventId: gopsEventId,
+                    error: error?.message || String(error),
+                  },
+                  'Scanner stream query failed',
+                );
+                return reply.status(503).send(
+                  buildErrorResponse({
+                    code: 'SCANNER_DATA_UNAVAILABLE',
+                    message: 'Live scan activity is temporarily unavailable',
+                    requestId: request.id,
+                  }),
+                );
+              }
+            }
             const scans = ((snap as any).docs || []).map((doc: any) => {
               const d = doc.data() || {};
               return {
@@ -4791,7 +4951,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             incidents.push({
               id: randomUUID(),
               ...body.data,
-              loggedBy: body.user?.uid || ctx.uid,
+              loggedBy: ctx.uid,
+              loggedByName: ctx.displayName,
               status: 'open',
               createdAt: regNow,
             });
@@ -4823,6 +4984,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                       ...inc,
                       status: 'resolved',
                       resolution: body.data?.resolution,
+                      resolvedBy: ctx.uid,
+                      resolvedByName: ctx.displayName,
                       resolvedAt: regNow,
                     }
                   : inc,
@@ -5403,9 +5566,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         const financeDisputesMatch = rest === 'finance/disputes';
 
         if (financeOverviewMatch && request.method === 'GET') {
-          const [overview, balances, payoutsSnap, accountsSnap] = await Promise.all([
+          const [overview, payoutsSnap, accountsSnap] = await Promise.all([
             financeService.getOverview(ctx),
-            financeService.getBalances(ctx),
             fastify.db
               .collection('payouts')
               .where('recipientId', '==', ctx.partnerId)
@@ -5438,15 +5600,15 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           return reply.send({
             period: String(query.period || '30d'),
             metrics: {
-              availableBalance: toNumber(balances.available),
-              pendingPayouts: toNumber(balances.pending),
+              availableBalance: toNumber(overview.settledPayouts),
+              pendingPayouts: toNumber(overview.pendingPayouts),
               settledPayouts,
               totalRevenue: toNumber(overview.totalRevenue),
               currency: overview.currency || 'INR',
               payoutState,
             },
             grossRevenue: toNumber(overview.totalRevenue),
-            pendingPayout: toNumber(balances.pending),
+            pendingPayout: toNumber(overview.pendingPayouts),
             recentPayouts,
             revenueByPeriod: overview.revenueByPeriod || [],
           });
@@ -5492,42 +5654,67 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
         if (financeLedgerMatch && request.method === 'GET') {
           const pageSize = Math.min(parseInt(String(query.limit || '20'), 10) || 20, 100);
-          let q: any = fastify.db
-            .collection('partner_ledger')
-            .where('partnerId', '==', ctx.partnerId);
-          if (query.category) q = q.where('category', '==', query.category);
-          if (query.status) q = q.where('status', '==', query.status);
-          const snap = await q
-            .limit(200)
-            .get()
-            .catch(() => ({ docs: [] as any[] }));
-          let entries = ((snap as any).docs || []).map((doc: any) => ({
-            id: doc.id,
-            ...(doc.data() || {}),
-          }));
-          if (query.q) {
-            const term = String(query.q).toLowerCase();
-            entries = entries.filter((e: any) =>
-              String(e.description || e.label || e.eventName || '')
-                .toLowerCase()
-                .includes(term),
+          const rawCategory = String(query.category || query.type || '');
+          const rawStatus = String(query.status || '');
+          const canonicalType = rawCategory
+            ? VENUE_LEDGER_TYPE_ALIASES[rawCategory] || rawCategory
+            : undefined;
+          const canonicalStatus = rawStatus
+            ? VENUE_LEDGER_STATUS_ALIASES[rawStatus] || rawStatus
+            : undefined;
+          const unsupportedStatus = canonicalStatus === 'failed';
+          if (unsupportedStatus) {
+            return reply.send({
+              transactions: [],
+              pagination: { limit: pageSize, hasMore: false, nextCursor: null },
+            });
+          }
+          const ledgerCacheKey = JSON.stringify({
+            partnerId: ctx.partnerId,
+            from: query.from || null,
+            to: query.to || null,
+            type: canonicalType || null,
+            status: canonicalStatus || null,
+            cursor: query.cursor || null,
+            limit: pageSize,
+            search: query.search || query.q || null,
+          });
+          const cachedLedger = await fastify.cache.get('partner-finance-ledger', ledgerCacheKey);
+          if (cachedLedger) {
+            return reply
+              .header('Cache-Control', 'private, max-age=15')
+              .send({ ...cachedLedger, fromCache: true });
+          }
+          const result = await financeService.getLedger(ctx, {
+            from: query.from ? String(query.from) : undefined,
+            to: query.to ? String(query.to) : undefined,
+            type: canonicalType as any,
+            status: canonicalStatus as any,
+            cursor: query.cursor ? String(query.cursor) : undefined,
+            limit: pageSize,
+          });
+          let transactions = result.data.map((entry: any) => toVenueLedgerTransaction(entry));
+          const search = String(query.search || query.q || '')
+            .trim()
+            .toLowerCase();
+          if (search) {
+            transactions = transactions.filter((entry: any) =>
+              [entry.id, entry.referenceId, entry.description, entry.eventId]
+                .filter(Boolean)
+                .some((value) => String(value).toLowerCase().includes(search)),
             );
           }
-          entries.sort(
-            (a: any, b: any) =>
-              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
-          );
-          const page = parseInt(String(query.p || '1'), 10) || 1;
-          const start = (page - 1) * pageSize;
-          return reply.send({
-            transactions: entries.slice(start, start + pageSize),
+          const ledgerPayload = {
+            transactions,
             pagination: {
-              total: entries.length,
-              page,
               limit: pageSize,
-              hasMore: entries.length > start + pageSize,
+              hasMore: result.hasMore,
+              nextCursor: result.nextCursor,
             },
-          });
+            fromCache: false,
+          };
+          await fastify.cache.set('partner-finance-ledger', ledgerCacheKey, ledgerPayload, 15);
+          return reply.header('Cache-Control', 'private, max-age=15').send(ledgerPayload);
         }
 
         if (financePaymentsMatch && request.method === 'GET') {

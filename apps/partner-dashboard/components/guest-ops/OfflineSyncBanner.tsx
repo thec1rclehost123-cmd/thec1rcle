@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wifi, WifiOff, RefreshCw, Cloud, CloudOff, Upload } from 'lucide-react';
+import { WifiOff, RefreshCw, Cloud, CloudOff, AlertTriangle } from 'lucide-react';
 import type { SyncState } from '@/lib/client/offlineGuestSync';
 
 interface OfflineSyncBannerProps {
@@ -40,7 +40,7 @@ export function OfflineSyncBanner({ syncState, onForceSync }: OfflineSyncBannerP
         ) : isOffline ? (
           <>
             <WifiOff className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-            <span className="text-amber-400">Offline — showing cached guestlist</span>
+            <span className="text-amber-400">Offline — live guest operations unavailable</span>
           </>
         ) : isError ? (
           <>
@@ -51,7 +51,7 @@ export function OfflineSyncBanner({ syncState, onForceSync }: OfflineSyncBannerP
           <>
             <Cloud className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
             <span className="text-zinc-500">
-              {syncState.totalGuests} guests · synced {formatTime(syncState.lastSynced)}
+              Server connection ready · checked {formatTime(syncState.lastSynced)}
             </span>
           </>
         )}
@@ -59,10 +59,9 @@ export function OfflineSyncBanner({ syncState, onForceSync }: OfflineSyncBannerP
         {hasQueue && (
           <>
             <span className="text-zinc-700">·</span>
-            <span className="flex items-center gap-1 text-amber-400">
-              <Upload className="h-3 w-3" />
-              {syncState.queuedCount} check-in{syncState.queuedCount !== 1 ? 's' : ''} pending
-              upload
+            <span className="flex items-center gap-1 text-red-400">
+              <AlertTriangle className="h-3 w-3" />
+              Unexpected local queue detected — admission remains blocked
             </span>
           </>
         )}
@@ -91,8 +90,8 @@ export function OfflineSyncBanner({ syncState, onForceSync }: OfflineSyncBannerP
               <div className="flex-1">
                 <p className="text-sm font-medium text-amber-300">You're offline</p>
                 <p className="text-xs text-amber-400/80 mt-0.5">
-                  Guestlist is read from local cache. Check-ins will be queued and uploaded
-                  automatically when you reconnect.
+                  Check-ins and scanner actions require the server and are disabled while offline.
+                  No admission will be queued for later acceptance.
                 </p>
               </div>
             </div>

@@ -21,6 +21,17 @@ import {
 } from 'lucide-react';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { getCachedFirebaseIdToken } from '@/lib/auth/getCachedFirebaseIdToken';
+import {
+  buildHostVenueCalendarUrl,
+  getHostVenueCalendarDays,
+  nightlifeTimeRangesOverlap,
+} from '@/lib/host/venueCalendar';
+import {
+  buildWizardDraftStorageKey,
+  migrateWizardDraftRecovery,
+  removeWizardDraftRecovery,
+} from '@/lib/host/wizardDraftStorage';
 
 // Step Components
 import { IdentityStep, ExperienceStep } from './steps';
@@ -294,8 +305,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         console.error('[WizardV2] authedFetch called without user');
         throw new Error('Not authenticated');
       }
-      // Force refresh token to ensure it's valid
-      const token = await user.getIdToken(true);
+      const token = await getCachedFirebaseIdToken(user);
       return fetch(url, {
         ...options,
         headers: {
@@ -338,6 +348,16 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     endTime: string;
   } | null>(null);
   const draftCreateInFlightRef = useRef<Promise<string | null> | null>(null);
+  const getDraftStorageKey = useCallback(
+    (eventId: string | null | undefined) =>
+      buildWizardDraftStorageKey({
+        uid: profile?.uid,
+        role,
+        partnerId: profile?.activeMembership?.partnerId,
+        eventId: eventId || 'new',
+      }),
+    [profile?.activeMembership?.partnerId, profile?.uid, role],
+  );
 
   // Form Data
   const [formData, setFormData] = useState<any>(() => ({
@@ -429,8 +449,12 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
       });
       const endpoint =
         role === 'host'
-          ? `/api/host/venue-calendar?venueId=${venueId}&${params.toString()}`
-          : `/api/venues/${venueId}/calendar?${params.toString()}`;
+          ? buildHostVenueCalendarUrl({
+              venueId,
+              startDate,
+              endDate: startDate,
+            })
+          : `/api/venues/${encodeURIComponent(venueId)}/calendar?${params.toString()}`;
       const res = await authedFetch(endpoint);
       const data = await res.json();
 
@@ -440,19 +464,9 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         throw new Error(data.message || slotErrMsg || 'Failed to check slot availability');
       }
 
-      const calendarDays = Array.isArray(data) ? data : data.calendar || data.days || [];
+      const calendarDays = getHostVenueCalendarDays(data);
       const day = calendarDays[0];
       if (!day) return { available: true, reason: '' };
-
-      const toExtendedMinutes = (time: string) => {
-        const [hour, minute] = time.split(':').map(Number);
-        let total = hour * 60 + minute;
-        if (hour < 12) total += 24 * 60;
-        return total;
-      };
-
-      const requestedStart = toExtendedMinutes(startTime);
-      const requestedEnd = toExtendedMinutes(endTime);
 
       const isBlocked =
         String(day.status || '').toLowerCase() === 'blocked' ||
@@ -488,9 +502,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
           const sEnd = slot.endTime || slot.requestedEndTime;
           if (!sStart || !sEnd) return true;
 
-          const slotStart = toExtendedMinutes(sStart);
-          const slotEnd = toExtendedMinutes(sEnd);
-          return requestedStart < slotEnd && slotStart < requestedEnd;
+          return nightlifeTimeRangesOverlap(startTime, endTime, sStart, sEnd);
         });
 
         if (hasOverlap) {
@@ -584,6 +596,11 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         const draftId = data.event?.id || null;
 
         if (draftId) {
+          migrateWizardDraftRecovery(
+            localStorage,
+            getDraftStorageKey('new'),
+            getDraftStorageKey(draftId),
+          );
           setSavedDraftId(draftId);
           const params = new URLSearchParams(searchParams.toString());
           params.set('id', draftId);
@@ -607,6 +624,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
       router,
       savedDraftId,
       searchParams,
+      getDraftStorageKey,
     ],
   );
 
@@ -1003,9 +1021,10 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
   // 1. Load Local Recovery Snapshot (Crash recovery)
   useEffect(() => {
-    if (!profile?.uid || isLoadingDraft) return;
+    if (isLoadingDraft) return;
     const currentId = searchParams.get('id') || 'new';
-    const storageKey = `c1rcle_draft_event_v2_${profile.uid}_${currentId}`;
+    const storageKey = getDraftStorageKey(currentId);
+    if (!storageKey) return;
     const stored = localStorage.getItem(storageKey);
 
     if (stored) {
@@ -1021,7 +1040,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         console.error('Failed to parse local draft', e);
       }
     }
-  }, [profile?.uid, searchParams, isLoadingDraft]);
+  }, [searchParams, isLoadingDraft, getDraftStorageKey]);
 
   // 2. Fetch remote draft if ID is in URL
   useEffect(() => {
@@ -1128,8 +1147,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
   // Auto-save to localStorage
   useEffect(() => {
-    if (!profile?.uid) return;
-    const storageKey = `c1rcle_draft_event_v2_${profile.uid}_${savedDraftId || 'new'}`;
+    const storageKey = getDraftStorageKey(savedDraftId || 'new');
+    if (!storageKey) return;
     const enrichedData = {
       ...formData,
       draftMeta: {
@@ -1140,7 +1159,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
       },
     };
     localStorage.setItem(storageKey, JSON.stringify(enrichedData));
-  }, [formData, savedDraftId, profile?.uid, currentStep]);
+  }, [formData, savedDraftId, currentStep, getDraftStorageKey]);
 
   // Remote auto-save (debounced)
   useEffect(() => {
@@ -1228,7 +1247,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         profile?.activeMembership?.partnerName || profile?.displayName || 'C1RCLE Host';
       const currentLifecycle = String(formData.lifecycle || '').toLowerCase();
       const isResubmission =
-        role === 'host' && ['needs_changes', 'denied'].includes(currentLifecycle);
+        role === 'host' &&
+        ['needs_changes', 'denied', 'changes_requested', 'rejected'].includes(currentLifecycle);
 
       const payload: any = {
         ...formData,
@@ -1333,10 +1353,12 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         const eventResult = await res.json();
         const draftId = eventResult.id || eventResult.event?.id;
 
-        if (profile?.uid) {
-          const storageKey = `c1rcle_draft_event_v2_${profile.uid}_${savedDraftId || 'new'}`;
-          localStorage.removeItem(storageKey);
-        }
+        removeWizardDraftRecovery(localStorage, [
+          getDraftStorageKey('new'),
+          getDraftStorageKey(savedDraftId),
+          getDraftStorageKey(effectiveDraftId),
+          getDraftStorageKey(draftId),
+        ]);
 
         if (draftId && !savedDraftId) {
           setSavedDraftId(draftId);

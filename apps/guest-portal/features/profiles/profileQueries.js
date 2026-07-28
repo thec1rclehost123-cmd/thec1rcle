@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { getApiErrorMessage, guestApi } from '../../lib/api/client';
-import { isGuestBffEnabled } from '../../lib/bff/flags.js';
+import { getGuestBffFlags, isGuestBffEnabled } from '../../lib/bff/flags.js';
 import { fetchGuestBffProfileDetail } from '../../lib/bff/fetchers.js';
 import { logGuestBffParity } from '../../lib/bff/parity.js';
 
@@ -22,15 +22,19 @@ export async function fetchGuestProfile(userId, viewerId) {
       viewer: overview?.viewer || null,
     };
 
-    try {
-      const { response, data } = await guestApi.profiles.get(userId, { credentials: 'include' });
-      if (response.ok) {
-        logGuestBffParity('profile.detail', data, nextData, {
-          userId,
-          viewerId,
+    if (getGuestBffFlags().parity) {
+      try {
+        const { response, data } = await guestApi.profiles.get(userId, {
+          credentials: 'include',
         });
-      }
-    } catch {}
+        if (response.ok) {
+          logGuestBffParity('profile.detail', data, nextData, {
+            userId,
+            viewerId,
+          });
+        }
+      } catch {}
+    }
 
     return nextData;
   }

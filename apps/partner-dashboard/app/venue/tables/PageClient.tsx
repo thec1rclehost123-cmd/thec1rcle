@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Layout,
   Plus,
@@ -22,6 +22,7 @@ import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VenuePageShell, VenueActionButton } from '@/components/venue-layout/VenuePageShell';
 import { BentoCard } from '@/components/ui/BentoCard';
+import { buildTonightEventUrl, calculateTableCapacity } from '@/lib/venue/tableQueries';
 
 const TABLE_TYPES = [
   { id: 'standard', label: 'Standard', icon: Armchair, color: 'var(--v-text-muted)' },
@@ -33,6 +34,7 @@ const TABLE_TYPES = [
 
 export default function TablesPage() {
   const { profile, getIdToken } = useDashboardAuth();
+  const venueId = profile?.activeMembership?.partnerId ?? '';
   const [mode, setMode] = useState<'setup' | 'tonight'>('setup');
   const [tables, setTables] = useState<any[]>([]);
   const [tonightEvent, setTonightEvent] = useState<any>(null);
@@ -43,81 +45,89 @@ export default function TablesPage() {
   const [editingTable, setEditingTable] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const authedFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const token = await getIdToken();
-    if (!token) throw new Error('Authentication required');
-    const headers = new Headers(init.headers);
-    headers.set('Authorization', `Bearer ${token}`);
-    return fetch(input, { ...init, headers });
-  };
+  const authedFetch = useCallback(
+    async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const token = await getIdToken();
+      if (!token) throw new Error('Authentication required');
+      const headers = new Headers(init.headers);
+      headers.set('Authorization', `Bearer ${token}`);
+      return fetch(input, { ...init, headers });
+    },
+    [getIdToken],
+  );
 
-  const fetchTables = async () => {
-    if (!profile?.activeMembership?.partnerId) return;
+  const fetchTables = useCallback(async () => {
+    if (!venueId) return;
     setIsLoading(true);
     try {
-      const res = await authedFetch(
-        `/api/partners/venues/tables?venueId=${profile.activeMembership.partnerId}`,
-      );
+      const res = await authedFetch(`/api/partners/venues/tables?venueId=${venueId}`);
       if (res.ok) {
         const data = await res.json();
-        setTables(data);
+        setTables(Array.isArray(data) ? data : []);
       }
     } catch (err) {
       console.error(err);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [authedFetch, venueId]);
 
-  const fetchTonightEvent = async () => {
-    if (!profile?.activeMembership?.partnerId) return;
+  const fetchEventStatus = useCallback(
+    async (eventId: string) => {
+      try {
+        const res = await authedFetch(`/api/partners/venues/tables?eventId=${eventId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setEventTableStatus(data);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    },
+    [authedFetch],
+  );
+
+  const fetchTonightEvent = useCallback(async () => {
+    if (!venueId) return;
     try {
-      const res = await authedFetch(
-        `/api/partners/venues/events?venueId=${profile.activeMembership.partnerId}&limit=1`,
-      );
+      const res = await authedFetch(buildTonightEventUrl(venueId));
       if (res.ok) {
         const data = await res.json();
         if (data.events?.[0]) {
           setTonightEvent(data.events[0]);
-          fetchEventStatus(data.events[0].id);
+          await fetchEventStatus(data.events[0].id);
+        } else {
+          setTonightEvent(null);
+          setEventTableStatus(null);
         }
       }
     } catch (err) {
       console.error(err);
     }
-  };
-
-  const fetchEventStatus = async (eventId: string) => {
-    try {
-      const res = await authedFetch(`/api/partners/venues/tables?eventId=${eventId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setEventTableStatus(data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  }, [authedFetch, fetchEventStatus, venueId]);
 
   useEffect(() => {
-    fetchTables();
-    fetchTonightEvent();
-  }, [profile]);
+    void fetchTables();
+  }, [fetchTables]);
+
+  useEffect(() => {
+    if (mode === 'tonight') void fetchTonightEvent();
+  }, [mode, fetchTonightEvent]);
 
   const handleSaveTable = async (tableData: any) => {
-    if (!profile?.activeMembership?.partnerId) return;
+    if (!venueId) return;
     setIsSaving(true);
     try {
       const res = await authedFetch('/api/partners/venues/tables', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          venueId: profile.activeMembership.partnerId,
+          venueId,
           table: tableData,
         }),
       });
       if (res.ok) {
-        fetchTables();
+        await fetchTables();
         setShowAddModal(false);
         setEditingTable(null);
       }
@@ -143,7 +153,7 @@ export default function TablesPage() {
           notes,
         }),
       });
-      fetchEventStatus(tonightEvent.id);
+      await fetchEventStatus(tonightEvent.id);
     } catch (err) {
       console.error(err);
     } finally {
@@ -157,20 +167,27 @@ export default function TablesPage() {
       const res = await authedFetch(`/api/partners/venues/tables?tableId=${tableId}`, {
         method: 'DELETE',
       });
-      if (res.ok) fetchTables();
+      if (res.ok) await fetchTables();
     } catch (err) {
       console.error(err);
     }
   };
 
-  const filteredTables = tables.filter(
-    (t) =>
-      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.location?.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const filteredTables = useMemo(() => {
+    const normalizedQuery = searchQuery.toLowerCase();
+    return tables.filter(
+      (table) =>
+        String(table.name || '')
+          .toLowerCase()
+          .includes(normalizedQuery) ||
+        String(table.location || '')
+          .toLowerCase()
+          .includes(normalizedQuery),
+    );
+  }, [searchQuery, tables]);
 
-  const totalCapacity = (tables as any).totalCapacity ?? 0;
-  const vvipCount = tables.filter((t) => t.type === 'vvip').length;
+  const totalCapacity = useMemo(() => calculateTableCapacity(tables), [tables]);
+  const vvipCount = useMemo(() => tables.filter((table) => table.type === 'vvip').length, [tables]);
 
   if (isLoading) {
     return (
@@ -353,11 +370,11 @@ export default function TablesPage() {
               <div>
                 <span className="v-label text-[9px]">TONIGHT&apos;S PRODUCTION</span>
                 <h2 className="text-xl font-black mt-1" style={{ color: 'var(--v-text-primary)' }}>
-                  {tonightEvent?.name || 'No Live Event'}
+                  {tonightEvent?.title || tonightEvent?.name || 'No Live Event'}
                 </h2>
                 <p className="text-[12px] mt-0.5" style={{ color: 'var(--v-text-tertiary)' }}>
-                  {tonightEvent?.start_date
-                    ? new Date(tonightEvent.start_date).toDateString()
+                  {tonightEvent?.startDate
+                    ? new Date(tonightEvent.startDate).toDateString()
                     : 'N/A'}
                 </p>
               </div>

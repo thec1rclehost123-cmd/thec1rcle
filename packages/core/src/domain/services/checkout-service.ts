@@ -268,6 +268,7 @@ export class CheckoutService {
       promoterCode?: string;
       linkId?: string | null;
       sourceChannel?: string;
+      hostUpdatesOptIn?: boolean;
     },
     workspaceId?: string | null,
   ): Promise<any> {
@@ -281,14 +282,18 @@ export class CheckoutService {
       promoterCode,
       linkId,
       sourceChannel,
+      hostUpdatesOptIn,
     } = params;
     const startTime = Date.now();
 
     try {
-      // 1. Validate Reservation
-      const reservation = await this.inventory.validateAndExpire(reservationId);
-
-      const existingOrder = await this.orderRepo.getOrderByReservationId(reservationId);
+      // 1. Validate reservation and resolve an idempotent replay in parallel.
+      // They are independent reads; serializing them adds a full Firestore RTT
+      // to every payment initialization.
+      const [reservation, existingOrder] = await Promise.all([
+        this.inventory.validateAndExpire(reservationId),
+        this.orderRepo.getOrderByReservationId(reservationId),
+      ]);
       if (existingOrder && reservation.status !== 'active') {
         return this.buildExistingOrderResponse(existingOrder, reservationId);
       }
@@ -521,6 +526,7 @@ export class CheckoutService {
           promoterAttribution,
           financialAttribution,
           sourceChannel: sourceChannel || (promoterAttribution ? 'promoter_link' : 'direct'),
+          hostUpdatesOptIn: hostUpdatesOptIn === true,
           workspaceId: resolvedWorkspaceId,
         });
 
@@ -567,8 +573,17 @@ export class CheckoutService {
   /**
    * Payment Orchestration
    */
-  async preparePayment(orderId: string, userId: string, razorpayConfig: any): Promise<any> {
-    const order = await this.orderRepo.getOrderById(orderId);
+  async preparePayment(
+    orderId: string,
+    userId: string,
+    razorpayConfig: any,
+    resolvedOrder?: Order | null,
+  ): Promise<any> {
+    // The checkout initiation route already owns the authoritative order returned
+    // by the transaction. Reuse it in that request instead of paying for another
+    // Firestore round trip; standalone payment retries still resolve by ID.
+    const order =
+      resolvedOrder?.id === orderId ? resolvedOrder : await this.orderRepo.getOrderById(orderId);
     if (!order) throw new Error('Order not found');
     if (order.userId !== userId) throw new Error('Forbidden');
     if (!isPaymentPendingOrderStatus(order.status)) throw new Error(`Order is ${order.status}`);

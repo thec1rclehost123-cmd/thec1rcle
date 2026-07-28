@@ -70,6 +70,8 @@ export function buildPartnerLedgerEntries({ order, event, paymentId, createdAt }
     referenceId: order.id,
     eventId: order.eventId,
     paymentId,
+    hostId: participants.hostId,
+    venueId: participants.venueId,
     promoterId: participants.promoterId,
     promoterLinkId: participants.promoterLinkId,
     currency: order.currency || event?.currency || 'INR',
@@ -177,8 +179,12 @@ function addAggregateWrite(transaction, db, entry, createdAt) {
   const increments = {
     updatedAt: createdAt,
     currency: entry.currency,
-    [`balances.${entry.status}`]: FieldValue.increment(entry.amountPaise),
-    [`totalsByType.${entry.type}`]: FieldValue.increment(entry.amountPaise),
+    balances: {
+      [entry.status]: FieldValue.increment(entry.amountPaise),
+    },
+    totalsByType: {
+      [entry.type]: FieldValue.increment(entry.amountPaise),
+    },
   };
 
   transaction.set(ref, increments, { merge: true });
@@ -197,6 +203,42 @@ function addAggregateWrite(transaction, db, entry, createdAt) {
   }
 }
 
+function addHostSalesProjectionWrite(
+  transaction,
+  db,
+  { hostId, currency, grossPaise, ticketCount, createdAt },
+) {
+  if (!hostId) return;
+
+  const dateKey = String(createdAt).slice(0, 10);
+  const ref = db.collection('partner_finance_aggregates').doc(hostId);
+  const dailyRef = ref.collection('daily').doc(dateKey);
+
+  transaction.set(
+    ref,
+    {
+      updatedAt: createdAt,
+      currency,
+      analytics: {
+        grossRevenuePaise: FieldValue.increment(grossPaise),
+        ticketsSold: FieldValue.increment(ticketCount),
+      },
+    },
+    { merge: true },
+  );
+  transaction.set(
+    dailyRef,
+    {
+      partnerId: hostId,
+      date: dateKey,
+      updatedAt: createdAt,
+      grossRevenue: FieldValue.increment(grossPaise),
+      ticketsSold: FieldValue.increment(ticketCount),
+    },
+    { merge: true },
+  );
+}
+
 /**
  * Writes the complete canonical sale posting into an existing Firestore
  * transaction. The caller must read markerSnapshot before performing writes.
@@ -209,8 +251,16 @@ export function writePartnerLedgerInTransaction({
   paymentId,
   createdAt,
   markerSnapshot,
+  ticketCount,
 }) {
   const posting = buildPartnerLedgerEntries({ order, event, paymentId, createdAt });
+  const normalizedTicketCount = Number(ticketCount);
+  if (!Number.isSafeInteger(normalizedTicketCount) || normalizedTicketCount <= 0) {
+    throw codedError(
+      'Ledger posting requires a positive integer ticket count',
+      'LEDGER_TICKET_COUNT_INVALID',
+    );
+  }
   const markerRef = db.collection('partner_ledger_idempotency').doc(order.id);
   const marker = {
     orderId: order.id,
@@ -221,6 +271,7 @@ export function writePartnerLedgerInTransaction({
     participants: posting.participants,
     entryIds: posting.entries.map((entry) => entry.id),
     entryCount: posting.entries.length,
+    ticketCount: normalizedTicketCount,
     schemaVersion: PARTNER_LEDGER_SCHEMA_VERSION,
     createdAt,
   };
@@ -240,6 +291,13 @@ export function writePartnerLedgerInTransaction({
     transaction.create(db.collection('partner_ledger').doc(entry.id), entry);
     addAggregateWrite(transaction, db, entry, createdAt);
   }
+  addHostSalesProjectionWrite(transaction, db, {
+    hostId: posting.participants.hostId,
+    currency: marker.currency,
+    grossPaise: posting.grossPaise,
+    ticketCount: normalizedTicketCount,
+    createdAt,
+  });
   transaction.create(markerRef, marker);
 
   return { ...posting, markerId: order.id, alreadyPosted: false };

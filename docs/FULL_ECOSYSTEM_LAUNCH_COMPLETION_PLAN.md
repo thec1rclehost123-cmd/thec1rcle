@@ -835,8 +835,11 @@ Primary source:
 - `apps/mobile-app/app/scanner/cover-charge.tsx`
 - `apps/mobile-app/components/scanner/CoverDeductionOverlay.tsx`
 - `apps/mobile-app/app/(tabs)/tickets.tsx`
-- `apps/mobile-app/__tests__/scanner/cover-charge-flow.test.ts`
-- `apps/scanner-app/`
+- `apps/mobile-app/__tests__/scanner/cover-deduction-overlay.test.tsx`
+- `apps/scanner-app/lib/api/coverCharge.ts`
+- `apps/scanner-app/components/Scanner/CoverDeductionOverlay.tsx`
+- `apps/scanner-app/app/(event)/scan.tsx`
+- `apps/scanner-app/__tests__/security-contract.test.mjs`
 - Partner Venue finance/operations/reconciliation surfaces
 
 Authority rules:
@@ -932,7 +935,7 @@ Test every route directly and through its UI client:
 
 | Route | Required authority and assertions |
 |---|---|
-| `GET /api/v1/cover-charge/wallet/by-order/:orderId` | Authenticated order owner or explicitly authorized Venue operator; validate order, event, venue, and wallet scope; return non-enumerating 404 cross-user/cross-venue |
+| `GET /api/v1/cover-charge/wallet/by-order/:orderId` | Valid bound charge-session only; validate event, venue, device, order, wallet state, and single-wallet scope; return non-enumerating 404/409 on scope or wallet ambiguity |
 | `POST /api/v1/cover-charge/debit` | Valid scanner session, active bound device, permitted event/venue, ACTIVE wallet, UUID idempotency key, server-derived actor/device, Redis velocity limit |
 | `POST /api/v1/cover-charge/reverse` | Active OWNER/MANAGER membership for the exact venue, valid supervisor PIN hash, original transaction, reason, event/venue scope, idempotent reversal |
 | `POST /api/v1/cover-charge/top-up` | Active OWNER/MANAGER membership, valid supervisor PIN, exact venue/wallet scope, UUID idempotency key, positive integer paise |
@@ -1022,7 +1025,9 @@ Hardware/device tests:
    request-body identity fields are ignored/rejected.
 4. `CoverDeductionOverlay` displays the scanned wallet/event and approved preset
    items.
-5. Selecting an item sends its authoritative item ID and integer `amountPaise`.
+5. Selecting an item sends only its authoritative item ID and quantity; the
+   server resolves the configured integer `amountPaise` and rejects any
+   client-supplied price authority.
 6. Successful debit updates visible balance and receipt exactly once.
 7. Insufficient balance, frozen/expired wallet, rate limit, wrong venue,
    duplicate request, and server failure show explicit non-success states.
@@ -1047,8 +1052,9 @@ Execute a real Razorpay test purchase containing a cover-enabled ticket/tier:
 1. The order stores the immutable cover-package snapshot before provider
    checkout.
 2. Atomic payment finalization creates the ticket, entitlement, ledger posting,
-   and deterministic Cover Wallet in the authoritative transaction or durable
-   idempotent outbox defined by the production invariant.
+   and deterministic Cover Wallet in the same authoritative Firestore
+   transaction. The post-commit outbox may accelerate dependent views but may
+   not issue stored wallet value.
 3. Finalization replay produces no duplicate wallet or value.
 4. The wallet is linked to the correct Guest, order, ticket/entitlement, event,
    venue, tier, and currency.
@@ -1100,8 +1106,10 @@ cd ../../apps/api-gateway
 
 cd ../mobile-app
 npm test -- --runInBand --watchman=false \
-  __tests__/scanner/cover-charge-flow.test.ts \
-  __tests__/scanner/api.test.ts
+  __tests__/scanner/cover-deduction-overlay.test.tsx
+
+cd ../scanner-app
+npm test
 
 cd ../..
 npm run type-check
@@ -1172,14 +1180,14 @@ For every Cover Charge defect:
 
 Required Cover Charge evidence:
 
-- `qa-artifacts/cover-charge/core-tests.log`
-- `qa-artifacts/cover-charge/gateway-security-tests.log`
-- `qa-artifacts/cover-charge/mobile-scanner-tests.log`
-- `qa-artifacts/cover-charge/e2e-correlation.json`
-- `qa-artifacts/cover-charge/device-and-offline-evidence/`
-- `qa-artifacts/cover-charge/guest-wallet-evidence/`
-- `qa-artifacts/cover-charge/partner-reconciliation-evidence/`
-- `qa-artifacts/cover-charge/reconciliation.json`
+- `qa-artifacts/mobile-manual-qa/cover-charge/core-tests.log`
+- `qa-artifacts/mobile-manual-qa/cover-charge/gateway-security-tests.log`
+- `qa-artifacts/mobile-manual-qa/cover-charge/mobile-scanner-tests.log`
+- `qa-artifacts/mobile-manual-qa/cover-charge/e2e-correlation.json`
+- `qa-artifacts/mobile-manual-qa/cover-charge/device-and-offline-evidence/`
+- `qa-artifacts/mobile-manual-qa/cover-charge/guest-wallet-evidence/`
+- `qa-artifacts/mobile-manual-qa/cover-charge/partner-reconciliation-evidence/`
+- `qa-artifacts/mobile-manual-qa/cover-charge/reconciliation.json`
 - redacted API/network timelines and screenshots
 
 #### 7.5.11 Cover Charge success and NO-GO rules

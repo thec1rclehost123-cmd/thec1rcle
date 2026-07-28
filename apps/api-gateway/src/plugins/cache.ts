@@ -19,7 +19,7 @@ class HybridCache {
     return crypto.createHash('md5').update(key).digest('hex');
   }
 
-  async set(namespace: string, rawKey: string, value: any, ttlSeconds: number = 60) {
+  async set(namespace: string, rawKey: string, value: any, ttlSeconds: number = 300) {
     const key = `${namespace}:${this.hashKey(rawKey)}`;
     const json = JSON.stringify(value);
 

@@ -19,6 +19,7 @@ import type { ServiceContext, ServiceLogger } from './service-context.js';
 import { consoleLogger } from './service-context.js';
 
 const LEDGER_AGGREGATES_COLLECTION = 'partner_finance_aggregates';
+const BALANCE_CACHE_VERSION = 2;
 const REVENUE_FIELDS_BY_TYPE = {
   host_payout: 'hostPayout',
   venue_share: 'venueShare',
@@ -104,6 +105,18 @@ export class FinanceService {
 
   async getFinanceSummary(ctx: PartnerContext): Promise<any> {
     const partnerId = ctx.partnerId;
+
+    // ⚡ Performance: serve from Redis cache to avoid 4 parallel Firestore queries
+    const summaryCacheKey = `finance:summary:v${BALANCE_CACHE_VERSION}:${partnerId}`;
+    if (this.redis && this.redis.status === 'ready') {
+      try {
+        const cached = await this.redis.get(summaryCacheKey);
+        if (cached) return JSON.parse(cached);
+      } catch {
+        // Redis failure is non-critical — fall through to computation
+      }
+    }
+
     const [balances, doc, payoutsSnap] = await Promise.all([
       this.readBalanceAggregate(partnerId),
       this.db.collection(LEDGER_AGGREGATES_COLLECTION).doc(partnerId).get(),
@@ -150,7 +163,7 @@ export class FinanceService {
 
     const totalTicketsSold = (ticketsSnap as any).size;
 
-    return {
+    const result = {
       netRevenue: (balances.settled + balances.pending) / 100,
       netRevenuePaise: balances.settled + balances.pending,
       availableBalance: balances.settled / 100,
@@ -164,6 +177,13 @@ export class FinanceService {
       refundPendingPaise,
       currency: aggregate?.currency || 'INR',
     };
+
+    // ⚡ Write-through: cache finance summary for 5min (invalidated on purchase)
+    if (this.redis && this.redis.status === 'ready') {
+      this.redis.set(summaryCacheKey, JSON.stringify(result), 'EX', 300).catch(() => {});
+    }
+
+    return result;
   }
 
   // ── Ledger ────────────────────────────────────────────────────────────────
@@ -172,7 +192,7 @@ export class FinanceService {
     ctx: PartnerContext,
     filters: LedgerFilters,
   ): Promise<PaginatedResult<LedgerEntry>> {
-    const { from, to, type, cursor, limit = 20 } = filters;
+    const { from, to, type, status, cursor, limit = 20 } = filters;
     const cap = Math.min(limit, 200);
     const partnerId = ctx.partnerId;
     const startedAt = Date.now();
@@ -184,6 +204,7 @@ export class FinanceService {
       .limit(cap + 1);
 
     if (type) q = q.where('type', '==', type);
+    if (status) q = q.where('status', '==', status);
     if (from) q = q.where('createdAt', '>=', new Date(from));
     if (to) q = q.where('createdAt', '<=', new Date(to));
     if (cursor) {
@@ -195,72 +216,16 @@ export class FinanceService {
     try {
       snap = await q.get();
     } catch (err: any) {
-      this.log.warn(
+      this.log.error(
         {
           service: 'FinanceService',
           method: 'getLedger',
           partnerId,
           error: err?.message ?? String(err),
         },
-        'Ledger query failed, attempting in-memory fallback',
+        'Canonical paginated ledger query failed',
       );
-
-      try {
-        const fallbackSnap = await this.db
-          .collection('partner_ledger')
-          .where('toPartnerId', '==', partnerId)
-          .get();
-
-        let allItems = fallbackSnap.docs.map((doc: any) => this.docToLedgerEntry(doc));
-
-        if (type) {
-          allItems = allItems.filter((item) => item.type === type);
-        }
-        if (from) {
-          const fromTime = new Date(from).getTime();
-          allItems = allItems.filter(
-            (item) => item.createdAt && new Date(item.createdAt).getTime() >= fromTime,
-          );
-        }
-        if (to) {
-          const toTime = new Date(to).getTime();
-          allItems = allItems.filter(
-            (item) => item.createdAt && new Date(item.createdAt).getTime() <= toTime,
-          );
-        }
-
-        allItems.sort((a, b) => {
-          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return bTime - aTime;
-        });
-
-        let startIndex = 0;
-        if (cursor) {
-          const cursorIndex = allItems.findIndex((item) => item.entryId === cursor);
-          if (cursorIndex !== -1) {
-            startIndex = cursorIndex + 1;
-          }
-        }
-
-        const slicedItems = allItems.slice(startIndex, startIndex + cap + 1);
-        const hasMore = slicedItems.length > cap;
-        const items = slicedItems.slice(0, cap);
-        const nextCursor = hasMore ? (items[items.length - 1]?.entryId ?? null) : null;
-
-        return { data: items, hasMore, nextCursor };
-      } catch (fallbackErr: any) {
-        this.log.error(
-          {
-            service: 'FinanceService',
-            method: 'getLedger',
-            partnerId,
-            error: fallbackErr?.message ?? String(fallbackErr),
-          },
-          'Ledger fallback query failed',
-        );
-        throw financeUnavailable('Canonical payout data is unavailable', fallbackErr);
-      }
+      throw financeUnavailable('Canonical ledger data is unavailable', err);
     }
 
     const durationMs = Date.now() - startedAt;
@@ -290,82 +255,51 @@ export class FinanceService {
   async getPayouts(ctx: PartnerContext, filters: PayoutFilters): Promise<PaginatedResult<Payout>> {
     const { status, cursor, limit = 20 } = filters;
     const cap = Math.min(limit, 100);
-
-    let q: any = this.db
-      .collection('payouts')
-      .where('partnerId', '==', ctx.partnerId)
-      .orderBy('requestedAt', 'desc')
-      .limit(cap + 1);
-
-    if (status) q = q.where('status', '==', status);
-    if (cursor) {
-      const cursorDoc = await this.db.collection('payouts').doc(cursor).get();
-      if (cursorDoc.exists) q = q.startAfter(cursorDoc);
-    }
-
-    let snap;
+    const boundedLimit = 501;
+    let snap: FirebaseFirestore.QuerySnapshot;
     try {
-      snap = await q.get();
+      snap = await this.db
+        .collection('payouts')
+        .where('partnerId', '==', ctx.partnerId)
+        .limit(boundedLimit)
+        .get();
     } catch (err: any) {
-      this.log.warn(
+      this.log.error(
         {
           service: 'FinanceService',
           method: 'getPayouts',
           partnerId: ctx.partnerId,
           error: err?.message ?? String(err),
         },
-        'Payouts query failed, attempting in-memory fallback',
+        'Canonical bounded payouts query failed',
       );
-
-      try {
-        const fallbackSnap = await this.db
-          .collection('payouts')
-          .where('partnerId', '==', ctx.partnerId)
-          .get();
-
-        let allItems = fallbackSnap.docs.map((doc: any) => this.docToPayout(doc));
-
-        if (status) {
-          allItems = allItems.filter((item) => item.status === status);
-        }
-
-        allItems.sort((a, b) => {
-          const aTime = a.requestedAt ? new Date(a.requestedAt).getTime() : 0;
-          const bTime = b.requestedAt ? new Date(b.requestedAt).getTime() : 0;
-          return bTime - aTime;
-        });
-
-        let startIndex = 0;
-        if (cursor) {
-          const cursorIndex = allItems.findIndex((item) => item.payoutId === cursor);
-          if (cursorIndex !== -1) {
-            startIndex = cursorIndex + 1;
-          }
-        }
-
-        const slicedItems = allItems.slice(startIndex, startIndex + cap + 1);
-        const hasMore = slicedItems.length > cap;
-        const items = slicedItems.slice(0, cap);
-        const nextCursor = hasMore ? (items[items.length - 1]?.payoutId ?? null) : null;
-
-        return { data: items, hasMore, nextCursor };
-      } catch (fallbackErr: any) {
-        this.log.error(
-          {
-            service: 'FinanceService',
-            method: 'getPayouts',
-            partnerId: ctx.partnerId,
-            error: fallbackErr?.message ?? String(fallbackErr),
-          },
-          'Payouts fallback query failed',
-        );
-        return { data: [], hasMore: false, nextCursor: null };
-      }
+      throw financeUnavailable('Canonical payout data is unavailable', err);
     }
 
-    const docs: any[] = (snap as any).docs;
-    const hasMore = docs.length > cap;
-    const items = docs.slice(0, cap).map((doc: any) => this.docToPayout(doc));
+    if (snap.size >= boundedLimit) {
+      throw financeUnavailable('Payout history exceeds the bounded launch query window');
+    }
+
+    let allItems = snap.docs.map((doc: any) => this.docToPayout(doc));
+    if (status) allItems = allItems.filter((item) => item.status === status);
+    allItems.sort((a, b) => {
+      const timeDelta =
+        new Date(b.requestedAt || 0).getTime() - new Date(a.requestedAt || 0).getTime();
+      return timeDelta || b.payoutId.localeCompare(a.payoutId);
+    });
+
+    let startIndex = 0;
+    if (cursor) {
+      const cursorIndex = allItems.findIndex((item) => item.payoutId === cursor);
+      if (cursorIndex < 0) {
+        throw financeUnavailable('Payout cursor is outside the bounded launch query window');
+      }
+      startIndex = cursorIndex + 1;
+    }
+
+    const window = allItems.slice(startIndex, startIndex + cap + 1);
+    const hasMore = window.length > cap;
+    const items = window.slice(0, cap);
     const nextCursor = hasMore ? (items[items.length - 1]?.payoutId ?? null) : null;
 
     return { data: items, hasMore, nextCursor };
@@ -375,11 +309,11 @@ export class FinanceService {
 
   // P1: Always compute from partner_ledger — eliminates cache/ledger drift.
   // The payout_balances cache doc is NO LONGER used as a source of truth.
-  // Redis is used as a short-lived performance cache (60s TTL) only.
+  // Redis is used as a short-lived performance cache (15s TTL) only.
   async getBalances(ctx: PartnerContext): Promise<BalanceSummary> {
-    const cacheKey = `finance:balance:${ctx.partnerId}`;
+    const cacheKey = `finance:balance:v${BALANCE_CACHE_VERSION}:${ctx.partnerId}`;
 
-    // Try Redis cache first (60s TTL — acceptable for dashboard display)
+    // Try Redis cache first. The 15-second TTL is the Host/Venue launch SLA.
     if (this.redis && this.redis.status === 'ready') {
       try {
         const cached = await this.redis.get(cacheKey);
@@ -421,9 +355,9 @@ export class FinanceService {
       );
     }
 
-    // Write-through to Redis cache (best-effort, non-blocking)
+    // Write-through to Redis cache (best-effort, non-blocking).
     if (this.redis && this.redis.status === 'ready') {
-      this.redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
+      this.redis.set(cacheKey, JSON.stringify(result), 'EX', 15).catch(() => {});
     }
 
     return result;
@@ -465,41 +399,28 @@ export class FinanceService {
   // ── Disputes ──────────────────────────────────────────────────────────────
 
   async getDisputes(ctx: PartnerContext, status?: string): Promise<PaginatedResult<Dispute>> {
-    let q: any = this.db
-      .collection('disputes')
-      .where('partnerId', '==', ctx.partnerId)
-      .orderBy('createdAt', 'desc')
-      .limit(50);
-
-    if (status) q = q.where('status', '==', status);
-
-    let snap;
+    const boundedLimit = 501;
+    let snap: FirebaseFirestore.QuerySnapshot;
     try {
-      snap = await q.get();
+      snap = await this.db
+        .collection('disputes')
+        .where('partnerId', '==', ctx.partnerId)
+        .limit(boundedLimit)
+        .get();
     } catch (err: any) {
-      this.log.warn(
+      this.log.error(
         {
           service: 'FinanceService',
           method: 'getDisputes',
           partnerId: ctx.partnerId,
           error: err?.message ?? String(err),
         },
-        'Indexed disputes query failed, attempting canonical in-memory ordering',
+        'Canonical bounded disputes query failed',
       );
-      try {
-        snap = await this.db.collection('disputes').where('partnerId', '==', ctx.partnerId).get();
-      } catch (fallbackErr: any) {
-        this.log.error(
-          {
-            service: 'FinanceService',
-            method: 'getDisputes',
-            partnerId: ctx.partnerId,
-            error: fallbackErr?.message ?? String(fallbackErr),
-          },
-          'Canonical disputes fallback query failed',
-        );
-        throw financeUnavailable('Canonical dispute data is unavailable', fallbackErr);
-      }
+      throw financeUnavailable('Canonical dispute data is unavailable', err);
+    }
+    if (snap.size >= boundedLimit) {
+      throw financeUnavailable('Dispute history exceeds the bounded launch query window');
     }
     let items = (snap as any).docs.map((doc: any) => {
       const d = doc.data() as Record<string, any>;
@@ -667,7 +588,19 @@ export class FinanceService {
 
     if (!doc.exists) return this.rebuildPartnerLedgerAggregate(partnerId);
 
-    const balances = (doc.data()?.balances || {}) as Record<string, any>;
+    const data = (doc.data() || {}) as Record<string, any>;
+    const hasMalformedDottedProjection = Object.keys(data).some(
+      (key) => key.startsWith('balances.') || key.startsWith('totalsByType.'),
+    );
+    if (hasMalformedDottedProjection) {
+      this.log.warn(
+        { service: 'FinanceService', method: 'readBalanceAggregate', partnerId },
+        'Rebuilding malformed dotted-field finance projection from canonical ledger',
+      );
+      return this.rebuildPartnerLedgerAggregate(partnerId);
+    }
+
+    const balances = (data.balances || {}) as Record<string, any>;
     return {
       pending: toNum(balances.pending),
       settled: toNum(balances.settled),

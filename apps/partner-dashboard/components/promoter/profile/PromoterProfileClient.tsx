@@ -15,12 +15,17 @@ import {
   X,
   ShieldAlert,
 } from 'lucide-react';
+import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 
 export function PromoterProfileClient() {
+  const { getIdToken } = useDashboardAuth();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['promoter', 'profile'],
     queryFn: async () => {
-      const res = await fetch(`/api/partners/promoters/profile`);
+      const token = await getIdToken();
+      const res = await fetch(`/api/partners/promoters/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error('Failed to fetch profile');
       return res.json();
     },
@@ -37,9 +42,13 @@ export function PromoterProfileClient() {
 
   const updateProfile = useMutation({
     mutationFn: async (updatedData: any) => {
+      const token = await getIdToken();
       const res = await fetch(`/api/partners/promoters/profile`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(updatedData),
       });
       if (!res.ok) throw new Error('Failed to update');

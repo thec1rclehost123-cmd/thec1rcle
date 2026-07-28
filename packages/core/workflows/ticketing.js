@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { validatePaymentVerification } from 'razorpay/dist/utils/razorpay-utils.js';
 import Razorpay from 'razorpay';
 import { inngest, Events, sendEvent } from '../inngest-client.js';
@@ -217,7 +218,7 @@ function buildEntitlementDocuments(order, event, ticketDocs, issuedAt) {
   });
 }
 
-function buildCoverWalletDocuments(order, event, issuedAt) {
+export function buildCoverWalletDocumentsForOrder(order, event, issuedAt) {
   const wallets = [];
   for (const group of normalizeOrderTickets(order)) {
     const tierConfig = group.coverChargeConfig;
@@ -243,6 +244,65 @@ function buildCoverWalletDocuments(order, event, issuedAt) {
     }
   }
   return wallets;
+}
+
+const FINALIZATION_ARTIFACT_FIELDS = {
+  ticket: [
+    'id',
+    'ticketId',
+    'orderId',
+    'eventId',
+    'hostId',
+    'venueId',
+    'promoterId',
+    'tierId',
+    'tierName',
+    'slotIndex',
+    'quantity',
+    'originalQuantity',
+    'entryType',
+    'qrMode',
+    'scanCountAllowed',
+  ],
+  entitlement: [
+    'id',
+    'entitlementId',
+    'ticketDocumentId',
+    'ticketId',
+    'qrCode',
+    'publicToken',
+    'eventId',
+    'orderId',
+    'hostId',
+    'venueId',
+    'promoterId',
+    'ticketType',
+    'genderConstraint',
+    'scanCountAllowed',
+    'eventSummary',
+    'metadata',
+  ],
+  coverWallet: [
+    'id',
+    'orderId',
+    'eventId',
+    'venueId',
+    'tierId',
+    'unitIndex',
+    'schemaVersion',
+    'openingBalancePaise',
+    'terminationAtMs',
+    'rules',
+    'termsAcceptedAt',
+    'termsVersion',
+    'createdBy',
+  ],
+};
+
+export function finalizationArtifactMatches(kind, actual, expected) {
+  const fields = FINALIZATION_ARTIFACT_FIELDS[kind];
+  if (!fields || !actual || !expected) return false;
+  return fields.every((field) => isDeepStrictEqual(actual[field] ?? null, expected[field] ?? null));
 }
 
 async function findPaymentRecordByRazorpayOrderId(db, transaction, razorpayOrderId) {
@@ -587,7 +647,7 @@ export async function finalizeTicketPayment({
         );
       }
       const entitlementDocs = buildEntitlementDocuments(order, event, ticketDocs, issuedAt);
-      const coverWalletDocs = buildCoverWalletDocuments(order, event, issuedAt);
+      const coverWalletDocs = buildCoverWalletDocumentsForOrder(order, event, issuedAt);
       const ticketRefs = ticketDocs.map((ticket) => db.collection('tickets').doc(ticket.id));
       const entitlementRefs = entitlementDocs.map((entitlement) =>
         db.collection('entitlements').doc(entitlement.id),
@@ -632,6 +692,23 @@ export async function finalizeTicketPayment({
       const conflictingPayment = paymentLinks.docs?.find((doc) => doc.data().orderId !== order.id);
       if (conflictingPayment) {
         throw codedError('Payment is already linked to another order', 'PAYMENT_ALREADY_LINKED');
+      }
+      for (const [kind, snapshots, expectedDocuments] of [
+        ['ticket', ticketSnapshots, ticketDocs],
+        ['entitlement', entitlementSnapshots, entitlementDocs],
+        ['coverWallet', coverWalletSnapshots, coverWalletDocs],
+      ]) {
+        snapshots.forEach((snapshot, index) => {
+          if (
+            snapshot.exists &&
+            !finalizationArtifactMatches(kind, snapshot.data(), expectedDocuments[index])
+          ) {
+            throw codedError(
+              `${kind} finalization artifact conflicts with the authoritative order`,
+              'FINALIZATION_ARTIFACT_CONFLICT',
+            );
+          }
+        });
       }
 
       const isCompleteReplay =
@@ -682,6 +759,7 @@ export async function finalizeTicketPayment({
         paymentId: razorpayPaymentId,
         createdAt: issuedAt,
         markerSnapshot,
+        ticketCount: entitlementDocs.length,
       });
 
       ticketSnapshots.forEach((snapshot, index) => {
@@ -800,6 +878,7 @@ export async function finalizeTicketPayment({
       'ORDER_ATTRIBUTION_MISSING',
       'ORDER_NOT_FINALIZABLE',
       'LEDGER_IDEMPOTENCY_CONFLICT',
+      'FINALIZATION_ARTIFACT_CONFLICT',
       'TICKET_TRANSACTION_LIMIT_EXCEEDED',
     ]);
     if (nonRetryableCodes.has(error?.code)) throw error;
@@ -858,6 +937,7 @@ export async function finalizeTicketPayment({
     alreadyVerified: result.alreadyFinalized,
     ticketIds: result.tickets.map((ticket) => ticket.id),
     entitlementIds: result.entitlements.map((entitlement) => entitlement.id),
+    coverWalletIds: result.coverWallets.map((wallet) => wallet.id),
     ledgerMarkerId: result.ledgerMarkerId,
     reservationReleased,
     redisReleased: reservationReleased,
@@ -979,7 +1059,7 @@ export const handleTicketFulfillment = inngest.createFunction(
 
     // Step 2b: Unlock the event group chat for the ticket holder.
     // This writes one per-user membership row and avoids fan-out to every attendee.
-    await step.run('unlock-event-chat', async () => {
+    const chatResult = await step.run('unlock-event-chat', async () => {
       if (!userId || !eventId) return { skipped: true, reason: 'Missing userId or eventId' };
       const result = await ensureEventChatMembership(db, {
         eventId,
@@ -1007,7 +1087,7 @@ export const handleTicketFulfillment = inngest.createFunction(
     });
 
     // Step 4: Send confirmation email via your email service
-    await step.run('send-confirmation-email', async () => {
+    const emailResult = await step.run('send-confirmation-email', async () => {
       // Fetch event details for email
       const eventDoc = await db.collection('events').doc(eventId).get();
       const eventData = eventDoc.exists ? eventDoc.data() : null;
@@ -1033,14 +1113,25 @@ export const handleTicketFulfillment = inngest.createFunction(
         },
       };
 
-      // Log the email attempt (actual sending should use your email provider)
-      await db.collection('email_queue').add({
-        ...emailPayload,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
+      const emailRef = db.collection('email_queue').doc(`ticket-confirmation-${orderId}`);
+      let alreadyQueued = false;
+      await db.runTransaction(async (transaction) => {
+        const snapshot = await transaction.get(emailRef);
+        if (snapshot.exists) {
+          alreadyQueued = true;
+          return;
+        }
+        transaction.create(emailRef, {
+          ...emailPayload,
+          orderId,
+          eventId,
+          userId,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+        });
       });
 
-      return { queued: true, to: userEmail };
+      return { queued: true, alreadyQueued, to: userEmail };
     });
 
     // Step 6: Update event stats on the main event document.
@@ -1083,12 +1174,27 @@ export const handleTicketFulfillment = inngest.createFunction(
       return { updated: true };
     });
 
+    await step.run('mark-post-commit-fulfillment-complete', async () => {
+      await db
+        .collection('orders')
+        .doc(orderId)
+        .update({
+          fulfillmentStatus: 'fulfilled',
+          chatUnlocked: !chatResult?.skipped,
+          chatId: chatResult?.chatId || null,
+          confirmationEmailQueued: Boolean(emailResult?.queued),
+          postCommitCompletedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      return { fulfilled: true };
+    });
+
     // Return final status
     return {
       status: 'fulfilled',
       orderId,
       entitlementCount: entitlements.length,
-      emailSent: true,
+      emailQueued: Boolean(emailResult?.queued),
       fulfilledAt: new Date().toISOString(),
     };
   },

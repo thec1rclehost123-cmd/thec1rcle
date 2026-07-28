@@ -55,4 +55,34 @@ describe('event pricing', () => {
       isFree: false,
     });
   });
+
+  it('persists canonical UTC instants for an IST event', () => {
+    const event = buildEvent({
+      title: 'Launch Night',
+      lifecycle: 'draft',
+      startDate: '2026-08-29',
+      endDate: '2026-08-29',
+      startTime: '21:00',
+      endTime: '23:30',
+      timezone: 'Asia/Kolkata',
+    });
+
+    expect(event.startAt).toBe('2026-08-29T15:30:00.000Z');
+    expect(event.endAt).toBe('2026-08-29T18:00:00.000Z');
+  });
+
+  it('persists the next-day end instant for an overnight event', () => {
+    const event = buildEvent({
+      title: 'After Hours',
+      lifecycle: 'draft',
+      startDate: '2026-08-29',
+      endDate: '2026-08-29',
+      startTime: '21:00',
+      endTime: '04:00',
+      timezone: 'Asia/Kolkata',
+    });
+
+    expect(event.startAt).toBe('2026-08-29T15:30:00.000Z');
+    expect(event.endAt).toBe('2026-08-29T22:30:00.000Z');
+  });
 });

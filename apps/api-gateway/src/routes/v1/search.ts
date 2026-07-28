@@ -29,7 +29,7 @@ export default async function searchRoutes(fastify: FastifyInstance) {
         // Use existing search logic from core
         const results = await searchEvents(q, filters);
 
-        await fastify.cache.set('search:public', cacheKey, results, 60); // 60s TTL
+        await fastify.cache.set('search:public', cacheKey, results, 600); // 10min TTL
         return results;
       } catch (error: any) {
         reply.status(500).send({ error: 'Internal server error' });

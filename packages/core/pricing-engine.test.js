@@ -86,5 +86,81 @@ describe('Pricing Engine', () => {
       expect(result.pricing.subtotal).toBe(200);
       expect(result.pricing.grandTotal).toBe(217.7); // 200 + fees(17.7)
     });
+
+    it('persists an exactly funded integer-paise Cover Wallet liability', async () => {
+      const event = {
+        id: 'cover-event',
+        ticketCatalog: {
+          tiers: [
+            {
+              id: 'cover-tier',
+              name: 'Cover Package',
+              basePrice: 999,
+              coverChargeConfig: { enabled: true, walletAmountPaise: 50_000 },
+            },
+          ],
+        },
+      };
+
+      const result = await calculatePricing({
+        event,
+        items: [{ tierId: 'cover-tier', quantity: 2 }],
+      });
+
+      expect(result.pricing.coverCreditLiabilityPaise).toBe(100_000);
+      expect(result.pricing.items[0].coverCreditPaise).toBe(50_000);
+    });
+
+    it('rejects a Cover Wallet credit larger than the effective ticket price', async () => {
+      const event = {
+        id: 'unfunded-cover-event',
+        ticketCatalog: {
+          tiers: [
+            {
+              id: 'cover-tier',
+              name: 'Underfunded Cover Package',
+              basePrice: 499,
+              coverChargeConfig: { enabled: true, walletAmountPaise: 50_000 },
+            },
+          ],
+        },
+      };
+
+      await expect(
+        calculatePricing({
+          event,
+          items: [{ tierId: 'cover-tier', quantity: 1 }],
+        }),
+      ).rejects.toMatchObject({ code: 'COVER_WALLET_UNFUNDED' });
+    });
+
+    it('rejects discounts that would make Cover Wallet credit underfunded', async () => {
+      const event = {
+        id: 'discounted-cover-event',
+        ticketCatalog: {
+          tiers: [
+            {
+              id: 'cover-tier',
+              name: 'Cover Package',
+              basePrice: 600,
+              coverChargeConfig: { enabled: true, walletAmountPaise: 50_000 },
+            },
+          ],
+        },
+      };
+
+      await expect(
+        calculatePricing({
+          event,
+          items: [{ tierId: 'cover-tier', quantity: 1 }],
+          promoCode: 'TOO_LARGE',
+          promoValidator: async () => ({
+            valid: true,
+            discountAmount: 150,
+            promoCode: { id: 'promo-1' },
+          }),
+        }),
+      ).rejects.toMatchObject({ code: 'COVER_WALLET_UNFUNDED' });
+    });
   });
 });

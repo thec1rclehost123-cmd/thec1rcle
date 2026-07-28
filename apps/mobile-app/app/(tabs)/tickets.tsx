@@ -1,4 +1,3 @@
-/* eslint-disable no-misleading-character-class */
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -25,6 +24,7 @@ import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTicketsStore, Order, OrderTicket } from '@/store/ticketsStore';
 import { useAuthStore } from '@/store/authStore';
+import { selectCoverWalletForTicketSlot } from '@/lib/coverWalletMapping';
 import { useProfileStore } from '@/store/profileStore';
 import { useCartStore } from '@/store/cartStore';
 import { apiFetch, createShareBundle, deduplicateRequest } from '@/lib/api';
@@ -53,7 +53,7 @@ import { NotificationBell } from '@/components/ui/NotificationBell';
 import { ErrorState, NetworkError } from '@/components/ui/EmptyState';
 import { SkeletonList } from '@/components/ui/Skeleton';
 import { ActionSheet, ShareSheetContent } from '@/components/tickets/TicketActionSheets';
-import { safeDate, formatEventDate, formatEventTime } from '@/lib/utils/date';
+import { safeDate, formatEventTime, formatTicketCardDate } from '@/lib/utils/date';
 import { trackScreen } from '@/lib/analytics';
 import { buildCalendarEventUrl } from '@/lib/calendar';
 import {
@@ -465,8 +465,8 @@ function QRModal({
   visible: boolean;
   order: Order | null;
   onClose: () => void;
-  walletData?: any;
-  walletTransactions?: any[];
+  walletData?: any[];
+  walletTransactions?: Record<string, any[]>;
   onWalletRefresh?: () => Promise<void> | void;
 }) {
   const [showQR, setShowQR] = useState(false);
@@ -476,18 +476,44 @@ function QRModal({
   const { width, height } = useWindowDimensions();
   const profile = useProfileStore((state) => state.profile);
   const { user } = useAuthStore();
+  const ticketSlots = useMemo(
+    () => (order ? buildTicketDisplaySlots(order, profile, user) : []),
+    [order, profile, user],
+  );
+  const activeTicketSlot =
+    ticketSlots[Math.min(activeTicketIndex, Math.max(ticketSlots.length - 1, 0))] || ticketSlots[0];
 
   // Wallet State
   const [qrJwt, setQrJwt] = useState<string | null>(null);
   const [qrExpiresAt, setQrExpiresAt] = useState<number>(0);
+  const [qrNowMs, setQrNowMs] = useState(Date.now());
   const [qrRefreshError, setQrRefreshError] = useState(false);
   const qrTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const qrCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
 
-  // Active wallet check
-  const activeWallet = walletData && order && walletData.orderId === order.id ? walletData : null;
+  // One deterministic wallet exists per purchased cover admission unit.
+  const orderWallets =
+    order && Array.isArray(walletData)
+      ? walletData
+          .filter((wallet) => wallet.orderId === order.id)
+          .sort(
+            (left, right) =>
+              String(left.tierId || '').localeCompare(String(right.tierId || '')) ||
+              Number(left.unitIndex || 1) - Number(right.unitIndex || 1),
+          )
+      : [];
+  const activeWallet = order
+    ? selectCoverWalletForTicketSlot({
+        wallets: orderWallets,
+        orderId: order.id,
+        ticketSlot: activeTicketSlot,
+        totalTicketSlots: ticketSlots.length,
+      })
+    : null;
+  const activeWalletTransactions = activeWallet ? walletTransactions?.[activeWallet.id] || [] : [];
   const qrRotating = !!qrJwt;
-  const qrTimeLeft = qrExpiresAt ? Math.max(0, Math.floor((qrExpiresAt - Date.now()) / 1000)) : 0;
+  const qrTimeLeft = qrExpiresAt ? Math.max(0, Math.ceil((qrExpiresAt - qrNowMs) / 1000)) : 0;
   const cardWidth = Math.min(width - 48, 380);
   const cardPageWidth = width - 32;
   const walletQrSize = 180;
@@ -497,6 +523,7 @@ function QRModal({
     return () => {
       mountedRef.current = false;
       if (qrTimerRef.current) clearInterval(qrTimerRef.current);
+      if (qrCountdownRef.current) clearInterval(qrCountdownRef.current);
     };
   }, []);
 
@@ -511,14 +538,14 @@ function QRModal({
       if (qrTimerRef.current) clearInterval(qrTimerRef.current);
       qrTimerRef.current = setInterval(() => {
         fetchQrJwt(walletId);
-      }, 55_000);
+      }, 12_000);
     } catch {
       if (!mountedRef.current) return;
       setQrRefreshError(true);
       if (!qrTimerRef.current) {
         qrTimerRef.current = setInterval(() => {
           fetchQrJwt(walletId);
-        }, 55_000);
+        }, 12_000);
       }
     }
   };
@@ -526,10 +553,17 @@ function QRModal({
   useEffect(() => {
     if (visible && activeWallet && activeWallet.state === 'ACTIVE') {
       fetchQrJwt(activeWallet.id);
+      setQrNowMs(Date.now());
+      if (qrCountdownRef.current) clearInterval(qrCountdownRef.current);
+      qrCountdownRef.current = setInterval(() => setQrNowMs(Date.now()), 1_000);
     } else {
       if (qrTimerRef.current) {
         clearInterval(qrTimerRef.current);
         qrTimerRef.current = null;
+      }
+      if (qrCountdownRef.current) {
+        clearInterval(qrCountdownRef.current);
+        qrCountdownRef.current = null;
       }
       setQrJwt(null);
     }
@@ -659,13 +693,6 @@ function QRModal({
       posterTransitionTag: _posterTransitionTag,
     };
   }, [order, width, height]);
-
-  const ticketSlots = useMemo(
-    () => (order ? buildTicketDisplaySlots(order, profile, user) : []),
-    [order, profile, user],
-  );
-  const activeTicketSlot =
-    ticketSlots[Math.min(activeTicketIndex, Math.max(ticketSlots.length - 1, 0))] || ticketSlots[0];
 
   if (!order) return null;
 
@@ -1181,12 +1208,18 @@ function QRModal({
 
                       {/* Balance */}
                       <Text style={ms.walletBalanceLabel}>Cover Charge Balance</Text>
-                      <Text style={ms.walletBalanceAmount}>
-                        {formatRupees(activeWallet.currentBalancePaise)}
-                      </Text>
-                      <Text style={ms.walletOpeningBalance}>
-                        Opening: {formatRupees(activeWallet.openingBalancePaise)}
-                      </Text>
+                      {activeWallet.showBalanceToGuest === false ? (
+                        <Text style={ms.walletOpeningBalance}>Balance hidden by venue policy</Text>
+                      ) : (
+                        <>
+                          <Text style={ms.walletBalanceAmount}>
+                            {formatRupees(activeWallet.currentBalancePaise)}
+                          </Text>
+                          <Text style={ms.walletOpeningBalance}>
+                            Opening: {formatRupees(activeWallet.openingBalancePaise)}
+                          </Text>
+                        </>
+                      )}
 
                       {/* Divider */}
                       <View style={ms.walletCardDivider} />
@@ -1224,7 +1257,7 @@ function QRModal({
                           </View>
                           {qrRefreshError && (
                             <Text style={ms.walletQrRetryText}>
-                              Could not refresh — previous code still active
+                              Could not refresh — reconnect before presenting this code
                             </Text>
                           )}
                         </View>
@@ -1246,12 +1279,18 @@ function QRModal({
                         <Text style={ms.walletHistoryTitle}>Transaction History</Text>
                       </View>
 
-                      {!walletTransactions || walletTransactions.length === 0 ? (
+                      {activeWallet.showTransactionHistory === false ? (
+                        <View style={ms.walletHistoryEmpty}>
+                          <Text style={ms.walletHistoryEmptyText}>
+                            Transaction history hidden by venue policy
+                          </Text>
+                        </View>
+                      ) : activeWalletTransactions.length === 0 ? (
                         <View style={ms.walletHistoryEmpty}>
                           <Text style={ms.walletHistoryEmptyText}>No transactions yet</Text>
                         </View>
                       ) : (
-                        walletTransactions.map((txn: any, i: number) => (
+                        activeWalletTransactions.map((txn: any, i: number) => (
                           <View key={txn.id || i} style={ms.walletHistoryRow}>
                             <View style={ms.walletHistoryLeft}>
                               <Text style={ms.walletHistoryItemName}>
@@ -2036,34 +2075,10 @@ function TicketCard({
     if (onLayout) onLayout(event);
   };
 
-  // Format date like "Mar 12th • 5 PM"
-  const dateStr = (() => {
-    const d = safeDate(order.eventDate);
-    if (!d) return '';
-
-    const month = d.toLocaleDateString('en-US', { month: 'short' });
-    const day = d.getDate();
-    const time = d
-      .toLocaleTimeString('en-US', { hour: 'numeric', hour12: true })
-      .replace(':00', '');
-
-    // Add ordinal suffix (st, nd, rd, th)
-    const suffix = (day: number) => {
-      if (day > 3 && day < 21) return 'th';
-      switch (day % 10) {
-        case 1:
-          return 'st';
-        case 2:
-          return 'nd';
-        case 3:
-          return 'rd';
-        default:
-          return 'th';
-      }
-    };
-
-    return `${month} ${day}${suffix(day)} • ${time}`;
-  })();
+  const dateStr = formatTicketCardDate(
+    order.eventDate || order.eventStartDate,
+    order.eventTimezone,
+  );
 
   return (
     <AnimatedPressable
@@ -2332,29 +2347,32 @@ export default function TicketsScreen() {
   const [cachedOrders, setCachedOrders] = useState<Order[]>([]);
   const [storeOrdersUserId, setStoreOrdersUserId] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
-  const [globalWalletData, setGlobalWalletData] = useState<any>(null);
-  const [globalWalletTxns, setGlobalWalletTxns] = useState<any[]>([]);
+  const [globalWalletData, setGlobalWalletData] = useState<any[]>([]);
+  const [globalWalletTxns, setGlobalWalletTxns] = useState<Record<string, any[]>>({});
 
-  const fetchWallet = async (requestedUserId: string) => {
+  const fetchWallet = useCallback(async (requestedUserId: string) => {
     try {
       const data = await deduplicateRequest<any>(
         `tickets:cover-charge-wallet:${requestedUserId}`,
         () => apiFetch('/api/v1/cover-charge/me'),
       );
       if (useAuthStore.getState().user?.uid !== requestedUserId) return;
-      if (data.wallet) {
-        setGlobalWalletData(data.wallet);
-        setGlobalWalletTxns(data.transactions || []);
+      if (Array.isArray(data.wallets)) {
+        setGlobalWalletData(data.wallets);
+        setGlobalWalletTxns(data.transactionsByWallet || {});
+      } else if (data.wallet) {
+        setGlobalWalletData([data.wallet]);
+        setGlobalWalletTxns({ [data.wallet.id]: data.transactions || [] });
       } else {
-        setGlobalWalletData(null);
-        setGlobalWalletTxns([]);
+        setGlobalWalletData([]);
+        setGlobalWalletTxns({});
       }
     } catch {
       if (useAuthStore.getState().user?.uid !== requestedUserId) return;
-      setGlobalWalletData(null);
-      setGlobalWalletTxns([]);
+      setGlobalWalletData([]);
+      setGlobalWalletTxns({});
     }
-  };
+  }, []);
   const loadCountRef = useRef(0);
   const scrollX = useSharedValue(0);
   const { width: windowWidth } = useWindowDimensions();
@@ -2395,8 +2413,8 @@ export default function TicketsScreen() {
     setCachedOrders([]);
     setStoreOrdersUserId(null);
     setIsOffline(false);
-    setGlobalWalletData(null);
-    setGlobalWalletTxns([]);
+    setGlobalWalletData([]);
+    setGlobalWalletTxns({});
     setSelectedOrder(null);
     setShowQRModal(false);
     if (user?.uid) void loadData(user.uid);
@@ -2442,6 +2460,16 @@ export default function TicketsScreen() {
       if (loadId === loadCountRef.current) setIsOffline(true);
     }
   };
+
+  useEffect(() => {
+    const requestedUserId = user?.uid;
+    if (!showQRModal || !requestedUserId) return;
+    void fetchWallet(requestedUserId);
+    const refreshId = setInterval(() => {
+      void fetchWallet(requestedUserId);
+    }, 3_000);
+    return () => clearInterval(refreshId);
+  }, [fetchWallet, showQRModal, user?.uid]);
 
   const onRefresh = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -2501,7 +2529,6 @@ export default function TicketsScreen() {
       setSelectedOrder(linkedOrder);
       setShowQRModal(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, orders, cachedOrders, user?.uid]);
 
   useEffect(() => {

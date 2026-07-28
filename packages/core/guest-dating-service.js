@@ -1,3 +1,9 @@
+import {
+  FREE_SUBSCRIPTION_LIMITS,
+  getDailyUsageDocumentId,
+  resolveGuestSubscription,
+} from './guest-subscription-service.js';
+
 const USER_LIKES_COLLECTION = 'userLikes';
 const USER_MATCHES_COLLECTION = 'userMatches';
 const PRIVATE_CONVERSATIONS_COLLECTION = 'privateConversations';
@@ -20,18 +26,7 @@ function toMillis(value) {
 }
 
 function isPremiumProfile(profile = {}) {
-  const subscription = profile.subscription || profile.membership || {};
-  const status = String(
-    profile.subscriptionStatus || profile.membershipStatus || subscription.status || '',
-  ).toLowerCase();
-
-  return (
-    profile.isPremium === true ||
-    profile.c1rclePlus === true ||
-    subscription.isPremium === true ||
-    status === 'active' ||
-    status === 'trialing'
-  );
+  return resolveGuestSubscription(profile).isPremium;
 }
 
 function displayNameFromProfile(profile = {}, fallback = 'C1RCLE member') {
@@ -348,18 +343,27 @@ export async function processSwipeAction(db, userId, targetUserId, action) {
 
   // Paywall Limit check
   if (action === 'like' && !isPremium) {
-    const today = new Date().toISOString().split('T')[0];
-    const dailyLimitRef = db.collection('userDailyLimits').doc(`${userId}_${today}`);
+    const dailyLimitRef = db.collection('userDailyLimits').doc(getDailyUsageDocumentId(userId));
 
     await db.runTransaction(async (transaction) => {
       const dailyDoc = await transaction.get(dailyLimitRef);
       const data = dailyDoc.exists ? dailyDoc.data() : { likes: 0 };
+      const likesUsed = Math.max(0, Number(data.likesUsed ?? data.likes ?? 0) || 0);
 
-      if (data.likes >= 50) {
+      if (likesUsed >= FREE_SUBSCRIPTION_LIMITS.likesPerDay) {
         throw new Error('Daily like limit exceeded');
       }
 
-      transaction.set(dailyLimitRef, { likes: data.likes + 1 }, { merge: true });
+      transaction.set(
+        dailyLimitRef,
+        {
+          likes: likesUsed + 1,
+          likesUsed: likesUsed + 1,
+          date: getDailyUsageDocumentId(userId).slice(userId.length + 1),
+          updatedAt: nowIso(),
+        },
+        { merge: true },
+      );
     });
   }
 

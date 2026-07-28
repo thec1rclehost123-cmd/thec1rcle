@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Filter, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { VenuePageShell } from '@/components/venue-layout/VenuePageShell';
@@ -29,9 +29,24 @@ export default function VenueOrdersPageClient() {
   const venueId = profile?.activeMembership?.partnerId;
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
+  const [appliedQuery, setAppliedQuery] = useState('');
   const [source, setSource] = useState<SourceFilter>('all');
   const [eventId, setEventId] = useState('all');
   const [selectedRange, setSelectedRange] = useState('all');
+  const cursorsByPage = useRef<Record<number, string | null>>({ 1: null });
+
+  const resetPagination = useCallback(() => {
+    cursorsByPage.current = { 1: null };
+    setPage(1);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      resetPagination();
+      setAppliedQuery(query.trim());
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [query, resetPagination]);
 
   const dateRange = useMemo(() => {
     const now = new Date();
@@ -67,18 +82,18 @@ export default function VenueOrdersPageClient() {
   });
 
   const ordersQuery = useQuery({
-    queryKey: ['venue', venueId, 'orders', page, query, eventId, selectedRange],
+    queryKey: ['venue', venueId, 'orders', page, appliedQuery, eventId, selectedRange],
     enabled: Boolean(venueId && user),
     queryFn: async () => {
       const token = await user!.getIdToken();
       const params = new URLSearchParams({
         venueId: venueId!,
-        page: String(page),
         limit: '20',
-        ...(query.trim() ? { q: query.trim() } : {}),
+        ...(appliedQuery ? { q: appliedQuery } : {}),
         ...(eventId !== 'all' ? { eventId } : {}),
         ...(dateRange.startDate ? { startDate: dateRange.startDate } : {}),
         ...(dateRange.endDate ? { endDate: dateRange.endDate } : {}),
+        ...(cursorsByPage.current[page] ? { cursor: cursorsByPage.current[page]! } : {}),
       });
       const response = await fetch(`/api/partners/venues/orders?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -96,6 +111,11 @@ export default function VenueOrdersPageClient() {
   );
   const pagination = ordersQuery.data?.pagination;
 
+  useEffect(() => {
+    const nextCursor = pagination?.nextCursor;
+    if (pagination?.hasMore && nextCursor) cursorsByPage.current[page + 1] = nextCursor;
+  }, [page, pagination?.hasMore, pagination?.nextCursor]);
+
   return (
     <VenuePageShell title="Orders" subtitle="Latest venue orders across all events.">
       <div className="mb-8 flex flex-col gap-6">
@@ -106,10 +126,7 @@ export default function VenueOrdersPageClient() {
             </div>
             <input
               value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPage(1);
-              }}
+              onChange={(event) => setQuery(event.target.value)}
               className="w-full h-12 pl-11 pr-4 rounded-full bg-[var(--v-elevated)] border border-[var(--v-border)] text-sm font-medium text-[var(--v-text-primary)] placeholder:text-[var(--v-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--v-border-strong)] transition-all shadow-sm"
               placeholder="Search attendee, email or order ID..."
             />
@@ -124,7 +141,7 @@ export default function VenueOrdersPageClient() {
                 value={eventId}
                 onChange={(e) => {
                   setEventId(e.target.value);
-                  setPage(1);
+                  resetPagination();
                 }}
                 className="bg-transparent border-none text-[13px] font-bold text-[var(--v-text-primary)] outline-none min-w-[140px] cursor-pointer appearance-none"
               >
@@ -143,7 +160,7 @@ export default function VenueOrdersPageClient() {
                 value={selectedRange}
                 onChange={(e) => {
                   setSelectedRange(e.target.value);
-                  setPage(1);
+                  resetPagination();
                 }}
                 className="bg-transparent border-none text-[13px] font-bold text-[var(--v-text-primary)] outline-none min-w-[110px] cursor-pointer appearance-none"
               >
@@ -254,7 +271,7 @@ export default function VenueOrdersPageClient() {
         )}
       </div>
 
-      {pagination && pagination.total > pagination.limit ? (
+      {pagination && (pagination.hasMore || page > 1) ? (
         <div className="flex items-center justify-center gap-3">
           <button
             type="button"

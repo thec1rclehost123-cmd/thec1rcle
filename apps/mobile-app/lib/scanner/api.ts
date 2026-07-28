@@ -370,6 +370,7 @@ export async function fetchWalletByPaymentQr(
 ): Promise<{ wallet: WalletContext } | { error: string }> {
   const { signal, cleanup } = makeAbort(10000);
   try {
+    const deviceId = await getScannerDeviceId();
     const res = await fetch(`${SCAN_API}/wallet-qr`, {
       method: 'POST',
       headers: withScannerAuth(sessionToken, { 'Content-Type': 'application/json' }),
@@ -378,6 +379,7 @@ export async function fetchWalletByPaymentQr(
         eventId: context.eventId,
         eventCode: context.eventCode,
         venueId: context.venueId,
+        deviceId,
         gate: context.gate,
       }),
       signal,

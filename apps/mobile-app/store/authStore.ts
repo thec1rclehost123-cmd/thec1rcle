@@ -107,7 +107,7 @@ function startRealtimeSession(userId: string): Promise<void> {
     const result = await apiFetch<{
       success: boolean;
       data: { token: string; expiresAt: string; expiresInSeconds: number };
-    }>('/realtime/session', { method: 'POST' });
+    }>('/api/v1/realtime/session', { method: 'POST' });
     if (getFirebaseAuth().currentUser?.uid !== userId) return;
     wsManager.start(result.data.token);
     if (realtimeSessionTimer) clearTimeout(realtimeSessionTimer);

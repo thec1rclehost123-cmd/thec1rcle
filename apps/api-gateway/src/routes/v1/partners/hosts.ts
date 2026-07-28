@@ -1,12 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { sendHostInvitationEmail, generateTemporaryPassword } from '../../../lib/email.js';
-import { getHostAnalytics } from '@c1rcle/core/analytics-engine';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
 import { getPartnerProfileWithPii } from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { HostService } from '../../../services/unified/host-service.js';
 import { SchedulingService } from '../../../services/unified/scheduling-service.js';
+import type { PartnerContext } from '../../../services/unified/types.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
 import {
   buildPayoutAccountRecord,
@@ -99,6 +99,38 @@ function asArray<T = PlainRecord>(value: unknown): T[] {
 function toNumber(value: any): number {
   const amount = Number(value ?? 0);
   return Number.isFinite(amount) ? amount : 0;
+}
+
+function toEventDateKey(value: unknown): string | null {
+  let normalized: string | null = null;
+  if (typeof value === 'string') {
+    normalized = value.slice(0, 10);
+  } else if (value instanceof Date) {
+    normalized = value.toISOString().slice(0, 10);
+  } else if (value && typeof value === 'object') {
+    const timestamp = value as { toDate?: () => Date; _seconds?: number; seconds?: number };
+    if (typeof timestamp.toDate === 'function') {
+      normalized = timestamp.toDate().toISOString().slice(0, 10);
+    } else {
+      const seconds = timestamp._seconds ?? timestamp.seconds;
+      if (typeof seconds === 'number') {
+        normalized = new Date(seconds * 1000).toISOString().slice(0, 10);
+      }
+    }
+  }
+  return normalized && /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
+}
+
+function requireEventTime(value: unknown, field: 'startTime' | 'endTime'): string {
+  const normalized = String(value || '');
+  const match = /^(\d{2}):(\d{2})$/.exec(normalized);
+  if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) {
+    const err: any = new Error(`Venue-bound event is missing a valid ${field}`);
+    err.statusCode = 409;
+    err.code = 'EVENT_SCHEDULE_INCOMPLETE';
+    throw err;
+  }
+  return normalized;
 }
 
 function buildHostKpis(stats: PlainRecord) {
@@ -332,11 +364,38 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     const snap = await fastify.db
       .collection('partnerships')
       .where('hostId', '==', hostId)
-      .orderBy('createdAt', 'desc')
-      .get()
-      .catch(() => ({ docs: [] as any[] }));
+      .limit(100)
+      .get();
+    const partnerships = (snap as any).docs.map((doc: any) => ({
+      id: doc.id,
+      ...(doc.data() || {}),
+    }));
+    partnerships.sort(
+      (left: any, right: any) =>
+        new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime(),
+    );
+    const venueIds = [
+      ...new Set(partnerships.map((item: any) => String(item.venueId || '')).filter(Boolean)),
+    ];
+    const venues = new Map<string, Record<string, any>>();
+    for (let index = 0; index < venueIds.length; index += 30) {
+      const venueSnap = await fastify.db
+        .collection('venues')
+        .where('__name__', 'in', venueIds.slice(index, index + 30))
+        .get();
+      venueSnap.docs.forEach((doc: any) => venues.set(doc.id, doc.data() || {}));
+    }
     return {
-      partnerships: (snap as any).docs.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) })),
+      partnerships: partnerships.map((partnership: any) => {
+        const venue = venues.get(String(partnership.venueId || '')) || {};
+        return {
+          ...partnership,
+          venueName: partnership.venueName || venue.displayName || venue.name || 'Partner Venue',
+          venueCity: partnership.venueCity || venue.city || '',
+          venueLogo:
+            partnership.venueLogo || venue.logoUrl || venue.profileImage || venue.photoURL || null,
+        };
+      }),
     };
   };
 
@@ -573,6 +632,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   };
 
   const getHostFinanceOverview = async (ctx: any) => {
+    const cacheKey = `host-finance-overview:v1:${ctx.partnerId}`;
+    const cached = await fastify.cache.get('partner-finance-ledger', cacheKey);
+    if (cached) {
+      return { ...cached, fromCache: true };
+    }
+
     const [overview, payoutsResult, disputesResult, balances] = await Promise.all([
       financeService.getOverview(ctx),
       financeService.getPayouts(ctx, { limit: 10 }),
@@ -594,7 +659,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       )
       .reduce((sum, payout) => sum + toNumber(payout.amount), 0);
 
-    return {
+    const result = {
       metrics: {
         availableBalance: toNumber(balances.available),
         pendingPayouts: toNumber(balances.pending),
@@ -610,6 +675,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       recentPayouts: payouts,
       revenueByPeriod: asArray(overview.revenueByPeriod),
     };
+    await fastify.cache.set('partner-finance-ledger', cacheKey, result, 15);
+    return result;
   };
 
   const getHostOverviewSummary = async (ctx: any) => {
@@ -1062,186 +1129,214 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     return { success: true };
   };
 
-  const submitHostEvent = async (request: any, hostId: string, eventId: string) => {
-    const event = await getHostEventAndVerify(hostId, eventId);
-    const lifecycle = String(event.lifecycle || event.status || '');
-    if (!['draft', 'changes_requested'].includes(lifecycle)) {
-      const err: any = new Error(`Cannot submit event in ${lifecycle} state`);
-      err.statusCode = 409;
-      err.code = 'CONFLICT';
-      throw err;
-    }
+  const transitionHostEventForReview = async (
+    ctx: PartnerContext,
+    eventId: string,
+    options: { resubmission: boolean; body?: PlainRecord },
+  ) => {
     const now = new Date().toISOString();
+    const eventRef = fastify.db.collection('events').doc(eventId);
+    const historyRef = fastify.db.collection('submission_history').doc();
+    const notificationRef = fastify.db.collection('notifications').doc();
+    let result:
+      | {
+          lifecycle: string;
+          standalone: boolean;
+          venueId: string | null;
+          slotRequestId: string | null;
+        }
+      | undefined;
 
-    // Standalone host events (no venue) self-publish immediately to 'scheduled'.
-    // Events tied to a venue go to 'submitted' and wait for slot approval.
-    const isStandalone = !event.venueId;
-    const toState = isStandalone ? 'scheduled' : 'submitted';
-    const extraUpdates: PlainRecord = isStandalone
-      ? { visibility: 'public', publishedAt: now }
-      : {};
+    await fastify.db.runTransaction(async (tx: any) => {
+      const eventDoc = await tx.get(eventRef);
+      if (!eventDoc.exists) {
+        const err: any = new Error('Event not found');
+        err.statusCode = 404;
+        err.code = 'NOT_FOUND';
+        throw err;
+      }
 
-    await fastify.db
-      .collection('events')
-      .doc(eventId)
-      .update({
+      const persistedEvent = eventDoc.data() as PlainRecord;
+      const ownerId = String(persistedEvent.creatorId || persistedEvent.hostId || '');
+      if (!ownerId || ownerId !== ctx.partnerId) {
+        const err: any = new Error('Event not found');
+        err.statusCode = 404;
+        err.code = 'NOT_FOUND';
+        throw err;
+      }
+
+      const lifecycle = String(
+        persistedEvent.lifecycle || persistedEvent.status || '',
+      ).toLowerCase();
+      const allowedStates = options.resubmission
+        ? ['changes_requested', 'rejected', 'needs_changes', 'denied']
+        : ['draft', 'changes_requested'];
+      if (!allowedStates.includes(lifecycle)) {
+        const err: any = new Error(
+          `Cannot ${options.resubmission ? 'resubmit' : 'submit'} event in ${lifecycle} state`,
+        );
+        err.statusCode = 409;
+        err.code = 'EVENT_LIFECYCLE_CONFLICT';
+        throw err;
+      }
+
+      const resubmissionPatch = options.resubmission
+        ? sanitizeEventResubmissionPatch(options.body?.patch)
+        : {};
+      const event = { ...persistedEvent, ...resubmissionPatch };
+      const venueId = String(event.venueId || '');
+      const isStandalone = !venueId;
+      const toState = isStandalone ? 'scheduled' : 'submitted';
+      let slotRequestId: string | null = null;
+
+      if (!isStandalone) {
+        const date = toEventDateKey(event.startDate);
+        if (!date) {
+          const err: any = new Error('Venue-bound event is missing a valid startDate');
+          err.statusCode = 409;
+          err.code = 'EVENT_SCHEDULE_INCOMPLETE';
+          throw err;
+        }
+        const startTime = requireEventTime(event.startTime, 'startTime');
+        const endTime = requireEventTime(event.endTime, 'endTime');
+        const partnershipSnap = await tx.get(
+          fastify.db
+            .collection('partnerships')
+            .where('hostId', '==', ctx.partnerId)
+            .where('venueId', '==', venueId)
+            .where('status', '==', 'active')
+            .limit(1),
+        );
+        if (partnershipSnap.empty) {
+          const err: any = new Error('An active venue partnership is required');
+          err.statusCode = 403;
+          err.code = 'ACTIVE_PARTNERSHIP_REQUIRED';
+          throw err;
+        }
+
+        slotRequestId = await schedulingService.requestSlotInTransaction(tx, ctx, {
+          eventId,
+          venueId,
+          venueName: String(event.venueName || event.venue || ''),
+          hostName: String(event.hostName || event.host || ctx.displayName || ''),
+          date,
+          startTime,
+          endTime,
+          notes: String(options.body?.hostNote || options.body?.note || event.hostNote || ''),
+          source: 'host_event_request',
+        });
+      }
+
+      tx.update(eventRef, {
+        ...resubmissionPatch,
         lifecycle: toState,
         status: toState,
+        submissionStatus: isStandalone
+          ? 'approved'
+          : options.resubmission
+            ? 'resubmitted'
+            : 'submitted',
+        approvalState: isStandalone ? 'approved' : 'pending',
         updatedAt: now,
         submittedAt: now,
-        ...extraUpdates,
+        ...(options.resubmission ? { resubmittedAt: now } : {}),
+        ...(isStandalone ? { visibility: 'public', publishedAt: now } : {}),
       });
-    await fastify.db.collection('submission_history').add({
-      eventId,
-      fromState: lifecycle,
-      toState,
-      actorUid: request.user?.uid || hostId,
-      actorRole: 'host',
-      timestamp: now,
-    });
-    if (event.venueId) {
-      await fastify.db.collection('notifications').add({
-        recipientId: event.venueId,
-        recipientType: 'venue',
-        type: 'event_submitted',
+      tx.create(historyRef, {
         eventId,
-        hostId,
-        title: 'New Event Submission',
-        message: `${event.title} has been submitted for your approval.`,
-        read: false,
-        createdAt: now,
+        fromState: lifecycle,
+        toState,
+        actorUid: ctx.uid,
+        actorRole: 'host',
+        note: options.body?.note || options.body?.hostNote || null,
+        timestamp: now,
       });
-    }
-    await fastify.cache.delete('events:detail', eventId).catch(() => {});
-    await fastify.publicDiscoveryService.syncEventReadModels(eventId);
-    await fastify
-      .writeAuditLog({
-        action: isStandalone ? 'EVENT_PUBLISHED' : 'EVENT_SUBMITTED',
-        actorUid: request.user?.uid || hostId,
-        entityId: eventId,
-        payload: { hostId, standalone: isStandalone },
-      })
-      .catch(() => {});
-    return { success: true, lifecycle: toState };
-  };
+      if (!isStandalone) {
+        tx.create(notificationRef, {
+          recipientId: venueId,
+          recipientType: 'venue',
+          type: options.resubmission ? 'event_resubmitted' : 'event_submitted',
+          eventId,
+          hostId: ctx.partnerId,
+          title: options.resubmission ? 'Event Resubmitted' : 'New Event Submission',
+          message: `${event.title || 'An event'} has been ${options.resubmission ? 'resubmitted' : 'submitted'} for your approval.`,
+          read: false,
+          createdAt: now,
+        });
+      }
 
-  const resubmitHostEvent = async (
-    request: any,
-    hostId: string,
-    eventId: string,
-    body: PlainRecord,
-  ) => {
-    const event = await getHostEventAndVerify(hostId, eventId);
-    const lifecycle = String(event.lifecycle || event.status || '');
-    if (!['changes_requested', 'rejected'].includes(lifecycle)) {
-      const err: any = new Error(`Cannot resubmit event in ${lifecycle} state`);
-      err.statusCode = 409;
-      err.code = 'CONFLICT';
+      result = {
+        lifecycle: toState,
+        standalone: isStandalone,
+        venueId: venueId || null,
+        slotRequestId,
+      };
+    });
+
+    if (!result) {
+      const err: any = new Error('Event submission transaction did not produce a result');
+      err.statusCode = 500;
+      err.code = 'EVENT_SUBMISSION_FAILED';
       throw err;
     }
-    const now = new Date().toISOString();
-    const isStandalone = !event.venueId;
-    const toState = isStandalone ? 'scheduled' : 'submitted';
-    const updates: PlainRecord = {
-      lifecycle: toState,
-      status: toState,
-      updatedAt: now,
-      resubmittedAt: now,
-      ...(isStandalone ? { visibility: 'public', publishedAt: now } : {}),
-    };
-    Object.assign(updates, sanitizeEventResubmissionPatch(body.patch));
-    await fastify.db.collection('events').doc(eventId).update(updates);
-    await fastify.db.collection('submission_history').add({
-      eventId,
-      fromState: lifecycle,
-      toState,
-      actorUid: request.user?.uid || hostId,
-      actorRole: 'host',
-      note: body.note,
-      timestamp: now,
-    });
-    if (event.venueId) {
-      await fastify.db.collection('notifications').add({
-        recipientId: event.venueId,
-        recipientType: 'venue',
-        type: 'event_resubmitted',
-        eventId,
-        hostId,
-        title: 'Event Resubmitted',
-        message: `${event.title} has been resubmitted for your approval.`,
-        read: false,
-        createdAt: now,
-      });
-    }
+
     await fastify.cache.delete('events:detail', eventId).catch(() => {});
     await fastify.publicDiscoveryService.syncEventReadModels(eventId);
     await fastify
       .writeAuditLog({
-        action: isStandalone ? 'EVENT_PUBLISHED' : 'EVENT_RESUBMITTED',
-        actorUid: request.user?.uid || hostId,
+        action: result.standalone
+          ? 'EVENT_PUBLISHED'
+          : options.resubmission
+            ? 'EVENT_RESUBMITTED'
+            : 'EVENT_SUBMITTED',
+        actorUid: ctx.uid,
         entityId: eventId,
-        payload: { hostId, note: body.note, standalone: isStandalone },
+        payload: {
+          hostId: ctx.partnerId,
+          venueId: result.venueId,
+          slotRequestId: result.slotRequestId,
+          standalone: result.standalone,
+        },
       })
       .catch(() => {});
-    return { success: true, lifecycle: toState };
+
+    return {
+      success: true,
+      lifecycle: result.lifecycle,
+      slotRequestId: result.slotRequestId,
+    };
   };
 
-  const getHostAnalyticsTimeSeries = async (hostId: string, query: PlainRecord) => {
-    const range = String(query.range || '1w');
-    const metric = String(query.metric || 'revenue');
-    const cacheKey = `${hostId}:${range}:${metric}:v2`;
+  const submitHostEvent = async (request: any, ctx: PartnerContext, eventId: string) =>
+    transitionHostEventForReview(ctx, eventId, {
+      resubmission: false,
+      body: asRecord(request.body),
+    });
+
+  const resubmitHostEvent = async (
+    _request: any,
+    ctx: PartnerContext,
+    eventId: string,
+    body: PlainRecord,
+  ) => transitionHostEventForReview(ctx, eventId, { resubmission: true, body });
+
+  const getHostAnalyticsTimeSeries = async (ctx: PartnerContext, query: PlainRecord) => {
+    const requestedRange = String(query.range || '1w');
+    const requestedMetric = String(query.metric || 'revenue');
+    const range = ['1d', '1w', '1m', 'all'].includes(requestedRange)
+      ? (requestedRange as '1d' | '1w' | '1m' | 'all')
+      : '1w';
+    const metric = ['tickets', 'revenue'].includes(requestedMetric)
+      ? (requestedMetric as 'tickets' | 'revenue')
+      : 'revenue';
+    const cacheKey = `${ctx.partnerId}:${range}:${metric}:ledger-projection-v1`;
     const cached = await fastify.cache.get('analytics:host:ts', cacheKey);
     if (cached) return { ...cached, fromCache: true };
 
-    const days =
-      range === '1d' ? 1 : range === '1w' ? 7 : range === '1m' ? 30 : range === '3m' ? 90 : 7;
-    const nowMs = Date.now();
-    const fromMs = nowMs - days * 86400000;
-    const fromIso = new Date(fromMs).toISOString();
-
-    const ordersSnap = await fastify.db
-      .collection('orders')
-      .where('hostId', '==', hostId)
-      .where('status', 'in', ['confirmed', 'paid'])
-      .where('createdAt', '>=', fromIso)
-      .limit(1000)
-      .get()
-      .catch(() => ({ docs: [] as any[] }));
-
-    const buckets = new Map<string, { revenue: number; ticketsSold: number }>();
-    for (let d = 0; d < days; d++) {
-      const label = new Date(fromMs + d * 86400000).toISOString().slice(0, 10);
-      buckets.set(label, { revenue: 0, ticketsSold: 0 });
-    }
-    for (const doc of (ordersSnap as any).docs) {
-      const od = doc.data() || {};
-      const label = String(od.createdAt || '').slice(0, 10);
-      if (buckets.has(label)) {
-        const b = buckets.get(label)!;
-        b.revenue += toNumber(od.amount || od.total || 0);
-        b.ticketsSold += toNumber(od.ticketsCount || od.quantity || 1);
-      }
-    }
-
-    const series = Array.from(buckets.entries()).map(([date, b]) => ({
-      label: date,
-      date,
-      revenue: b.revenue,
-      ticketsSold: b.ticketsSold,
-      value: metric === 'revenue' ? b.revenue : b.ticketsSold,
-    }));
-    const totals = series.reduce(
-      (acc, pt) => ({
-        revenue: acc.revenue + pt.revenue,
-        ticketsSold: acc.ticketsSold + pt.ticketsSold,
-      }),
-      { revenue: 0, ticketsSold: 0 },
-    );
-    const legacyStats = await getHostAnalytics(hostId, range as any).catch(() => ({}));
+    const performance = await hostService.getPerformance(ctx, range, metric);
     const result = {
-      ...asRecord(legacyStats),
-      series,
-      total: metric === 'revenue' ? totals.revenue : totals.ticketsSold,
+      hostId: ctx.partnerId,
+      ...performance,
     };
     await fastify.cache.set('analytics:host:ts', cacheKey, result, 120);
     return result;
@@ -1249,6 +1344,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
   const getHostVenueCalendar = async (hostId: string, query: PlainRecord) => {
     const venueId = String(query.venueId || '');
+    const startDate = String(query.startDate || '');
+    const endDate = String(query.endDate || '');
     const partnerSnap = await fastify.db
       .collection('partnerships')
       .where('hostId', '==', hostId)
@@ -1266,11 +1363,14 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       fastify.db
         .collection('events')
         .where('venueId', '==', venueId)
-        .get()
-        .catch(() => ({ docs: [] as any[] })),
+        .where('startDate', '>=', startDate)
+        .where('startDate', '<=', `${endDate}T23:59:59.999Z`)
+        .orderBy('startDate', 'desc')
+        .limit(200)
+        .get(),
       schedulingService.getCalendar(venueId, {
-        startDate: String(query.startDate || '1970-01-01'),
-        endDate: String(query.endDate || '2999-12-31'),
+        startDate,
+        endDate,
       }),
     ]);
     const events = ((eventsSnap as any).docs || []).map((doc: any) => ({
@@ -1343,6 +1443,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           startTime: slot.startTime,
           endTime: slot.endTime,
           status: slot.status,
+          requestedBy: slot.requestedBy,
+          eventId: slot.eventId,
           notes: slot.notes ?? null,
         })),
         block,
@@ -1357,7 +1459,14 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
 
-    return { calendar: dates, days: dates };
+    return {
+      calendar: dates,
+      days: dates,
+      pagination: {
+        limit: 200,
+        truncated: ((eventsSnap as any).docs || []).length === 200,
+      },
+    };
   };
 
   // ── Overview ───────────────────────────────────────────────────────────────
@@ -1380,23 +1489,23 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
       try {
         requireType(ctx, 'host');
+        const range = request.query.range ?? '1m';
+        const metric = request.query.metric ?? 'tickets';
+        const cacheKey = `partners:host:overview:${ctx.partnerId}:${range}:${metric}:contract-v2`;
+        const cached = await fastify.cache.get('partners', cacheKey);
+        if (cached) {
+          return reply.header('Cache-Control', 'private, max-age=120').send({
+            ...cached,
+            fromCache: true,
+          });
+        }
+
         const hostDoc = await fastify.db
           .collection('hosts')
           .doc(ctx.partnerId)
           .get()
           .catch(() => null);
         const warnings = hostDoc && hostDoc.exists ? hostDoc.data()?.warnings || [] : [];
-
-        const range = request.query.range ?? '1m';
-        const metric = request.query.metric ?? 'tickets';
-        const cacheKey = `partners:host:overview:${ctx.partnerId}:${range}:${metric}:contract-v1`;
-        const cached = await fastify.cache.get('partners', cacheKey);
-        if (cached) {
-          return reply
-            .header('Cache-Control', 'private, max-age=120')
-            .send({ ...cached, warnings, fromCache: true });
-        }
-
         const result = await hostService.getOverview(ctx, { range, metric });
 
         const stats = {
@@ -1431,7 +1540,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           })),
           recentActivity: asArray(result.recentActivity),
           latestOrders: asArray(result.latestOrders),
-          performance: asArray(result.performance),
+          performance: result.performance,
           warnings,
         };
 
@@ -1580,7 +1689,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   // ── Calendar ───────────────────────────────────────────────────────────────
 
   fastify.get(
-    '/partners/hosts/calendar',
+    '/partners/hosts/venue-calendar',
     {
       preHandler: [fastify.validate({ querystring: CalendarQuerySchema }), fastify.requireAuth],
     },
@@ -1615,6 +1724,19 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         );
       }
     },
+  );
+
+  fastify.get(
+    '/partners/hosts/calendar',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) =>
+      reply.status(410).send(
+        buildErrorResponse({
+          code: 'LEGACY_ROUTE_GONE',
+          message: 'Use /api/v1/partners/hosts/venue-calendar',
+          requestId: request.id,
+        }),
+      ),
   );
 
   // ── List slot requests (host) ──────────────────────────────────────────────
@@ -2251,7 +2373,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       try {
         const ctx = await resolvePartnerContext(fastify.db, request);
         // Debug: log partner context resolution
-         
+
         console.debug('[hosts.upload] resolvePartnerContext', {
           requestId: request.id,
           hasCtx: !!ctx,
@@ -2429,7 +2551,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         if (rest === 'promoters' && request.method === 'GET')
           return reply.send(await getHostPromoters(ctx.partnerId));
         if (rest === 'analytics/time-series' && request.method === 'GET')
-          return reply.send(await getHostAnalyticsTimeSeries(ctx.partnerId, query));
+          return reply.send(await getHostAnalyticsTimeSeries(ctx, query));
         if (rest === 'venue-calendar' && request.method === 'GET')
           return reply.send(await getHostVenueCalendar(ctx.partnerId, query));
 
@@ -2441,13 +2563,11 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
         const submitMatch = rest.match(/^events\/([^/]+)\/submit$/);
         if (submitMatch && request.method === 'POST')
-          return reply.send(await submitHostEvent(request, ctx.partnerId, submitMatch[1]));
+          return reply.send(await submitHostEvent(request, ctx, submitMatch[1]));
 
         const resubmitMatch = rest.match(/^events\/([^/]+)\/resubmit$/);
         if (resubmitMatch && request.method === 'PATCH')
-          return reply.send(
-            await resubmitHostEvent(request, ctx.partnerId, resubmitMatch[1], body),
-          );
+          return reply.send(await resubmitHostEvent(request, ctx, resubmitMatch[1], body));
 
         const eventOverviewMatch = rest.match(/^events\/([^/]+)\/overview$/);
         if (eventOverviewMatch && request.method === 'GET')
@@ -3195,6 +3315,17 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
+          const venueDoc = await fastify.db.collection('venues').doc(venueId).get();
+          if (!venueDoc.exists) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Venue not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          const venue = venueDoc.data() || {};
           const existing = await fastify.db
             .collection('partnerships')
             .where('hostId', '==', ctx.partnerId)
@@ -3213,6 +3344,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           const ref = await fastify.db.collection('partnerships').add({
             hostId: ctx.partnerId,
             venueId,
+            venueName: String(venue.displayName || venue.name || 'Partner Venue'),
+            venueCity: String(venue.city || ''),
+            venueLogo: venue.logoUrl || venue.profileImage || venue.photoURL || null,
             status: 'pending',
             message: String(body.message || ''),
             createdAt: now,

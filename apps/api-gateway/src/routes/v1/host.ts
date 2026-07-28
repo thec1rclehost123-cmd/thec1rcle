@@ -834,10 +834,10 @@ export default async function hostRoutes(fastify: FastifyInstance) {
           hasMore,
         };
 
-        // 4. Save to Cache (60s TTL)
-        await fastify.cache.set('host', cacheKey, response, 60);
+        // 4. Save to Cache (5min TTL)
+        await fastify.cache.set('host', cacheKey, response, 300);
 
-        return reply.header('Cache-Control', 'private, max-age=60').send(response);
+        return reply.header('Cache-Control', 'private, max-age=300').send(response);
       } catch (error: any) {
         fastify.log.error(`Host events list failed: ${error.message}`);
         return reply

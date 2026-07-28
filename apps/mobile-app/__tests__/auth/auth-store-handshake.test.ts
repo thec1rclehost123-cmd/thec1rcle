@@ -93,6 +93,7 @@ import {
   useAuthStore,
 } from '../../store/authStore';
 import { syncAuthSession } from '../../lib/api';
+import { apiFetch } from '../../lib/api';
 import { refreshPushToken } from '../../lib/notifications';
 import { wsManager } from '../../lib/websocket';
 import { useFirstRunStore } from '../../store/firstRunStore';
@@ -187,6 +188,7 @@ describe('authStore server handshake', () => {
     expect(refreshPushToken).toHaveBeenCalledWith('user_1');
     await flushPromises();
     expect(wsManager.start).toHaveBeenCalledWith('realtime-session-token');
+    expect(apiFetch).toHaveBeenCalledWith('/api/v1/realtime/session', { method: 'POST' });
 
     cleanup();
   });

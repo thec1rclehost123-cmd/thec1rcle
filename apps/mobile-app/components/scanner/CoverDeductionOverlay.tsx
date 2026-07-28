@@ -1,4 +1,3 @@
-/* eslint-disable no-misleading-character-class */
 /**
  * CoverDeductionOverlay
  *
@@ -8,10 +7,10 @@
  * Rules enforced here:
  *  - Offline is hard-blocked (no offline cover charges)
  *  - Insufficient balance blocks Process button with cash fallback message
- *  - Every tap generates a fresh idempotencyKey (randomUUID) to prevent double-charge
+ *  - One UUID identifies a charge and is preserved across uncertain retries
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   Modal,
   View,
@@ -23,6 +22,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { randomUUID } from 'expo-crypto';
 import NetInfo from '@react-native-community/netinfo';
 import { PresetGrid } from './PresetGrid';
 import { submitDebit } from '@/lib/scanner/api';
@@ -39,13 +39,6 @@ function formatPaise(paise: number): string {
   return `₹${(paise / 100).toFixed(0)}`;
 }
 
-function randomKey(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
 export function CoverDeductionOverlay({ wallet, sessionToken, onSuccess, onDismiss }: Props) {
   const [selectedPreset, setSelectedPreset] = useState<PresetItem | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -53,6 +46,7 @@ export function CoverDeductionOverlay({ wallet, sessionToken, onSuccess, onDismi
     null,
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const selectedAmountPaise = selectedPreset?.amountPaise ?? 0;
 
@@ -79,7 +73,10 @@ export function CoverDeductionOverlay({ wallet, sessionToken, onSuccess, onDismi
     setErrorMsg(null);
 
     try {
-      const idempotencyKey = randomKey();
+      // Preserve the UUID across network retries. A new UUID is created only
+      // when the operator selects a different charge.
+      const idempotencyKey = idempotencyKeyRef.current || randomUUID();
+      idempotencyKeyRef.current = idempotencyKey;
       const result = await submitDebit(
         {
           walletId: wallet.id,
@@ -164,6 +161,11 @@ export function CoverDeductionOverlay({ wallet, sessionToken, onSuccess, onDismi
               <PresetGrid
                 items={wallet.rules.allowedPresetItems}
                 onSelect={(item) => {
+                  // Re-selecting the same charge after an uncertain network
+                  // outcome is a retry of the same financial operation.
+                  if (selectedPreset?.id !== item.id || !idempotencyKeyRef.current) {
+                    idempotencyKeyRef.current = randomUUID();
+                  }
                   setSelectedPreset(item);
                   setErrorMsg(null);
                 }}
@@ -193,6 +195,7 @@ export function CoverDeductionOverlay({ wallet, sessionToken, onSuccess, onDismi
 
               {/* Process button */}
               <Pressable
+                testID="cover-charge-process"
                 style={[styles.processBtn, !canProcess && styles.processBtnDisabled]}
                 onPress={handleProcess}
                 disabled={!canProcess}

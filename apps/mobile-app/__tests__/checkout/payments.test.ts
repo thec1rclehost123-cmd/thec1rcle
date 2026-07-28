@@ -1,7 +1,7 @@
 import { __setRazorpayCheckoutForTests, processFullCheckout } from '../../lib/payments';
 import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
-import { initiateCheckout, reserveTickets, verifyPayment } from '../../lib/api';
+import { cancelReservation, initiateCheckout, reserveTickets, verifyPayment } from '../../lib/api';
 
 jest.mock('../../lib/api', () => ({
   reserveTickets: jest.fn(),
@@ -159,6 +159,40 @@ describe('processFullCheckout', () => {
 
     await processFullCheckout(baseParams);
 
+    expect(reserveTickets).toHaveBeenCalled();
+    expect(initiateCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ reservationId: 'fresh_res' }),
+      expect.any(Object),
+    );
+  });
+
+  it('drops a foreign expired local reservation after the Gateway denies cancellation', async () => {
+    useCartStore.getState().setPendingReservation({
+      reservationId: 'foreign_expired_res',
+      eventId: 'event_1',
+      eventTitle: 'Neon Night',
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+      items: baseParams.items,
+    });
+    (cancelReservation as jest.Mock).mockRejectedValueOnce(
+      Object.assign(new Error('Forbidden: Not your reservation'), { status: 403 }),
+    );
+    (reserveTickets as jest.Mock).mockResolvedValueOnce({
+      success: true,
+      reservationId: 'fresh_res',
+      items: baseParams.items,
+      expiresAt: futureExpiry,
+      expiresInSeconds: 600,
+    });
+    (initiateCheckout as jest.Mock).mockResolvedValueOnce({
+      success: true,
+      requiresPayment: false,
+      order: { id: 'order_3' },
+    });
+
+    const result = await processFullCheckout(baseParams);
+
+    expect(result.success).toBe(true);
     expect(reserveTickets).toHaveBeenCalled();
     expect(initiateCheckout).toHaveBeenCalledWith(
       expect.objectContaining({ reservationId: 'fresh_res' }),

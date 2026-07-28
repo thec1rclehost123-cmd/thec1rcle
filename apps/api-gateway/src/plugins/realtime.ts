@@ -226,9 +226,9 @@ export default fp(async (fastify: FastifyInstance) => {
     },
   );
 
-  fastify.get('/ws/updates', { websocket: true }, async (connection) => {
+  fastify.get('/ws/updates', { websocket: true }, async (socket, request) => {
     const client: WSClient = {
-      socket: connection.socket,
+      socket,
       subscriptions: new Set<string>(),
       userId: null,
       claims: null,
@@ -236,23 +236,24 @@ export default fp(async (fastify: FastifyInstance) => {
     };
     clients.add(client);
 
-    connection.socket.on('message', async (message: string) => {
+    socket.on('message', async (message: string) => {
       try {
         const data = JSON.parse(message.toString());
         if (data.type === 'AUTH') {
           if (client.userId) return;
           const claims = verifyRealtimeSession(data.token);
           if (!claims || !(await currentAccountAllowsSession(fastify, claims))) {
-            connection.socket.close(4001, 'authentication_failed');
+            socket.close(4001, 'authentication_failed');
             return;
           }
           client.userId = claims.uid;
           client.claims = claims;
+          request.log.info({ uid: claims.uid }, 'Realtime client authenticated');
           client.expiryTimer = setTimeout(
-            () => connection.socket.close(4001, 'session_expired'),
+            () => socket.close(4001, 'session_expired'),
             Math.max(1, claims.exp * 1000 - Date.now()),
           );
-          connection.socket.send(
+          socket.send(
             JSON.stringify({
               type: 'AUTH_SUCCESS',
               payload: { expiresAt: new Date(claims.exp * 1000).toISOString() },
@@ -262,7 +263,7 @@ export default fp(async (fastify: FastifyInstance) => {
         }
 
         if (!client.userId || !client.claims) {
-          connection.socket.close(4001, 'authentication_required');
+          socket.close(4001, 'authentication_required');
           return;
         }
 
@@ -271,7 +272,7 @@ export default fp(async (fastify: FastifyInstance) => {
           const allowed =
             accountAllowed && (await authorizeTopic(fastify, client.userId, data.topic));
           if (!allowed) {
-            connection.socket.send(
+            socket.send(
               JSON.stringify({
                 type: 'SUBSCRIBE_DENIED',
                 payload: { topic: data.topic, code: 'TOPIC_FORBIDDEN' },
@@ -280,27 +281,27 @@ export default fp(async (fastify: FastifyInstance) => {
             return;
           }
           client.subscriptions.add(data.topic);
-          connection.socket.send(
-            JSON.stringify({ type: 'SUBSCRIBE_ACK', payload: { topic: data.topic } }),
+          request.log.info(
+            { uid: client.userId, topic: data.topic },
+            'Realtime subscription authorized',
           );
+          socket.send(JSON.stringify({ type: 'SUBSCRIBE_ACK', payload: { topic: data.topic } }));
         } else if (data.type === 'UNSUBSCRIBE' && typeof data.topic === 'string') {
           client.subscriptions.delete(data.topic);
         } else if (data.type === 'ping') {
-          connection.socket.send(JSON.stringify({ type: 'pong', payload: {} }));
+          socket.send(JSON.stringify({ type: 'pong', payload: {} }));
         }
       } catch {
-        connection.socket.close(4003, 'invalid_message');
+        socket.close(4003, 'invalid_message');
       }
     });
 
-    connection.socket.on('close', () => {
+    socket.on('close', () => {
       if (client.expiryTimer) clearTimeout(client.expiryTimer);
       clients.delete(client);
     });
 
-    connection.socket.send(
-      JSON.stringify({ type: 'welcome', payload: { authenticationRequired: true } }),
-    );
+    socket.send(JSON.stringify({ type: 'welcome', payload: { authenticationRequired: true } }));
   });
 
   fastify.decorate('broadcast', (payload: unknown, topic?: string) => {

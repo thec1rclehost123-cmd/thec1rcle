@@ -12,6 +12,7 @@ import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
 import {
   getEventQueueStatus,
   getEventSurgeStatus,
+  getEventInterested,
   getEventWaitlistStatus,
   joinEventQueue,
   joinEventWaitlist,
@@ -32,11 +33,57 @@ import {
   InventoryUnavailableError,
   listAvailableTicketTiers,
 } from '@c1rcle/core/inventory-engine';
+// @ts-ignore - JS module with runtime exports
+import { validateCoverWalletFundingAtUnitPrice } from '@c1rcle/core/pricing-engine';
+// @ts-ignore - JS module with runtime exports
+import { validateCoverWalletTierConfig } from '@c1rcle/core/cover-charge-engine';
+import { schedulingRangesOverlap } from '../../services/unified/scheduling-service.js';
 
 // Guard against prototype-pollution / remote property injection when a
 // user-provided value (promoterId, ticketTierId, …) is used as an object key.
 const isUnsafeObjectKey = (key: unknown): boolean =>
   typeof key !== 'string' || key === '__proto__' || key === 'constructor' || key === 'prototype';
+
+function validateCoverChargeTicketConfigs(tickets: any[], requireComplete: boolean) {
+  return tickets.map((ticket, index) => {
+    const config = ticket?.coverChargeConfig || ticket?.coverWallet || null;
+    if (!config?.enabled) return ticket;
+
+    // Wizard drafts may contain an intentionally incomplete enabled panel.
+    // Publication and non-draft creation must always persist a fully
+    // validated, server-normalized configuration.
+    if (!requireComplete) {
+      return ticket;
+    }
+
+    try {
+      const normalized = validateCoverWalletTierConfig(config);
+      const priceCandidates = [
+        ticket?.basePrice ?? ticket?.price,
+        ...(Array.isArray(ticket?.scheduledPrices)
+          ? ticket.scheduledPrices.map((schedule: any) => schedule?.price)
+          : []),
+      ].filter((price) => price !== undefined && price !== null);
+      if (priceCandidates.length === 0) {
+        throw new Error('Cover Charge ticket price is required');
+      }
+      priceCandidates.forEach((price) =>
+        validateCoverWalletFundingAtUnitPrice(normalized, Number(price)),
+      );
+      return {
+        ...ticket,
+        coverChargeConfig: { ...normalized, enabled: true },
+      };
+    } catch (error: any) {
+      const validationError: any = new Error(
+        `Ticket tier ${index + 1} has invalid Cover Charge configuration: ${error.message}`,
+      );
+      validationError.statusCode = 400;
+      validationError.code = 'COVER_CHARGE_CONFIG_INVALID';
+      throw validationError;
+    }
+  });
+}
 
 const ExploreEventListQuery = z
   .object({
@@ -216,6 +263,11 @@ const EventAttendeesQuery = z
     limit: z.coerce.number().int().min(1).max(100).optional().default(100),
   })
   .strict();
+const EventInterestedQuery = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(24).optional().default(20),
+  })
+  .strict();
 
 function sortObjectKeys(obj: any): any {
   if (!obj || typeof obj !== 'object') return obj;
@@ -318,10 +370,6 @@ const SCHEDULING_BLOCKING_STATUSES = new Set([
   'changes_requested',
 ]);
 
-function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string) {
-  return aStart < bEnd && bStart < aEnd;
-}
-
 function hasSchedulingConflict(
   slotDocs: any[],
   proposed: { startTime?: string | null; endTime?: string | null },
@@ -341,7 +389,7 @@ function hasSchedulingConflict(
       return true;
     }
 
-    return rangesOverlap(startTime, endTime, proposed.startTime, proposed.endTime);
+    return schedulingRangesOverlap(startTime, endTime, proposed.startTime, proposed.endTime);
   });
 }
 
@@ -1855,7 +1903,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         if (cached) return cached;
 
         const result = await fastify.publicDiscoveryService.listEvents(normalizedQuery);
-        await fastify.cache.set('public-discovery', cacheKey, result, 60);
+        await fastify.cache.set('public-discovery', cacheKey, result, 600);
         return result;
       } catch (error: any) {
         if (error.message === 'RATE_LIMITED')
@@ -1899,7 +1947,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         if (cached) return cached;
 
         const result = await fastify.publicDiscoveryService.listFeaturedEvents(normalizedQuery);
-        await fastify.cache.set('public-discovery', cacheKey, result, 60);
+        await fastify.cache.set('public-discovery', cacheKey, result, 600);
         return result;
       } catch (error: any) {
         if (error.message === 'RATE_LIMITED')
@@ -2002,7 +2050,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           Number(limit),
         );
 
-        await fastify.cache.set('events:nearby', cacheKey, events, 60); // 60s TTL
+        await fastify.cache.set('events:nearby', cacheKey, events, 600); // 10min TTL, invalidated on event publish/edit
         return events;
       } catch (error: any) {
         fastify.log.error(`Error in GET /events/nearby: ${error.message}`);
@@ -2292,6 +2340,46 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   );
 
   fastify.get(
+    '/events/:id/interested',
+    {
+      preHandler: [
+        fastify.requireAuth,
+        fastify.validate({ params: EventParamId, querystring: EventInterestedQuery }),
+      ],
+    },
+    async (request: any, reply) => {
+      const userId = request.user?.uid;
+      if (!userId) {
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            requestId: request.id,
+          }),
+        );
+      }
+
+      try {
+        reply.header('Cache-Control', 'private, no-store');
+        const result = await getEventInterested(fastify.db, request.params.id, request.query.limit);
+        return buildSuccessResponse(result);
+      } catch (error: any) {
+        request.log.error(
+          { error, userId, eventId: request.params.id },
+          'GET event interested users failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Unable to load interested users',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
     '/events/:id/attendees',
     {
       preHandler: [
@@ -2475,7 +2563,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         }
 
         if (!isPrivateOrDraft) {
-          await fastify.cache.set('public-discovery', cacheKey, detail, 60);
+          await fastify.cache.set('public-discovery', cacheKey, detail, 600);
         }
         return detail;
       } catch (error: any) {
@@ -2813,11 +2901,15 @@ export default async function eventRoutes(fastify: FastifyInstance) {
       }
 
       // ── Build/normalise V2 promoterCompensation for patch ──────────────────
-      const baseTickets = Array.isArray(patchFields.tickets)
+      const rawBaseTickets = Array.isArray(patchFields.tickets)
         ? patchFields.tickets
         : Array.isArray(preEventData?.tickets)
           ? preEventData.tickets
           : [];
+      const baseTickets = validateCoverChargeTicketConfigs(rawBaseTickets, patchIsPublishing);
+      if (Array.isArray(patchFields.tickets)) {
+        patchFields.tickets = baseTickets;
+      }
 
       if (patchFields.promoterCompensation) {
         // Incoming pc object — normalise to V2
@@ -3306,7 +3398,9 @@ export default async function eventRoutes(fastify: FastifyInstance) {
       }
 
       // ── Build canonical V2 promoterCompensation ──────────────────────────
-      const baseTickets = Array.isArray(body.tickets) ? body.tickets : [];
+      const rawBaseTickets = Array.isArray(body.tickets) ? body.tickets : [];
+      const baseTickets = validateCoverChargeTicketConfigs(rawBaseTickets, !isDraft);
+      if (Array.isArray(body.tickets)) body.tickets = baseTickets;
       let pcBody: any;
 
       if (body.promoterCompensation?.schemaVersion === SCHEMA_VERSION) {

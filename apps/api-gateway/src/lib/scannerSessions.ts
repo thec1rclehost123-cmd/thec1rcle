@@ -121,7 +121,7 @@ export async function validateScannerSession(
       eventId: sessionData.eventId,
       venueId: sessionData.venueId,
       deviceId: sessionData.deviceId,
-      type: 'full',
+      type: sessionData.codeType || 'scan_only',
       isStaffSession: true,
       userId: sessionData.userId,
       role: sessionData.role,

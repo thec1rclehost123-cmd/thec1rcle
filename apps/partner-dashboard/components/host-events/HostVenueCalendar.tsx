@@ -23,6 +23,12 @@ import {
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
+import { getCachedFirebaseIdToken } from '@/lib/auth/getCachedFirebaseIdToken';
+import {
+  buildHostVenueCalendarUrl,
+  getHostVenueCalendarDays,
+  nightlifeTimeRangesOverlap,
+} from '@/lib/host/venueCalendar';
 
 // ── Color system ──
 const C = {
@@ -62,21 +68,8 @@ function fmt12(t: string): string {
   return `${h12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
 }
 
-function toMins(t: string) {
-  if (!t) return 0;
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
-}
-
 function timeOverlaps(s1: string, e1: string, s2: string, e2: string) {
-  if (!s1 || !e1 || !s2 || !e2) return true;
-  let a = toMins(s1),
-    b = toMins(e1),
-    c = toMins(s2),
-    d = toMins(e2);
-  if (b < a) b += 1440;
-  if (d < c) d += 1440;
-  return !(b <= c || a >= d);
+  return nightlifeTimeRangesOverlap(s1, e1, s2, e2);
 }
 
 function filterVisible(events: any[]) {
@@ -154,6 +147,8 @@ export function HostVenueCalendar() {
   });
   const [calendarData, setCalendarData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [calendarError, setCalendarError] = useState('');
+  const [reloadVersion, setReloadVersion] = useState(0);
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate || null);
   const [confirmChecking, setConfirmChecking] = useState(false);
   const [confirmError, setConfirmError] = useState('');
@@ -161,7 +156,7 @@ export function HostVenueCalendar() {
   const authedFetch = useCallback(
     async (url: string) => {
       if (!user) throw new Error('Not authenticated');
-      const token = await user.getIdToken(true);
+      const token = await getCachedFirebaseIdToken(user);
       return fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     },
     [user],
@@ -171,6 +166,7 @@ export function HostVenueCalendar() {
     if (!venueId) return;
     const load = async () => {
       setLoading(true);
+      setCalendarError('');
       try {
         const startDate = formatDate(
           new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1),
@@ -178,21 +174,26 @@ export function HostVenueCalendar() {
         const endDate = formatDate(
           new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0),
         );
-        const res = await authedFetch(
-          `/api/partners/hosts/calendar?venueId=${venueId}&view=operating&startDate=${startDate}&endDate=${endDate}`,
-        );
+        const res = await authedFetch(buildHostVenueCalendarUrl({ venueId, startDate, endDate }));
         const data = await res.json();
-        const rawDays = Array.isArray(data) ? data : data.calendar || data.days || [];
+        if (!res.ok) {
+          const message =
+            typeof data.error === 'object' ? data.error?.message : data.error || data.message;
+          throw new Error(message || 'Failed to load venue availability');
+        }
+        const rawDays = getHostVenueCalendarDays(data);
         setCalendarData(rawDays);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to fetch host calendar:', err);
         setCalendarData([]);
+        setSelectedDate(null);
+        setCalendarError(err.message || 'Venue availability is temporarily unavailable.');
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [venueId, currentMonth, authedFetch]);
+  }, [venueId, currentMonth, authedFetch, reloadVersion]);
 
   const today = formatDate(new Date());
   const year = currentMonth.getFullYear();
@@ -255,10 +256,19 @@ export function HostVenueCalendar() {
     setConfirmError('');
     try {
       const res = await authedFetch(
-        `/api/partners/hosts/calendar?venueId=${venueId}&view=operating&startDate=${selectedDate}&endDate=${selectedDate}`,
+        buildHostVenueCalendarUrl({
+          venueId,
+          startDate: selectedDate,
+          endDate: selectedDate,
+        }),
       );
       const data = await res.json();
-      const day = Array.isArray(data) ? data[0] : (data.calendar || data.days || [])[0];
+      if (!res.ok) {
+        const message =
+          typeof data.error === 'object' ? data.error?.message : data.error || data.message;
+        throw new Error(message || 'Failed to verify venue availability');
+      }
+      const day = getHostVenueCalendarDays(data)[0];
 
       const visibleEvents = filterVisible(day?.events);
       const hasConflict = visibleEvents.some((e: any) =>
@@ -414,6 +424,28 @@ export function HostVenueCalendar() {
         </div>
       </div>
 
+      {calendarError && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-4 rounded-2xl px-4 py-3 text-sm"
+          style={{
+            background: 'rgba(248,113,113,.10)',
+            border: `1px solid ${C.borderBlocked}`,
+            color: C.red,
+          }}
+        >
+          <span>{calendarError} No date can be selected until availability is verified.</span>
+          <button
+            type="button"
+            onClick={() => setReloadVersion((version) => version + 1)}
+            className="rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-widest"
+            style={{ background: 'rgba(248,113,113,.14)', color: C.red }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       <div
         className="flex flex-col lg:flex-row rounded-[28px] overflow-hidden"
         style={{
@@ -503,15 +535,15 @@ export function HostVenueCalendar() {
                   return (
                     <button
                       key={cell.dateStr}
-                      onClick={() => !isPast && setSelectedDate(cell.dateStr)}
-                      disabled={isPast}
+                      onClick={() => !isPast && !calendarError && setSelectedDate(cell.dateStr)}
+                      disabled={isPast || Boolean(calendarError)}
                       className="relative rounded-2xl flex flex-col items-center justify-center gap-1 transition-all duration-100"
                       style={{
                         background: bg,
                         border,
                         boxShadow: shadow,
-                        cursor: isPast ? 'not-allowed' : 'pointer',
-                        opacity: isPast ? 0.42 : 1,
+                        cursor: isPast || calendarError ? 'not-allowed' : 'pointer',
+                        opacity: isPast || calendarError ? 0.42 : 1,
                         minHeight: 56,
                       }}
                     >

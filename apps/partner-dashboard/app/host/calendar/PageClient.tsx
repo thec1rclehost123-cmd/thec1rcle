@@ -25,6 +25,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { parseAsIST, toISODateIST } from '@c1rcle/core/time';
 import { VenuePageShell } from '@/components/venue-layout/VenuePageShell';
+import { buildHostVenueCalendarUrl, getHostVenueCalendarDays } from '@/lib/host/venueCalendar';
 
 // ── Color system ──
 const C = {
@@ -139,6 +140,7 @@ export default function HostCalendarPage() {
   const [venues, setVenues] = useState<VenueOption[]>([]);
   const [slotsMap, setSlotsMap] = useState<Record<string, CalendarSlot[]>>({});
   const [loading, setLoading] = useState(true);
+  const [calendarError, setCalendarError] = useState('');
 
   const year = parseInt(
     currentMonth.toLocaleString('en-US', { year: 'numeric', timeZone: 'Asia/Kolkata' }),
@@ -179,9 +181,11 @@ export default function HostCalendarPage() {
       return;
     }
     setLoading(true);
+    setCalendarError('');
     try {
       const token = typeof getIdToken === 'function' ? await getIdToken() : null;
       if (!token) {
+        setCalendarError('Authentication is required to verify calendar availability.');
         setLoading(false);
         return;
       }
@@ -224,42 +228,51 @@ export default function HostCalendarPage() {
         setSlotsMap(map);
       } else {
         const res = await fetch(
-          `/api/venues/${selectedVenueId}/calendar?hostId=${hostId}&view=operating&startDate=${start}&endDate=${end}`,
+          buildHostVenueCalendarUrl({
+            venueId: selectedVenueId,
+            startDate: start,
+            endDate: end,
+          }),
           { headers: token ? { Authorization: `Bearer ${token}` } : {} },
         );
         const data = await res.json();
-        const map: Record<string, CalendarSlot[]> = {};
-        if (Array.isArray(data)) {
-          data.forEach((d: any) => {
-            const visible = filterVisible(d.events);
-            map[d.date] = visible.map((e: any) => ({
-              date: d.date,
-              startTime: e.startTime,
-              endTime: e.endTime,
-              state:
-                e.hostId === hostId
-                  ? ['submitted', 'pending'].includes((e.lifecycle || e.status).toLowerCase())
-                    ? 'pending_mine'
-                    : 'approved_mine'
-                  : 'occupied_other',
-              eventTitle: e.title || 'Occupied',
-              eventId: e.id,
-            }));
-            if (d.state === 'BLOCKED') {
-              map[d.date].push({
-                date: d.date,
-                state: 'blocked',
-                startTime: d.block?.startTime,
-                endTime: d.block?.endTime,
-                eventTitle: d.block?.reason || 'Blocked',
-              });
-            }
-          });
+        if (!res.ok) {
+          const message =
+            typeof data.error === 'object' ? data.error?.message : data.error || data.message;
+          throw new Error(message || 'Failed to load venue availability');
         }
+        const map: Record<string, CalendarSlot[]> = {};
+        getHostVenueCalendarDays(data).forEach((d: any) => {
+          const visible = filterVisible(d.events);
+          map[d.date] = visible.map((e: any) => ({
+            date: d.date,
+            startTime: e.startTime,
+            endTime: e.endTime,
+            state:
+              e.hostId === hostId
+                ? ['submitted', 'pending'].includes((e.lifecycle || e.status).toLowerCase())
+                  ? 'pending_mine'
+                  : 'approved_mine'
+                : 'occupied_other',
+            eventTitle: e.title || 'Occupied',
+            eventId: e.id,
+          }));
+          if (d.state === 'BLOCKED') {
+            map[d.date].push({
+              date: d.date,
+              state: 'blocked',
+              startTime: d.block?.startTime,
+              endTime: d.block?.endTime,
+              eventTitle: d.block?.reason || 'Blocked',
+            });
+          }
+        });
         setSlotsMap(map);
       }
-    } catch {
+    } catch (error: any) {
       setSlotsMap({});
+      setSelectedDate(null);
+      setCalendarError(error.message || 'Calendar data is temporarily unavailable.');
     } finally {
       setLoading(false);
     }
@@ -384,6 +397,18 @@ export default function HostCalendarPage() {
           </div>
         </div>
 
+        {calendarError && (
+          <div
+            role="alert"
+            className="flex items-center gap-2 rounded-2xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-300"
+          >
+            <Info className="h-4 w-4 flex-shrink-0" />
+            <span>
+              {calendarError} Calendar selection is locked until the next successful load.
+            </span>
+          </div>
+        )}
+
         <div className="flex-1 flex flex-col lg:flex-row gap-5 min-h-0">
           <div className="lg:flex-[2.5] bg-[#16161b] rounded-[28px] border border-white/5 flex flex-col overflow-hidden shadow-2xl">
             <div className="grid grid-cols-7 px-4 pt-5 pb-3">
@@ -436,9 +461,17 @@ export default function HostCalendarPage() {
                     return (
                       <button
                         key={cell.dateStr}
-                        onClick={() => setSelectedDate(cell.dateStr)}
+                        onClick={() => {
+                          if (!cell.isPast && !calendarError) setSelectedDate(cell.dateStr);
+                        }}
+                        disabled={cell.isPast || Boolean(calendarError)}
                         className="relative rounded-2xl flex flex-col items-center justify-center gap-1 transition-all"
-                        style={{ background: bg, border, opacity: cell.isPast ? 0.4 : 1 }}
+                        style={{
+                          background: bg,
+                          border,
+                          opacity: cell.isPast || calendarError ? 0.4 : 1,
+                          cursor: cell.isPast || calendarError ? 'not-allowed' : 'pointer',
+                        }}
                       >
                         <span
                           className={`text-[15px] font-black tabular-nums ${isToday ? 'text-orange-500' : 'text-white/80'}`}

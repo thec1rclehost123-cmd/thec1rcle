@@ -7,6 +7,7 @@ import {
   resolvePoster,
 } from './events.js';
 import { randomUUID } from 'node:crypto';
+import { getEventTimestamps } from './time.js';
 
 export async function getEvent(eventId, { client = false } = {}) {
   if (!eventId) return null;
@@ -195,7 +196,10 @@ export function buildEvent(payload = {}) {
     auditTrail: payload.auditTrail || [],
   };
 
-  event.status = determineStatus(event.startDate, event.endDate);
+  const { startAt, endAt } = getEventTimestamps(event);
+  event.startAt = startAt ? new Date(startAt).toISOString() : null;
+  event.endAt = endAt ? new Date(endAt).toISOString() : null;
+  event.status = determineStatus(event.startAt, event.endAt);
   event.heatScore = calculateHeatScore(event);
 
   return event;

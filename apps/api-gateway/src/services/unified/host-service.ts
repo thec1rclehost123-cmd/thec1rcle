@@ -21,6 +21,14 @@ import type { ServiceContext, ServiceLogger } from './service-context.js';
 import { consoleLogger } from './service-context.js';
 import { FinanceService } from './finance-service.js';
 
+function hostPerformanceUnavailable(cause?: unknown) {
+  const error: any = new Error('Canonical host performance data is unavailable');
+  if (cause !== undefined) error.cause = cause;
+  error.code = 'ANALYTICS_DATA_UNAVAILABLE';
+  error.statusCode = 503;
+  return error;
+}
+
 // ─── HostService ──────────────────────────────────────────────────────────────
 //
 // Phase 1: READ-only. All methods read from existing Firestore collections.
@@ -75,7 +83,7 @@ export class HostService {
         }),
       this.getUpcomingEvents(partnerId),
       this.getLatestOrders(partnerId),
-      this.getPerformance(partnerId, range, metric),
+      this.getPerformance(ctx, range, metric),
       this.financeService.getBalances(ctx),
     ]);
 
@@ -310,15 +318,20 @@ export class HostService {
     const d = (doc.data() ?? {}) as Record<string, any>;
     const summary = this.docToEventSummary(doc);
 
-    const tiers = Array.isArray(d.ticketTiers)
-      ? d.ticketTiers.map((t: any) => ({
-          tierId: safeStr(t.tierId || t.id),
-          name: safeStr(t.name),
-          price: toNum(t.price),
-          capacity: toNum(t.capacity),
-          sold: toNum(t.sold ?? t.ticketsSold),
-        }))
-      : [];
+    const rawTiers = Array.isArray(d.ticketTiers)
+      ? d.ticketTiers
+      : Array.isArray(d.tiers)
+        ? d.tiers
+        : Array.isArray(d.tickets)
+          ? d.tickets
+          : [];
+    const tiers = rawTiers.map((t: any) => ({
+      tierId: safeStr(t.tierId || t.id),
+      name: safeStr(t.name),
+      price: toNum(t.price),
+      capacity: toNum(t.capacity ?? t.quantity ?? t.maxQuantity),
+      sold: toNum(t.sold ?? t.ticketsSold),
+    }));
 
     const attributions = Array.isArray(d.promoterAttributions)
       ? d.promoterAttributions.map((a: any) => ({
@@ -459,11 +472,12 @@ export class HostService {
     return docs.map((doc) => this.docToOrderSummary(doc));
   }
 
-  private async getPerformance(
-    partnerId: string,
+  async getPerformance(
+    ctx: PartnerContext,
     range: OverviewRange,
     metric: OverviewMetric,
   ): Promise<OverviewSeries> {
+    const partnerId = ctx.partnerId;
     const buckets = this.buildOverviewBuckets(range);
     const series: OverviewSeriesPoint[] = buckets.map((bucket) => ({
       date: bucket.start.toISOString(),
@@ -478,20 +492,43 @@ export class HostService {
     }
 
     const earliestStart = buckets[0].start;
-    const docs = await this.fetchRecentOrderDocs(partnerId, range === 'all' ? 500 : 250);
+    const fromDate = earliestStart.toISOString().slice(0, 10);
+    const snapshot = await this.db
+      .collection('partner_finance_aggregates')
+      .doc(partnerId)
+      .collection('daily')
+      .where('date', '>=', fromDate)
+      .orderBy('date', 'asc')
+      .limit(400)
+      .get()
+      .catch((err) => {
+        this.log.error(
+          {
+            service: 'HostService',
+            method: 'getPerformance',
+            partnerId,
+            range,
+            metric,
+            error: err?.message ?? String(err),
+          },
+          'Canonical host performance projection read failed',
+        );
+        throw hostPerformanceUnavailable(err);
+      });
 
-    for (const doc of docs) {
+    for (const doc of snapshot.docs) {
       const raw = doc.data() as Record<string, any>;
-      const createdAt = this.toDateValue(raw.createdAt);
-      if (!createdAt || createdAt < earliestStart) continue;
+      const dateKey = safeStr(raw.date || doc.id);
+      const createdAt = this.toDateValue(`${dateKey}T12:00:00.000Z`);
+      if (!createdAt) continue;
 
       const bucketIndex = buckets.findIndex(
         (bucket) => createdAt >= bucket.start && createdAt < bucket.end,
       );
       if (bucketIndex === -1) continue;
 
-      series[bucketIndex].revenue += this.getOrderAmount(raw);
-      series[bucketIndex].ticketsSold += this.getOrderTickets(raw);
+      series[bucketIndex].revenue += toNum(raw.grossRevenue) / 100;
+      series[bucketIndex].ticketsSold += toNum(raw.ticketsSold);
     }
 
     for (const point of series) {
@@ -598,9 +635,10 @@ export class HostService {
     const starts: Date[] = [];
 
     if (range === '1d') {
-      for (let index = 0; index < 8; index += 1) {
+      for (let index = 0; index < 2; index += 1) {
         const point = new Date(now);
-        point.setHours(now.getHours() - (7 - index) * 3, 0, 0, 0);
+        point.setDate(now.getDate() - (1 - index));
+        point.setHours(0, 0, 0, 0);
         starts.push(point);
       }
     } else if (range === '1w') {
@@ -626,18 +664,29 @@ export class HostService {
       }
     }
 
-    return starts.map((start, index) => ({
-      start,
-      end: starts[index + 1] ?? new Date(now.getTime() + 3 * 60 * 60 * 1000),
-      label: this.formatOverviewLabel(start, range),
-    }));
+    return starts.map((start, index) => {
+      let end = starts[index + 1];
+      if (!end) {
+        end = new Date(start);
+        if (range === 'all') {
+          end.setMonth(end.getMonth() + 1, 1);
+        } else {
+          end.setDate(end.getDate() + 1);
+        }
+        end.setHours(0, 0, 0, 0);
+      }
+      return {
+        start,
+        end,
+        label: this.formatOverviewLabel(start, range),
+      };
+    });
   }
 
   private formatOverviewLabel(date: Date, range: OverviewRange): string {
     if (range === '1d') {
-      return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        hour12: true,
+      return date.toLocaleDateString('en-US', {
+        weekday: 'short',
       });
     }
 

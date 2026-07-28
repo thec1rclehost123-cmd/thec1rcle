@@ -90,6 +90,7 @@ jest.mock('../../store/chatStore', () => ({
 import { initAuthListener, useAuthStore } from '../../store/authStore';
 import { useDatingStore } from '../../store/datingStore';
 import { syncAuthSession } from '../../lib/api';
+import { apiFetch } from '../../lib/api';
 import { refreshPushToken } from '../../lib/notifications';
 import { wsManager } from '../../lib/websocket';
 
@@ -256,6 +257,7 @@ describe('authStore', () => {
       expect(refreshPushToken).toHaveBeenCalledWith('user_1');
       await flushPromises();
       expect(wsManager.start).toHaveBeenCalledWith('realtime-session-token');
+      expect(apiFetch).toHaveBeenCalledWith('/api/v1/realtime/session', { method: 'POST' });
 
       cleanup();
     });

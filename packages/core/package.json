@@ -82,6 +82,7 @@
         "./guest-event-conversion": "./guest-event-conversion.js",
         "./guest-wallet-profile-notification-service": "./guest-wallet-profile-notification-service.js",
         "./follow-graph-engine": "./follow-graph-engine.js",
+        "./guest-follow-service": "./guest-follow-service.js",
         "./ticket-pdf-engine": "./ticket-pdf-engine.js",
         "./cover-charge-engine": "./cover-charge-engine.js",
         "./ticket-share-engine": "./ticket-share-engine.js",
@@ -90,10 +91,13 @@
         "./recommendation-engine": "./recommendation-engine.js",
         "./homepage-curation-engine": "./homepage-curation-engine.js",
         "./guest-discovery-engine": "./guest-discovery-engine.js",
-        "./guest-pass-engine": "./guest-pass-engine.js",
-        "./guest-chat-service": "./guest-chat-service.js",
-        "./guest-dating-service": "./guest-dating-service.js"
-    },
+    "./guest-pass-engine": "./guest-pass-engine.js",
+    "./guest-chat-service": "./guest-chat-service.js",
+    "./guest-dating-service": "./guest-dating-service.js",
+    "./guest-onboarding-service": "./guest-onboarding-service.js",
+    "./guest-subscription-service": "./guest-subscription-service.js",
+    "./user-service": "./user-service.js"
+  },
     "dependencies": {
         "firebase": "^12.14.0",
         "firebase-admin": "^13.6.0",

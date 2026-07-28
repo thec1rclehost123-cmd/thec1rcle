@@ -28,6 +28,7 @@ export interface EventData {
   permissions: {
     canScan: boolean;
     canDoorEntry: boolean;
+    canCharge?: boolean;
   };
   tiers: EventTier[];
   gate?: string;

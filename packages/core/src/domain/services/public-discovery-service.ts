@@ -331,7 +331,17 @@ class EventCardIndexRepository {
         query = query.where('startAt', '>=', minStartAt);
       }
 
-      // If we don't have cityKey, do sorting/limiting in-memory to avoid missing index error
+      // These public discovery indexes are declared in firestore.indexes.json.
+      // Keep the sort and limit on Firestore so the launch feed never performs
+      // an unbounded collection read before slicing in memory.
+      const serverIndexedOrderFields = new Set(['startAt', 'heatScore', 'publishedAt']);
+      if (!cityKey && serverIndexedOrderFields.has(orderByField)) {
+        const snapshot = await query.orderBy(orderByField, direction).limit(limit).get();
+        return snapshot.docs.map(serializeDoc);
+      }
+
+      // priceMin remains an in-memory fallback until its compound public index
+      // is deployed. This branch is bounded to the uncommon explicit price sort.
       if (!cityKey) {
         const snapshot = await query.get();
         const items = snapshot.docs.map(serializeDoc);
@@ -563,6 +573,11 @@ export class PublicDiscoveryService {
   private hostSummaryChecked = false;
   private venueSummaryChecked = false;
   private bootstrapPromise: Promise<void> | null = null;
+  private upcomingPoolCache = new Map<
+    string,
+    { items: Record<string, any>[]; expiresAt: number }
+  >();
+  private upcomingPoolPromises = new Map<string, Promise<Record<string, any>[]>>();
 
   constructor(private db: Firestore) {
     this.events = new EventCardIndexRepository(db);
@@ -606,6 +621,57 @@ export class PublicDiscoveryService {
           ? 'desc'
           : ('asc' as 'asc' | 'desc'),
     };
+  }
+
+  private async listUpcomingEventPool({
+    cityKey,
+    areaKey,
+    hostId,
+    venueId,
+    minStartAt,
+  }: {
+    cityKey?: string | null;
+    areaKey?: string | null;
+    hostId?: string | null;
+    venueId?: string | null;
+    minStartAt: string;
+  }) {
+    const key = JSON.stringify({
+      cityKey: cityKey || null,
+      areaKey: areaKey || null,
+      hostId: hostId || null,
+      venueId: venueId || null,
+      minStartAt: minStartAt.slice(0, 13),
+    });
+    const cached = this.upcomingPoolCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.items;
+    if (cached) this.upcomingPoolCache.delete(key);
+
+    const inFlight = this.upcomingPoolPromises.get(key);
+    if (inFlight) return inFlight;
+
+    const request = this.events
+      .queryList({
+        cityKey,
+        areaKey,
+        hostId,
+        venueId,
+        minStartAt,
+        limit: 200,
+        orderByField: 'startAt',
+        direction: 'asc',
+      })
+      .then((items) => {
+        // This very short cache exists only to coalesce Explore's simultaneous
+        // list and featured requests. Durable response caching remains in Redis.
+        this.upcomingPoolCache.set(key, { items, expiresAt: Date.now() + 1500 });
+        return items;
+      })
+      .finally(() => {
+        this.upcomingPoolPromises.delete(key);
+      });
+    this.upcomingPoolPromises.set(key, request);
+    return request;
   }
 
   private async resolveHostId(query: ListParams = {}) {
@@ -954,8 +1020,10 @@ export class PublicDiscoveryService {
       const searchNeedle = String(query.search || query.q || '')
         .trim()
         .toLowerCase();
-      const hostId = await this.resolveHostId(query);
-      const venueId = await this.resolveVenueId(query);
+      const [hostId, venueId] = await Promise.all([
+        this.resolveHostId(query),
+        this.resolveVenueId(query),
+      ]);
       const normalizedQuery = {
         ...query,
         cityKey: normalizeCityKey(query.cityKey || query.city || null),
@@ -980,13 +1048,21 @@ export class PublicDiscoveryService {
 
       const items = searchNeedle
         ? await this.events.querySearchPrefix(searchNeedle, Math.min(Math.max(limit * 2, 18), 48))
-        : await this.events.queryList({
-            ...eventQueryShape,
-            hostId,
-            venueId,
-            limit: fetchLimit,
-            minStartAt,
-          });
+        : canFilterUpcomingInFirestore
+          ? await this.events.queryList({
+              ...eventQueryShape,
+              hostId,
+              venueId,
+              limit: fetchLimit,
+              minStartAt,
+            })
+          : await this.listUpcomingEventPool({
+              cityKey: eventQueryShape.cityKey,
+              areaKey: eventQueryShape.areaKey,
+              hostId,
+              venueId,
+              minStartAt,
+            });
       const normalizedItems = items.map((item: any) =>
         buildEventCardReadModel(item, {
           readModelVersion: item?.readModelVersion || EVENT_CARD_INDEX_VERSION,
@@ -1013,24 +1089,44 @@ export class PublicDiscoveryService {
   async listFeaturedEvents(query: ListParams = {}) {
     try {
       const limit = Math.min(Math.max(Number(query.limit) || 6, 1), 12);
-      const hostId = await this.resolveHostId(query);
-      const venueId = await this.resolveVenueId(query);
+      const [hostId, venueId] = await Promise.all([
+        this.resolveHostId(query),
+        this.resolveVenueId(query),
+      ]);
       const normalizedQuery = {
         ...query,
+        sort: 'heat',
         cityKey: normalizeCityKey(query.cityKey || query.city || null),
         hostId: hostId || query.hostId || null,
         venueId: venueId || query.venueId || null,
       };
-      let settings;
-      try {
-        settings = await this.db.collection('platform_settings').doc('spotlights').get();
-      } catch (error: any) {
-        console.warn(
-          '[PublicDiscoveryService] listFeaturedEvents: failed to fetch platform spotlights:',
-          error,
-        );
-        settings = null;
-      }
+      const eventQueryShape = this.resolveEventQueryShape({
+        ...query,
+        hostId,
+        venueId,
+        sort: 'heat',
+      });
+      const minStartAt = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      const [settings, heatItems] = await Promise.all([
+        this.db
+          .collection('platform_settings')
+          .doc('spotlights')
+          .get()
+          .catch((error: any) => {
+            console.warn(
+              '[PublicDiscoveryService] listFeaturedEvents: failed to fetch platform spotlights:',
+              error,
+            );
+            return null;
+          }),
+        this.listUpcomingEventPool({
+          cityKey: eventQueryShape.cityKey,
+          areaKey: eventQueryShape.areaKey,
+          hostId,
+          venueId,
+          minStartAt,
+        }),
+      ]);
       const pinnedIds = Array.isArray(settings?.data?.()?.featured)
         ? settings.data()!.featured.filter((id: any) => typeof id === 'string' && id.trim())
         : [];
@@ -1046,17 +1142,6 @@ export class PublicDiscoveryService {
         .filter(
           (event: any) => event.visibility === 'public' && isCurrentOrUpcomingGuestEvent(event),
         );
-      const heatItems = await this.events.queryList({
-        ...this.resolveEventQueryShape({ ...query, hostId, venueId, sort: 'heat' }),
-        hostId,
-        venueId,
-        // heatScore ordering can't carry a startAt range filter in Firestore, so
-        // over-fetch (see listEvents) rather than risk a backlog of higher-heat
-        // past events crowding every upcoming one out of a tight limit.
-        limit: Math.min(Math.max(limit * 8, 96), 200),
-        orderByField: 'heatScore',
-        direction: 'desc',
-      });
       const heat = heatItems
         .map((event: any) =>
           buildEventCardReadModel(event, {
@@ -1065,8 +1150,16 @@ export class PublicDiscoveryService {
         )
         .filter((event: any) => isCurrentOrUpcomingGuestEvent(event));
       const seen = new Set();
-      const items = filterGuestEventCards([...pinned, ...heat], normalizedQuery)
-        .items.filter((event: any) => {
+      const pinnedItems = filterGuestEventCards(pinned, {
+        ...normalizedQuery,
+        limit: Math.min(Math.max(pinned.length, 1), 24),
+      }).items;
+      const rankedHeat = filterGuestEventCards(heat, {
+        ...normalizedQuery,
+        limit: 24,
+      }).items;
+      const items = [...pinnedItems, ...rankedHeat]
+        .filter((event: any) => {
           if (!event?.id || seen.has(event.id)) return false;
           seen.add(event.id);
           return true;

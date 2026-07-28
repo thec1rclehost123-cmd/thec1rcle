@@ -49,7 +49,7 @@ interface PageClientProps {
 }
 
 export default function GateSecurityPage({ setActions }: PageClientProps) {
-  const { profile } = useDashboardAuth();
+  const { profile, getIdToken } = useDashboardAuth();
   const [events, setEvents] = useState<SecurityEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [guestList, setGuestList] = useState<Guest[]>([]);
@@ -62,7 +62,10 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
     setIsLoading(true);
     try {
       const venueId = profile.activeMembership.partnerId;
-      const res = await fetch(`/api/partners/venues/security/sync?venueId=${venueId}`);
+      const token = await getIdToken();
+      const res = await fetch(`/api/partners/venues/security/sync?venueId=${venueId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (res.ok) {
         const data = await res.json();
         setEvents(data.events);
@@ -75,20 +78,26 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [profile, selectedEventId]);
+  }, [getIdToken, profile, selectedEventId]);
 
-  const fetchGuestlist = useCallback(async (eventId: string) => {
-    if (!eventId) return;
-    try {
-      const res = await fetch(`/api/events/${eventId}/guestlist`);
-      if (res.ok) {
-        const data = await res.json();
-        setGuestList(data.guests || data.guestlist || []);
+  const fetchGuestlist = useCallback(
+    async (eventId: string) => {
+      if (!eventId) return;
+      try {
+        const token = await getIdToken();
+        const res = await fetch(`/api/events/${eventId}/guestlist`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setGuestList(data.guests || data.guestlist || []);
+        }
+      } catch (err) {
+        console.error('Guestlist fetch error:', err);
       }
-    } catch (err) {
-      console.error('Guestlist fetch error:', err);
-    }
-  }, []);
+    },
+    [getIdToken],
+  );
 
   useEffect(() => {
     fetchSecurityData();
@@ -130,8 +139,13 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
     setIsSyncing(true);
     try {
       const venueId = profile.activeMembership.partnerId;
+      const token = await getIdToken();
       const res = await fetch(`/api/partners/venues/security/sync`, {
         method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ eventId, venueId, userId: profile.uid }),
       });
       if (res.ok) {
@@ -149,8 +163,13 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
     setIsSyncing(true);
     try {
       const venueId = profile.activeMembership.partnerId;
+      const token = await getIdToken();
       const res = await fetch(`/api/partners/venues/security/sync`, {
         method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ eventId, venueId, action: 'deactivate' }),
       });
       if (res.ok) {

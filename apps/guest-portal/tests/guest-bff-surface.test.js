@@ -124,6 +124,30 @@ test('Guest Portal migrated surfaces are wired to BFF helpers behind flags', () 
   }
 });
 
+test('BFF parity reads run only when parity logging is enabled', () => {
+  const guardedReads = [
+    ['features/tickets/ticketsQueries.js', /guestApi\.tickets\.wallet\(\)/],
+    ['features/checkout/api/checkoutApi.js', /guestApi\.checkout\.calculate\(body, options\)/],
+    ['features/notifications/notificationsQueries.js', /guestApi\.notifications\.list\(query\)/],
+    ['features/notifications/notificationsQueries.js', /guestApi\.notifications\.unreadCount\(\)/],
+    ['features/profiles/profileQueries.js', /guestApi\.profiles\.get\(userId/],
+  ];
+
+  for (const [relativePath, requestPattern] of guardedReads) {
+    const source = readFileSync(join(root, relativePath), 'utf8');
+    assert.equal(
+      source.includes('getGuestBffFlags().parity'),
+      true,
+      `${relativePath} should read the parity flag`,
+    );
+    assert.match(
+      source,
+      new RegExp(`if \\(getGuestBffFlags\\(\\)\\.parity\\) \\{[\\s\\S]*${requestPattern.source}`),
+      `${relativePath} should guard its legacy parity request`,
+    );
+  }
+});
+
 test('Shared checkout event normalization keeps ticket catalog tiers available to migrated pages', () => {
   const normalized = normalizeCheckoutEventDetail({
     event: {

@@ -18,6 +18,14 @@ vi.mock('@c1rcle/core/promo-service', () => ({
   })),
 }));
 
+vi.mock('@c1rcle/core/inventory-engine', async (importOriginal) => {
+  const actual = await importOriginal<any>();
+  return {
+    ...actual,
+    releaseReservation: vi.fn(async () => ({ success: true })),
+  };
+});
+
 vi.mock('@c1rcle/core/workflows/ticketing', () => ({
   verifyCheckoutPayment: vi.fn(async () => ({
     success: true,
@@ -53,7 +61,17 @@ import { validatePromoCode } from '@c1rcle/core/promo-service';
 // @ts-ignore
 import { finalizeTicketPayment, verifyCheckoutPayment } from '@c1rcle/core/workflows/ticketing';
 
-function buildDbMock() {
+function buildDbMock(
+  eventTickets: any[] = [
+    {
+      id: 'tier_1',
+      name: 'General Admission',
+      price: 999,
+      quantity: 100,
+      remaining: 80,
+    },
+  ],
+) {
   return {
     runTransaction: vi.fn(async (callback: any) =>
       callback({
@@ -78,15 +96,7 @@ function buildDbMock() {
                 title: 'After Dark',
                 venueId: 'venue_1',
                 startDate: '2099-01-01T20:00:00.000Z',
-                tickets: [
-                  {
-                    id: 'tier_1',
-                    name: 'General Admission',
-                    price: 999,
-                    quantity: 100,
-                    remaining: 80,
-                  },
-                ],
+                tickets: eventTickets,
               }),
             })),
           })),
@@ -101,6 +111,7 @@ function buildDbMock() {
               id,
               data: () => ({
                 eventId: 'event_1',
+                customerId: 'user_1',
                 status: 'active',
                 expiresAt: '2099-01-01T21:00:00.000Z',
                 items: [{ tierId: 'tier_1', quantity: 2 }],
@@ -130,7 +141,7 @@ function buildDbMock() {
   };
 }
 
-async function buildServer() {
+async function buildServer(eventTickets?: any[]) {
   const server = Fastify({ logger: false });
   const checkoutService = {
     reserveItems: vi.fn(
@@ -219,7 +230,7 @@ async function buildServer() {
     updateOrder: vi.fn(async () => undefined),
   };
 
-  server.decorate('db', buildDbMock() as any);
+  server.decorate('db', buildDbMock(eventTickets) as any);
   server.decorate('cache', {
     get: vi.fn(async () => null),
     set: vi.fn(async () => undefined),
@@ -232,6 +243,7 @@ async function buildServer() {
   server.decorate('requireRoles', vi.fn(() => async () => undefined) as any);
   server.decorate('checkoutService', checkoutService as any);
   server.decorate('orderRepo', orderRepo as any);
+  server.decorate('writeAuditLog', vi.fn(async () => undefined) as any);
   server.addHook('onRequest', async (request: any) => {
     if (request.headers.authorization) {
       request.user = {
@@ -450,6 +462,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       payload: {
         reservationId: 'res_1',
         promoCode: 'NIGHT',
+        hostUpdatesOptIn: true,
       },
     });
 
@@ -462,7 +475,12 @@ describe('GP-4 gateway checkout/payment routes', () => {
       razorpay: { orderId: 'order_rzp_1', amount: 1499, currency: 'INR', key: 'rzp_test_key' },
     });
     expect(checkoutService.initiateCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({ reservationId: 'res_1', promoCode: 'NIGHT', userId: 'user_1' }),
+      expect.objectContaining({
+        reservationId: 'res_1',
+        promoCode: 'NIGHT',
+        hostUpdatesOptIn: true,
+        userId: 'user_1',
+      }),
       null,
     );
     expect(checkoutService.preparePayment).toHaveBeenCalledWith(
@@ -470,6 +488,25 @@ describe('GP-4 gateway checkout/payment routes', () => {
       'user_1',
       expect.any(Object),
     );
+
+    await server.close();
+  });
+
+  it('POST /api/v1/checkout/cancel authorizes the canonical reservation customerId', async () => {
+    const { server } = await buildServer();
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/cancel',
+      headers: { authorization: 'Bearer test-token' },
+      payload: { reservationId: 'res_1' },
+    });
+
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json()).toEqual({
+      success: true,
+      message: 'Reservation released',
+    });
 
     await server.close();
   });
@@ -541,6 +578,39 @@ describe('GP-4 gateway checkout/payment routes', () => {
           requiresPayment: expect.any(Boolean),
         }),
       }),
+    });
+
+    await server.close();
+  });
+
+  it('POST /api/v1/checkout/calculate rejects an unfunded Cover Wallet before reservation or payment', async () => {
+    const { server } = await buildServer([
+      {
+        id: 'tier_1',
+        name: 'Underfunded Cover Package',
+        price: 499,
+        quantity: 100,
+        remaining: 80,
+        coverChargeConfig: {
+          enabled: true,
+          walletAmountPaise: 50_000,
+        },
+      },
+    ]);
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/calculate',
+      payload: {
+        eventId: 'event_1',
+        items: [{ tierId: 'tier_1', quantity: 1 }],
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      success: false,
+      code: 'COVER_WALLET_UNFUNDED',
     });
 
     await server.close();

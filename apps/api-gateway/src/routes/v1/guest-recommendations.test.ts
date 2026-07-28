@@ -5,6 +5,7 @@ import validatePlugin from '../../plugins/validate';
 const recommendationMocks = vi.hoisted(() => ({
   getRecommendedEvents: vi.fn(),
   getSimilarEvents: vi.fn(),
+  warmRecommendationCandidates: vi.fn(async () => []),
 }));
 
 vi.mock('@c1rcle/core/recommendation-engine', () => recommendationMocks);
@@ -46,7 +47,7 @@ describe('guest recommendations routes', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual([{ id: 'event_1' }]);
-    expect(recommendationMocks.getRecommendedEvents).toHaveBeenCalledWith('user_1', 7);
+    expect(recommendationMocks.getRecommendedEvents).toHaveBeenCalledWith('user_1', 7, undefined);
 
     await server.close();
   });
@@ -84,7 +85,7 @@ describe('guest recommendations routes', () => {
     });
     expect(found.statusCode).toBe(200);
     expect(found.json()).toEqual([{ id: 'event_2' }]);
-    expect(recommendationMocks.getSimilarEvents).toHaveBeenCalledWith('event_1', 4);
+    expect(recommendationMocks.getSimilarEvents).toHaveBeenCalledWith('event_1', 4, undefined);
 
     await server.close();
   });

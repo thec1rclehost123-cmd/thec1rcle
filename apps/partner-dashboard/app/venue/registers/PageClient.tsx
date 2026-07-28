@@ -31,7 +31,7 @@ interface LogEntry {
 }
 
 export default function RegistersPage() {
-  const { profile } = useDashboardAuth();
+  const { profile, getIdToken } = useDashboardAuth();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,8 +48,10 @@ export default function RegistersPage() {
     setError(null);
     try {
       const venueId = profile.activeMembership.partnerId;
+      const token = await getIdToken();
       const res = await fetch(
         `/api/partners/venues/registers?venueId=${venueId}&date=${selectedDate}`,
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       if (!res.ok) throw new Error('Failed to fetch register');
       const data = await res.json();
@@ -160,18 +162,18 @@ export default function RegistersPage() {
         };
       }
 
+      const token = await getIdToken();
       const res = await fetch('/api/partners/venues/registers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           venueId,
           date: selectedDate,
           action: endpointAction,
           data: payload,
-          user: {
-            uid: profile.uid,
-            name: profile.displayName || 'Staff',
-          },
         }),
       });
 
@@ -191,15 +193,18 @@ export default function RegistersPage() {
     if (!resolution) return;
 
     try {
+      const token = await getIdToken();
       const res = await fetch('/api/partners/venues/registers', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           venueId: profile?.activeMembership?.partnerId,
           date: selectedDate,
           action: 'resolveIncident',
           data: { incidentId, resolution },
-          user: { uid: profile?.uid, name: profile?.displayName },
         }),
       });
       if (res.ok) fetchRegister();

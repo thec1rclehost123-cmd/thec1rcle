@@ -13,6 +13,7 @@ import {
   updateProfile as updateFirebaseProfile,
 } from 'firebase/auth';
 import { getFirebaseAuth } from '@/lib/firebase/client';
+import { getCachedFirebaseIdToken } from '@/lib/auth/getCachedFirebaseIdToken';
 import { DashboardProfile, PartnerMembership, PartnerType, StaffRole } from '@/lib/rbac/types';
 
 // ── Atomic permissions object — always set together to avoid race conditions ──
@@ -491,8 +492,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     !permissions.actionPermissions || permissions.actionPermissions[action] === true;
 
   const getIdToken = async () => {
-    if (!user) return '';
-    return user.getIdToken(true);
+    return getCachedFirebaseIdToken(user);
   };
 
   const isDashboardPath = pathname

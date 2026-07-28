@@ -4,9 +4,9 @@
  * Manages:
  *  - Event likes ("interested") — routed through the API Gateway RSVP contract
  *  - Interested users list per event (shown in the public Interested List)
- *  - Event group chat membership on ticket purchase (via API Gateway)
+ *  - Privacy-safe event group member discovery
  *
- * Chat membership is handled server-side via POST /api/v1/social/chat/join
+ * Ticket-based chat membership is issued only by the server fulfillment outbox.
  */
 import { create } from 'zustand';
 import { apiFetch } from '@/lib/api';
@@ -92,12 +92,6 @@ interface EventInterestState {
   ) => Promise<void>;
   /** Fetch list of users interested in an event */
   fetchInterestedUsers: (eventId: string) => Promise<void>;
-  /** Auto-add user to event group chat when ticket is purchased */
-  joinEventGroupChat: (
-    eventId: string,
-    userId: string,
-    userInfo: { displayName: string; photoURL: string | null },
-  ) => Promise<void>;
   /** Fetch group chat members for an event */
   fetchGroupChatMembers: (eventId: string) => Promise<void>;
   /** Check if an event is liked by the current user */
@@ -274,22 +268,6 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
       console.warn('[EventInterestStore] fetchInterestedUsers:', e);
     } finally {
       set({ loadingInterested: { ...get().loadingInterested, [eventId]: false } });
-    }
-  },
-
-  joinEventGroupChat: async (eventId, userId, userInfo) => {
-    try {
-      await apiFetch('/api/v1/social/chat/join', {
-        method: 'POST',
-        body: JSON.stringify({
-          eventId,
-          displayName: userInfo.displayName || 'C1rcle User',
-          photoURL: userInfo.photoURL ?? null,
-        }),
-        requireAuth: true,
-      });
-    } catch (e) {
-      console.warn('[EventInterestStore] joinEventGroupChat:', e);
     }
   },
 

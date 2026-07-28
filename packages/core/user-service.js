@@ -8,9 +8,9 @@ export async function syncAuthUser(db, userId, authRecord) {
     const baseline = {
       uid: userId,
       email: authRecord?.email || null,
-      phoneNumber: authRecord?.phoneNumber || null,
-      name: authRecord?.displayName || '',
-      photoURL: authRecord?.photoURL || null,
+      phoneNumber: authRecord?.phoneNumber || authRecord?.phone_number || null,
+      name: authRecord?.displayName || authRecord?.name || '',
+      photoURL: authRecord?.photoURL || authRecord?.picture || null,
       datingActive: false,
       isActive: true,
       isDeleted: false,

@@ -26,8 +26,6 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '@/store/authStore';
 import { type Order, useTicketsStore } from '@/store/ticketsStore';
-import { useEventInterestStore } from '@/store/eventInterestStore';
-import { useProfileStore } from '@/store/profileStore';
 import { colors, typography } from '@/lib/design/theme';
 import { resolveEventAccentColor } from '@/hooks/useEventAccent';
 import { formatEventDate, formatEventTime } from '@/lib/utils/date';
@@ -130,7 +128,7 @@ function mapStoreOrder(storeOrder: Order): OrderDetails {
     eventId: storeOrder.eventId,
     eventTitle: storeOrder.eventTitle || 'Event',
     eventDate: storeOrder.eventStartDate || storeOrder.eventDate,
-    eventTimezone: (storeOrder as any).eventTimezone || (storeOrder as any).timezone,
+    eventTimezone: storeOrder.eventTimezone,
     eventCoverImage: storeOrder.eventCoverImage,
     venueLocation: storeOrder.venueLocation,
     hostName: storeOrder.hostName,
@@ -154,8 +152,6 @@ export default function CheckoutSuccessScreen() {
   const { width, height } = useWindowDimensions();
   const { user } = useAuthStore();
   const { fetchUserOrders, getOrderById } = useTicketsStore();
-  const { joinEventGroupChat } = useEventInterestStore();
-  const profile = useProfileStore((s) => s.profile);
 
   const routeOrder = useMemo(() => buildRouteOrder(searchParams), [searchParams]);
   const [order, setOrder] = useState<OrderDetails | null>(routeOrder);
@@ -193,12 +189,6 @@ export default function CheckoutSuccessScreen() {
           textColor: mappedOrder.textColor || current?.textColor,
           paymentMethod: mappedOrder.paymentMethod || current?.paymentMethod,
         }));
-        if (user?.uid && storeOrder.eventId) {
-          void joinEventGroupChat(storeOrder.eventId, user.uid, {
-            displayName: profile?.displayName ?? user.displayName ?? '',
-            photoURL: profile?.photoURL ?? user.photoURL ?? null,
-          });
-        }
       }
     } catch (error) {
       console.error('Error syncing order in background:', error);
@@ -206,18 +196,7 @@ export default function CheckoutSuccessScreen() {
     } finally {
       setSyncing(false);
     }
-  }, [
-    fetchUserOrders,
-    getOrderById,
-    joinEventGroupChat,
-    orderId,
-    profile?.displayName,
-    profile?.photoURL,
-    syncing,
-    user?.displayName,
-    user?.photoURL,
-    user?.uid,
-  ]);
+  }, [fetchUserOrders, getOrderById, orderId, syncing, user?.uid]);
 
   useEffect(() => {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

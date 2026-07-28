@@ -22,6 +22,15 @@ export async function publishTicketPurchaseSync(
       invalidations.push(
         fastify.cache.invalidateNamespace('events:list'),
         fastify.cache.invalidateNamespace('events:nearby'),
+        fastify.cache.invalidateNamespace('public-discovery'),
+        fastify.cache.invalidateNamespace('search:public'),
+        fastify.cache.invalidateNamespace('venue:attendees'),
+        fastify.cache.invalidateNamespace('analytics:event'),
+        fastify.cache.invalidateNamespace('partner-analytics'),
+        fastify.cache.invalidateNamespace('partner-finance-ledger'),
+        fastify.cache.invalidateNamespace('promoter-analytics'),
+        fastify.cache.invalidateNamespace('promoter-links'),
+        fastify.cache.invalidateNamespace('partners'),
       );
     }
   }
@@ -29,7 +38,11 @@ export async function publishTicketPurchaseSync(
   if (publicDiscoveryInvalidation) invalidations.push(publicDiscoveryInvalidation);
   if (typeof fastify.redis?.del === 'function') {
     invalidations.push(
-      ...partnerIds.map((partnerId) => fastify.redis.del(`finance:balance:${partnerId}`)),
+      ...partnerIds.flatMap((partnerId) => [
+        fastify.redis.del(`finance:balance:${partnerId}`),
+        fastify.redis.del(`finance:balance:v2:${partnerId}`),
+        fastify.redis.del(`finance:summary:v2:${partnerId}`),
+      ]),
     );
   }
   await Promise.allSettled(invalidations);

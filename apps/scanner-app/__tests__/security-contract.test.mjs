@@ -35,3 +35,28 @@ test('scanner session and device identity are stored in SecureStore', async () =
   assert.match(identity, /c1rcle_scanner_device_id/);
   assert.match(identity, /c1rcle_scanner_session_token/);
 });
+
+test('standalone scanner Cover Wallet flow is bound, online-only and idempotent', async () => {
+  const [coverClient, coverOverlay, fetchClient, scanScreen] = await Promise.all([
+    read('../lib/api/coverCharge.ts'),
+    read('../components/Scanner/CoverDeductionOverlay.tsx'),
+    read('../lib/api/client.ts'),
+    read('../app/(event)/scan.tsx'),
+  ]);
+
+  assert.match(coverClient, /expo-network/);
+  assert.match(coverClient, /Scanner is offline\. Cover debit is denied/);
+  assert.match(coverClient, /\/scan\/wallet-qr/);
+  assert.match(coverClient, /\/cover-charge\/debit/);
+  assert.match(coverClient, /getOrCreateScannerDeviceId/);
+  assert.match(coverOverlay, /idempotencyKey/);
+  assert.match(coverOverlay, /randomUUID/);
+  assert.match(coverOverlay, /selected\?\.id !== item\.id/);
+  assert.match(fetchClient, /http:\/\/localhost:4000\/api\/v1/);
+  assert.match(fetchClient, /EXPO_PUBLIC_GATEWAY_URL/);
+  assert.doesNotMatch(fetchClient, /hostUri|10\.0\.2\.2/);
+  assert.match(scanScreen, /isCoverWalletQr/);
+  assert.match(scanScreen, /permissions\.canCharge/);
+  assert.match(scanScreen, /CoverDeductionOverlay/);
+  assert.doesNotMatch(coverClient, /offlineQueue|queueDebit|AsyncStorage/);
+});

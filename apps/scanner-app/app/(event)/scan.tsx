@@ -12,7 +12,9 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CoupleConfirmModal from '@/components/Scanner/CoupleConfirmModal';
+import CoverDeductionOverlay from '@/components/Scanner/CoverDeductionOverlay';
 import ScanResult from '@/components/Scanner/ScanResult';
+import { CoverWalletContext, fetchCoverWallet, isCoverWalletQr } from '@/lib/api/coverCharge';
 import { confirmCoupleScan, processQRScan } from '@/lib/api/scan';
 import { useEvent } from '@/store/eventContext';
 
@@ -45,6 +47,7 @@ export default function ScanScreen() {
   const [showCoupleModal, setShowCoupleModal] = useState(false);
   const [pendingCoupleData, setPendingCoupleData] = useState<any>(null);
   const [entryCount, setEntryCount] = useState(0);
+  const [coverWallet, setCoverWallet] = useState<CoverWalletContext | null>(null);
 
   const { eventData } = useEvent();
   const lastScannedRef = useRef<string | null>(null);
@@ -99,6 +102,20 @@ export default function ScanScreen() {
     lastScannedRef.current = data;
 
     try {
+      if (isCoverWalletQr(data)) {
+        if (!eventData?.permissions.canCharge) {
+          throw new Error('This scanner session is not authorized for Cover Wallet charges');
+        }
+        const wallet = await fetchCoverWallet(data, {
+          eventId: eventData.event.id,
+          eventCode: eventData.code,
+          venueId: eventData.event.venueId,
+          gate: eventData.gate,
+        });
+        setCoverWallet(wallet);
+        return;
+      }
+
       const result = await processQRScan({
         qrData: data,
         eventId: eventData?.event.id || '',
@@ -287,6 +304,25 @@ export default function ScanScreen() {
         onConfirm={handleCoupleConfirm}
         guestName={pendingCoupleData?.ticket?.userName}
       />
+
+      {coverWallet && (
+        <CoverDeductionOverlay
+          wallet={coverWallet}
+          onDismiss={() => {
+            setCoverWallet(null);
+            setIsScanning(true);
+            lastScannedRef.current = null;
+          }}
+          onBalanceChanged={(balancePaise) => {
+            setCoverWallet((current) =>
+              current ? { ...current, currentBalancePaise: balancePaise } : current,
+            );
+            setCoverWallet(null);
+            setIsScanning(true);
+            lastScannedRef.current = null;
+          }}
+        />
+      )}
     </View>
   );
 }

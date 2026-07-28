@@ -35,6 +35,59 @@ describe('FirebaseAuthService credential boundaries', () => {
     expect(result.source).toBe('session_cookie');
   });
 
+  it('short-caches only a successful revoked-checked verification', async () => {
+    const auth = {
+      verifyIdToken: vi.fn().mockResolvedValue({ uid: 'user-cache' }),
+      verifySessionCookie: vi.fn(),
+    };
+    const service = new FirebaseAuthService(auth as any, 5_000);
+
+    const first = await service.verifyTokenDetailed('cached-id-token', 'id_token');
+    const second = await service.verifyTokenDetailed('cached-id-token', 'id_token');
+
+    expect(first).toEqual(second);
+    expect(auth.verifyIdToken).toHaveBeenCalledTimes(1);
+    expect(auth.verifyIdToken).toHaveBeenCalledWith('cached-id-token', true);
+  });
+
+  it('keeps the default positive verification cache alive through one checkout window', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-28T12:00:00.000Z'));
+    const auth = {
+      verifyIdToken: vi.fn().mockResolvedValue({ uid: 'user-checkout' }),
+      verifySessionCookie: vi.fn(),
+    };
+    const service = new FirebaseAuthService(auth as any);
+
+    try {
+      await service.verifyTokenDetailed('checkout-token', 'id_token');
+      vi.advanceTimersByTime(29_000);
+      await service.verifyTokenDetailed('checkout-token', 'id_token');
+      expect(auth.verifyIdToken).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(1_001);
+      await service.verifyTokenDetailed('checkout-token', 'id_token');
+      expect(auth.verifyIdToken).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('never caches a failed credential verification', async () => {
+    const auth = {
+      verifyIdToken: vi
+        .fn()
+        .mockRejectedValue(Object.assign(new Error('revoked'), { code: 'auth/id-token-revoked' })),
+      verifySessionCookie: vi.fn(),
+    };
+    const service = new FirebaseAuthService(auth as any, 5_000);
+
+    await service.verifyTokenDetailed('revoked-token', 'id_token');
+    await service.verifyTokenDetailed('revoked-token', 'id_token');
+
+    expect(auth.verifyIdToken).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     ['auth/id-token-revoked', 'revoked'],
     ['auth/user-disabled', 'disabled'],

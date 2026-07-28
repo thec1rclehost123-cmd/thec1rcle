@@ -5,7 +5,12 @@ import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contract
 import { sendGuestOtp, verifyGuestOtp } from '../../lib/guest-otp';
 import { sendSosViaMsg91 } from '../../lib/msg91-sos';
 // @ts-ignore
-import { followEntity, unfollowEntity, isFollowing } from '@c1rcle/core/follow-graph-engine';
+import {
+  followGuestEntity,
+  isGuestFollowing,
+  listGuestFollows,
+  unfollowGuestEntity,
+} from '@c1rcle/core/guest-follow-service';
 // @ts-ignore
 import { getChatMessages, sendChatMessage } from '@c1rcle/core/guest-chat-service';
 
@@ -39,6 +44,7 @@ const FollowQuery = z
   .object({
     userId: z.string().optional(),
     targetId: z.string(),
+    targetType: z.enum(['venue', 'host']).optional(),
   })
   .strict();
 
@@ -59,6 +65,12 @@ const UnfollowQuery = z
 const VenueFollowParams = z
   .object({
     venueId: z.string(),
+  })
+  .strict();
+
+const HostFollowParams = z
+  .object({
+    hostId: z.string(),
   })
   .strict();
 
@@ -165,12 +177,19 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      const { userId: fallbackUserId, targetId } = parsed.data;
+      const { userId: fallbackUserId, targetId, targetType } = parsed.data;
       const resolvedUserId = request.user?.uid || fallbackUserId;
       if (!resolvedUserId) {
         return buildSuccessResponse({ isFollowing: false, following: false });
       }
-      const followingResult = await isFollowing(resolvedUserId, targetId);
+      const followingResult = targetType
+        ? await isGuestFollowing(fastify.db, resolvedUserId, targetType, targetId)
+        : (
+            await Promise.all([
+              isGuestFollowing(fastify.db, resolvedUserId, 'host', targetId),
+              isGuestFollowing(fastify.db, resolvedUserId, 'venue', targetId),
+            ])
+          ).some(Boolean);
       // `following` kept as legacy alias; canonical field is `isFollowing`
       return buildSuccessResponse({ isFollowing: followingResult, following: followingResult });
     } catch (error: any) {
@@ -213,10 +232,19 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
     try {
       const { targetId, targetType } = parsed.data;
-      const follow = await followEntity(userId, targetId, targetType);
+      const follow = await followGuestEntity(fastify.db, userId, targetType, targetId);
       return reply.status(201).send({ success: true, follow });
     } catch (error: any) {
       fastify.log.error(`Error in POST /follow: ${error.message}`);
+      if (error.code === 'NOT_FOUND') {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Follow target not found',
+            requestId: request.id,
+          }),
+        );
+      }
       return reply.status(500).send(
         buildErrorResponse({
           code: 'INTERNAL_ERROR',
@@ -255,10 +283,19 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
     try {
       const { targetId, targetType = 'venue' } = parsed.data;
-      const result = await unfollowEntity(userId, targetId, targetType);
+      const result = await unfollowGuestEntity(fastify.db, userId, targetType, targetId);
       return { success: true, ...result };
     } catch (error: any) {
       fastify.log.error(`Error in DELETE /follow: ${error.message}`);
+      if (error.code === 'NOT_FOUND') {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Follow target not found',
+            requestId: request.id,
+          }),
+        );
+      }
       return reply.status(500).send(
         buildErrorResponse({
           code: 'INTERNAL_ERROR',
@@ -297,9 +334,8 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
     try {
       const { venueId } = parsed.data;
-      const { followVenue } = await import('@c1rcle/core/venues-service');
-      const result = await followVenue(fastify.db, userId, venueId, {
-        venueName: request.body?.venueName,
+      const result = await followGuestEntity(fastify.db, userId, 'venue', venueId, {
+        displayName: request.body?.venueName,
       });
       return reply.status(201).send({ success: true, follow: result, data: result });
     } catch (error: any) {
@@ -351,8 +387,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
     try {
       const { venueId } = parsed.data;
-      const { unfollowVenue } = await import('@c1rcle/core/venues-service');
-      const result = await unfollowVenue(fastify.db, userId, venueId);
+      const result = await unfollowGuestEntity(fastify.db, userId, 'venue', venueId);
       return { success: true, ...result };
     } catch (error: any) {
       fastify.log.error(`Error in DELETE /venues/:venueId/follow: ${error.message}`);
@@ -392,17 +427,144 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
     try {
       const { venueId } = parsed.data;
-      const followDoc = await fastify.db
-        .collection('userFollows')
-        .doc(userId)
-        .collection('venues')
-        .doc(venueId)
-        .get();
-      const followingResult = followDoc.exists;
+      const followingResult = await isGuestFollowing(fastify.db, userId, 'venue', venueId);
       return buildSuccessResponse({ isFollowing: followingResult });
     } catch (error: any) {
       fastify.log.error(`Error in GET /venues/:venueId/follow-status: ${error.message}`);
       return buildSuccessResponse({ isFollowing: false });
+    }
+  });
+
+  /**
+   * GET /api/v1/users/me/follows
+   * Return the authenticated guest's canonical venue and host follow ids.
+   */
+  fastify.get(
+    '/users/me/follows',
+    { preHandler: fastify.requireAuth },
+    async (request: any, reply) => {
+      const userId = request.user?.uid;
+      if (!userId) {
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            requestId: request.id,
+          }),
+        );
+      }
+
+      try {
+        const follows = await listGuestFollows(fastify.db, userId);
+        return buildSuccessResponse({ follows });
+      } catch (error: any) {
+        fastify.log.error(`Error in GET /users/me/follows: ${error.message}`);
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to load follows',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  /**
+   * POST /api/v1/hosts/:hostId/follow
+   * Follow a host through the same canonical bidirectional graph as venues.
+   */
+  fastify.post('/hosts/:hostId/follow', async (request: any, reply) => {
+    const userId = request.user?.uid;
+    if (!userId) {
+      return reply.status(401).send(
+        buildErrorResponse({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+          requestId: request.id,
+        }),
+      );
+    }
+    const parsed = HostFollowParams.safeParse(request.params || {});
+    if (!parsed.success) {
+      return reply.status(400).send(
+        buildErrorResponse({
+          code: 'BAD_REQUEST',
+          message: 'hostId is required',
+          requestId: request.id,
+        }),
+      );
+    }
+
+    try {
+      const result = await followGuestEntity(fastify.db, userId, 'host', parsed.data.hostId, {
+        displayName: request.body?.hostName,
+      });
+      return reply.status(201).send({ success: true, follow: result, data: result });
+    } catch (error: any) {
+      fastify.log.error(`Error in POST /hosts/:hostId/follow: ${error.message}`);
+      if (error.code === 'NOT_FOUND') {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Host not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to follow host',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
+
+  fastify.delete('/hosts/:hostId/follow', async (request: any, reply) => {
+    const userId = request.user?.uid;
+    if (!userId) {
+      return reply.status(401).send(
+        buildErrorResponse({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+          requestId: request.id,
+        }),
+      );
+    }
+    const parsed = HostFollowParams.safeParse(request.params || {});
+    if (!parsed.success) {
+      return reply.status(400).send(
+        buildErrorResponse({
+          code: 'BAD_REQUEST',
+          message: 'hostId is required',
+          requestId: request.id,
+        }),
+      );
+    }
+
+    try {
+      const result = await unfollowGuestEntity(fastify.db, userId, 'host', parsed.data.hostId);
+      return { success: true, ...result };
+    } catch (error: any) {
+      fastify.log.error(`Error in DELETE /hosts/:hostId/follow: ${error.message}`);
+      if (error.code === 'NOT_FOUND') {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Host not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to unfollow host',
+          requestId: request.id,
+        }),
+      );
     }
   });
 

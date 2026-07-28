@@ -349,6 +349,7 @@ export interface DataPoint {
 
 export interface EventFilters {
   status?: EventStatus;
+  date?: 'today';
   cursor?: string;
   limit?: number;
 }
@@ -357,6 +358,7 @@ export interface LedgerFilters {
   from?: string;
   to?: string;
   type?: LedgerEntryType;
+  status?: LedgerEntryStatus;
   cursor?: string;
   limit?: number;
 }

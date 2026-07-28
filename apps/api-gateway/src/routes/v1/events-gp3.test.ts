@@ -5,6 +5,7 @@ import eventRoutes from './events';
 import {
   getEventQueueStatus,
   getEventSurgeStatus,
+  getEventInterested,
   getEventWaitlistStatus,
   joinEventQueue,
   joinEventWaitlist,
@@ -15,6 +16,10 @@ import {
 import { InventoryUnavailableError, listAvailableTicketTiers } from '@c1rcle/core/inventory-engine';
 
 vi.mock('@c1rcle/core/guest-event-conversion', () => ({
+  getEventInterested: vi.fn(async () => ({
+    count: 1,
+    users: [{ id: 'guest_1', name: 'QA Guest', photoURL: null }],
+  })),
   getEventQueueStatus: vi.fn(async () => ({
     id: 'queue_1',
     eventId: 'event_1',
@@ -249,6 +254,27 @@ async function buildServer({
 describe('event routes GP-3 conversion contracts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('GET /events/:id/interested returns the authenticated public profile projection', async () => {
+    const server = await buildServer({ authenticated: true });
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/events/event_1/interested?limit=24',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      success: true,
+      data: {
+        count: 1,
+        users: [{ id: 'guest_1', name: 'QA Guest', photoURL: null }],
+      },
+    });
+    expect(getEventInterested).toHaveBeenCalledWith(expect.any(Object), 'event_1', 24);
+
+    await server.close();
   });
 
   it('GET /events serves the public Explore feed through public discovery filters', async () => {
@@ -686,6 +712,173 @@ describe('promoterCompensation V2 schema', () => {
     lifecycle: 'draft',
     promotersEnabled: true,
   };
+
+  it('rejects an invalid Cover Charge tier before publishing an event', async () => {
+    const { mockDb, txCreateSpy } = buildPromoterCreateMockDb();
+    const server = await buildServer({
+      authenticated: true,
+      customDb: mockDb,
+      partnerMembership: {
+        uid: 'user_1',
+        partnerId: 'venue_456',
+        partnerType: 'venue',
+        role: 'owner',
+        status: 'active',
+        isActive: true,
+      },
+    });
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/partner/events/create',
+      payload: {
+        ...basePayload,
+        creatorRole: 'venue',
+        creatorId: 'venue_456',
+        lifecycle: 'scheduled',
+        title: 'Invalid Cover Wallet Event',
+        promotersEnabled: false,
+        tickets: [
+          {
+            id: 'cover',
+            name: 'Cover Entry',
+            price: 1_500,
+            quantity: 20,
+            coverChargeConfig: {
+              enabled: true,
+              walletAmountPaise: 50_000.5,
+              terminationHour: 5,
+              terminationPolicy: 'forfeit',
+              presetItems: [],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response.statusCode, response.body).toBe(400);
+    expect(response.json().code || response.json().error?.code, response.body).toBe(
+      'COVER_CHARGE_CONFIG_INVALID',
+    );
+    expect(txCreateSpy).not.toHaveBeenCalled();
+    await server.close();
+  });
+
+  it('allows an incomplete Cover Charge panel to remain in a draft without normalizing it', async () => {
+    const { mockDb, getSavedEventRecord } = buildPromoterCreateMockDb();
+    const server = await buildServer({
+      authenticated: true,
+      customDb: mockDb,
+      partnerMembership: {
+        uid: 'user_1',
+        partnerId: 'venue_456',
+        partnerType: 'venue',
+        role: 'owner',
+        status: 'active',
+        isActive: true,
+      },
+    });
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/partner/events/create',
+      payload: {
+        ...basePayload,
+        creatorRole: 'venue',
+        creatorId: 'venue_456',
+        hostId: 'venue_456',
+        lifecycle: 'draft',
+        title: 'Incomplete Cover Wallet Draft',
+        promotersEnabled: false,
+        tickets: [
+          {
+            id: 'cover',
+            name: 'Cover Entry',
+            price: 1_500,
+            quantity: 20,
+            coverChargeConfig: {
+              enabled: true,
+              walletAmountPaise: 0,
+              terminationPolicy: 'partial_refund',
+              presetItems: [],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response.statusCode, response.body).toBe(201);
+    expect(getSavedEventRecord().tickets[0].coverChargeConfig).toEqual({
+      enabled: true,
+      walletAmountPaise: 0,
+      terminationPolicy: 'partial_refund',
+      presetItems: [],
+    });
+    await server.close();
+  });
+
+  it('normalizes a published refund-policy Cover Charge tier to a full unspent-balance refund', async () => {
+    const { mockDb, getSavedEventRecord } = buildPromoterCreateMockDb();
+    const server = await buildServer({
+      authenticated: true,
+      customDb: mockDb,
+      partnerMembership: {
+        uid: 'user_1',
+        partnerId: 'venue_456',
+        partnerType: 'venue',
+        role: 'owner',
+        status: 'active',
+        isActive: true,
+      },
+    });
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/partner/events/create',
+      payload: {
+        ...basePayload,
+        creatorRole: 'venue',
+        creatorId: 'venue_456',
+        lifecycle: 'scheduled',
+        title: 'Validated Cover Wallet Event',
+        host: 'Venue 456',
+        location: 'The Palace Club, Mumbai',
+        promotersEnabled: false,
+        tickets: [
+          {
+            id: 'cover',
+            name: 'Cover Entry',
+            price: 1_500,
+            quantity: 20,
+            coverChargeConfig: {
+              enabled: true,
+              walletAmountPaise: 50_000,
+              terminationHour: 5,
+              terminationPolicy: 'partial_refund',
+              presetItems: [
+                {
+                  id: 'water',
+                  name: 'Water',
+                  amountPaise: 5_000,
+                  isAvailable: true,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response.statusCode, response.body).toBe(201);
+    expect(getSavedEventRecord().tickets[0].coverChargeConfig).toMatchObject({
+      enabled: true,
+      walletAmountPaise: 50_000,
+      terminationPolicy: 'partial_refund',
+      partialRefundPercent: 100,
+      maxDebitsPerMinutePerDevice: 3,
+    });
+    await server.close();
+  });
 
   it('POST /partner/events/create stores V2 promoterCompensation structure', async () => {
     const { mockDb, txCreateSpy, getSavedEventRecord } = buildPromoterCreateMockDb();

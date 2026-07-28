@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Search, Download, User, Users, CalendarDays, Filter, Loader2 } from 'lucide-react';
+import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 
 export function PromoterGuestsPageClient() {
+  const { getIdToken } = useDashboardAuth();
   const [searchQuery, setSearchQuery] = useState('');
 
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
@@ -12,7 +14,10 @@ export function PromoterGuestsPageClient() {
       queryKey: ['promoter', 'guests'],
       queryFn: async ({ pageParam }) => {
         const cursorQuery = pageParam ? `?cursor=${pageParam}` : '';
-        const res = await fetch(`/api/partners/promoters/guests${cursorQuery}`);
+        const token = await getIdToken();
+        const res = await fetch(`/api/partners/promoters/guests${cursorQuery}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (!res.ok) throw new Error('Failed to fetch global guests');
         return res.json();
       },
@@ -31,6 +36,30 @@ export function PromoterGuestsPageClient() {
         g.eventTitle?.toLowerCase().includes(searchQuery.toLowerCase()),
     ) || [];
 
+  const exportGuests = () => {
+    if (!guests.length) return;
+    const rows = [
+      ['Guest', 'Event', 'Tickets', 'Status', 'Source', 'Created At'],
+      ...guests.map((guest: any) => [
+        guest.guestName || guest.name || '',
+        guest.eventTitle || guest.event || '',
+        String(guest.ticketCount || 0),
+        guest.status || '',
+        guest.source || '',
+        guest.createdAt || '',
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `promoter-guests-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in slide-in-from-bottom-4 duration-500 pb-16">
       <header className="mb-2 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -44,7 +73,12 @@ export function PromoterGuestsPageClient() {
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <button className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-surface-tertiary hover:bg-surface-hover text-text-primary px-4 py-2.5 rounded-xl font-semibold transition-colors text-sm border border-border-subtle">
+          <button
+            type="button"
+            onClick={exportGuests}
+            disabled={!guests.length}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-surface-tertiary hover:bg-surface-hover text-text-primary px-4 py-2.5 rounded-xl font-semibold transition-colors text-sm border border-border-subtle disabled:cursor-not-allowed disabled:opacity-50"
+          >
             <Download className="h-4 w-4" />
             Export All
           </button>

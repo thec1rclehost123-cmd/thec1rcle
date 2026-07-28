@@ -7,6 +7,40 @@ function buildService() {
 }
 
 describe('PublicDiscoveryService', () => {
+  it('keeps the unscoped Explore sort and limit on Firestore for indexed fields', async () => {
+    const get = vi.fn(async () => ({ docs: [] }));
+    const limit = vi.fn(() => ({ get }));
+    const orderBy = vi.fn(() => ({ limit }));
+    const unboundedGet = vi.fn(() => {
+      throw new Error('Explore must not scan the entire event_card_index collection');
+    });
+    const query = {
+      where: vi.fn(() => query),
+      orderBy,
+      get: unboundedGet,
+    };
+    const db = {
+      collection: vi.fn(() => query),
+    };
+    const service = new PublicDiscoveryService(db as any) as any;
+
+    await service.events.queryList({
+      limit: 24,
+      orderByField: 'heatScore',
+      direction: 'desc',
+      cityKey: null,
+      areaKey: null,
+      hostId: null,
+      venueId: null,
+      minStartAt: null,
+    });
+
+    expect(orderBy).toHaveBeenCalledWith('heatScore', 'desc');
+    expect(limit).toHaveBeenCalledWith(24);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(unboundedGet).not.toHaveBeenCalled();
+  });
+
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -201,7 +235,7 @@ describe('PublicDiscoveryService', () => {
     expect(service.events.listAll).not.toHaveBeenCalled();
   });
 
-  it('listFeaturedEvents reads heat-ranked cards directly instead of delegating through listEvents', async () => {
+  it('listFeaturedEvents ranks a bounded upcoming pool without delegating through listEvents', async () => {
     const service = buildService();
     service.db = {
       collection: vi.fn(() => ({
@@ -243,11 +277,42 @@ describe('PublicDiscoveryService', () => {
     expect(service.events.queryList).toHaveBeenCalledWith(
       expect.objectContaining({
         cityKey: 'pune-in',
-        orderByField: 'heatScore',
-        direction: 'desc',
+        minStartAt: expect.any(String),
+        limit: 200,
+        orderByField: 'startAt',
+        direction: 'asc',
       }),
     );
     expect(listEventsSpy).not.toHaveBeenCalled();
+  });
+
+  it('coalesces simultaneous heat list and featured reads onto one upcoming query', async () => {
+    const service = buildService();
+    service.db = {
+      collection: vi.fn(() => ({
+        doc: vi.fn(() => ({
+          get: vi.fn(async () => ({ exists: false, data: () => ({}) })),
+        })),
+      })),
+    };
+    service.events = {
+      queryList: vi.fn(async () => []),
+      getByIdOrSlug: vi.fn(),
+    };
+
+    await Promise.all([
+      service.listEvents({ limit: 24, sort: 'heat' }),
+      service.listFeaturedEvents({ limit: 6 }),
+    ]);
+
+    expect(service.events.queryList).toHaveBeenCalledTimes(1);
+    expect(service.events.queryList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: 200,
+        orderByField: 'startAt',
+        minStartAt: expect.any(String),
+      }),
+    );
   });
 
   it('listHosts and listVenues use bounded read-model queries on first-page browse requests', async () => {

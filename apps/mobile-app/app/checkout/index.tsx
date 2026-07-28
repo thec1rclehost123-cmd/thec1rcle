@@ -250,7 +250,7 @@ export default function CheckoutScreen() {
   const [pricing, setPricing] = useState<PricingResult['pricing'] | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
-  const [hostUpdatesOptIn, setHostUpdatesOptIn] = useState(true);
+  const [hostUpdatesOptIn, setHostUpdatesOptIn] = useState(false);
   const [reservationClock, setReservationClock] = useState(Date.now());
   const [authoritativeEvent, setAuthoritativeEvent] = useState<Event | null>(null);
 

@@ -59,23 +59,14 @@ export async function getVenueAnalytics(venueId, range = '30d') {
  */
 export async function getHostAnalytics(hostId) {
   const db = getAdminDb();
-
-  const eventsSnapshot = await db.collection('events').where('creatorId', '==', hostId).get();
-
+  const statsDoc = await db.collection('host_stats').doc(hostId).get();
+  const stats = statsDoc.exists ? statsDoc.data() : {};
   const lifecycleStats = {
-    total: eventsSnapshot.size,
-    approved: 0,
-    denied: 0,
-    cancelled: 0,
+    total: Number(stats.totalEvents || 0),
+    approved: Number(stats.approvedEvents || 0),
+    denied: Number(stats.deniedEvents || 0),
+    cancelled: Number(stats.cancelledEvents || 0),
   };
-
-  eventsSnapshot.forEach((doc) => {
-    const data = doc.data();
-    if (['approved', 'live', 'scheduled', 'completed'].includes(data.lifecycle))
-      lifecycleStats.approved++;
-    if (data.lifecycle === 'denied') lifecycleStats.denied++;
-    if (data.lifecycle === 'cancelled') lifecycleStats.cancelled++;
-  });
 
   return {
     ...lifecycleStats,

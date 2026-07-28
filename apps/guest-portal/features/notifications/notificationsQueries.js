@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { guestApi, getApiErrorMessage } from '../../lib/api/client';
-import { isGuestBffEnabled } from '../../lib/bff/flags.js';
+import { getGuestBffFlags, isGuestBffEnabled } from '../../lib/bff/flags.js';
 import { fetchGuestBffNotificationsSummary } from '../../lib/bff/fetchers.js';
 import { logGuestBffParity } from '../../lib/bff/parity.js';
 
@@ -28,19 +28,21 @@ export async function fetchGuestNotifications({ unreadOnly = false, limit = 50 }
     const summary = await fetchGuestBffNotificationsSummary({ unreadOnly, limit });
     const items = summary?.items || [];
 
-    try {
-      const params = new URLSearchParams();
-      if (unreadOnly) params.set('unreadOnly', 'true');
-      if (limit) params.set('limit', String(limit));
-      const query = params.toString() ? `?${params.toString()}` : '';
-      const { response, data } = await guestApi.notifications.list(query);
-      if (response.ok) {
-        logGuestBffParity('notifications.list', data?.notifications || [], items, {
-          limit,
-          unreadOnly,
-        });
-      }
-    } catch {}
+    if (getGuestBffFlags().parity) {
+      try {
+        const params = new URLSearchParams();
+        if (unreadOnly) params.set('unreadOnly', 'true');
+        if (limit) params.set('limit', String(limit));
+        const query = params.toString() ? `?${params.toString()}` : '';
+        const { response, data } = await guestApi.notifications.list(query);
+        if (response.ok) {
+          logGuestBffParity('notifications.list', data?.notifications || [], items, {
+            limit,
+            unreadOnly,
+          });
+        }
+      } catch {}
+    }
 
     return items;
   }
@@ -62,16 +64,18 @@ export async function fetchGuestUnreadNotificationCount() {
     const summary = await fetchGuestBffNotificationsSummary({ countOnly: true });
     const nextData = { unreadCount: summary?.unreadCount || 0 };
 
-    try {
-      const { response, data } = await guestApi.notifications.unreadCount();
-      if (response.ok) {
-        logGuestBffParity(
-          'notifications.unreadCount',
-          { unreadCount: data?.unreadCount || 0 },
-          nextData,
-        );
-      }
-    } catch {}
+    if (getGuestBffFlags().parity) {
+      try {
+        const { response, data } = await guestApi.notifications.unreadCount();
+        if (response.ok) {
+          logGuestBffParity(
+            'notifications.unreadCount',
+            { unreadCount: data?.unreadCount || 0 },
+            nextData,
+          );
+        }
+      } catch {}
+    }
 
     return nextData;
   }

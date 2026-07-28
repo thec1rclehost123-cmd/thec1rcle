@@ -114,7 +114,7 @@ export class VenueService {
     ctx: PartnerContext,
     filters: EventFilters,
   ): Promise<PaginatedResult<EventSummary>> {
-    const { status, cursor, limit = 20 } = filters;
+    const { status, date, cursor, limit = 20 } = filters;
     const cap = Math.min(limit, 100);
     const venueId = ctx.partnerId;
 
@@ -125,6 +125,12 @@ export class VenueService {
       .limit(cap + 1);
 
     if (status) q = q.where('lifecycle', '==', status);
+    if (date === 'today') {
+      const todayKey = new Date().toISOString().slice(0, 10);
+      q = q
+        .where('startDate', '>=', todayKey)
+        .where('startDate', '<=', `${todayKey}T23:59:59.999Z`);
+    }
     if (cursor) {
       const cursorDoc = await this.db.collection('events').doc(cursor).get();
       if (cursorDoc.exists) q = q.startAfter(cursorDoc);
@@ -140,7 +146,10 @@ export class VenueService {
         },
         'Events query failed',
       );
-      return { docs: [] };
+      const unavailable: any = new Error('Venue event data is temporarily unavailable');
+      unavailable.code = 'EVENT_DATA_UNAVAILABLE';
+      unavailable.statusCode = 503;
+      throw unavailable;
     });
     const docs: FirebaseFirestore.QueryDocumentSnapshot[] = (snap as any).docs;
     const hasMore = docs.length > cap;
@@ -297,6 +306,7 @@ export class VenueService {
     const rawCoverImage = d.coverImage || d.image || d.poster || '';
     const hasValidCover = rawCoverImage && !rawCoverImage.includes('placeholder.svg');
     return {
+      ...d,
       eventId: doc.id,
       title: safeStr(d.title || d.name),
       startDate: toIso(d.startDate),

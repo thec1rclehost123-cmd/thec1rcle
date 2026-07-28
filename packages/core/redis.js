@@ -10,6 +10,50 @@ import { Redis } from 'ioredis';
 const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
 
 let redis = null;
+let redisReadyPromise = null;
+let redisReadyClient = null;
+let redisUnavailableUntil = 0;
+
+export async function waitForRedisReady(client, timeoutMs = 2000) {
+  if (!client) return false;
+  if (client.status === 'ready') {
+    redisUnavailableUntil = 0;
+    return true;
+  }
+  if (Date.now() < redisUnavailableUntil) return false;
+  if (redisReadyPromise && redisReadyClient === client) return redisReadyPromise;
+
+  redisReadyClient = client;
+  redisReadyPromise = new Promise((resolve) => {
+    let settled = false;
+    const finish = (ready) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      client.removeListener('ready', onReady);
+      client.removeListener('end', onUnavailable);
+      resolve(ready);
+    };
+    const onReady = () => finish(true);
+    const onUnavailable = () => finish(false);
+    const timer = setTimeout(() => finish(client.status === 'ready'), timeoutMs);
+    timer.unref?.();
+    client.once('ready', onReady);
+    client.once('end', onUnavailable);
+  }).finally(() => {
+    redisReadyPromise = null;
+    redisReadyClient = null;
+  });
+
+  const ready = await redisReadyPromise;
+  if (ready) {
+    redisUnavailableUntil = 0;
+  } else {
+    // Avoid adding the readiness timeout to every request while Redis is down.
+    redisUnavailableUntil = Date.now() + 5000;
+  }
+  return ready;
+}
 
 export function getRedisClient() {
   if (!REDIS_URL || REDIS_URL.toUpperCase() === 'PLACEHOLDER') {
@@ -44,6 +88,7 @@ export async function cacheGet(key) {
   const client = getRedisClient();
   if (!client || !key) return null;
   try {
+    if (!(await waitForRedisReady(client))) return null;
     const value = await client.get(key);
     if (!value) return null;
     try {
@@ -61,6 +106,7 @@ export async function cacheSet(key, value, ttlSeconds = 300) {
   const client = getRedisClient();
   if (!client || !key) return false;
   try {
+    if (!(await waitForRedisReady(client))) return false;
     const payload = typeof value === 'string' ? value : JSON.stringify(value);
     if (ttlSeconds) {
       await client.set(key, payload, 'EX', ttlSeconds);
@@ -78,6 +124,7 @@ export async function cacheDel(key) {
   const client = getRedisClient();
   if (!client || !key) return false;
   try {
+    if (!(await waitForRedisReady(client))) return false;
     await client.del(key);
     return true;
   } catch (error) {
@@ -91,6 +138,7 @@ export async function bumpCacheVersion(namespace) {
   if (!client || !namespace) return null;
   const redisKey = `public-cache-version:${namespace}`;
   try {
+    if (!(await waitForRedisReady(client))) return null;
     const next = await client.incr(redisKey);
     return next;
   } catch (error) {

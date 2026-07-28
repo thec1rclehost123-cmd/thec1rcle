@@ -11,6 +11,30 @@ const DEFAULT_FEES = {
   gstRate: 0.18, // 18% on fees
 };
 
+function pricingError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+export function validateCoverWalletFundingAtUnitPrice(tierConfig, unitPriceRupees) {
+  if (!tierConfig?.enabled) return 0;
+  const walletAmountPaise = Number(tierConfig.walletAmountPaise);
+  const unitPricePaise = Math.round(Number(unitPriceRupees) * 100);
+  if (
+    !Number.isSafeInteger(walletAmountPaise) ||
+    walletAmountPaise <= 0 ||
+    !Number.isSafeInteger(unitPricePaise) ||
+    unitPricePaise < walletAmountPaise
+  ) {
+    throw pricingError(
+      'Cover Wallet credit must be a positive integer paise amount fully funded by the ticket price',
+      'COVER_WALLET_UNFUNDED',
+    );
+  }
+  return walletAmountPaise;
+}
+
 /**
  * Get effective price for a single tier at a given timestamp
  * Handles scheduled price changes
@@ -89,6 +113,7 @@ export async function calculatePricing(input) {
     fees: { platform: 0, payment: 0, gst: 0, total: 0 },
     grandTotal: 0,
     isFree: false,
+    coverCreditLiabilityPaise: 0,
     ledger: {
       subtotal_raw: 0,
       discount_total_raw: 0,
@@ -107,6 +132,15 @@ export async function calculatePricing(input) {
     const priceInfo = getEffectivePrice(tier, timestamp);
     const quantity = Number(item.quantity) || 1;
     const subtotal = priceInfo.price * quantity;
+    const coverChargeConfig = tier.coverChargeConfig || tier.coverWallet || null;
+    const coverCreditPaise = validateCoverWalletFundingAtUnitPrice(
+      coverChargeConfig,
+      priceInfo.price,
+    );
+    const coverCreditLinePaise = coverCreditPaise * quantity;
+    if (!Number.isSafeInteger(coverCreditLinePaise)) {
+      throw pricingError('Cover Wallet credit overflowed integer paise', 'COVER_WALLET_UNFUNDED');
+    }
 
     result.items.push({
       tierId: tier.id,
@@ -118,7 +152,8 @@ export async function calculatePricing(input) {
       // This is an immutable snapshot from the authoritative event tier, not
       // buyer input. Payment finalization uses it to issue deterministic cover
       // wallets in the same transaction as tickets and entitlements.
-      coverChargeConfig: tier.coverChargeConfig || tier.coverWallet || null,
+      coverChargeConfig,
+      coverCreditPaise,
       priceLabel: priceInfo.label,
       subtotal,
       formatted: {
@@ -128,6 +163,7 @@ export async function calculatePricing(input) {
     });
 
     result.subtotal += subtotal;
+    result.coverCreditLiabilityPaise += coverCreditLinePaise;
   }
 
   // 2. Apply Promoter Discounts (Buyer side)
@@ -187,6 +223,13 @@ export async function calculatePricing(input) {
 
   // 4. Final Reconciliation
   const discountedSubtotal = Math.max(0, result.subtotal - result.discountTotal);
+  const discountedSubtotalPaise = Math.round(discountedSubtotal * 100);
+  if (result.coverCreditLiabilityPaise > discountedSubtotalPaise) {
+    throw pricingError(
+      'Discounts cannot reduce the paid ticket subtotal below its Cover Wallet credit',
+      'COVER_WALLET_UNFUNDED',
+    );
+  }
   result.fees = calculateFees(discountedSubtotal);
   result.grandTotal = Math.round((discountedSubtotal + result.fees.total) * 100) / 100;
   result.isFree = result.grandTotal === 0;

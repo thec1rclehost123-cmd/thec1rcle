@@ -164,8 +164,16 @@ export async function discardPendingCheckout(): Promise<void> {
     const result = await cancelOrder(orderId);
     if (!result?.success) throw new Error('The pending order could not be cancelled.');
   } else if (reservationId) {
-    const result = await cancelReservation(reservationId);
-    if (!result?.success) throw new Error('The ticket reservation could not be released.');
+    try {
+      const result = await cancelReservation(reservationId);
+      if (!result?.success) throw new Error('The ticket reservation could not be released.');
+    } catch (error: any) {
+      // A persisted cart can outlive its owning Firebase session. The Gateway
+      // must continue to deny cancellation, but that foreign or already-cleaned
+      // reservation must not permanently block the current user from creating
+      // a new authenticated hold.
+      if (error?.status !== 403 && error?.status !== 404) throw error;
+    }
   }
 
   useCartStore.getState().clearPendingReservation();
@@ -269,7 +277,7 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
         userPhone: params.userPhone,
         promoCode: params.promoCode,
         promoterCode: params.promoterCode,
-        hostUpdatesOptIn: params.hostUpdatesOptIn ?? true,
+        hostUpdatesOptIn: params.hostUpdatesOptIn === true,
       },
       {
         headers: {

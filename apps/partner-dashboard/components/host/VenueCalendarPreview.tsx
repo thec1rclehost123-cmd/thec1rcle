@@ -15,6 +15,13 @@ import {
   Building2,
 } from 'lucide-react';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
+import { getCachedFirebaseIdToken } from '@/lib/auth/getCachedFirebaseIdToken';
+import {
+  buildHostVenueCalendarUrl,
+  getHostVenueCalendarDays,
+  hostVenueDayStatus,
+  nightlifeTimeRangesOverlap,
+} from '@/lib/host/venueCalendar';
 
 function fmt12(t: string): string {
   if (!t) return '';
@@ -49,7 +56,7 @@ interface VenueCalendarPreviewProps {
 
 interface CalendarDay {
   date: string;
-  status: 'available' | 'blocked' | 'booked' | 'partial' | 'my_request';
+  status: 'available' | 'blocked' | 'booked' | 'partial' | 'my_request' | 'unavailable';
   reason?: string;
   myRequest?: {
     id: string;
@@ -61,6 +68,12 @@ interface CalendarDay {
     startTime: string;
     endTime: string;
     status: string;
+  }[];
+  events?: {
+    startTime?: string;
+    endTime?: string;
+    lifecycle?: string;
+    status?: string;
   }[];
 }
 
@@ -82,17 +95,7 @@ const MONTHS = [
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const timeOverlaps = (start1: string, end1: string, start2: string, end2: string) => {
-  const toMinutes = (time: string) => {
-    const [h, m] = time.split(':').map(Number);
-    return h * 60 + m;
-  };
-  let s1 = toMinutes(start1);
-  let e1 = toMinutes(end1);
-  let s2 = toMinutes(start2);
-  let e2 = toMinutes(end2);
-  if (e1 < s1) e1 += 24 * 60;
-  if (e2 < s2) e2 += 24 * 60;
-  return !(e1 <= s2 || s1 >= e2);
+  return nightlifeTimeRangesOverlap(start1, end1, start2, end2);
 };
 
 const TIME_SLOTS = [
@@ -113,6 +116,8 @@ export function VenueCalendarPreview({
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [calendar, setCalendar] = useState<CalendarDay[]>([]);
   const [loading, setLoading] = useState(true);
+  const [calendarError, setCalendarError] = useState('');
+  const [reloadVersion, setReloadVersion] = useState(0);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<{
     startTime: string;
@@ -127,6 +132,7 @@ export function VenueCalendarPreview({
   useEffect(() => {
     async function fetchCalendar() {
       setLoading(true);
+      setCalendarError('');
       try {
         const startDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
           .toISOString()
@@ -134,23 +140,34 @@ export function VenueCalendarPreview({
         const endDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
           .toISOString()
           .split('T')[0];
-        const token = user ? await user.getIdToken() : '';
+        const token = await getCachedFirebaseIdToken(user);
 
-        const res = await fetch(
-          `/api/partners/hosts/venue-calendar?venueId=${venueId}&hostId=${hostId}&startDate=${startDate}&endDate=${endDate}`,
-          { headers: token ? { Authorization: `Bearer ${token}` } : {} },
-        );
+        const res = await fetch(buildHostVenueCalendarUrl({ venueId, startDate, endDate }), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         const data = await res.json();
-        setCalendar(data.calendar || []);
-      } catch (err) {
+        if (!res.ok) {
+          const message =
+            typeof data.error === 'object' ? data.error?.message : data.error || data.message;
+          throw new Error(message || 'Failed to load venue calendar');
+        }
+        const normalized = getHostVenueCalendarDays(data).map((day: any) => ({
+          ...day,
+          status: hostVenueDayStatus(day),
+        }));
+        setCalendar(normalized);
+      } catch (err: any) {
         console.error('Failed to fetch venue calendar:', err);
+        setCalendar([]);
+        setSelectedDate(null);
+        setCalendarError(err.message || 'Venue availability is temporarily unavailable.');
       } finally {
         setLoading(false);
       }
     }
 
     fetchCalendar();
-  }, [venueId, hostId, currentMonth, user]);
+  }, [venueId, currentMonth, user, reloadVersion]);
 
   // Fetch specific date availability when selected
   useEffect(() => {
@@ -159,32 +176,24 @@ export function VenueCalendarPreview({
       return;
     }
 
-    // Optimization: Use cached slots if available
+    // The canonical month response contains every day. Reuse it even when the
+    // day has zero slots; a second selected-date request is both redundant and
+    // previously used an invalid `date=` contract.
     const cachedDay = calendar.find((d) => d.date === selectedDate);
-    if (cachedDay?.slots && cachedDay.slots.length > 0) {
-      setDateAvailability({ slots: cachedDay.slots });
+    if (cachedDay) {
+      const eventSlots = (cachedDay.events || [])
+        .filter((event) => event.startTime && event.endTime)
+        .map((event) => ({
+          startTime: event.startTime,
+          endTime: event.endTime,
+          status: event.lifecycle || event.status || 'occupied',
+        }));
+      setDateAvailability({ slots: [...(cachedDay.slots || []), ...eventSlots] });
+      setLoadingAvailability(false);
       return;
     }
-
-    async function fetchAvailability() {
-      setLoadingAvailability(true);
-      try {
-        const token = user ? await user.getIdToken() : '';
-        const res = await fetch(
-          `/api/partners/hosts/venue-calendar?venueId=${venueId}&date=${selectedDate}`,
-          { headers: token ? { Authorization: `Bearer ${token}` } : {} },
-        );
-        const data = await res.json();
-        setDateAvailability(data.availability);
-      } catch (err) {
-        console.error('Failed to fetch date availability:', err);
-      } finally {
-        setLoadingAvailability(false);
-      }
-    }
-
-    fetchAvailability();
-  }, [venueId, selectedDate, calendar, user]);
+    setDateAvailability(null);
+  }, [selectedDate, calendar]);
 
   // Calendar grid
   const calendarGrid = useMemo(() => {
@@ -212,14 +221,14 @@ export function VenueCalendarPreview({
         day,
         date: dateStr,
         isPast,
-        status: isPast ? 'past' : dayData?.status || 'available',
+        status: isPast ? 'past' : calendarError ? 'unavailable' : dayData?.status || 'unavailable',
         myRequest: dayData?.myRequest,
         reason: dayData?.reason,
       });
     }
 
     return days;
-  }, [currentMonth, calendar]);
+  }, [currentMonth, calendar, calendarError]);
 
   const navigateMonth = (delta: number) => {
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
@@ -227,7 +236,13 @@ export function VenueCalendarPreview({
   };
 
   const handleDateClick = (day: any) => {
-    if (day.empty || day.isPast || day.status === 'blocked' || day.status === 'booked') {
+    if (
+      day.empty ||
+      day.isPast ||
+      day.status === 'blocked' ||
+      day.status === 'booked' ||
+      day.status === 'unavailable'
+    ) {
       return;
     }
     setSelectedDate(day.date);
@@ -260,6 +275,8 @@ export function VenueCalendarPreview({
         return 'bg-indigo-50 text-indigo-700 border-indigo-300 cursor-pointer';
       case 'past':
         return 'bg-gray-50 text-gray-300 cursor-not-allowed';
+      case 'unavailable':
+        return 'bg-rose-50 text-rose-400 cursor-not-allowed';
       default:
         return 'bg-surface-elevated text-gray-700 hover:bg-gray-50 cursor-pointer';
     }
@@ -347,6 +364,22 @@ export function VenueCalendarPreview({
                 </div>
               ))}
             </div>
+
+            {calendarError && (
+              <div
+                role="alert"
+                className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700"
+              >
+                <span>{calendarError} Dates remain locked until availability can be verified.</span>
+                <button
+                  type="button"
+                  className="font-bold uppercase tracking-wider"
+                  onClick={() => setReloadVersion((version) => version + 1)}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
 
             {/* Calendar Grid */}
             {loading ? (

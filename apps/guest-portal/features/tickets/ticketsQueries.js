@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { guestApi, getApiErrorMessage } from '../../lib/api/client';
-import { isGuestBffEnabled } from '../../lib/bff/flags.js';
+import { getGuestBffFlags, isGuestBffEnabled } from '../../lib/bff/flags.js';
 import { fetchGuestBffTicketsOverview } from '../../lib/bff/fetchers.js';
 import { logGuestBffParity } from '../../lib/bff/parity.js';
 import { EMPTY_TICKETS, normalizeTicketsWallet } from './ticketsModel.js';
@@ -29,14 +29,16 @@ export async function fetchTicketsWallet() {
       coverWalletsByOrder: overviewWallet.coverWalletsByOrder || {},
     };
 
-    try {
-      const { response, data } = await guestApi.tickets.wallet();
-      if (response.ok) {
-        logGuestBffParity('tickets.wallet', normalizeTicketsWallet(data), wallet, {
-          source: overview?.meta?.source || 'bff',
-        });
-      }
-    } catch {}
+    if (getGuestBffFlags().parity) {
+      try {
+        const { response, data } = await guestApi.tickets.wallet();
+        if (response.ok) {
+          logGuestBffParity('tickets.wallet', normalizeTicketsWallet(data), wallet, {
+            source: overview?.meta?.source || 'bff',
+          });
+        }
+      } catch {}
+    }
 
     return wallet;
   }

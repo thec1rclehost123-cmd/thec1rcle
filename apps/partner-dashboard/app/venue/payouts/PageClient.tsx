@@ -34,7 +34,8 @@ function fmtCurrency(paise: number) {
 }
 
 export default function PayoutsPage() {
-  const { getIdToken } = useDashboardAuth();
+  const { profile, getIdToken } = useDashboardAuth();
+  const venueId = profile?.activeMembership?.partnerId;
   const [data, setData] = useState<PayoutResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -44,8 +45,10 @@ export default function PayoutsPage() {
     setLoading(true);
     setError('');
     try {
+      if (!venueId) throw new Error('Venue scope is unavailable');
       const token = await getIdToken();
-      const response = await fetch('/api/venue/finance/payouts', {
+      const params = new URLSearchParams({ venueId });
+      const response = await fetch(`/api/venue/finance/payouts?${params}`, {
         cache: 'no-store',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -57,7 +60,7 @@ export default function PayoutsPage() {
     } finally {
       setLoading(false);
     }
-  }, [getIdToken]);
+  }, [getIdToken, venueId]);
 
   useEffect(() => {
     void load();

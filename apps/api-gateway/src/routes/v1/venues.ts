@@ -12,6 +12,9 @@ import {
   getPartnerCommerceRows,
 } from '../../lib/canonicalCommerceMetrics';
 import { isBlockingCalendarEvent } from '../../lib/calendar-visibility.js';
+import { generateReconciliation } from '@c1rcle/core/cover-charge-engine';
+import { loadVenueScopedEvent } from '../../lib/venueEventScope.js';
+import { getPermissionsForRole } from '../../lib/rbac-permissions.js';
 
 const VenueIdQuery = z.object({ venueId: z.string() });
 const VenueCrmQuery = z.object({
@@ -248,6 +251,19 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       await fastify.verifyPartnerAccess(request, venueId).catch(() => {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
+      await fastify.enrichAuthContext(request);
+      const membership = request.authContext?.memberships?.find(
+        (candidate: any) =>
+          String(candidate.partnerId) === String(venueId) &&
+          (candidate.isActive === true || candidate.status === 'active'),
+      );
+      const permissions = getPermissionsForRole(
+        membership?.partnerType || 'venue',
+        membership?.role || '',
+      );
+      if (!permissions.includes('VIEW_FINANCIALS')) {
+        return reply.status(403).send({ error: 'VIEW_FINANCIALS permission is required' });
+      }
 
       try {
         // Remove orderBy to avoid indexing requirements, sort in memory
@@ -312,6 +328,19 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       await fastify.verifyPartnerAccess(request, venueId).catch(() => {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
+      await fastify.enrichAuthContext(request);
+      const membership = request.authContext?.memberships?.find(
+        (candidate: any) =>
+          String(candidate.partnerId) === String(venueId) &&
+          (candidate.isActive === true || candidate.status === 'active'),
+      );
+      const permissions = getPermissionsForRole(
+        membership?.partnerType || 'venue',
+        membership?.role || '',
+      );
+      if (!permissions.includes('VIEW_FINANCIALS')) {
+        return reply.status(403).send({ error: 'VIEW_FINANCIALS permission is required' });
+      }
 
       try {
         const pageSize = Math.min(parseInt(limit), 100);
@@ -1345,10 +1374,6 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     eventId: z.string().optional(),
   });
 
-  // Venue keeps this fraction of ticket revenue from cover-charge events.
-  // Backend is the single source of truth — never derived on the frontend.
-  const VENUE_TICKET_SPLIT_RATE = 0.7;
-
   /**
    * GET /api/v1/venue/finance/cover-recon
    * Returns cover-charge wallet reconciliation for an event plus the
@@ -1364,6 +1389,19 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       await fastify.verifyPartnerAccess(request, venueId).catch(() => {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
+      await fastify.enrichAuthContext(request);
+      const membership = request.authContext?.memberships?.find(
+        (candidate: any) =>
+          String(candidate.partnerId) === String(venueId) &&
+          (candidate.isActive === true || candidate.status === 'active'),
+      );
+      const permissions = getPermissionsForRole(
+        membership?.partnerType || 'venue',
+        membership?.role || '',
+      );
+      if (!permissions.includes('VIEW_FINANCIALS')) {
+        return reply.status(403).send({ error: 'VIEW_FINANCIALS permission is required' });
+      }
 
       try {
         // Fetch events for this venue
@@ -1389,16 +1427,12 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           return { events, reconciliation: null };
         }
 
-        // Fetch persisted reconciliation (may not exist if not yet generated)
-        const reconDoc = await fastify.db
-          .collection('cover_wallet_reconciliations')
-          .doc(eventId)
-          .get();
-        if (!reconDoc.exists) {
-          return { events, reconciliation: null };
+        const scopedEvent = await loadVenueScopedEvent(fastify.db, eventId, venueId);
+        if (!scopedEvent) {
+          return reply.status(404).send({ error: 'Reconciliation not found' });
         }
 
-        const raw = reconDoc.data() as any;
+        const raw = (await generateReconciliation(eventId, venueId)) as any;
         const summary = raw.summary ?? raw;
 
         const grossCollection = Number(summary.openingBalancePaise ?? 0);
@@ -1410,16 +1444,16 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         );
         const walletsIssued = Number(summary.walletsIssued ?? 0);
 
-        const ticketRevenuePaise = (await getEventCommerceMetrics(fastify.db, eventId))
-          .netRevenuePaise;
+        const commerce = await getEventCommerceMetrics(fastify.db, eventId);
+        const ticketRevenuePaise = commerce.netRevenuePaise;
+        const canonicalVenueSharePaise = commerce.ledgerEntries
+          .filter(
+            (entry: any) =>
+              entry.type === 'venue_share' && String(entry.toPartnerId) === String(venueId),
+          )
+          .reduce((sum: number, entry: any) => sum + Number(entry.amountPaise || 0), 0);
 
-        // Payout computed here — never on the frontend
-        const payoutTotal =
-          Math.round(ticketRevenuePaise * VENUE_TICKET_SPLIT_RATE) + breakageRevenue;
-
-        const now = new Date().toISOString();
-        const isLive =
-          eventsSnap.docs.find((d: any) => d.id === eventId)?.data()?.status === 'live';
+        const isLive = scopedEvent.data.status === 'live';
 
         return {
           events,
@@ -1430,11 +1464,12 @@ export default async function venueRoutes(fastify: FastifyInstance) {
             breakageRevenue,
             walletsIssued,
             ticketRevenuePaise,
-            payoutTotal,
-            venueTicketSplitPct: Math.round(VENUE_TICKET_SPLIT_RATE * 100),
+            canonicalVenueSharePaise,
+            payoutTotal: canonicalVenueSharePaise,
             isLive: Boolean(isLive),
             itemDistribution: Array.isArray(raw.itemDistribution) ? raw.itemDistribution : [],
             exceptionList: Array.isArray(summary.exceptionList) ? summary.exceptionList : [],
+            reconciliationDifferencePaise: Number(summary.reconciliationDifferencePaise || 0),
           },
         };
       } catch (err: any) {

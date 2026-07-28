@@ -25,6 +25,8 @@ import { commitInventory } from '@c1rcle/core/inventory-engine';
 import { writePartnerLedgerInTransaction } from '@c1rcle/core/partner-ledger-service';
 import { publishTicketPurchaseSync } from '../../lib/ticketPurchaseSync';
 import { createTicketQrForEntitlement } from '@c1rcle/core/ticket-checkout-wallet-service';
+import { verifyCoverWalletQrToken } from '@c1rcle/core/cover-charge-engine';
+import { getPermissionsForRole } from '../../lib/rbac-permissions';
 
 const ScanBody = z
   .object({
@@ -204,6 +206,17 @@ const ManualCheckInBody = z
     orderId: z.string(),
     eventCode: z.string(),
     eventId: z.string(),
+  })
+  .strict();
+
+const CoverWalletQrBody = z
+  .object({
+    qrData: z.string().min(32),
+    eventId: z.string().min(1),
+    eventCode: z.string().min(1),
+    venueId: z.string().min(1),
+    deviceId: z.string().min(16).max(128),
+    gate: z.string().optional(),
   })
   .strict();
 
@@ -407,6 +420,110 @@ function getOperatorDetails(scannedBy: any) {
 }
 
 export default async function scanRoutes(fastify: FastifyInstance) {
+  // ── Cover Wallet QR Processing ───────────────────────────────────────────
+
+  fastify.post(
+    '/wallet-qr',
+    {
+      preHandler: [fastify.validate({ body: CoverWalletQrBody })],
+    },
+    async (request: any, reply) => {
+      const { qrData, eventId, eventCode, venueId, deviceId } = request.body as z.infer<
+        typeof CoverWalletQrBody
+      >;
+      const auth = await validateScannerAccess(fastify, request);
+      if (
+        !auth.authorized ||
+        auth.usingFirebase ||
+        auth.codeData?.type !== 'charge' ||
+        auth.sessionData?.codeType !== 'charge'
+      ) {
+        return reply.status(401).send({
+          error: 'Charge session expired or invalid',
+          result: 'session_expired',
+        });
+      }
+      if (!matchesScannerContext(auth, { eventId, eventCode, venueId, deviceId })) {
+        return reply.status(403).send({
+          error: 'Charge session does not authorize this event, venue, or device',
+          result: 'device_invalid',
+        });
+      }
+
+      const device = await validateScannerDevice(fastify.db, deviceId, venueId);
+      if (!device.valid) {
+        return reply.status(403).send({
+          error: device.error,
+          result: 'device_invalid',
+        });
+      }
+
+      const verified = verifyCoverWalletQrToken(qrData);
+      if (!verified.valid || !verified.payload) {
+        return reply.status(400).send({
+          error: verified.error || 'Invalid Cover Wallet QR',
+          code: verified.code || 'COVER_QR_INVALID',
+          result: verified.code === 'COVER_QR_EXPIRED' ? 'expired' : 'invalid',
+        });
+      }
+      const claims = verified.payload;
+      if (String(claims.eventId) !== eventId || String(claims.venueId) !== venueId) {
+        return reply.status(404).send({ error: 'Wallet not found', result: 'wrong_event' });
+      }
+
+      const walletDoc = await fastify.db
+        .collection('cover_wallets')
+        .doc(String(claims.walletId))
+        .get();
+      if (!walletDoc.exists) {
+        return reply.status(404).send({ error: 'Wallet not found', result: 'invalid' });
+      }
+      const wallet = { id: walletDoc.id, ...walletDoc.data() } as any;
+      const terminationMs = new Date(wallet.rules?.terminationTime || '').getTime();
+      if (
+        wallet.id !== claims.walletId ||
+        wallet.orderId !== claims.orderId ||
+        wallet.eventId !== claims.eventId ||
+        wallet.venueId !== claims.venueId ||
+        wallet.userId !== claims.ownerUserId
+      ) {
+        return reply.status(404).send({ error: 'Wallet not found', result: 'invalid' });
+      }
+      if (wallet.state !== 'ACTIVE') {
+        return reply.status(wallet.state === 'FROZEN' ? 423 : 410).send({
+          error: `Wallet is ${String(wallet.state).toLowerCase()}`,
+          result: String(wallet.state).toLowerCase(),
+        });
+      }
+      if (!Number.isFinite(terminationMs) || terminationMs <= Date.now()) {
+        return reply.status(410).send({ error: 'Wallet has expired', result: 'expired' });
+      }
+
+      void touchScannerSession(auth.sessionRef);
+      reply.header('Cache-Control', 'private, no-store');
+      return {
+        wallet: {
+          id: wallet.id,
+          orderId: wallet.orderId,
+          eventId: wallet.eventId,
+          venueId: wallet.venueId,
+          currentBalancePaise: wallet.currentBalancePaise,
+          openingBalancePaise: wallet.openingBalancePaise,
+          totalDebitedPaise: wallet.totalDebitedPaise || 0,
+          guestFirstName: wallet.guestFirstName || 'Guest',
+          state: wallet.state,
+          terminationTime: wallet.rules?.terminationTime || null,
+          rules: {
+            allowedPresetItems: wallet.rules?.allowedPresetItems || [],
+            showBalanceToGuest: wallet.rules?.showBalanceToGuest ?? true,
+            maxChargeAmountPaise: wallet.rules?.maxChargeAmountPaise || 0,
+            minChargeAmountPaise: wallet.rules?.minChargeAmountPaise || 0,
+          },
+        },
+      };
+    },
+  );
+
   // ── Core QR Scan Processing ───────────────────────────────────────────────
 
   /**
@@ -2785,6 +2902,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
       }
 
       const event = eventDoc.data();
+      const canCharge = getPermissionsForRole('venue', auth.operator.role).includes(
+        'CHARGE_COVER_WALLETS',
+      );
 
       const sessionToken = randomBytes(24).toString('hex');
       const sessionId = hashScannerSessionToken(sessionToken);
@@ -2811,7 +2931,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
       batch.set(sessionRef, {
         codeId: 'staff_' + auth.operator.uid,
         code: 'STAFF',
-        codeType: 'scan_only',
+        codeType: canCharge ? 'charge' : 'scan_only',
         eventId,
         venueId,
         deviceId,
@@ -2878,6 +2998,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
           canDoorEntry: ['owner', 'manager', 'floor_manager', 'ops', 'security', 'door'].includes(
             auth.operator.role,
           ),
+          canCharge,
         },
         tiers,
         gate: 'Main Gate',

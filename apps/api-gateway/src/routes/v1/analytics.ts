@@ -1,12 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import {
-  getVenueAnalytics,
-  getHostAnalytics,
-  getPromoterFunnel,
-} from '@c1rcle/core/analytics-engine';
+import { getVenueAnalytics, getPromoterFunnel } from '@c1rcle/core/analytics-engine';
 import { PROMOTER_COMMISSION_TIERS } from '../../lib/rbac-permissions';
 import { getEventCommerceMetrics } from '../../lib/canonicalCommerceMetrics';
+import { HostService } from '../../services/unified/host-service.js';
+import type { OverviewRange, PartnerContext } from '../../services/unified/types.js';
 
 const AnalyticsRangeSchema = z.object({
   range: z.enum(['7d', '30d', '90d', '1y']).optional(),
@@ -27,6 +25,12 @@ const HostClickSchema = z
   .strict();
 
 export default async function analyticsRoutes(fastify: FastifyInstance) {
+  const hostService = new HostService({
+    db: fastify.db,
+    log: fastify.log,
+    redis: fastify.redis,
+  });
+
   /**
    * POST /api/v1/analytics/host-click
    * Tracks genuine host clicks, implements duplicate prevention (24h TTL), and publishes events.
@@ -171,21 +175,79 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/:id',
     {
-      preHandler: [fastify.requirePartnerAccess((req) => (req.params as any).id)],
+      preHandler: [
+        fastify.requirePartnerAccess((req) => (req.params as any).id),
+        fastify.validate({ querystring: AnalyticsRangeSchema }),
+      ],
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const { range } = request.query as z.infer<typeof AnalyticsRangeSchema>;
 
       try {
-        const cached = await fastify.cache.get('analytics:host', id);
-        if (cached) return cached;
+        const overviewRange: OverviewRange =
+          range === '7d' ? '1w' : range === '90d' || range === '1y' ? 'all' : '1m';
+        const cacheKey = `${id}:${overviewRange}:ledger-projection-v1`;
+        const cached = await fastify.cache.get('analytics:host', cacheKey);
+        if (cached) return { ...(cached as Record<string, unknown>), fromCache: true };
 
-        const stats = await getHostAnalytics(id);
+        const ctx: PartnerContext = {
+          partnerId: id,
+          uid: String((request as any).user?.uid || ''),
+          type: 'host',
+          roles: ['host_owner'],
+          venueIds: [],
+          displayName: String((request as any).user?.displayName || 'Host'),
+        };
+        const [performance, statsSnap] = await Promise.all([
+          hostService.getPerformance(ctx, overviewRange, 'tickets'),
+          fastify.db.collection('host_stats').doc(id).get(),
+        ]);
+        const hostStats = statsSnap.exists ? (statsSnap.data() as Record<string, any>) : {};
+        const totalRevenue = performance.series.reduce((sum, point) => sum + point.revenue, 0);
+        const ticketsSold = performance.series.reduce((sum, point) => sum + point.ticketsSold, 0);
+        const result = {
+          role: 'host',
+          rangeLabel:
+            overviewRange === '1w'
+              ? 'Last 7 days'
+              : overviewRange === 'all'
+                ? 'Last 6 months'
+                : 'Last 30 days',
+          lastUpdatedAt: String(hostStats.lastUpdatedAt || new Date().toISOString()),
+          dataReady: totalRevenue > 0 || ticketsSold > 0,
+          totalRevenue,
+          ticketsSold,
+          totalTicketsSold: ticketsSold,
+          totalCheckIns: Number(hostStats.totalCheckIns || 0),
+          guestlistSignups: Number(hostStats.guestlistSignups || hostStats.totalRsvps || 0),
+          revenueTimeline: performance.series.map((point) => ({
+            date: point.date,
+            label: point.label,
+            revenue: point.revenue,
+          })),
+          ticketsTimeline: performance.series.map((point) => ({
+            date: point.date,
+            label: point.label,
+            tickets: point.ticketsSold,
+          })),
+        };
 
-        await fastify.cache.set('analytics:host', id, stats, 120); // 120s TTL
-        return stats;
+        await fastify.cache.set('analytics:host', cacheKey, result, 120);
+        return result;
       } catch (error: any) {
-        reply.status(500).send({ error: 'Internal server error' });
+        fastify.log.error(
+          { error: error?.message, hostId: id },
+          'Canonical host analytics read failed',
+        );
+        const statusCode = Number(error?.statusCode) || 500;
+        reply.status(statusCode).send({
+          error:
+            statusCode === 503
+              ? 'Canonical host analytics data is unavailable'
+              : 'Internal server error',
+          code: error?.code || 'HOST_ANALYTICS_FAILED',
+        });
       }
     },
   );
@@ -314,7 +376,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
           peakCheckInHour: overview.peakCheckInHour ?? null,
         };
 
-        await fastify.cache.set('analytics:event', cacheKey, result, 60);
+        await fastify.cache.set('analytics:event', cacheKey, result, 300);
         return result;
       } catch (error: any) {
         fastify.log.error(`Event computed analytics error: ${error.message}`);

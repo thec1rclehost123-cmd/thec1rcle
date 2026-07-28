@@ -150,6 +150,7 @@ export function buildOrderPayload(params) {
     promoterAttribution = null,
     financialAttribution = null,
     sourceChannel = 'direct',
+    hostUpdatesOptIn = false,
     workspaceId,
   } = params;
   const isRSVP = !!event.isRSVP;
@@ -178,12 +179,19 @@ export function buildOrderPayload(params) {
     promoterId: promoterAttribution?.promoterId || null,
     promoterLinkId: promoterAttribution?.promoterLinkId || null,
     sourceChannel,
+    marketingConsent: {
+      allowPlatformMessages: hostUpdatesOptIn === true,
+      allowDirectContactShare: false,
+      consentStatement: 'checkout_partner_updates_v1',
+      recordedAt: new Date().toISOString(),
+    },
     queueId: reservation.queueId || null,
     userId: user.id,
     userName: user.name,
     userEmail: user.email,
     userPhone: user.phone,
     ticketCount,
+    coverCreditLiabilityPaise: Number(pricing.coverCreditLiabilityPaise || 0),
     currency: pricing.currency || event.currency || 'INR',
     subtotalPaise,
     discountPaise,

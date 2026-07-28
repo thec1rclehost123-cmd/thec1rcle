@@ -80,6 +80,7 @@ describe('partner ledger atomic posting', () => {
             paymentId: 'pay_other',
           }),
         },
+        ticketCount: 2,
       }),
     ).toThrowError(
       expect.objectContaining({
@@ -115,6 +116,141 @@ describe('partner ledger atomic posting', () => {
       toPartnerId: 'venue_1',
       amountPaise: 90_00,
     });
+  });
+
+  it('writes finance aggregate increments as nested fields, never literal dotted keys', () => {
+    const doc = (path: string) => ({
+      path,
+      collection: (name: string) => ({
+        doc: (id: string) => doc(`${path}/${name}/${id}`),
+      }),
+    });
+    const db = {
+      collection: (name: string) => ({
+        doc: (id: string) => doc(`${name}/${id}`),
+      }),
+    };
+    const transaction = {
+      create: vi.fn(),
+      set: vi.fn(),
+    };
+
+    writePartnerLedgerInTransaction({
+      db,
+      transaction,
+      order: {
+        ...order,
+        hostId: 'venue_1',
+        promoterId: null,
+        promoterLinkId: null,
+        platformFeePaise: 10_00,
+        venueSharePaise: 90_00,
+        promoterCommissionPaise: 0,
+        hostPayoutPaise: 0,
+      },
+      event: { id: 'event_1', creatorRole: 'venue' },
+      paymentId: 'pay_1',
+      createdAt: '2026-07-24T00:00:00.000Z',
+      markerSnapshot: { exists: false },
+      ticketCount: 2,
+    });
+
+    const aggregateWrite = transaction.set.mock.calls.find(
+      ([ref]) => ref.path === 'partner_finance_aggregates/venue_1',
+    );
+    expect(aggregateWrite).toBeDefined();
+    expect(aggregateWrite?.[1]).toMatchObject({
+      balances: { pending: expect.anything() },
+      totalsByType: { venue_share: expect.anything() },
+    });
+    expect(
+      Object.prototype.hasOwnProperty.call(aggregateWrite?.[1] || {}, 'balances.pending'),
+    ).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(aggregateWrite?.[1] || {}, 'totalsByType.venue_share'),
+    ).toBe(false);
+
+    const hostProjectionWrites = transaction.set.mock.calls.filter(
+      ([ref]) => ref.path === 'partner_finance_aggregates/venue_1',
+    );
+    expect(hostProjectionWrites).toContainEqual([
+      expect.objectContaining({ path: 'partner_finance_aggregates/venue_1' }),
+      expect.objectContaining({
+        analytics: {
+          grossRevenuePaise: expect.anything(),
+          ticketsSold: expect.anything(),
+        },
+      }),
+      { merge: true },
+    ]);
+    expect(transaction.set.mock.calls).toContainEqual([
+      expect.objectContaining({
+        path: 'partner_finance_aggregates/venue_1/daily/2026-07-24',
+      }),
+      expect.objectContaining({
+        grossRevenue: expect.anything(),
+        ticketsSold: expect.anything(),
+      }),
+      { merge: true },
+    ]);
+  });
+
+  it('does not increment sale projections when an identical ledger marker is replayed', () => {
+    const doc = (path: string) => ({
+      path,
+      collection: (name: string) => ({
+        doc: (id: string) => doc(`${path}/${name}/${id}`),
+      }),
+    });
+    const db = {
+      collection: (name: string) => ({
+        doc: (id: string) => doc(`${name}/${id}`),
+      }),
+    };
+    const transaction = {
+      create: vi.fn(),
+      set: vi.fn(),
+    };
+    const posting = buildPartnerLedgerEntries({
+      order,
+      event: { id: 'event_1' },
+      paymentId: 'pay_1',
+      createdAt: '2026-07-24T00:00:00.000Z',
+    });
+
+    const result = writePartnerLedgerInTransaction({
+      db,
+      transaction,
+      order,
+      event: { id: 'event_1' },
+      paymentId: 'pay_1',
+      createdAt: '2026-07-24T00:00:00.000Z',
+      markerSnapshot: {
+        exists: true,
+        data: () => ({
+          orderId: order.id,
+          eventId: order.eventId,
+          paymentId: 'pay_1',
+          currency: 'INR',
+          grossPaise: order.totalPaise,
+          participants: {
+            hostId: order.hostId,
+            venueId: order.venueId,
+            promoterId: order.promoterId,
+            promoterLinkId: order.promoterLinkId,
+          },
+          entryIds: posting.entries.map((entry) => entry.id),
+          entryCount: posting.entries.length,
+          ticketCount: 2,
+          schemaVersion: 1,
+        }),
+      },
+      ticketCount: 2,
+    });
+
+    expect(result.alreadyPosted).toBe(true);
+    expect(transaction.create).not.toHaveBeenCalled();
+    expect(transaction.set).not.toHaveBeenCalled();
   });
 
   it('allocates a partial refund exactly across the original sale rows', () => {

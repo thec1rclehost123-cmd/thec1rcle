@@ -75,6 +75,7 @@ interface TicketTier {
     walletAmountPaise: number;
     terminationHour: number;
     terminationPolicy: 'forfeit' | 'partial_refund';
+    partialRefundPercent?: number;
     presetItems: Array<{ id: string; name: string; amountPaise: number; isAvailable: boolean }>;
   };
 }
@@ -211,6 +212,7 @@ function CoverChargeConfig({
     walletAmountPaise: 0,
     terminationHour: 5,
     terminationPolicy: 'forfeit',
+    partialRefundPercent: 0,
     presetItems: [],
   });
 
@@ -340,12 +342,21 @@ function CoverChargeConfig({
                   {(
                     [
                       { value: 'forfeit', label: 'Forfeit', desc: 'Club keeps remainder' },
-                      { value: 'partial_refund', label: 'Refund', desc: 'Return to guest' },
+                      {
+                        value: 'partial_refund',
+                        label: 'Refund',
+                        desc: 'Return all unspent balance',
+                      },
                     ] as const
                   ).map((opt) => (
                     <button
                       key={opt.value}
-                      onClick={() => update({ terminationPolicy: opt.value })}
+                      onClick={() =>
+                        update({
+                          terminationPolicy: opt.value,
+                          partialRefundPercent: opt.value === 'partial_refund' ? 100 : 0,
+                        })
+                      }
                       className={`flex-1 px-3 py-2.5 rounded-xl border text-left transition-all ${
                         cfg.terminationPolicy === opt.value
                           ? 'border-violet-500 bg-violet-500/10'

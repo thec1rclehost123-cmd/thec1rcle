@@ -82,7 +82,7 @@ async function claimRefundForSettlement(
  * failure, the order is restored to its pre-refund status rather than left
  * locked in `refund_requested`.
  */
-async function settleRefund(
+export async function settleRefund(
   fastify: FastifyInstance,
   params: {
     refundId: string;

@@ -1,27 +1,28 @@
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 import { auth } from '../firebase';
 import { getScannerSessionToken } from '../deviceIdentity';
 
 const getApiBase = () => {
-  let url = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+  const gatewayUrl = process.env.EXPO_PUBLIC_GATEWAY_URL?.trim().replace(/\/+$/, '');
+  const configured = apiUrl || (gatewayUrl ? `${gatewayUrl}/api/v1` : '');
+  const url = configured || (__DEV__ ? 'http://localhost:4000/api/v1' : '');
 
-  if (__DEV__) {
-    // Dynamically replace localhost/127.0.0.1 with Metro packager host IP in development
-    const hostUri = Constants.expoConfig?.hostUri; // e.g. "192.168.29.70:8081"
-    if (hostUri) {
-      const host = hostUri.split(':')[0]; // "192.168.29.70"
-      if (url.includes('localhost') || url.includes('127.0.0.1')) {
-        url = url.replace('localhost', host).replace('127.0.0.1', host);
-      }
-    } else if (
-      Platform.OS === 'android' &&
-      (url.includes('localhost') || url.includes('127.0.0.1'))
-    ) {
-      url = url.replace('localhost', '10.0.2.2').replace('127.0.0.1', '10.0.2.2');
-    }
+  if (!url) {
+    throw new Error(
+      'Missing required Scanner App environment variable: EXPO_PUBLIC_API_URL or EXPO_PUBLIC_GATEWAY_URL',
+    );
   }
-  return url;
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('unsupported protocol');
+    }
+  } catch {
+    throw new Error('Scanner App API URL must be an absolute HTTP(S) URL');
+  }
+
+  return url.replace(/\/+$/, '');
 };
 
 const API_BASE = getApiBase();

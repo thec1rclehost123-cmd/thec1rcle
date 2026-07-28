@@ -77,8 +77,10 @@ class FakeOrderRepository {
   rsvpOrders = new Map<string, any>();
   reservations = new Map<string, any>();
   payments = new Map<string, any>();
+  orderByIdReads = 0;
 
   async getOrderById(id: string) {
+    this.orderByIdReads += 1;
     return this.orders.get(id) || this.rsvpOrders.get(id) || null;
   }
 
@@ -359,6 +361,41 @@ describe('CheckoutService parity', () => {
     });
 
     expect(firstPayment.razorpayOrderId).toBe(secondPayment.razorpayOrderId);
+    expect(orderRepo.payments.size).toBe(1);
+  });
+
+  it('uses the order resolved by checkout initiation without reloading it', async () => {
+    const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
+    const eventRepo = new FakeEventRepository({
+      'evt-paid': buildEvent({ id: 'evt-paid', price: 500 }),
+    });
+    orderRepo.reservations.set(
+      'res-paid-resolved',
+      buildReservation({ id: 'res-paid-resolved', eventId: 'evt-paid' }),
+    );
+    const service = new CheckoutService(orderRepo as any, eventRepo as any);
+
+    const checkout = await service.initiateCheckout({
+      reservationId: 'res-paid-resolved',
+      userId: 'user_1',
+      userName: 'Test User',
+      userEmail: 'test@example.com',
+      userPhone: '+15555550123',
+    });
+
+    await service.preparePayment(
+      checkout.order.id,
+      'user_1',
+      {
+        keyId: '',
+        keySecret: '',
+        allowMockPayment: true,
+      },
+      checkout.order,
+    );
+
+    expect(orderRepo.orderByIdReads).toBe(0);
     expect(orderRepo.payments.size).toBe(1);
   });
 

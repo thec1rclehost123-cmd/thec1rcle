@@ -158,13 +158,16 @@ function PayoutPillRow({ payout }: { payout: PayoutRequest }) {
 }
 
 export function VenuePayoutsClient() {
-  const { profile } = useDashboardAuth();
+  const { profile, getIdToken } = useDashboardAuth();
   const venueId = profile?.activeMembership?.partnerId;
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['finance-venue-payouts', venueId],
     queryFn: async () => {
-      const res = await fetch(`/api/partners/venues/finance/venue-payouts?venueId=${venueId}`);
+      const token = await getIdToken();
+      const res = await fetch(`/api/partners/venues/finance/venue-payouts?venueId=${venueId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error('Canonical payout data is unavailable');
       return res.json();
     },

@@ -239,8 +239,13 @@ describe('api', () => {
         reservationId: 'r_1',
         userName: 'User',
         userEmail: 'u@t.com',
+        hostUpdatesOptIn: true,
       });
       expect(result.order.id).toBe('ord_1');
+      expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
+        reservationId: 'r_1',
+        hostUpdatesOptIn: true,
+      });
     });
   });
 

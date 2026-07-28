@@ -3,6 +3,7 @@ import { getAdminDb } from './admin.js';
 import { getQrSecret } from './secret-registry.js';
 import { releaseReservation } from './inventory-engine.js';
 import { finalizeTicketPayment } from './workflows/ticketing.js';
+import { getEventTimestamps, IST_TIMEZONE } from './time.js';
 
 const PAYMENT_PENDING_STATUSES = new Set(['payment_pending', 'pending_payment']);
 const WALLET_QR_TTL_SECONDS = 15;
@@ -722,19 +723,26 @@ export async function finalizeRazorpayTicketPurchase({
   });
 }
 
-function eventFromDoc(doc) {
-  if (!doc?.exists) return null;
-  const event = { id: doc.id, ...doc.data() };
+export function buildWalletEventSummary(event = {}) {
+  const { startAt } = getEventTimestamps(event);
   return {
     id: event.id,
     title: event.title || event.eventTitle || event.name || null,
     image: event.image || event.poster || event.coverImage || event.posterUrl || null,
-    date: normalizeDate(event.startDate || event.startAt || event.date),
-    time: event.time || null,
+    date:
+      (startAt > 0 ? new Date(startAt).toISOString() : null) ||
+      normalizeDate(event.startAt || event.startDate || event.date),
+    time: event.startTime || event.time || null,
+    timezone: event.timezone || IST_TIMEZONE,
     venue: event.venueName || event.venue || event.location || null,
     hostName: event.hostName || event.host?.name || null,
     accentColor: event.accentColor || event.posterAccentColor || null,
   };
+}
+
+function eventFromDoc(doc) {
+  if (!doc?.exists) return null;
+  return buildWalletEventSummary({ id: doc.id, ...doc.data() });
 }
 
 function mapOrderForWallet(order, tickets, event) {
@@ -767,6 +775,7 @@ function mapOrderForWallet(order, tickets, event) {
       event?.date ||
       undefined,
     eventTime: order.eventTime || event?.time || undefined,
+    eventTimezone: order.eventTimezone || order.timezone || event?.timezone || IST_TIMEZONE,
     eventCoverImage:
       order.eventCoverImage ||
       order.eventImage ||

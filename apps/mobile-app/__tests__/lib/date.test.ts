@@ -3,6 +3,7 @@ import {
   formatEventDate,
   formatEventDateLong,
   formatEventTime,
+  formatTicketCardDate,
   safeDate,
 } from '@/lib/utils/date';
 
@@ -19,6 +20,12 @@ describe('event date formatting', () => {
   it('honors an explicit venue timezone', () => {
     expect(formatEventDate(bollywoodNight, 'Asia/Dubai')).toBe('Mon, 3 Aug');
     expect(formatEventTime(bollywoodNight, 'Asia/Dubai')).toBe('12:00 am');
+  });
+
+  it('formats ticket-card dates in the event timezone', () => {
+    expect(formatTicketCardDate('2026-08-29T15:30:00.000Z', 'Asia/Kolkata')).toBe(
+      'Aug 29th • 9 PM',
+    );
   });
 
   it('fails safely for invalid dates and invalid timezone identifiers', () => {

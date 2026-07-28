@@ -92,7 +92,7 @@ export default function GuestListPageClient() {
         if (cursor) params.set('cursor', cursor);
 
         const res = await fetch(`/api/partners/venues/guest-ops/${eventId}/guests?${params}`, {
-          headers: authHeaders(),
+          headers: await authHeaders(),
         });
         if (!res.ok) throw new Error('Failed');
         const data = await res.json();
@@ -128,7 +128,7 @@ export default function GuestListPageClient() {
         try {
           const res = await fetch(
             `/api/partners/venues/guest-ops/${eventId}/guests/search?venueId=${venueId}&q=${encodeURIComponent(q)}&field=name`,
-            { headers: authHeaders() },
+            { headers: await authHeaders() },
           );
           if (res.ok) {
             const d = await res.json();
@@ -152,7 +152,7 @@ export default function GuestListPageClient() {
         `/api/partners/venues/guest-ops/${eventId}/guests/${guestId}/${action}?venueId=${venueId}`,
         {
           method: 'POST',
-          headers: authHeaders(),
+          headers: await authHeaders(),
           body: JSON.stringify(body),
         },
       );

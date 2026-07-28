@@ -16,6 +16,7 @@ export interface Order {
   eventDate?: string;
   eventStartDate?: string;
   eventTime?: string;
+  eventTimezone?: string;
   eventCoverImage?: string;
   coverImage?: string;
   coverPhoto?: string;

@@ -49,12 +49,13 @@ export default function GuestOpsOverviewPageClient() {
     async (eid: string) => {
       if (!eid || !venueId) return;
       try {
+        const headers = await authHeaders();
         const [sumRes, devRes] = await Promise.all([
           fetch(`/api/partners/venues/guest-ops/${eid}/summary?venueId=${venueId}`, {
-            headers: authHeaders(),
+            headers,
           }),
           fetch(`/api/partners/venues/guest-ops/${eid}/scanner/devices?venueId=${venueId}`, {
-            headers: authHeaders(),
+            headers,
           }),
         ]);
         if (sumRes.ok) setSummary(await sumRes.json());

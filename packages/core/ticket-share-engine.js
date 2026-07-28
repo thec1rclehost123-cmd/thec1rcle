@@ -3,6 +3,7 @@ import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { transferEntitlement } from '@c1rcle/core/entitlement-engine';
 import { deductInventory } from '@c1rcle/core/inventory-engine';
 import { getTicketSecret } from './secret-registry.js';
+import { deterministicCoverWalletId } from './cover-charge-engine.js';
 
 function isFirebaseConfigured() {
   return true; // assumed to be configured in core environment
@@ -124,6 +125,36 @@ function hashTransferToken(token) {
 
 function activeTransferDocumentId(ticketId) {
   return `ACTIVE-${createHash('sha256').update(String(ticketId)).digest('hex').slice(0, 40)}`;
+}
+
+export function buildCoverWalletTransferUpdate({
+  wallet,
+  walletId,
+  transfer,
+  ticket,
+  recipientId,
+  transferredAt,
+}) {
+  if (!wallet) return null;
+  if (
+    wallet.id !== walletId ||
+    wallet.orderId !== transfer.orderId ||
+    wallet.eventId !== transfer.eventId ||
+    wallet.tierId !== ticket.tierId ||
+    Number(wallet.unitIndex) !== Number(ticket.slotIndex) ||
+    wallet.userId !== transfer.senderId
+  ) {
+    const error = new Error('Cover Wallet ownership or attribution conflicts with this transfer');
+    error.code = 'TRANSFER_COVER_WALLET_CONFLICT';
+    throw error;
+  }
+  return {
+    userId: recipientId,
+    previousOwnerUserId: transfer.senderId,
+    transferredAt,
+    updatedAt: transferredAt,
+    qrVersion: Number(wallet.qrVersion || 1) + 1,
+  };
 }
 
 function normalizeVerifiedEmail(email) {
@@ -1554,7 +1585,17 @@ export async function acceptTransfer(tokenOrId, recipientId, principal = {}) {
   }
 
   const ticketRef = ticketSnapshot.docs[0].ref;
+  const ticketLookup = ticketSnapshot.docs[0].data();
   const entitlementRef = db.collection('entitlements').doc(lookupData.entitlementId);
+  const coverWalletRef = db
+    .collection('cover_wallets')
+    .doc(
+      deterministicCoverWalletId(
+        lookupData.orderId,
+        ticketLookup.tierId,
+        Number(ticketLookup.slotIndex),
+      ),
+    );
   const recipientRef = db.collection('users').doc(recipientId);
   const eventRef = db.collection('events').doc(lookupData.eventId);
   const orderRef = db.collection(ORDERS_COLLECTION).doc(lookupData.orderId);
@@ -1587,6 +1628,7 @@ export async function acceptTransfer(tokenOrId, recipientId, principal = {}) {
       senderBlockedRecipient,
       recipientBlockedSender,
       assignmentDoc,
+      coverWalletDoc,
     ] = await Promise.all([
       transaction.get(transferRef),
       transaction.get(ticketRef),
@@ -1597,6 +1639,7 @@ export async function acceptTransfer(tokenOrId, recipientId, principal = {}) {
       transaction.get(senderBlockedRecipientQuery),
       transaction.get(recipientBlockedSenderQuery),
       assignmentRef ? transaction.get(assignmentRef) : Promise.resolve(null),
+      transaction.get(coverWalletRef),
     ]);
     if (!transferDoc.exists) return { error: 'TRANSFER_INVALID' };
     const transfer = transferDoc.data();
@@ -1604,6 +1647,9 @@ export async function acceptTransfer(tokenOrId, recipientId, principal = {}) {
 
     if (transfer.status === 'accepted') {
       if (transfer.recipientId === recipientId) {
+        if (coverWalletDoc.exists && coverWalletDoc.data().userId !== recipientId) {
+          return { error: 'TRANSFER_COVER_WALLET_CONFLICT' };
+        }
         return {
           success: true,
           alreadyClaimed: true,
@@ -1676,6 +1722,19 @@ export async function acceptTransfer(tokenOrId, recipientId, principal = {}) {
 
     const now = new Date().toISOString();
     const nextQrVersion = Number(ticket.qrVersion || 1) + 1;
+    let coverWalletUpdate = null;
+    try {
+      coverWalletUpdate = buildCoverWalletTransferUpdate({
+        wallet: coverWalletDoc.exists ? { id: coverWalletDoc.id, ...coverWalletDoc.data() } : null,
+        walletId: coverWalletRef.id,
+        transfer,
+        ticket,
+        recipientId,
+        transferredAt: now,
+      });
+    } catch (error) {
+      return { error: error.code || 'TRANSFER_COVER_WALLET_CONFLICT' };
+    }
     transaction.update(ticketRef, {
       userId: recipientId,
       previousOwnerUserId: transfer.senderId,
@@ -1695,6 +1754,9 @@ export async function acceptTransfer(tokenOrId, recipientId, principal = {}) {
       transferredAt: now,
       updatedAt: now,
     });
+    if (coverWalletUpdate) {
+      transaction.update(coverWalletRef, coverWalletUpdate);
+    }
 
     if (assignmentRef) {
       transaction.update(assignmentRef, {
@@ -1760,6 +1822,8 @@ export async function acceptTransfer(tokenOrId, recipientId, principal = {}) {
       TICKET_TRANSFER_ARTIFACT_MISSING: 'Canonical ticket artifacts are unavailable.',
       TRANSFER_WINDOW_CLOSED: 'Transfers are closed for this event.',
       TRANSFER_NOT_ELIGIBLE: 'This ticket is no longer eligible for transfer.',
+      TRANSFER_COVER_WALLET_CONFLICT:
+        'The Cover Wallet for this ticket could not be transferred safely.',
     };
     const error = new Error(messages[result.error] || 'Transfer failed.');
     error.code = result.error;

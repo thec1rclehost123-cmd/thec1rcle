@@ -75,16 +75,22 @@ from the earlier SHA cannot authorize promotion of the current branch.
 | QA-AUTH-04 | Partner Host | Signup/login, onboarding, membership | PASS |
 | QA-AUTH-05 | Partner Promoter | Signup/login, onboarding, membership | PASS |
 | QA-AUTH-06 | Workspace switching | Venue and Host membership switch | Pending |
-| QA-AUTH-07 | Android onboarding | Physical-device profile, photos, vibes, vitals, preferences | Pending |
+| QA-AUTH-07 | Android onboarding | Physical-device profile, photos, vibes, vitals, preferences | Partial PASS — canonical first-run flow passed; photo/vitals/edit-profile proof pending |
 | QA-EVENT-01 | Create and publish | V2 wizard, two tiers, authoritative event ID | PASS |
 | QA-EVENT-02 | Guest propagation | Event, image, lifecycle, prices, availability | PASS |
-| QA-EVENT-03 | Mobile propagation | Same event and tier contract on Android | Pending |
+| QA-EVENT-03 | Mobile propagation | Same event and tier contract on Android | Partial PASS — title, image, venue, ₹499 floor, lifecycle, and 21:00 IST render passed; checkout tier selection remains pending |
 | QA-PAY-01 | Guest or Mobile purchase | Reservation timer, Razorpay test capture, confirmation | Pending |
 | QA-PAY-02 | Atomic fulfillment | Order, tickets, entitlements, inventory, ledger, outbox | Pending |
 | QA-WALLET-01 | Mobile wallet | Purchased units visible and owned by QA Guest | Pending |
 | QA-WALLET-02 | Rotating QR | Signed payload rotates at 15 seconds without flicker | Pending |
 | QA-SCAN-01 | Door admission | Authorized device/staff; atomic 2/2 consumption | Pending |
 | QA-SCAN-02 | Replay denial | Re-scan returns explicit already-consumed refusal | Pending |
+| QA-COVER-01 | Cover Wallet issuance | Paid cover package atomically issues exact wallet value | Blocked — provider capture not completed |
+| QA-COVER-02 | Cover debit lifecycle | Bound session; debit/replay/velocity/state controls | Partial PASS — live synthetic wallet lifecycle only |
+| QA-COVER-03 | Cover supervisor controls | PIN, role, reverse, top-up, freeze, unfreeze | PASS through live Gateway/Core lifecycle |
+| QA-COVER-04 | Cover guest privacy | Balance/history visibility flags | PASS through live authenticated API |
+| QA-COVER-05 | Cover physical Scanner | Installed app, assigned event/session, camera, online-only debit | Partial — live camera proven; QR debit unavailable |
+| QA-COVER-06 | Cover reconciliation | Core replay, stored report, Partner and Guest agree to paise | Partial — live Core/Gateway difference is zero; UI/payment proof pending |
 | QA-FIN-01 | Overview KPIs | Sold count and gross revenue update with measured latency | Pending |
 | QA-FIN-02 | Canonical ledger | Exact paise reconciliation and partner balance | Pending |
 | QA-FIN-03 | Attendee operations | QA Guest visible with correct check-in state | Pending |
@@ -306,23 +312,34 @@ from the earlier SHA cannot authorize promotion of the current branch.
 - Reran every role in a separate authenticated browser context and opened every
   page in its own isolated tab so delayed requests could not contaminate the
   next route's evidence.
-- Venue: `10/10` tested routes returned 200 with zero API failures, console
-  errors, or page errors. This includes Overview, Events, Analytics, Finance,
-  Payout Settings, Orders, Door/Guest Operations, Tables, Staff, and Settings.
-- Host: `8/8` supported routes returned 200 with zero API failures, console
-  errors, or page errors. This includes Overview, Events, Analytics, Finance,
-  Payout Settings, Promoters/Partners, Team, and Settings.
-- Promoter: `8/8` tested routes returned 200 with zero API failures, console
-  errors, or page errors. This includes Overview, Events, Links, Analytics,
-  Finance, Payout Settings, Guests, and Settings.
+- Venue: all `59` filesystem-discovered renderable routes returned 200 with
+  zero API failures, console errors, page errors, or broken images in
+  `244,951 ms`. The slowest page was `/venue/analytics/live` at `5,443 ms`.
+  `/venue/staff/profiles/[profileId]` remains explicitly untested because the
+  staging account has no authoritative staff-profile fixture.
+- Host: all `27` filesystem-discovered renderable routes returned 200 with zero
+  API failures, console errors, page errors, or broken images in `109,463 ms`.
+  The slowest page was `/host/ops` at `4,030 ms`.
+  `/host/events/[id]` and `/host/events/[id]/analytics` remain explicitly
+  untested because the new QA Host has no Host-owned event fixture.
+- Promoter: all `21` filesystem-discovered renderable routes returned 200 with
+  zero API failures, console errors, page errors, or broken images in
+  `351,156 ms`. `/promoter/finance/payouts` redirected to the canonical
+  `/promoter/payouts` route as required.
+  `/promoter/events/[assignmentId]` remains explicitly untested because the QA
+  Promoter has no authoritative assignment fixture.
 - Host finance's final regression depended on QA-EDIT-08 and returned the
   legitimate zero canonical balance for the new Host, not a raw-order fallback.
 - Evidence:
   - `qa-artifacts/partner-login-venue/result.json`
   - `qa-artifacts/partner-login-host/result.json`
   - `qa-artifacts/partner-login-promoter/result.json`
-- Verdict: **PASS for the tested authenticated role navigation set.** Individual
-  create/edit/mutation workflows remain gated by their dedicated journeys.
+- Verdict: **FUNCTIONAL PASS / PERFORMANCE AND FIXTURE EVIDENCE INCOMPLETE.**
+  The exhaustive render matrix is clean, but `/promoter/analytics` measured
+  `46,679 ms` in the browser run and is not accepted as performance-ready.
+  Dynamic Host event, Promoter assignment, and Venue staff-profile journeys
+  remain gated by authoritative fixtures. Individual create/edit/mutation
+  workflows remain gated by their dedicated journeys.
 
 ### QA-EVENT-LIVE-01 — Venue creation, publication, and Guest propagation
 
@@ -353,6 +370,162 @@ from the earlier SHA cannot authorize promotion of the current branch.
   Android propagation, checkout-time inventory authority, cancellation/edit
   convergence, and measured propagation SLA remain separate gates.
 
+### QA-COVER-LIVE-01 — Cover Charge automated and live subsystem proof
+
+- Focused Node 20 validation after the Cover Charge remediation:
+  - Core: `5` files and `69` assertions passed.
+  - Gateway/security: `5` files and `35` assertions passed.
+  - Mobile Scanner/Guest-wallet mapping: `2` suites and `5` assertions passed.
+  - Standalone Scanner: `4` assertions passed.
+  - Core, Gateway, Mobile, Partner Dashboard, and Scanner type-checks all exited
+    zero.
+- A dry run of the termination timestamp migration against
+  `c1rcle-staging` scanned four Cover Wallets, found zero invalid records and
+  required zero updates. It did not mutate staging.
+- Physical standalone Scanner evidence on Android `RF8N3166GEW`:
+  - the debug APK installed and launched;
+  - the tagged Door account authenticated;
+  - the assigned Cover Charge event appeared;
+  - the Gateway issued an event/venue/device-bound session with
+    `canCharge=true`;
+  - the event-scoped live camera screen opened.
+- The live, authenticated Gateway/Core lifecycle used only tagged synthetic
+  staging wallets and proved:
+  - owner balance visibility and private-wallet balance/history redaction;
+  - authorized Venue visibility of a private Guest wallet;
+  - bound charge-session and by-order scope;
+  - exact ₹500 debit from 50,000 to 45,000 paise;
+  - same-UUID replay without a second mutation;
+  - three permitted device debits and a fourth `429 VELOCITY_EXCEEDED`;
+  - Door reversal refusal (`403`);
+  - supervisor PIN configuration, invalid-PIN refusal (`401`), and exact
+    reversal;
+  - idempotent top-up;
+  - freeze, frozen debit refusal (`423`), unfreeze, and post-unfreeze debit;
+  - final balance of 45,000 paise with six immutable transactions;
+  - reconciliation over four tagged wallets with a zero-paise difference and
+    zero exceptions.
+- The live lifecycle exposed and then verified the repair of a split authority:
+  the Gateway correctly minted staff charge sessions, but Core attempted to
+  validate only legacy event codes. Core now reads and validates the exact
+  `scanner_auth_sessions/{sessionId}` record inside the transaction before
+  permitting a staff debit.
+- A real cover-enabled event propagated through Gateway and Guest Portal. A
+  real quote, reservation, internal order, and Razorpay test order were also
+  created with immutable host/venue attribution and a 50,000-paise Cover
+  snapshot.
+- The Razorpay payment was not captured. Therefore atomic provider-funded
+  issuance of the order, ticket, entitlement, ledger rows, and Cover Wallet is
+  **not proven**.
+- A physical camera scan and physical offline debit could not be completed
+  because the run had one USB device and no second display presenting the
+  wallet QR. Automated UI tests prove the client refuses to submit while
+  offline, but that is not physical-device E2E evidence.
+- Observed live timings also fail the launch SLA: session mint and first debit
+  each took approximately `5.6s`; reconciliation took approximately `3.3s`.
+  No p95 claim is made from a single lifecycle.
+- Evidence:
+  - `qa-artifacts/mobile-manual-qa/cover-charge/core-tests.log`
+  - `qa-artifacts/mobile-manual-qa/cover-charge/gateway-security-tests.log`
+  - `qa-artifacts/mobile-manual-qa/cover-charge/mobile-scanner-tests.log`
+  - `qa-artifacts/mobile-manual-qa/cover-charge/scanner-app-tests.log`
+  - `qa-artifacts/mobile-manual-qa/cover-charge/typechecks.log`
+  - `qa-artifacts/mobile-manual-qa/cover-charge/termination-backfill-dry-run.log`
+  - `qa-artifacts/mobile-manual-qa/cover-charge/e2e-correlation.json`
+  - `qa-artifacts/mobile-manual-qa/cover-charge/reconciliation.json`
+  - `qa-artifacts/mobile-manual-qa/cover-charge/live-wallet-lifecycle/lifecycle.json`
+  - screenshots under
+    `qa-artifacts/mobile-manual-qa/cover-charge/device-and-offline-evidence`
+- Verdict: **PARTIAL PASS / LAUNCH NO-GO.** The audited arithmetic, Core state
+  machine, route security, live API mutations, privacy, idempotency, device
+  velocity limit, and reconciliation pass. Provider-funded atomic issuance,
+  physical QR debit/offline denial, Partner/Guest post-purchase UI convergence,
+  and the required latency sample remain blocked or unproven.
+
+### QA-MOBILE-LIVE-01 — Canonical Android bootstrap, first run, and realtime
+
+- Device: physical Samsung `SM_G980F`, serial `RF8N3166GEW`, USB-authorized.
+- Runtime transport: ADB reverse for Gateway `tcp:4000` and Metro
+  `tcp:8082`; current root Mobile source bundle.
+- Initial observed failures:
+  - `POST /api/v1/auth/sync` returned 500 because the Gateway-imported Core
+    `user-service` subpath was not exported.
+  - `GET /api/v1/users/me/onboarding` and
+    `GET /api/v1/users/me/subscription` returned 404 because the Mobile
+    contracts had no Gateway/Core implementation.
+  - Mobile requested `POST /realtime/session`, while the Gateway exposed
+    `POST /api/v1/realtime/session`.
+  - The authenticated WebSocket upgrade crashed because the handler used the
+    removed `connection.socket` shape instead of the installed
+    `@fastify/websocket` v11 direct socket argument.
+  - Explore requested `contract=v2`, but the strict recommendations schema
+    rejected the query with 400.
+- Remediation proof:
+  - Auth sync now returns 200 with canonical profile, onboarding,
+    requirements, subscription, usage, and server-owned limits.
+  - Subscription fetch returns 200; the free daily-like limit is 10 at both
+    the Mobile display boundary and Core dating enforcement.
+  - Physical-device first run completed:
+    recovery-email skip → identity and 18+ date validation → Pune city →
+    three nightlife tastes → discovery intent → Explore.
+  - Every first-run mutation and final completion returned 200 through the
+    authenticated Gateway/Core transaction path.
+  - Relaunch persisted the completed state and returned directly to Explore.
+  - Realtime session mint returned 200, the WebSocket upgrade remained open,
+    and the Gateway recorded `Realtime client authenticated` for the physical
+    device user.
+  - The v2 recommendation request returned 200 with the item/reason envelope.
+- Focused validation:
+  - Core onboarding/subscription/export tests: `9/9` PASS.
+  - Gateway recommendation contract tests: `2/2` PASS.
+  - Mobile auth/realtime/recommendation tests: `25/25` PASS.
+  - Core, Gateway, and Mobile affected type-checks: PASS.
+- Performance observations:
+  - Auth sync response: about 5.2–6.1 seconds end-to-end on cold local
+    staging-backed startup.
+  - First-run writes: about 1.9–2.4 seconds each.
+  - Cold recommendation v2 response: about 7.9 seconds.
+  - These timings are functional evidence, not a performance PASS.
+- Evidence:
+  - `qa-artifacts/mobile-manual-qa/runtime-contracts/mobile-canonical-bootstrap.png`
+  - `qa-artifacts/mobile-manual-qa/runtime-contracts/mobile-onboarding-complete.png`
+  - UIAutomator XML snapshots in the same directory
+  - `qa-artifacts/mobile-manual-qa/runtime-contracts/android-canonical-bootstrap.log`
+- Verdict: **FUNCTIONAL PASS / PERFORMANCE NO-GO.** Canonical bootstrap,
+  subscription, first-run persistence, recommendation, and authenticated
+  realtime now connect. Photo/vitals/edit-profile, chat subscription/message
+  delivery, and performance gates remain pending.
+
+### QA-MOBILE-EVENT-LIVE-01 — Physical Android event contract replay
+
+- Opened authoritative event
+  `d6b896a2-9f8c-4c27-89f1-33930aab64bd` through the installed Android
+  development build on USB device `RF8N3166GEW`.
+- The first replay exposed four disconnected runtime contracts:
+  - event time rendered as `5:30 am` because the public projection emitted a
+    date-only start instant;
+  - `GET /api/v1/users/me/follows` returned 404;
+  - `GET /api/v1/events/:id/interested` returned 404;
+  - `POST /api/v1/users/me/recommendation-signals` returned 404.
+- After QA-EDIT-21 through QA-EDIT-23, the same cold/reload journey rendered:
+  - exact event title and Venue;
+  - `Saturday, 29 August at 9:00 pm`;
+  - the canonical ₹499 ticket floor;
+  - no follow or interested-user error surface.
+- Android network telemetry then recorded 200 for the follow list, interested
+  users, recommendation signal, viewer state, wallet, and recommendation v2
+  requests.
+- Evidence:
+  - `qa-artifacts/mobile-manual-qa/runtime-contracts/mobile-event-time-follow-fixed-live.png`
+  - `qa-artifacts/mobile-manual-qa/runtime-contracts/mobile-event-time-follow-fixed-live.xml`
+  - `qa-artifacts/mobile-manual-qa/runtime-contracts/android-event-contracts-after-fix.log`
+- Performance remained outside launch quality: interested users took about
+  0.99 seconds end-to-end, the signal mutation about 1.48 seconds, and the
+  personalized recommendation response about 10.1 seconds.
+- Verdict: **PARTIAL PASS.** Event display and the four runtime contracts are
+  connected. Tier-selection checkout, captured payment, wallet issuance,
+  scanning, and performance remain separate blockers.
+
 ## 6. Defects and blockers
 
 | ID | Severity | Finding | Impact | Status |
@@ -373,7 +546,28 @@ from the earlier SHA cannot authorize promotion of the current branch.
 | QA-GUEST-ASSET-02 | P1 | Guest About used Next Image with `/events/rave.jpg`, but that file did not exist in the public bundle. | About returned a 400 image optimization request and emitted a browser console error. | Fixed with the existing owned nightlife image; strict production browser regression passed |
 | QA-EVENT-CALENDAR-01 | P0 | The Venue calendar excluded draft events while the event-creation conflict check counted them as blocking reservations. | The calendar presented a date as available, but the V2 wizard then rejected the same slot as overlapping; failed QA retries accumulated draft records. | Fixed with one shared blocking-lifecycle predicate; unit tests, Gateway type-check, and live creation passed |
 | QA-EVENT-PRICE-01 | P0 | Event creation defaulted the persisted public price summary to zero and Guest discovery trusted that stale summary instead of authoritative ticket tiers. | A correctly configured ₹499/₹999 event propagated as a ₹0 event in public list/detail contracts. | Fixed at write and read boundaries; 10 focused Core assertions, Core/Gateway type-checks, canonical event repair, and live Guest UI passed |
+| QA-EVENT-TIME-01 | P0 | Event creation stored date/time fragments without canonical instants, while the public read model published a date-only `startAt`. | The physical Android app rendered an intended 21:00 IST event as 05:30 IST and downstream lifecycle consumers could disagree on the event boundary. | Fixed at the writer and defensive read projection; 25 focused Core assertions and physical Android 21:00 render passed |
 | QA-RELEASE-DATA-01 | P0 | The staging public event collection still contains 13 `demo-event-*` records and Guest Explore displays them beside real events. | Demo/showcase inventory is visible in a launch-candidate environment and violates the signed-build/demo-off invariant. | Open; requires ownership confirmation, tagged cleanup, cache invalidation, and zero-demo regression evidence |
+| QA-COVER-01 | P0 | The standalone Scanner rewrote an explicit localhost Gateway URL to the Metro LAN host and called `/scan/*` outside the canonical `/api/v1` prefix. | A correctly ADB-reversed device could not establish the canonical scanner/charge session. | Fixed; Scanner security contract, type-check, installed-device login, event list, and bound session passed |
+| QA-COVER-02 | P0 | Core Cover debit validation accepted only a legacy event code while the Gateway correctly issued `scanner_auth_sessions` for staff operators. | Every live staff Cover debit failed `CHARGE_CONTEXT_MISMATCH` after Gateway authorization. | Fixed; transactionally verified staff-session regression test and complete live debit lifecycle passed |
+| QA-COVER-03 | P0 | Cover credit could exceed the effective paid tier value when configuration and discounts were combined. | The system could issue stored-value liability not funded by the ticket sale. | Fixed; checkout and publication reject unfunded cover liability and persist the paise snapshot |
+| QA-COVER-04 | P0 | A real Razorpay Cover Charge order remains `payment_pending`; provider capture and atomic wallet issuance are unproven. | Launch cannot prove that paid value creates exactly one ticket, entitlement, ledger posting, and Cover Wallet. | Open provider/device blocker; synthetic wallet lifecycle is explicitly not payment proof |
+| QA-COVER-05 | P0 | Physical QR debit and physical offline hard-denial were not executed because no second QR display was available. | Automated refusal does not prove the installed Scanner cannot accept or queue an offline real-device debit. | Open physical-device blocker |
+| QA-COVER-06 | P1 | Live charge-session mint and first debit each took about 5.6 seconds. | Door/POS responsiveness exceeds the approved sub-3-second operational target. | Open performance blocker; ten-run p95 evidence required |
+| QA-COVER-07 | P1 | The Cover expiry query requires the new Firestore composite index; repository configuration alone does not prove it is deployed. | Scheduled expiry/refund processing can fail in staging or production despite passing unit tests. | Open environment gate; dry-run data migration passed with zero invalid records |
+| QA-MOBILE-AUTH-01 | P0 | Gateway auth sync dynamically imported `@c1rcle/core/user-service`, but Core did not export that runtime subpath. | Every authenticated Mobile startup failed with 500 before the user could enter the app. | Fixed; package-contract test and physical Android auth-sync 200 passed |
+| QA-MOBILE-ONBOARD-01 | P0 | Mobile's canonical onboarding read/write routes had no Gateway/Core implementation and relied on 404 compatibility fallbacks/local state. | Onboarding persistence and completion could diverge across relaunches or devices. | Fixed with transactional Core service, strict Gateway schemas, fail-closed age/phone rules, and physical-device completion |
+| QA-MOBILE-SUB-01 | P1 | Mobile called a missing subscription route and displayed a 10-like free limit while Core independently enforced 50. | Paywall state and server allowance disagreed, and startup logged an integration error. | Fixed; server-owned subscription context is shared with dating enforcement and live route returned 200 |
+| QA-REALTIME-01 | P0 | Mobile requested `/realtime/session` outside the Gateway's `/api/v1` route. | No authenticated realtime session token could be minted; chat and live updates could not connect. | Fixed; Mobile contract test and physical-device session mint 200 passed |
+| QA-REALTIME-02 | P0 | The Gateway WebSocket handler used the pre-v11 `connection.socket` shape against `@fastify/websocket` v11. | Every socket upgrade threw, entered a reconnect storm, and realtime chat/updates were unavailable. | Fixed; Gateway type-check and physical-device authenticated socket handshake passed |
+| QA-REALTIME-03 | P0 | Gateway restart telemetry intermittently reports Redis pub/sub connection timeout and disables distributed broadcast. | A single-process socket may work while multi-instance chat and live-update fan-out silently diverge. | Open environment/runtime blocker; Redis pub/sub connectivity and multi-instance delivery proof required |
+| QA-RECOMMEND-01 | P1 | Mobile requested the enabled `contract=v2` recommendation envelope while the strict Gateway schema rejected `contract` entirely. | Explore silently fell back to local recommendations after a 400 response. | Fixed; Gateway v2 contract tests, Mobile contract tests, and live Android 200 passed |
+| QA-RECOMMEND-02 | P1 | Mobile posted category-browse signals to a missing route, and Core recommendations had no persisted browse-signal input. | Personalization silently discarded current-user browsing behavior. | Fixed with a strict authenticated route, deterministic Core aggregate, scorer integration, focused tests, and Android 200 proof |
+| QA-MOBILE-FOLLOW-01 | P1 | Mobile requested a missing aggregate follow route and host toggles had no canonical bidirectional route. | Event/profile follow state logged 404 and could not survive relaunch consistently. | Fixed with one transactional Core follow graph, authenticated list/host/venue routes, 32 focused assertions, and Android 200 proof |
+| QA-MOBILE-INTEREST-01 | P1 | Mobile requested a missing authenticated event-interested route despite an existing privacy-safe Core projection. | Event detail logged a 404 and could not populate social proof. | Fixed by exposing the existing Core projection through a strict route; focused tests and Android 200 proof passed |
+| QA-PERF-04 | P1 | Staging-backed auth, onboarding, event, social-proof, wallet, and personalized recommendation requests take roughly 0.5–10.1 seconds with high variance. | First-run, Explore, event detail, and wallet do not meet launch-quality responsiveness or the operational SLA. | Open performance blocker; trace, query optimization, stable Redis, and ten-run p95 proof required |
+| QA-MOBILE-WARN-01 | P2 | Mobile runtime reports deprecated SafeAreaView and React Native Firebase namespaced APIs, a BlurView missing its required blur target, and Reanimated layout/transform collisions. | These are forward-compatibility and visual-smoothness risks even though the tested journey completed. | Open; inventory and migrate without changing launch behavior |
+| QA-MOBILE-LOCATION-01 | P2 | Event detail attempts native geocoding when location permission is not authorized and logs a rejected operation. | A normal permission-denied user receives avoidable warning telemetry and may miss derived location metadata. | Open; gate geocoding on permission and preserve event-provided coordinates/address |
 
 ### 🛠️ WORKAROUNDS & CODE EDITS APPLIED DURING QA
 
@@ -780,6 +974,628 @@ Validation evidence:
   drafts and the published event advertised ₹0. The authoritative published
   event now returns ₹499–₹999; tagged retry drafts remain listed for final
   controlled QA-data cleanup.
+
+#### QA-WA-10 — Build and install the standalone Scanner under the release toolchain
+
+- **Triggering Issue / Error:** The first native Scanner build encountered a
+  transient Maven TLS failure. Streaming ADB installation then stalled behind
+  Android package verification.
+- **Workaround Applied:** Retried the same Gradle build under Node 20 and JDK 17
+  without changing dependency versions. Installed the resulting APK with
+  `adb install --no-streaming -r -t` and completed the visible Play Protect
+  prompt on the physical device.
+- **Files Modified:** No product source. Gradle generated the untracked
+  `apps/scanner-app/android` tree and APK; neither is eligible for staging or
+  commit.
+- **Original Behavior vs Post-Workaround Status:** No standalone Scanner was
+  installed. The debug APK built successfully, installed on `RF8N3166GEW`, and
+  opened the real login/event/camera flow.
+
+#### QA-WA-11 — Restore Scanner runtime configuration without committing secrets
+
+- **Triggering Issue / Error:** The Scanner initially rendered
+  `auth/invalid-api-key`, and Metro inherited the shell's unsupported Node 25
+  runtime.
+- **Workaround Applied:** Started Scanner Metro under Node 20 and injected the
+  existing ignored staging public Firebase/Gateway variables at process
+  launch. No secret was printed, copied, or committed.
+- **Files Modified:**
+  - `apps/scanner-app/.env.example`
+  - `apps/scanner-app/lib/firebase.ts`
+- **Original Behavior vs Post-Workaround Status:** Firebase initialization
+  failed and hot reload was unstable. The app now fails clearly when required
+  public configuration is absent, while the configured QA process renders and
+  authenticates correctly.
+
+#### QA-EDIT-15 — Make the explicit Scanner Gateway URL authoritative
+
+- **Triggering Issue / Error:** The Scanner client rewrote
+  `http://localhost:4000/api/v1` to the Metro LAN host and then requested
+  `/scan/*` from the Gateway root. This bypassed the established ADB reverse and
+  missed the registered routes.
+- **Workaround Applied:** Preserve a valid explicit absolute API URL exactly;
+  append `/api/v1` only to the Gateway-root fallback; remove LAN/emulator
+  rewriting; and cover the contract in the Scanner security test.
+- **Files Modified:**
+  - `apps/scanner-app/lib/api/client.ts`
+  - `apps/scanner-app/__tests__/security-contract.test.mjs`
+- **Original Behavior vs Post-Workaround Status:** Device session calls could
+  not reach the canonical route. Installed-device Door login, assigned event
+  loading, and bound scanner/charge session now pass through the Gateway.
+
+#### QA-EDIT-16 — Unify Gateway and Core staff charge-session authority
+
+- **Triggering Issue / Error:** The Gateway accepted a valid staff scanner
+  session, but Core looked for a legacy event-code document and rejected the
+  same operation with `CHARGE_CONTEXT_MISMATCH`.
+- **Workaround Applied:** Core now reads
+  `scanner_auth_sessions/{scannerSessionId}` inside the debit transaction and
+  validates the staff-session flag, charge capability, code ID, event, venue,
+  device, expiry, and revocation state before mutation. Legacy event codes
+  retain their separately validated path.
+- **Files Modified:**
+  - `packages/core/cover-charge-engine.js`
+  - `packages/core/cover-charge-engine.test.ts`
+- **Original Behavior vs Post-Workaround Status:** Every live Door debit failed
+  after successful Gateway authorization. The live lifecycle now performs the
+  exact debit, replay, velocity rejection, reversal denial, supervisor
+  mutations, state changes, and reconciliation.
+
+#### QA-EDIT-17 — Close Cover Wallet arithmetic, idempotency, funding, and lifecycle gaps
+
+- **Triggering Issue / Error:** The audit found inconsistent wallet-local
+  idempotency, insufficient cover-funding validation, ambiguous admission
+  mapping, missing durable expiry/refund handling, and divergent transfer and
+  scanner behaviors.
+- **Workaround Applied:** Centralized integer-paise wallet mutation and global
+  idempotency in Core; enforced funded cover liability during event/checkout
+  pricing; made wallet issuance deterministic inside payment finalization;
+  tied transfer/refund behavior to the exact tier/admission unit; added
+  termination timestamp migration/index/cron/refund reconciliation; added live
+  Venue reconciliation and Guest/Scanner clients; and made offline Scanner
+  submission fail closed.
+- **Files Modified:** Scoped Cover Charge, checkout, refund, transfer, event,
+  Mobile, Partner, Scanner, index, migration, and focused test files listed in
+  the feature-branch diff. No direct staging commerce record was changed by
+  this edit.
+- **Original Behavior vs Post-Workaround Status:** The subsystem contained
+  competing assumptions across Core and clients. Focused validation now passes
+  `113` assertions across Core, Gateway, Mobile, and Scanner, plus five affected
+  workspace type-checks. Provider-funded and physical-QR proof remain open and
+  are not converted to PASS.
+
+#### QA-WA-12 — Tagged synthetic live Cover Wallet lifecycle
+
+- **Triggering Issue / Error:** The existing real Razorpay test order was not
+  captured, so reversal, top-up, freeze, privacy, rate-limit, and
+  reconciliation routes had no funded wallet to exercise.
+- **Workaround Applied:** Created only `[QA-TEST-2026]` staging wallets and
+  order shells with an explicit
+  `Synthetic live Cover Charge API lifecycle; not payment proof` purpose. All
+  subsequent operations used authenticated live Gateway routes and the real
+  Core/Firestore/Redis implementation. No payment, ledger, ticket, or
+  entitlement was fabricated.
+- **Files Modified:** No product source. Harness:
+  `qa-artifacts/run-cover-charge-live-lifecycle.mjs`; tagged staging QA records
+  and redacted evidence JSON.
+- **Original Behavior vs Post-Workaround Status:** The operational routes could
+  not be exercised without a wallet. The API lifecycle and exact paise
+  reconciliation are now proven, while payment issuance remains explicitly
+  blocked rather than falsely passed.
+
+#### QA-EDIT-18 — Restore the Core user-service runtime export
+
+- **Triggering Issue / Error:** Physical Android startup received 500 from
+  `POST /api/v1/auth/sync`; Node could not resolve the Gateway's
+  `@c1rcle/core/user-service` import.
+- **Workaround Applied:** Added the explicit package export and a self-import
+  contract test. Auth normalization now accepts Firebase decoded-token phone,
+  name, and picture field forms when creating a baseline profile.
+- **Files Modified:**
+  - `packages/core/package.json`
+  - `packages/core/user-service.js`
+  - `packages/core/user-service.test.js`
+- **Original Behavior vs Post-Workaround Status:** Authenticated Mobile startup
+  stopped at a server 500. The same physical device now completes auth sync
+  with 200 and hydrates the canonical profile.
+
+#### QA-EDIT-19 — Implement canonical Mobile onboarding and subscription
+
+- **Triggering Issue / Error:** The Mobile first-run and subscription stores
+  called routes that did not exist; free daily-like enforcement disagreed
+  between client and Core.
+- **Workaround Applied:** Added transaction-aware Core onboarding persistence,
+  server-owned subscription/usage limits, strict authenticated Gateway routes,
+  auth-sync bootstrap contexts, fail-closed phone/age/completion rules, and
+  shared Core dating-limit enforcement.
+- **Files Modified:**
+  - `packages/core/guest-onboarding-service.js`
+  - `packages/core/guest-onboarding-service.test.js`
+  - `packages/core/guest-subscription-service.js`
+  - `packages/core/guest-subscription-service.test.js`
+  - `packages/core/guest-dating-service.js`
+  - `packages/core/package.json`
+  - `apps/api-gateway/src/routes/v1/users.ts`
+- **Original Behavior vs Post-Workaround Status:** Mobile logged two 404s and
+  could resume from local compatibility state that was not authoritative.
+  The physical-device first-run now persists every stage and survives relaunch;
+  subscription and server enforcement return the same limits.
+
+#### QA-EDIT-20 — Repair realtime and recommendation runtime contracts
+
+- **Triggering Issue / Error:** Realtime token minting used the wrong prefix,
+  every WebSocket upgrade crashed on an obsolete handler signature, and
+  recommendations v2 returned 400.
+- **Workaround Applied:** Pointed Mobile at the canonical session endpoint,
+  migrated the Gateway handler to the installed direct-socket API, added
+  authenticated-handshake observability, and implemented the strict
+  legacy/v2 recommendation query and response contract.
+- **Files Modified:**
+  - `apps/mobile-app/store/authStore.ts`
+  - `apps/mobile-app/__tests__/store/authStore.test.ts`
+  - `apps/mobile-app/__tests__/auth/auth-store-handshake.test.ts`
+  - `apps/api-gateway/src/plugins/realtime.ts`
+  - `apps/api-gateway/src/routes/v1/recommendations.ts`
+  - `apps/api-gateway/src/routes/v1/recommendations.test.ts`
+- **Original Behavior vs Post-Workaround Status:** Authenticated realtime and
+  server recommendations were disconnected. The physical client now receives a
+  session, completes the socket authentication handshake, and receives a 200
+  v2 recommendation response.
+
+#### QA-WA-13 — Runtime-only Gateway encryption key
+
+- **Triggering Issue / Error:** The ignored local staging environment does not
+  provide the required application encryption key, so the restarted Gateway
+  failed closed before listening.
+- **Workaround Applied:** Generated a process-local random key for this
+  ephemeral QA server instance without printing, persisting, or committing it.
+- **Files Modified:** None.
+- **Original Behavior vs Post-Workaround Status:** The root Gateway could not
+  restart after the source reload. It now runs for local QA only. G1 remains
+  blocked until secret management supplies the approved stable staging key.
+
+#### QA-EDIT-21 — Persist and project canonical event instants
+
+- **Triggering Issue / Error:** The 21:00 IST QA event rendered at 05:30 because
+  a date-only `startAt` won over the separate `startTime`.
+- **Workaround Applied:** Event construction now persists exact `startAt` and
+  `endAt` UTC instants, including overnight end handling. Guest discovery
+  defensively composes exact instants for legacy date/time records.
+- **Files Modified:**
+  - `packages/core/event-engine.js`
+  - `packages/core/event-engine.test.js`
+  - `packages/core/guest-discovery-engine.js`
+  - `packages/core/guest-core-surface.test.ts`
+- **Original Behavior vs Post-Workaround Status:** Android showed 05:30 for an
+  intended 21:00 event. The same physical screen now shows 21:00 IST.
+- **Validation:** Focused Core tests PASS `25/25`; Core/Gateway type-checks
+  PASS; public event contract and physical Android render PASS.
+
+#### QA-EDIT-22 — Add one canonical Guest follow graph
+
+- **Triggering Issue / Error:** Mobile's follow bootstrap returned 404, host
+  follow routes did not exist, and legacy generic follows used a separate
+  collection with non-transactional counter updates.
+- **Workaround Applied:** Added an injected-Firestore Core service that lists,
+  follows, and unfollows hosts and Venues through canonical `userFollows`
+  subcollections, reverse follower mirrors, and transactionally maintained
+  counters. Gateway list and mutation routes now delegate to it.
+- **Files Modified:**
+  - `packages/core/guest-follow-service.js`
+  - `packages/core/guest-follow-service.test.js`
+  - `packages/core/package.json`
+  - `apps/api-gateway/src/routes/v1/social.ts`
+  - `apps/api-gateway/src/routes/v1/guest-follows.test.ts`
+  - `apps/api-gateway/src/routes/v1/phase4-auth-enforcement.test.ts`
+- **Original Behavior vs Post-Workaround Status:** Mobile logged a missing-route
+  error and could not hydrate follow state. Physical Android now receives 200
+  and renders the event without the follow error.
+- **Validation:** Core/Gateway focused tests and both type-checks PASS; Android
+  telemetry records follow-list 200.
+
+#### QA-EDIT-23 — Connect event social proof and recommendation signals
+
+- **Triggering Issue / Error:** Event detail generated two further 404s for
+  interested-user social proof and category-browse recommendation signals.
+- **Workaround Applied:** Exposed the existing privacy-safe interested-user
+  Core projection behind an authenticated, bounded route. Added a strict
+  recommendation-signal mutation, deterministic per-user/category Core
+  aggregate, recommendation scorer integration, and cache invalidation.
+- **Files Modified:**
+  - `packages/core/recommendation-engine.js`
+  - `packages/core/recommendation-engine.test.js`
+  - `apps/api-gateway/src/routes/v1/events.ts`
+  - `apps/api-gateway/src/routes/v1/events-gp3.test.ts`
+  - `apps/api-gateway/src/routes/v1/recommendations.ts`
+  - `apps/api-gateway/src/routes/v1/recommendations.test.ts`
+  - `apps/api-gateway/src/routes/v1/phase4-auth-enforcement.test.ts`
+- **Original Behavior vs Post-Workaround Status:** Both calls returned 404 and
+  Mobile silently discarded their data. The physical client now receives 200
+  for interested users, signal persistence, and recommendation v2.
+- **Validation:** Core focused tests PASS `19/19`; Gateway focused tests PASS
+  `37/37`; Core/Gateway type-checks PASS; physical Android network log records
+  all three 200 responses.
+
+#### QA-EDIT-24 — Persist explicit checkout marketing consent
+
+- **Triggering Issue / Error:** Physical checkout initiation failed strict
+  validation because Mobile sent `hostUpdatesOptIn` but the canonical Gateway
+  and Core initiation contracts rejected it.
+- **Workaround Applied:** Added an explicit boolean contract through Gateway,
+  Core checkout, and order creation; persisted a versioned consent snapshot;
+  changed Mobile's default from opted-in to opted-out.
+- **Files Modified:**
+  - `apps/api-gateway/src/routes/v1/checkout.ts`
+  - `packages/core/src/domain/services/checkout-service.ts`
+  - `packages/core/order-engine.js`
+  - `apps/mobile-app/app/checkout/index.tsx`
+  - `apps/mobile-app/lib/payments.ts`
+  - `apps/api-gateway/src/routes/v1/partners/venues.ts`
+  - focused Core, Gateway, and Mobile tests
+- **Original Behavior vs Post-Workaround Status:** Checkout returned a strict
+  schema error. The same physical-device journey now creates the provider order
+  while preserving fail-closed marketing consent.
+- **Validation:** Core checkout/order tests PASS `12/12`; Gateway checkout tests
+  PASS `24/24`; Mobile payment tests PASS `5/5`; affected type-checks PASS.
+
+#### QA-EDIT-25 — Recover canonically owned stale reservations
+
+- **Triggering Issue / Error:** A retry could not discard an expired
+  reservation because cancellation authorized only legacy `userId`, while the
+  canonical record stored `customerId`.
+- **Workaround Applied:** Gateway cancellation now resolves `customerId` before
+  legacy `userId`. Mobile clears only persisted reservations rejected with
+  403/404 and preserves retry behavior for network/server failures.
+- **Files Modified:**
+  - `apps/api-gateway/src/routes/v1/checkout.ts`
+  - `apps/api-gateway/src/routes/v1/gp4-checkout-payments.test.ts`
+  - `apps/mobile-app/lib/payments.ts`
+  - `apps/mobile-app/__tests__/lib/checkout-payments.test.ts`
+- **Original Behavior vs Post-Workaround Status:** The physical retry stopped
+  at `Forbidden: Not your reservation`. It now cancels the expired reservation,
+  creates a fresh hold, and opens native Razorpay.
+- **Validation:** Gateway checkout tests PASS `24/24`; Mobile checkout/payment
+  tests PASS `5/5`; Gateway and Mobile type-checks PASS.
+
+#### QA-WA-14 — Use Razorpay's current domestic Test Mode card
+
+- **Triggering Issue / Error:** The originally supplied `4111…1111` card was
+  classified as international and rejected before capture.
+- **Workaround Applied:** Retried the same Razorpay order using Razorpay's
+  documented domestic Test Mode Visa card. The failed attempt captured no
+  payment and no second internal order was created.
+- **Files Modified:** None.
+- **Original Behavior vs Post-Workaround Status:** Provider displayed
+  `International cards are not supported`. The domestic Test Mode card reached
+  Razorpay's mock bank screen and completed successfully.
+
+#### QA-WA-15 — Preserve the Guest order while classifying browser-provider automation
+
+- **Triggering Issue / Error:** Automated Guest Portal checkout could open
+  Razorpay Test Mode, but both the domestic card path and Netbanking path
+  entered Razorpay/Stripe hCaptcha or a non-deterministic external loading
+  state before the mock provider-success screen.
+- **Workaround Applied:** Reused only the existing internal order
+  `ORD-MS3TNOS5-FJAB5` and Razorpay order `order_TIhMNbGdRbrGyQ`; added strict
+  visible payment-method, bank, and exact submit-control selection to the QA
+  runner; checked Razorpay server state before and after every attempt; stopped
+  all retries as soon as Razorpay created a payment attempt.
+- **Files Modified:**
+  - `qa-artifacts/guest-resume-payment.mjs`
+- **Original Behavior vs Post-Workaround Status:** The earlier runner could
+  match the `Pay Later` method label while searching broadly for a submit
+  control. It now refuses broad `pay` matches and selects only an explicitly
+  visible test bank and exact submit label. Razorpay now records payment
+  `pay_TIhwyF1I93vdNI` as `created`, Netbanking, `captured: false`; the order
+  remains `attempted`, with `amountPaid: 0` and `amountDue: 54,317` paise.
+  No signed callback was produced, no verification route was called, and this
+  Guest browser payment is **BLOCKED / NOT PASS**.
+- **Evidence:**
+  - `qa-artifacts/guest-resume-payment/00-netbanking-panel.png`
+  - `qa-artifacts/guest-resume-payment/01-netbanking-selected.png`
+- **Release impact:** Provider-funded Guest fulfillment remains unproven by
+  browser automation. The existing physical Android payment proves the shared
+  canonical finalizer, but it does not substitute for a successful Guest
+  Portal provider journey.
+
+#### QA-WA-16 — Rebuild the Partner production runtime with complete staging auth
+
+- **Triggering Issue / Error:** The Partner Dashboard production runtime on
+  port 3001 had been started without `NEXT_PUBLIC_FIREBASE_*` and Firebase
+  Admin credentials. Login rendered `Missing Firebase client configuration`,
+  then server-side BFF guards returned 503/401 even after client config alone
+  was supplied.
+- **Workaround Applied:** Rebuilt the Partner Dashboard with the approved
+  `c1rcle-staging` client configuration, then started its production server
+  with both Partner client variables and Gateway Firebase Admin variables.
+  `NODE_ENV` was explicitly restored to `production`.
+- **Files Modified:** None.
+- **Original Behavior vs Post-Workaround Status:** Login and guarded BFF routes
+  were unusable. Venue and Host authentication now complete using the
+  dashboard's real `/api/auth/me` Bearer-token exchange, and guarded routes
+  reach the staging Gateway.
+- **Validation:** Partner production build completed successfully with all 259
+  static pages generated. The focused Venue propagation run authenticated and
+  completed all owner-scoped probes and pages.
+
+#### QA-EDIT-26 — Repair ledger projections and Venue finance route authority
+
+- **Triggering Issue / Error:** Live order `ORD-MS3Q38PY-74C1D` appeared in
+  Venue Orders and Attendees, and event analytics reported 2 tickets,
+  ₹1,086.32 gross, and ₹998 net. The top-level Venue Finance overview reported
+  ₹0 and its ledger page returned no rows.
+- **Root Cause:** Firestore contained literal top-level fields
+  `balances.pending` and `totalsByType.venue_share` instead of nested
+  projection fields. The ledger route also queried obsolete `partnerId`
+  instead of canonical `toPartnerId`.
+- **Workaround Applied:** Ledger writes now use nested aggregate objects;
+  FinanceService detects malformed dotted projections and rebuilds them from
+  immutable `partner_ledger`; balance cache keys were versioned and both
+  generations are invalidated after purchase; Venue finance overview derives
+  one consistent balance snapshot; the ledger route now filters by
+  `toPartnerId` and maps category filters to ledger `type`.
+- **Files Modified:**
+  - `packages/core/partner-ledger-service.js`
+  - `packages/core/partner-ledger-service.test.ts`
+  - `apps/api-gateway/src/services/unified/finance-service.ts`
+  - `apps/api-gateway/src/services/unified/finance-service.test.ts`
+  - `apps/api-gateway/src/lib/ticketPurchaseSync.ts`
+  - `apps/api-gateway/src/routes/v1/partners/venues.ts`
+  - `qa-artifacts/partner-propagation-journey.mjs`
+- **Original Behavior vs Post-Workaround Status:** Finance showed zero and
+  ledger showed empty despite an authoritative sale. The rebuilt projection
+  now reports pending payout and total revenue ₹998; Venue analytics reports
+  `99,800` paise and 2 tickets; the ledger exposes the exact
+  `venue_share` row for the order and provider payment.
+- **Validation:** Core focused tests PASS `5/5`; Gateway focused tests PASS
+  `4/4`; Core and Gateway type-checks PASS. Live owning-Venue propagation
+  PASS: 8/8 API probes and 6/6 pages returned 200 with no page, console, or API
+  failures. Evidence:
+  `qa-artifacts/partner-propagation/result.json`.
+- **Performance note:** Functional consistency passes, but measured API calls
+  ranged from 0.8s to 2.6s and the attendee page took 5.2s. These timings do
+  not establish the required purchase-to-surface SLA and remain subject to the
+  dedicated ten-purchase SLA gate.
+
+#### QA-EDIT-27 — Authenticate every audited Venue finance and operations request
+
+- **Triggering Issue / Error:** The exhaustive owner journey rendered the
+  dashboard shell, but six pages issued protected BFF requests without a
+  Firebase bearer token: Cover Charge reconciliation, Payments, Promoter
+  Payouts, Venue Payouts, canonical Payouts, and Reservations. Five returned
+  HTTP 401; the canonical payout page returned HTTP 400 because it also omitted
+  the required venue scope.
+- **Workaround Applied:** Added the authenticated dashboard ID token to each
+  protected request and added the active venue ID to the canonical payout
+  request. Applied the same contract to the latent Security, Registers, and
+  Walk-ins clients. Removed client-supplied operator identity from register
+  mutations; the Gateway now records the authenticated actor.
+- **Files Modified:**
+  - `apps/partner-dashboard/app/venue/finance/cover/PageClient.tsx`
+  - `apps/partner-dashboard/app/venue/finance/payments/PageClient.tsx`
+  - `apps/partner-dashboard/app/venue/finance/promoter-payouts/PageClient.tsx`
+  - `apps/partner-dashboard/app/venue/finance/venue-payouts/PageClient.tsx`
+  - `apps/partner-dashboard/app/venue/payouts/PageClient.tsx`
+  - `apps/partner-dashboard/app/venue/reservations/PageClient.tsx`
+  - `apps/partner-dashboard/app/venue/security/PageClient.tsx`
+  - `apps/partner-dashboard/app/venue/registers/PageClient.tsx`
+  - `apps/partner-dashboard/app/venue/walk-ins/PageClient.tsx`
+  - `apps/api-gateway/src/routes/v1/partners/venues.ts`
+- **Original Behavior vs Post-Workaround Status:** Protected data calls failed
+  after an otherwise successful Venue login. They now preserve the authenticated
+  credential and exact owning-venue scope through the BFF and Gateway.
+- **Validation:** Partner Dashboard and Gateway type-checks PASS. The production
+  Partner build PASS generated all 259 pages. The repeated exhaustive Venue
+  journey PASS covered 59 filesystem-discovered routes in `244,951 ms`: every
+  rendered route returned HTTP 200 with zero API failures, console errors, page
+  errors, or broken images. One dynamic staff-profile route remains explicitly
+  skipped because no authoritative staff-profile fixture exists. Evidence:
+  `qa-artifacts/partner-login-venue/result.json`.
+
+#### QA-EDIT-28 — Consolidate Promoter payout and protected data paths
+
+- **Triggering Issue / Error:** Legacy Promoter clients omitted the authenticated
+  bearer token, the old finance client displayed USD, the old guest export
+  control was dead, and `/promoter/finance/payouts` retained a second dormant
+  payout mutation path despite launch policy disabling withdrawals.
+- **Workaround Applied:** Added authenticated request headers to the retained
+  Promoter clients, normalized the legacy finance display to INR, implemented
+  guest CSV export from canonical loaded records, removed the dead withdrawal
+  control, and redirected `/promoter/finance/payouts` to the single canonical
+  `/promoter/payouts` surface.
+- **Files Modified:**
+  - `apps/partner-dashboard/components/promoter/events/PromoterAssignmentsPageClient.tsx`
+  - `apps/partner-dashboard/components/promoter/finance/PromoterFinanceClient.tsx`
+  - `apps/partner-dashboard/components/promoter/guests/PromoterGuestsPageClient.tsx`
+  - `apps/partner-dashboard/components/promoter/overview/PromoterOverviewClient.tsx`
+  - `apps/partner-dashboard/components/promoter/profile/PromoterProfileClient.tsx`
+  - `apps/partner-dashboard/app/promoter/finance/payouts/page.tsx`
+- **Original Behavior vs Post-Workaround Status:** Retained components could
+  issue anonymous protected calls and the payout route preserved a split-brain
+  mutation path. Protected calls are now authenticated and the legacy payout
+  URL resolves only to the canonical payout page.
+- **Validation:** Partner Dashboard type-check and production build PASS. The
+  exhaustive Promoter journey PASS covered 21 renderable routes with zero API,
+  console, page, or image failures. The legacy payout URL ended at
+  `/promoter/payouts`. Evidence:
+  `qa-artifacts/partner-login-promoter/result.json`.
+
+#### QA-EDIT-29 — Isolate rate limits and enforce Venue finance RBAC
+
+- **Triggering Issue / Error:** Gateway rate limiting ran before Firebase
+  authentication and therefore pooled authenticated BFF requests under the
+  shared loopback/proxy IP. This produced a false 429 on Promoter discovery.
+  The Venue wildcard route also protected only Cover Charge reconciliation
+  with `VIEW_FINANCIALS`; other finance reads were reachable by any active
+  Venue member, including Door staff.
+- **Workaround Applied:** Rate-limit identity now uses a non-reversible
+  SHA-256 credential fingerprint until the verified user decoration is
+  available. The Venue wildcard route now centrally requires
+  `VIEW_FINANCIALS` for finance reads and `MANAGE_PAYOUTS` for finance
+  mutations using current server-side membership.
+- **Files Modified:**
+  - `apps/api-gateway/src/plugins/rate-limit.ts`
+  - `apps/api-gateway/src/plugins/rate-limit.security.test.ts`
+  - `apps/api-gateway/src/routes/v1/partners/venues.ts`
+  - `apps/api-gateway/src/routes/v1/partners/venues.finance.security.test.ts`
+- **Original Behavior vs Post-Workaround Status:** Separate authenticated
+  users could exhaust one another's discovery allowance and Door staff could
+  bypass dashboard navigation to query Venue finance. Credential rate limits
+  are isolated and all wildcard finance paths now fail closed at the Gateway.
+- **Validation:** Gateway type-check PASS. Focused rate-limit regressions PASS
+  `2/2`, including proof that unrelated authenticated reads cannot consume the
+  discovery allowance. Focused Venue finance authorization regression PASS `5/5`, proving
+  Door, Security, and Staff denial, Owner read access, and Manager denial for a
+  payout-management mutation. Live staging-role proof also PASS: the actual QA
+  Venue Owner received 200 in `1,486 ms`, while the actual QA Door Staff
+  account received 403 `PERMISSION_REQUIRED` in `959 ms` for the same scoped
+  finance route. The Promoter rerun then returned 200 for
+  `/promoter/partners` with no 429. Evidence:
+  `qa-artifacts/partner-finance-rbac-live.json`.
+
+#### QA-EDIT-30 — Bound and cache Venue finance, CRM, events, orders, and tables
+
+- **Triggering Issue / Error:** Venue CRM expanded each event into separate
+  walk-in and dine-in calls, ledger and order feeds had no stable cursor
+  contract, the table screen loaded tonight-only data while still in setup
+  mode, and the Venue event endpoint supplemented its canonical query with
+  multiple 100-document legacy scans.
+- **Workaround Applied:** CRM now loads the two venue-scoped operational feeds
+  once in parallel with a hard limit. The ledger uses canonical
+  `toPartnerId`, bounded cursor pagination, and a 15-second Redis namespace
+  cache invalidated after purchase. Orders use bounded cursor pagination.
+  Venue events use one canonical paginated query with an explicit
+  `date=today&limit=1` option. Table setup loads only master tables; tonight
+  event and assignment calls are deferred until the operator selects that
+  mode. Capacity is calculated from serialized table rows rather than a
+  non-serializable array property.
+- **Files Modified:**
+  - `apps/partner-dashboard/app/venue/crm/page.tsx`
+  - `apps/partner-dashboard/app/venue/orders/PageClient.tsx`
+  - `apps/partner-dashboard/app/venue/tables/PageClient.tsx`
+  - `apps/partner-dashboard/components/finance/VenueLedgerPanel.tsx`
+  - `apps/partner-dashboard/lib/venue/loadDoorEntries.ts`
+  - `apps/partner-dashboard/lib/venue/loadDoorEntries.test.ts`
+  - `apps/partner-dashboard/lib/venue/tableQueries.ts`
+  - `apps/partner-dashboard/lib/venue/tableQueries.test.ts`
+  - `apps/api-gateway/src/routes/v1/partners/venues.ts`
+  - `apps/api-gateway/src/services/unified/venue-service.ts`
+  - `apps/api-gateway/src/lib/ticketPurchaseSync.ts`
+- **Original Behavior vs Post-Workaround Status:** CRM cost grew with event
+  count, table setup issued unnecessary event/assignment reads, and legacy
+  scans inflated Firestore cost. These paths are now constant-call, bounded,
+  and cache-aware.
+- **Validation:** Partner and Gateway type-checks PASS. Focused Partner Venue
+  regressions PASS. Live staging API evidence PASS for ledger, cached ledger,
+  cursor orders, today event, master tables, event assignments, and cold/cached
+  analytics. The cached ledger returned in `481 ms`; orders returned in
+  `1,681 ms`; cached analytics returned in `456 ms`. Evidence:
+  `qa-artifacts/partner-venue-performance-live.json`.
+
+#### QA-EDIT-31 — Authenticate Guest Ops and make scanner reads fail closed
+
+- **Triggering Issue / Error:** Guest Ops read an `_token` property that the
+  auth provider never stored, scanner WebSocket events refetched both devices
+  and stream on every check-in, scanner reads could convert Firestore failures
+  into empty operational data, and the offline banner claimed cached admission
+  behavior that did not exist.
+- **Workaround Applied:** Added a short-lived shared Firebase ID-token helper
+  and updated every Guest Ops page/modal to await the real bearer credential.
+  Check-in events now refresh only the bounded scan stream. Device results are
+  capped at 100, stream results honor their explicit limit, and backend query
+  failures return `SCANNER_DATA_UNAVAILABLE`. The UI now states the actual
+  online-only, fail-closed admission policy.
+- **Files Modified:**
+  - `apps/partner-dashboard/lib/auth/getCachedFirebaseIdToken.ts`
+  - `apps/partner-dashboard/lib/auth/getCachedFirebaseIdToken.test.ts`
+  - `apps/partner-dashboard/lib/hooks/useGuestOpsShellData.ts`
+  - `apps/partner-dashboard/lib/venue/scannerRefreshPlan.ts`
+  - `apps/partner-dashboard/lib/venue/scannerRefreshPlan.test.ts`
+  - `apps/partner-dashboard/app/venue/guest-ops/*/PageClient.tsx`
+  - `apps/partner-dashboard/components/guest-ops/OfflineSyncBanner.tsx`
+  - `apps/partner-dashboard/components/guest-ops/modals/AddGuestModal.tsx`
+  - `apps/api-gateway/src/routes/v1/partners/venues.ts`
+  - `firestore.indexes.json`
+- **Original Behavior vs Post-Workaround Status:** Guest Ops could send an
+  empty bearer token, create redundant scanner reads, and display false empty
+  state during backend failure. It now authenticates, bounds refresh work, and
+  exposes operational failure explicitly.
+- **Validation:** The required `ticket_scans(eventId, scannedAt)` and
+  `check_ins(eventId, checkedInAt)` staging indexes are `READY`. Live scanner
+  device and stream probes both returned 200 with bounded arrays. The complete
+  authenticated Venue crawl PASS covered all 59 filesystem-discovered
+  renderable routes in `183,684 ms`, with zero API failures, console errors,
+  page errors, or broken images. The one dynamic staff-profile route remains
+  explicitly skipped because no authoritative fixture exists. Evidence:
+  `qa-artifacts/partner-login-venue/result.json`.
+
+#### QA-EDIT-32 — Reduce auth hot-path reads and stop dependency watcher churn
+
+- **Triggering Issue / Error:** Repeated dashboard calls reverified the same
+  positive Firebase token and reloaded the same current membership, while the
+  Gateway development watcher still restarted when files under the monorepo
+  root `node_modules` changed.
+- **Workaround Applied:** Added bounded 15-second positive-only caches for
+  verified Firebase credentials and active membership context. Failures are
+  never cached, and staff membership mutations invalidate affected entries.
+  The Gateway watcher now excludes both package-local and monorepo-root
+  dependency trees. Rate-limit keys now include their policy bucket so
+  unrelated reads cannot exhaust discovery.
+- **Files Modified:**
+  - `packages/core/src/infrastructure/auth/firebase-auth-service.ts`
+  - `packages/core/src/infrastructure/auth/firebase-auth-service.test.ts`
+  - `apps/api-gateway/src/plugins/firebase.ts`
+  - `apps/api-gateway/src/plugins/rate-limit.ts`
+  - `apps/api-gateway/src/plugins/rate-limit.security.test.ts`
+  - `apps/api-gateway/package.json`
+- **Original Behavior vs Post-Workaround Status:** Each request could repeat
+  provider and membership work, and dependency changes restarted the Gateway.
+  Successful repeated calls now reuse short-lived positive context, while
+  revoked/disabled/error paths remain fail closed.
+- **Validation:** Core auth tests PASS `8/8`; Gateway rate-limit tests PASS
+  `2/2`; Core and Gateway type-checks PASS. A temporary file created and
+  removed under the root `node_modules` left the Gateway listener PID unchanged
+  (`WATCH_EXCLUSION_PASS`); a source edit still triggered the expected clean
+  restart.
+
+### Physical Android commerce evidence — 2026-07-27
+
+- **Device:** USB/ADB-authorized Samsung `RF8N3166GEW`.
+- **Environment:** Firebase project `c1rcle-staging`; local Gateway reached
+  through `adb reverse tcp:4000`.
+- **Event:** `d6b896a2-9f8c-4c27-89f1-33930aab64bd`.
+- **Order:** `ORD-MS3Q38PY-74C1D`.
+- **Purchase:** 2 × Early Bird; subtotal `99,800` paise; platform fee `8,832`
+  paise; provider and order total `108,632` paise.
+- **Provider proof:** Native Razorpay Test Mode approved the payment; Mobile
+  posted the real signed callback to `POST /api/v1/checkout/verify`.
+- **Callback result:** HTTP 200, order `confirmed`, fulfillment
+  `authoritative_committed`, 2 deterministic tickets, 2 deterministic
+  entitlements, and wallet refresh HTTP 200.
+- **Atomic Firestore proof:** One verified payment record, one ledger marker,
+  all 3 referenced immutable ledger rows, one pending durable outbox record,
+  sold quantity `2`, remaining quantity `98`, and locked quantity `0`.
+- **Financial reconciliation:** `8,832 + 99,800 = 108,632` paise; discrepancy
+  `0` paise.
+- **Live idempotency proof:** Replayed the same valid signed callback against
+  the same provider payment. The route returned HTTP 200 with
+  `alreadyVerified: true` and `alreadyFinalized: true`; artifact counts and
+  inventory remained unchanged at 2 tickets, 2 entitlements, 3 ledger rows,
+  and sold quantity 2.
+- **Screenshots:**
+  - `qa-artifacts/mobile-manual-qa/commerce/mobile-razorpay-live-open.png`
+  - `qa-artifacts/mobile-manual-qa/commerce/mobile-razorpay-test-bank-success-choice.png`
+  - `qa-artifacts/mobile-manual-qa/commerce/mobile-checkout-finalized.png`
+- **PASS:** Provider capture, authenticated callback, atomic authoritative
+  fulfillment, wallet refresh, live callback idempotency, and zero-paise ledger
+  reconciliation.
+- **FAIL / launch blockers discovered:**
+  - Callback latency was approximately 15.7 seconds.
+  - The durable outbox remains `pending` because the staging Inngest event key
+    is rejected with HTTP 401; purchase/discovery acceleration did not dispatch.
+  - Mobile called removed route `POST /api/v1/social/chat/join` and received 404.
+  - The payment-success screen rendered the event at `05:30` instead of its
+    intended `21:00` Asia/Kolkata time.
 
 ## 7. Final reconciliation and verdict
 

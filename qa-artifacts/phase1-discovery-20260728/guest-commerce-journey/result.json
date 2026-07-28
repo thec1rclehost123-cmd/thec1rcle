@@ -1,0 +1,60 @@
+{
+  "apiResponses": [
+    {
+      "elapsedMs": 48,
+      "method": "GET",
+      "status": 200,
+      "url": "http://127.0.0.1:3000/api/v1/auth/me"
+    },
+    {
+      "elapsedMs": 1973,
+      "method": "POST",
+      "status": 200,
+      "url": "http://127.0.0.1:3000/api/v1/auth/login"
+    },
+    {
+      "elapsedMs": 804,
+      "method": "POST",
+      "status": 200,
+      "url": "http://127.0.0.1:3000/api/v1/checkout/calculate"
+    },
+    {
+      "elapsedMs": 3647,
+      "method": "GET",
+      "status": 200,
+      "url": "http://127.0.0.1:3000/api/v1/tickets"
+    },
+    {
+      "elapsedMs": 708,
+      "method": "POST",
+      "status": 200,
+      "url": "http://127.0.0.1:3000/api/v1/checkout/calculate"
+    }
+  ],
+  "consoleErrors": [],
+  "diagnostics": [
+    {
+      "inputs": [
+        {
+          "autocomplete": "",
+          "name": "",
+          "placeholder": "PROMO CODE",
+          "type": "text"
+        }
+      ],
+      "text": "CHECKOUT STEP 03 PAYMENT & CHECKOUT CREDIT UPI BANKS SECURE PAYMENT ACTIVE BY PROCEEDING, YOU AUTHORIZE THE PAYMENT AND ISSUE TICKETS. NO REFUNDS ALLOWED. SIGNAL TIMED OUT CONFIRM ORDER BOOKING SUMMARY [QA-TEST-2026] LAUNCH E2E 1785069125016 EARLY BIRD 1 TICKET ₹499 APPLY NEED TO KNOW Entry details for tonight's booking. DOORS 9:00 pm TIMING 21:00 - 04:00 LAST ENTRY 4:00 am AGE 21+ OUTFIT Smart Casual SUBTOTAL ₹499 FEES & GST +₹44.17 TOTAL Inclusive of all confirmed charges. ₹543.17 GRAND TOTAL END-TO-END ENCRYPTED",
+      "url": "http://127.0.0.1:3000/checkout/d6b896a2-9f8c-4c27-89f1-33930aab64bd"
+    }
+  ],
+  "elapsedMs": 38622,
+  "email": "qa_guest_2026@test.c1rcle.com",
+  "error": "Waiting failed: 25000ms exceeded",
+  "eventId": "d6b896a2-9f8c-4c27-89f1-33930aab64bd",
+  "externalFailures": [],
+  "finalUrl": "http://127.0.0.1:3000/checkout/d6b896a2-9f8c-4c27-89f1-33930aab64bd",
+  "localFailures": [],
+  "orderId": null,
+  "pageErrors": [],
+  "razorpayOrderId": null,
+  "stage": "initiate_payment"
+}

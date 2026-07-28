@@ -6,7 +6,7 @@ import {
   guestBffJson,
   unwrapGuestBffPayload,
 } from '../../../lib/bff/client.js';
-import { isGuestBffEnabled } from '../../../lib/bff/flags.js';
+import { getGuestBffFlags, isGuestBffEnabled } from '../../../lib/bff/flags.js';
 import { logGuestBffParity } from '../../../lib/bff/parity.js';
 
 async function request(requestFn, fallbackMessage) {
@@ -34,14 +34,16 @@ export function calculateCheckout(body, options = {}) {
         constraints: payload?.constraints || null,
       };
 
-      try {
-        const legacy = await guestApi.checkout.calculate(body, options);
-        if (legacy?.response?.ok) {
-          logGuestBffParity('checkout.quote', legacy.data, nextData, {
-            eventId: options.eventId || body?.eventId || null,
-          });
-        }
-      } catch {}
+      if (getGuestBffFlags().parity) {
+        try {
+          const legacy = await guestApi.checkout.calculate(body, options);
+          if (legacy?.response?.ok) {
+            logGuestBffParity('checkout.quote', legacy.data, nextData, {
+              eventId: options.eventId || body?.eventId || null,
+            });
+          }
+        } catch {}
+      }
 
       return {
         response: response.ok

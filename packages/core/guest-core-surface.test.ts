@@ -205,6 +205,24 @@ describe('guest core surface', () => {
     });
   });
 
+  it('projects legacy date and time fields as canonical event instants', () => {
+    const card = buildEventCardReadModel({
+      id: 'event_time',
+      title: 'Launch Night',
+      visibility: 'public',
+      lifecycle: 'scheduled',
+      startAt: '2026-08-29',
+      endAt: '2026-08-29',
+      startTime: '21:00',
+      endTime: '04:00',
+      timezone: 'Asia/Kolkata',
+    });
+
+    expect(card.startAt).toBe('2026-08-29T15:30:00.000Z');
+    expect(card.startDate).toBe('2026-08-29T15:30:00.000Z');
+    expect(card.endAt).toBe('2026-08-29T22:30:00.000Z');
+  });
+
   it('parses scan payloads and builds the legacy scan decision shape', () => {
     expect(parseGuestTicketPayload(JSON.stringify({ eid: 'ent_1' }))).toMatchObject({
       kind: 'entitlement',

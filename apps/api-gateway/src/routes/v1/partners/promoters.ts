@@ -386,6 +386,18 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   const svcCtx = { db: fastify.db, log: fastify.log, redis: fastify.redis };
   const promoterService = new PromoterService(svcCtx);
   const financeService = new FinanceService(svcCtx);
+  const invalidatePromoterReadCaches = async ({
+    finance = false,
+  }: {
+    finance?: boolean;
+  } = {}) => {
+    if (typeof fastify.cache?.invalidateNamespace !== 'function') return;
+    const namespaces = ['promoter-analytics', 'promoter-links', 'partners'];
+    if (finance) namespaces.push('partner-finance-ledger');
+    await Promise.allSettled(
+      namespaces.map((namespace) => fastify.cache.invalidateNamespace(namespace)),
+    );
+  };
 
   const pickString = (...values: any[]) => {
     for (const value of values) {
@@ -1457,6 +1469,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   };
 
   const buildPromoterFinancePayload = async (promoterId: string) => {
+    const cacheKey = `promoter:${promoterId}:finance:contract-v1`;
+    const cached = await fastify.cache.get('partner-finance-ledger', cacheKey);
+    if (cached) return cached;
+
     const promoterCtx = {
       partnerId: promoterId,
       uid: promoterId,
@@ -1529,7 +1545,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       }
     }
 
-    return {
+    const payload = {
       balance: {
         totalEarned: toNumber(balances.available) + toNumber(balances.pending),
         available: toNumber(balances.available),
@@ -1563,6 +1579,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         };
       }),
     };
+    await fastify.cache.set('partner-finance-ledger', cacheKey, payload, 120);
+    return payload;
   };
 
   const createBankAccount = async (promoterId: string, body: Record<string, any>) => {
@@ -1823,6 +1841,18 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           to: request.query.to,
           linkId: request.query.linkId,
         };
+        const cacheKey = `promoter:${ctx.partnerId}:analytics:${JSON.stringify({
+          from: request.query.from || null,
+          to: request.query.to || null,
+          linkId: request.query.linkId || null,
+          range: request.query.range || null,
+          eventId: request.query.eventId || null,
+          contract: 1,
+        })}`;
+        const cached = await fastify.cache.get('promoter-analytics', cacheKey);
+        if (cached) {
+          return reply.header('Cache-Control', 'private, max-age=120').send(cached);
+        }
         const [result, overview] = await Promise.all([
           promoterService.getAnalytics(ctx, filters),
           promoterService.getOverview(ctx),
@@ -1858,14 +1888,16 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             createdAt: link.updatedAt ?? link.createdAt ?? null,
           }));
 
-        return reply.header('Cache-Control', 'private, max-age=120').send({
+        const payload = {
           overview: overviewPayload,
           timeline,
           topLinks: asArray(overview.topLinks),
           activities,
           timeSeries: result.timeSeries,
           byLink,
-        });
+        };
+        await fastify.cache.set('promoter-analytics', cacheKey, payload, 120);
+        return reply.header('Cache-Control', 'private, max-age=120').send(payload);
       } catch (err: any) {
         if (err.statusCode)
           return reply
@@ -1906,6 +1938,17 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         requireType(ctx, 'promoter');
         const { eventId, cursor, limit } = request.query;
         const activeParam = request.query.active ?? request.query.isActive;
+        const cacheKey = `promoter:${ctx.partnerId}:links:${JSON.stringify({
+          eventId: eventId || null,
+          active: activeParam || null,
+          cursor: cursor || null,
+          limit: limit || null,
+          contract: 1,
+        })}`;
+        const cached = await fastify.cache.get('promoter-links', cacheKey);
+        if (cached) {
+          return reply.header('Cache-Control', 'private, max-age=60').send(cached);
+        }
         const result = await promoterService.getLinks(ctx, {
           eventId,
           active: activeParam === 'true' ? true : activeParam === 'false' ? false : undefined,
@@ -1930,12 +1973,14 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           };
           return normalizePromoterLink(legacyFormat, unifiedById.get(String(link.linkId || '')));
         });
-        return reply.header('Cache-Control', 'no-store, no-cache, must-revalidate').send({
+        const payload = {
           links,
           data: links,
           hasMore: Boolean(result.hasMore),
           nextCursor: result.nextCursor ?? null,
-        });
+        };
+        await fastify.cache.set('promoter-links', cacheKey, payload, 60);
+        return reply.header('Cache-Control', 'private, max-age=60').send(payload);
       } catch (err: any) {
         if (err.statusCode)
           return reply
@@ -1975,6 +2020,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         const legacyBody = await createLegacyLink(ctx.partnerId, asRecord(request.body));
         const legacyLink = asRecord(legacyBody.link);
         const rawLink = await loadRawLink(String(legacyLink.id || ''));
+        await invalidatePromoterReadCaches();
         return reply.status(legacyBody.duplicate ? 200 : 201).send({
           ...legacyBody,
           link: normalizePromoterLink(legacyLink, {}, rawLink),
@@ -2022,6 +2068,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         );
         const legacyLink = asRecord(legacyBody.link);
         const rawLink = await loadRawLink(String(legacyLink.id || request.params.linkId));
+        await invalidatePromoterReadCaches();
         return reply.send({
           ...legacyBody,
           link: normalizePromoterLink(legacyLink, {}, rawLink),
@@ -2062,6 +2109,11 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
       try {
         requireType(ctx, 'promoter');
+        const cacheKey = `promoter:${ctx.partnerId}:link:${request.params.linkId}:analytics:contract-v1`;
+        const cached = await fastify.cache.get('promoter-analytics', cacheKey);
+        if (cached) {
+          return reply.header('Cache-Control', 'private, max-age=120').send(cached);
+        }
         const analytics = await promoterService.getLinkAnalytics(ctx, request.params.linkId);
         if (!analytics)
           return reply.status(404).send(
@@ -2091,7 +2143,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         const rawLink = await loadRawLink(request.params.linkId);
         const link = normalizePromoterLink(legacyFormat, linkData, rawLink);
 
-        return reply.header('Cache-Control', 'private, max-age=120').send({
+        const payload = {
           link,
           funnel: {
             clicks: analytics.clicks,
@@ -2104,7 +2156,9 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           revenue: analytics.revenue,
           conversionRate: analytics.conversionRate,
           timeSeries: analytics.timeSeries,
-        });
+        };
+        await fastify.cache.set('promoter-analytics', cacheKey, payload, 120);
+        return reply.header('Cache-Control', 'private, max-age=120').send(payload);
       } catch (err: any) {
         if (err.statusCode)
           return reply
@@ -2133,6 +2187,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     async (request: any, reply: any) => {
       try {
         await promoterService.trackClick(request.body.code);
+        await invalidatePromoterReadCaches();
         return reply.send({ success: true });
       } catch {
         return reply.send({ success: true }); // never surface tracking errors to client
@@ -3358,6 +3413,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           result = await work();
         }
 
+        await invalidatePromoterReadCaches({ finance: true });
         return reply.send(result);
       } catch (err: any) {
         if (err instanceof z.ZodError)
@@ -3433,6 +3489,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             }),
           );
         await ref.update({ status: 'cancelled', cancelledAt: new Date().toISOString() });
+        await invalidatePromoterReadCaches({ finance: true });
         return reply.send({ success: true });
       } catch (err: any) {
         if (err.statusCode)

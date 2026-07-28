@@ -5,7 +5,10 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
-config.resolver.unstable_enablePackageExports = false;
+// Expo Router 55 and its Radix dependencies publish required conditional
+// subpath exports (for example @radix-ui/primitive/is-development). Disabling
+// package exports makes those native bundles unresolvable.
+config.resolver.unstable_enablePackageExports = true;
 config.resolver.extraNodeModules = {
   ...(config.resolver.extraNodeModules || {}),
   'lucide-react-native': path.resolve(__dirname, 'vendor/lucide-react-native'),

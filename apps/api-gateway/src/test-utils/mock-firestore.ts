@@ -63,6 +63,14 @@ class MockDocRef {
     return new MockDocumentSnapshot(this.id, this.db.docs.get(this.path), this);
   }
 
+  async update(data: Record<string, any>) {
+    const current = this.db.docs.get(this.path);
+    if (current === undefined) {
+      throw new Error(`Document does not exist: ${this.path}`);
+    }
+    this.db.docs.set(this.path, deepMerge(current, data));
+  }
+
   collection(name: string) {
     return new MockCollectionRef(this.db, `${this.path}/${name}`);
   }

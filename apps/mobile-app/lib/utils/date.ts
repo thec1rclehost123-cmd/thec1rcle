@@ -88,6 +88,35 @@ export function formatEventTime(value: unknown, timeZone?: string): string {
   });
 }
 
+/** "Aug 29th • 9 PM" or an empty label for ticket cards. */
+export function formatTicketCardDate(value: unknown, timeZone?: string): string {
+  const date = safeDate(value);
+  if (!date) return '';
+  const resolvedTimeZone = resolveEventTimeZone(timeZone);
+  const month = date.toLocaleDateString('en-US', {
+    month: 'short',
+    timeZone: resolvedTimeZone,
+  });
+  const day = Number(
+    date.toLocaleDateString('en-US', {
+      day: 'numeric',
+      timeZone: resolvedTimeZone,
+    }),
+  );
+  const suffix =
+    day > 3 && day < 21
+      ? 'th'
+      : day % 10 === 1
+        ? 'st'
+        : day % 10 === 2
+          ? 'nd'
+          : day % 10 === 3
+            ? 'rd'
+            : 'th';
+  const time = formatEventTime(date, resolvedTimeZone).replace(':00', '').toUpperCase();
+  return `${month} ${day}${suffix} • ${time}`;
+}
+
 /** "2 min ago", "3h ago", "5d ago" */
 export function formatRelativeTime(value: unknown): string {
   const d = safeDate(value);

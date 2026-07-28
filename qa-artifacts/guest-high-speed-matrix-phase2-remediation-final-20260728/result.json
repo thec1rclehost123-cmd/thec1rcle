@@ -1,0 +1,35 @@
+{
+  "passed": true,
+  "generatedAt": "2026-07-28T10:24:17.353Z",
+  "baseUrl": "http://localhost:3000",
+  "eventId": "d6b896a2-9f8c-4c27-89f1-33930aab64bd",
+  "navigationTimeoutMs": 15000,
+  "routeFilter": "/explore",
+  "results": [
+    {
+      "route": "/explore",
+      "status": 200,
+      "finalUrl": "http://localhost:3000/explore",
+      "elapsedMs": 2804,
+      "navigationError": null,
+      "missingExpected": [],
+      "interaction": {
+        "passed": true,
+        "searchValue": "Launch E2E",
+        "searchResultVisible": true,
+        "filterButtons": [
+          "sort",
+          "date",
+          "all cities"
+        ]
+      },
+      "brokenImages": [],
+      "requestFailures": [],
+      "apiFailures": [],
+      "consoleErrors": [],
+      "pageErrors": [],
+      "body": "THE C1RCLE THE C1RCLE EXPLORE HOSTS TICKETS APP LOGIN [QA-TEST-2026] LAUNCH E2E 1785069125016 2026-08-29 • 21:00 Your Venue GET TICKETS +156 Going SORT DATE ALL CITIES EXPLORE EVENTS WHAT'S ON IN ALL CITIES 2 EVENTS FOUND MUSIC FROM ₹499 SAT, 29 AUG • 9:00 PM [QA-TEST-2026] LAUNCH E2E 1785069125016 Your Venue, Pune, IN 2 BOOK TICKETS MUSIC FROM ₹999 FRI, 2 OCT • 10:00 PM [QA-TEST-2026] COVER CHARG",
+      "passed": true
+    }
+  ]
+}

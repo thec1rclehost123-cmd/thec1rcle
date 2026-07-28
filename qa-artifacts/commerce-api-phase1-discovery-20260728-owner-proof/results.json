@@ -1,0 +1,51 @@
+{
+  "generatedAt": "2026-07-28T09:55:51.243Z",
+  "eventId": "d6b896a2-9f8c-4c27-89f1-33930aab64bd",
+  "tierId": "ga",
+  "confirmedOrderId": "ORD-MS3Q38PY-74C1D",
+  "passed": true,
+  "quote": {
+    "status": 200,
+    "elapsedMs": 1170.91,
+    "error": null,
+    "totalPaise": 54317
+  },
+  "reservation": {
+    "status": 200,
+    "elapsedMs": 1810.52,
+    "error": null,
+    "reservationId": "5319258e-ec30-4f98-b59f-3c11afed921a",
+    "replayStatus": 200,
+    "replayElapsedMs": 1579.66,
+    "replaySameReservation": true
+  },
+  "initiation": {
+    "status": 200,
+    "elapsedMs": 2611.96,
+    "error": null,
+    "orderId": "ORD-MS4HBEZP-3F8J6",
+    "razorpayOrderId": "order_TIsdyABL8nU6Rj",
+    "testKeyConfigured": true,
+    "replayStatus": 200,
+    "replayElapsedMs": 2825.33,
+    "replaySameOrder": true
+  },
+  "pendingOrder": {
+    "status": 200,
+    "elapsedMs": 384.67,
+    "orderStatus": "payment_pending"
+  },
+  "confirmedFulfillment": {
+    "status": 200,
+    "elapsedMs": 521.85,
+    "orderStatus": "confirmed",
+    "fulfillmentStatus": "post_commit_processing",
+    "walletStatus": 200,
+    "walletElapsedMs": 1219.51,
+    "ticketCountForOrder": 2,
+    "ticketIds": [
+      "TKT-ORD-MS3Q38PY-74C1D-GA-1",
+      "TKT-ORD-MS3Q38PY-74C1D-GA-2"
+    ]
+  }
+}

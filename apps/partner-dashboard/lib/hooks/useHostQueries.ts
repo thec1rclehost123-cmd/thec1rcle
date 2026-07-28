@@ -5,6 +5,11 @@ export type OverviewRange = '1d' | '1w' | '1m' | 'all';
 export type OverviewMetric = 'tickets' | 'revenue';
 
 export type PartnerHostOverviewResponse = {
+  warnings?: Array<{
+    message?: string;
+    auditReason?: string;
+    timestamp?: string | null;
+  }>;
   stats?: {
     totalTicketsSold?: number;
     totalRevenue?: number;

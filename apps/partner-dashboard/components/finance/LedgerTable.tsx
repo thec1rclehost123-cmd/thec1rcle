@@ -39,6 +39,7 @@ interface LedgerTableProps {
   page?: number;
   onPageChange?: (page: number) => void;
   pageSize?: number;
+  hasNextPage?: boolean;
 }
 
 // ── Category filter options ──────────────────────────────────────────────────
@@ -84,6 +85,7 @@ export function LedgerTable({
   page = 1,
   onPageChange,
   pageSize = 50,
+  hasNextPage = false,
 }: LedgerTableProps) {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -105,7 +107,8 @@ export function LedgerTable({
     onStatusFilter?.(s);
   };
 
-  const totalPages = Math.ceil(totalCount / pageSize);
+  const totalPages =
+    totalCount > 0 ? Math.ceil(totalCount / pageSize) : page + (hasNextPage ? 1 : 0);
 
   return (
     <div className="flex flex-col gap-0">
