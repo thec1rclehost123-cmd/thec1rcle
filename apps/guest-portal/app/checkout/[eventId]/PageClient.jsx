@@ -66,10 +66,11 @@ export default function CheckoutPageClient({
       setStatus('loading');
       try {
         if (isGuestBffEnabled('checkout')) {
+          const stableSearchParams = new URLSearchParams(searchKey);
           const payload = await fetchGuestBffCheckoutSummary({
             eventId,
-            promoterCode: searchParams?.get('ref') || null,
-            selectedTickets: readSelectedTicketsFromQuery(searchParams),
+            promoterCode: stableSearchParams.get('ref') || null,
+            selectedTickets: readSelectedTicketsFromQuery(stableSearchParams),
           });
           if (cancelled) return;
           const nextEvent = normalizeCheckoutEventDetail(payload?.event);
@@ -113,8 +114,8 @@ export default function CheckoutPageClient({
   ]);
 
   const initialTickets = useMemo(() => {
-    return buildInitialTickets(event, searchParams);
-  }, [event, searchKey, searchParams]);
+    return buildInitialTickets(event, new URLSearchParams(searchKey));
+  }, [event, searchKey]);
 
   if (status === 'loading') {
     return (

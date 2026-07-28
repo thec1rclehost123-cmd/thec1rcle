@@ -691,7 +691,7 @@ export default function VenueEventWorkspacePage() {
   const authedFetch = useCallback(
     async (url: string, options: RequestInit = {}) => {
       if (!user) throw new Error('Not authenticated');
-      const token = await user.getIdToken(true);
+      const token = await user.getIdToken();
       return fetch(url, {
         ...options,
         headers: {

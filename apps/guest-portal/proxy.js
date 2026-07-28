@@ -9,6 +9,17 @@ import { NextResponse } from 'next/server';
  */
 export function proxy(request) {
   const requestId = request.headers.get('x-request-id') || crypto.randomUUID();
+  const { pathname, search } = request.nextUrl;
+  const requiresGuestSession =
+    pathname.startsWith('/confirmation/') || pathname.startsWith('/tickets/pair/');
+
+  if (requiresGuestSession && !request.cookies.has('__session')) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('redirect', `${pathname}${search}`);
+    const redirectResponse = NextResponse.redirect(loginUrl);
+    redirectResponse.headers.set('x-request-id', requestId);
+    return redirectResponse;
+  }
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-request-id', requestId);
@@ -20,5 +31,5 @@ export function proxy(request) {
 }
 
 export const config = {
-  matcher: ['/api/:path*'],
+  matcher: ['/api/:path*', '/confirmation/:path*', '/tickets/pair/:path*'],
 };

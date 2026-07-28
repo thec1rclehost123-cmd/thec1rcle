@@ -8,7 +8,7 @@ export default function ShortEventRedirect() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const eventId = decodeURIComponent(String(params?.eventId || ''));
-  const ref = searchParams?.get('ref');
+  const searchKey = searchParams?.toString() || '';
 
   useEffect(() => {
     if (!eventId) {
@@ -16,12 +16,10 @@ export default function ShortEventRedirect() {
       return;
     }
 
-    const redirectUrl = ref
-      ? `/event/${eventId}?ref=${encodeURIComponent(ref)}`
-      : `/event/${eventId}`;
+    const redirectUrl = searchKey ? `/event/${eventId}?${searchKey}` : `/event/${eventId}`;
 
     router.replace(redirectUrl);
-  }, [eventId, ref, router]);
+  }, [eventId, router, searchKey]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-black text-white">

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback, useRef, type ComponentType } from 'react';
+import { useEffect, useState, useMemo, useRef, type ComponentType } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeft,
   ChevronRight,
@@ -137,10 +138,6 @@ export default function HostCalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(() => parseAsIST(null));
   const [selectedVenueId, setSelectedVenueId] = useState<string>(HOST_SCOPE_ID);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [venues, setVenues] = useState<VenueOption[]>([]);
-  const [slotsMap, setSlotsMap] = useState<Record<string, CalendarSlot[]>>({});
-  const [loading, setLoading] = useState(true);
-  const [calendarError, setCalendarError] = useState('');
 
   const year = parseInt(
     currentMonth.toLocaleString('en-US', { year: 'numeric', timeZone: 'Asia/Kolkata' }),
@@ -149,19 +146,19 @@ export default function HostCalendarPage() {
     parseInt(currentMonth.toLocaleString('en-US', { month: 'numeric', timeZone: 'Asia/Kolkata' })) -
     1;
 
-  // ── Fetching logic ──
-  const fetchVenues = useCallback(async () => {
-    if (!hostId) return;
-    try {
+  const venuesQuery = useQuery({
+    queryKey: ['host-calendar-venues', hostId],
+    queryFn: async ({ signal }) => {
       const token = typeof getIdToken === 'function' ? await getIdToken() : null;
-      if (!token) return;
+      if (!token) throw new Error('Authentication is required to load venues.');
       const res = await fetch(`/api/partners/hosts/partnerships?hostId=${hostId}&status=active`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal,
       });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error('Failed to load venues');
       const data = await res.json();
       const all = data.partnerships || data.partners || [];
-      const active = all
+      return all
         .filter((p: any) => (p.status || p.partnershipStatus) === 'active')
         .map((p: any) => ({
           id: p.venueId || p.id,
@@ -169,25 +166,16 @@ export default function HostCalendarPage() {
           city: p.city || '',
           partnershipStatus: 'active' as const,
         }));
-      setVenues(active);
-    } catch {
-      /* silent */
-    }
-  }, [hostId, getIdToken]);
+    },
+    enabled: Boolean(hostId),
+  });
 
-  const fetchCalendar = useCallback(async () => {
-    if (!hostId) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setCalendarError('');
-    try {
+  const calendarQuery = useQuery({
+    queryKey: ['host-calendar', hostId, selectedVenueId, year, month],
+    queryFn: async ({ signal }) => {
       const token = typeof getIdToken === 'function' ? await getIdToken() : null;
       if (!token) {
-        setCalendarError('Authentication is required to verify calendar availability.');
-        setLoading(false);
-        return;
+        throw new Error('Authentication is required to verify calendar availability.');
       }
 
       const start = `${year}-${String(month + 1).padStart(2, '0')}-01`;
@@ -197,8 +185,9 @@ export default function HostCalendarPage() {
       if (selectedVenueId === HOST_SCOPE_ID) {
         const res = await fetch(`/api/partners/hosts/events?limit=100`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal,
         });
-        if (!res.ok) throw new Error('Failed');
+        if (!res.ok) throw new Error('Failed to load host events');
         const data = await res.json();
         const events: any[] = data.events || [];
         const map: Record<string, CalendarSlot[]> = {};
@@ -225,7 +214,7 @@ export default function HostCalendarPage() {
               venueName: e.venueName,
             });
           });
-        setSlotsMap(map);
+        return map;
       } else {
         const res = await fetch(
           buildHostVenueCalendarUrl({
@@ -233,7 +222,7 @@ export default function HostCalendarPage() {
             startDate: start,
             endDate: end,
           }),
-          { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+          { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal },
         );
         const data = await res.json();
         if (!res.ok) {
@@ -267,23 +256,25 @@ export default function HostCalendarPage() {
             });
           }
         });
-        setSlotsMap(map);
+        return map;
       }
-    } catch (error: any) {
-      setSlotsMap({});
-      setSelectedDate(null);
-      setCalendarError(error.message || 'Calendar data is temporarily unavailable.');
-    } finally {
-      setLoading(false);
-    }
-  }, [hostId, selectedVenueId, getIdToken, year, month]);
+    },
+    enabled: Boolean(hostId),
+  });
+
+  const venues = (venuesQuery.data ?? []) as VenueOption[];
+  const slotsMap = (calendarQuery.data ?? {}) as Record<string, CalendarSlot[]>;
+  const loading = calendarQuery.isLoading;
+  const calendarError =
+    calendarQuery.error instanceof Error
+      ? calendarQuery.error.message
+      : calendarQuery.isError
+        ? 'Calendar data is temporarily unavailable.'
+        : '';
 
   useEffect(() => {
-    fetchVenues();
-  }, [fetchVenues]);
-  useEffect(() => {
-    fetchCalendar();
-  }, [fetchCalendar]);
+    if (calendarQuery.isError) setSelectedDate(null);
+  }, [calendarQuery.isError]);
 
   const firstDayIdx = useMemo(() => {
     const d = parseAsIST(`${year}-${String(month + 1).padStart(2, '0')}-01`);

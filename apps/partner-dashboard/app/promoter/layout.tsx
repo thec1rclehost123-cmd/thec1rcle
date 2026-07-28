@@ -2,6 +2,7 @@
 
 import { PromoterClientWrapper } from '@/components/layout/PromoterClientWrapper';
 import { ApprovalGuard } from '@/components/guards/ApprovalGuard';
+import { GlobalErrorBoundary } from '@/components/GlobalErrorBoundary';
 import { LayoutDashboard, Zap, BarChart3, Banknote, Handshake, Link2, Users } from 'lucide-react';
 
 const MENU_SECTIONS = [
@@ -19,8 +20,10 @@ const MENU_SECTIONS = [
 
 export default function PromoterLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ApprovalGuard>
-      <PromoterClientWrapper menuSections={MENU_SECTIONS}>{children}</PromoterClientWrapper>
-    </ApprovalGuard>
+    <GlobalErrorBoundary>
+      <ApprovalGuard>
+        <PromoterClientWrapper menuSections={MENU_SECTIONS}>{children}</PromoterClientWrapper>
+      </ApprovalGuard>
+    </GlobalErrorBoundary>
   );
 }

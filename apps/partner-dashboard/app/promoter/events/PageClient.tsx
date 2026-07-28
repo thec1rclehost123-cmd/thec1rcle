@@ -3,6 +3,7 @@
 import Image from 'next/image';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Calendar,
@@ -180,80 +181,82 @@ export default function PromoterEventsPage() {
   const { profile, user } = useDashboardAuth();
   const promoterId = profile?.activeMembership?.partnerId;
   const promoterName = profile?.displayName;
+  const queryClient = useQueryClient();
 
   const [events, setEvents] = useState<PromoterEvent[]>([]);
   const [myLinks, setMyLinks] = useState<PromoterLink[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [activeTab, setActiveTab] = useState<PromoterTab>('available');
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const [selectedEventIdForModal, setSelectedEventIdForModal] = useState<string | null>(null);
   const [editingLink, setEditingLink] = useState<PromoterLink | null>(null);
-  const [authToken, setAuthToken] = useState('');
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [openCommissionEventId, setOpenCommissionEventId] = useState<string | null>(null);
 
-  const fetchPageData = useCallback(
-    async (manualRefresh = false) => {
-      if (!promoterId) return;
-      if (manualRefresh) setRefreshing(true);
-      else setLoading(true);
+  const eventsQuery = useQuery({
+    queryKey: ['promoter-events-page', promoterId, selectedCity],
+    queryFn: async ({ signal }) => {
+      const token = await user?.getIdToken();
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const params = new URLSearchParams();
+      if (selectedCity) params.set('city', selectedCity);
 
-      try {
-        const authToken = await user?.getIdToken();
-        if (authToken) setAuthToken(authToken);
-        const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
-        const params = new URLSearchParams();
-        if (selectedCity) params.set('city', selectedCity);
+      const [eventsRes, linksRes] = await Promise.all([
+        fetch(`/api/partners/promoters/events?${params.toString()}`, { headers, signal }),
+        fetch('/api/partners/promoters/links?limit=100', { headers, signal }),
+      ]);
 
-        const [eventsRes, linksRes] = await Promise.all([
-          fetch(`/api/partners/promoters/events?${params.toString()}`, { headers }),
-          fetch('/api/partners/promoters/links?limit=100', { headers }),
-        ]);
-
-        if (!eventsRes.ok || !linksRes.ok) {
-          throw new Error('Failed to load promoter events');
-        }
-
-        const eventsData = await eventsRes.json();
-        const linksData = await linksRes.json();
-        setEvents(Array.isArray(eventsData.events) ? eventsData.events : []);
-        setAssignments(Array.isArray(eventsData.assignments) ? eventsData.assignments : []);
-        setNextCursor(eventsData.discoverCursor || null);
-        setMyLinks(Array.isArray(linksData.links) ? linksData.links : []);
-        setFetchError(null);
-        setRefreshedAt(new Date());
-      } catch (error) {
-        console.error('Failed to fetch promoter events:', error);
-        setFetchError('Failed to load events. Please try again.');
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
+      if (!eventsRes.ok || !linksRes.ok) {
+        throw new Error('Failed to load promoter events');
       }
+
+      const [eventsData, linksData] = await Promise.all([eventsRes.json(), linksRes.json()]);
+      return { eventsData, linksData, token: token || '' };
     },
-    [promoterId, selectedCity, user],
-  );
+    enabled: Boolean(promoterId && user),
+  });
+
+  useEffect(() => {
+    if (!eventsQuery.data) return;
+    const { eventsData, linksData } = eventsQuery.data;
+    setEvents(Array.isArray(eventsData.events) ? eventsData.events : []);
+    setAssignments(Array.isArray(eventsData.assignments) ? eventsData.assignments : []);
+    setNextCursor(eventsData.discoverCursor || null);
+    setMyLinks(Array.isArray(linksData.links) ? linksData.links : []);
+  }, [eventsQuery.data]);
+
+  const loading = eventsQuery.isLoading;
+  const refreshing = eventsQuery.isFetching && !eventsQuery.isLoading;
+  const fetchError = eventsQuery.isError ? 'Failed to load events. Please try again.' : null;
+  const refreshedAt = eventsQuery.dataUpdatedAt ? new Date(eventsQuery.dataUpdatedAt) : null;
+  const authToken = eventsQuery.data?.token || '';
 
   const loadMore = useCallback(async () => {
     if (!promoterId || !nextCursor || loadingMore) return;
     setLoadingMore(true);
 
     try {
-      const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
       const params = new URLSearchParams();
       if (selectedCity) params.set('city', selectedCity);
       params.set('cursor', nextCursor);
 
-      const res = await fetch(`/api/partners/promoters/events?${params.toString()}`, { headers });
-      if (!res.ok) throw new Error('Failed to load more events');
-
-      const data = await res.json();
+      const data = await queryClient.fetchQuery({
+        queryKey: ['promoter-events-page', promoterId, selectedCity, nextCursor],
+        queryFn: async ({ signal }) => {
+          const token = authToken || (await user?.getIdToken()) || '';
+          const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+          const res = await fetch(`/api/partners/promoters/events?${params.toString()}`, {
+            headers,
+            signal,
+          });
+          if (!res.ok) throw new Error('Failed to load more events');
+          return res.json();
+        },
+        staleTime: 0,
+      });
       if (Array.isArray(data.events)) {
         setEvents((prev) => {
           const existingIds = new Set(prev.map((e) => e.id));
@@ -267,11 +270,7 @@ export default function PromoterEventsPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [promoterId, nextCursor, loadingMore, authToken, selectedCity]);
-
-  useEffect(() => {
-    fetchPageData();
-  }, [fetchPageData]);
+  }, [promoterId, nextCursor, loadingMore, authToken, selectedCity, queryClient, user]);
 
   // NOTE: A previous window-level "click closes the commission modal" listener was
   // removed. It fired on *every* click in the document, including clicks inside the
@@ -345,7 +344,7 @@ export default function PromoterEventsPage() {
       title="Events"
       actions={
         <button
-          onClick={() => fetchPageData(true)}
+          onClick={() => eventsQuery.refetch()}
           disabled={refreshing || loading}
           className="flex items-center gap-2 px-5 py-3 bg-surface-elevated border border-border-default hover:border-border-strong text-text-secondary text-sm font-semibold rounded-xl transition-all disabled:opacity-60"
         >
@@ -419,7 +418,7 @@ export default function PromoterEventsPage() {
         <ErrorState
           title="Failed to load events"
           message={fetchError}
-          onRetry={() => fetchPageData()}
+          onRetry={() => eventsQuery.refetch()}
         />
       ) : filteredEvents.length === 0 ? (
         <div className="relative overflow-hidden rounded-[34px] border border-white/5 bg-[linear-gradient(180deg,rgba(34,34,38,0.98),rgba(21,21,25,0.98))] p-12 text-center shadow-[0_24px_80px_rgba(0,0,0,0.16)]">

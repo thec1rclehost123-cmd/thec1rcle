@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   X,
   Loader2,
@@ -291,24 +292,22 @@ function DisputesView({
   onBack: () => void;
   getToken: () => Promise<string>;
 }) {
-  const [disputes, setDisputes] = useState<Dispute[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const token = await getToken();
-        const res = await fetch(`/api/partners/venues/finance/disputes?venueId=${venueId}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const d = await res.json();
-        setDisputes(d.disputes || []);
-      } catch (err) {
-        console.error('[Finance] Failed to load disputes:', err);
-      }
-      setLoading(false);
-    })();
-  }, [venueId]);
+  const disputesQuery = useQuery({
+    queryKey: ['venue-finance-disputes', venueId],
+    queryFn: async ({ signal }) => {
+      const token = await getToken();
+      const res = await fetch(`/api/partners/venues/finance/disputes?venueId=${venueId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal,
+      });
+      if (!res.ok) throw new Error('Failed to load disputes');
+      const data = await res.json();
+      return (data.disputes || []) as Dispute[];
+    },
+    enabled: Boolean(venueId),
+  });
+  const disputes = disputesQuery.data ?? [];
+  const loading = disputesQuery.isLoading;
 
   const statusBadge = (s: Dispute['disputeStatus']) => {
     const map: Record<string, { label: string; bg: string; color: string }> = {
@@ -474,23 +473,7 @@ export default function VenueFinancePageClient() {
   // Views
   const [view, setView] = useState<ActiveView>('main');
 
-  // Balance
-  const [balance, setBalance] = useState<BalanceData>({
-    available: 0,
-    pending: 0,
-    instantAvailable: 0,
-  });
-  const [balanceLoading, setBalanceLoading] = useState(true);
-
-  // Payouts
-  const [payouts, setPayouts] = useState<Payout[]>([]);
-  const [payoutsLoading, setPayoutsLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-
-  // Banks
-  const [accounts, setAccounts] = useState<BankAccount[]>([]);
-  const [accountsLoading, setAccountsLoading] = useState(true);
 
   // Settings (local state until we wire a save endpoint)
   const [settings, setSettings] = useState<Settings>({
@@ -503,93 +486,91 @@ export default function VenueFinancePageClient() {
   // Modals
   const [showAddBankModal, setShowAddBankModal] = useState(false);
 
-  // ── Fetchers ──────────────────────────────────────────────────────────────
-
-  const fetchBalance = useCallback(async () => {
-    if (!venueId) return;
-    setBalanceLoading(true);
-    try {
+  const balanceQuery = useQuery({
+    queryKey: ['venue-finance-balance', venueId],
+    queryFn: async ({ signal }) => {
       const token = await getToken();
       const res = await fetch(
         `/api/partners/venues/finance/overview?venueId=${venueId}&period=30d`,
         {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal,
         },
       );
+      if (!res.ok) throw new Error('Failed to load finance balance');
       const d = await res.json();
       const m = d.metrics;
-      setBalance({
+      return {
         available: m?.availableBalance || 0,
         pending: m?.pendingPayouts || 0,
         instantAvailable: m?.availableBalance || 0,
-      });
-    } catch (err) {
-      console.error('[Finance] Failed to load balance:', err);
-    }
-    setBalanceLoading(false);
-  }, [venueId, getToken]);
-
-  const fetchPayouts = useCallback(
-    async (p = 1) => {
-      if (!venueId) return;
-      setPayoutsLoading(true);
-      try {
-        const token = await getToken();
-        const res = await fetch(
-          `/api/partners/venues/finance/payouts?venueId=${venueId}&page=${p}&limit=10`,
-          {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          },
-        );
-        const d = await res.json();
-        setPayouts(d.payouts || []);
-        setHasMore(d.hasMore || false);
-      } catch (err) {
-        console.error('[Finance] Failed to load payouts:', err);
-      }
-      setPayoutsLoading(false);
+      } as BalanceData;
     },
-    [venueId, getToken],
-  );
+    enabled: Boolean(venueId),
+  });
 
-  const fetchAccounts = useCallback(async () => {
-    if (!venueId) return;
-    setAccountsLoading(true);
-    try {
+  const payoutsQuery = useQuery({
+    queryKey: ['venue-finance-payouts', venueId, page],
+    queryFn: async ({ signal }) => {
+      const token = await getToken();
+      const res = await fetch(
+        `/api/partners/venues/finance/payouts?venueId=${venueId}&page=${page}&limit=10`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal,
+        },
+      );
+      if (!res.ok) throw new Error('Failed to load payouts');
+      const d = await res.json();
+      return {
+        payouts: (d.payouts || []) as Payout[],
+        hasMore: Boolean(d.hasMore),
+      };
+    },
+    enabled: Boolean(venueId),
+  });
+
+  const accountsQuery = useQuery({
+    queryKey: ['venue-finance-accounts', venueId],
+    queryFn: async ({ signal }) => {
       const token = await getToken();
       const res = await fetch(`/api/partners/venues/finance/bank-accounts?venueId=${venueId}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal,
       });
+      if (!res.ok) throw new Error('Failed to load payout accounts');
       const d = await res.json();
-      setAccounts(d.accounts || []);
-    } catch (err) {
-      console.error('[Finance] Failed to load bank accounts:', err);
-    }
-    setAccountsLoading(false);
-  }, [venueId, getToken]);
+      return (d.accounts || []) as BankAccount[];
+    },
+    enabled: Boolean(venueId),
+  });
 
-  useEffect(() => {
-    fetchBalance();
-    fetchPayouts(1);
-    fetchAccounts();
-  }, [fetchBalance, fetchPayouts, fetchAccounts]);
+  const balance = balanceQuery.data ?? { available: 0, pending: 0, instantAvailable: 0 };
+  const balanceLoading = balanceQuery.isLoading;
+  const payouts = payoutsQuery.data?.payouts ?? [];
+  const payoutsLoading = payoutsQuery.isLoading || payoutsQuery.isFetching;
+  const hasMore = payoutsQuery.data?.hasMore ?? false;
+  const accounts = accountsQuery.data ?? [];
+  const accountsLoading = accountsQuery.isLoading;
 
   const handlePageChange = (next: number) => {
     setPage(next);
-    fetchPayouts(next);
   };
 
-  const removeAccount = async (accountId: string) => {
-    const token = await getToken();
-    await fetch(
-      `/api/partners/venues/finance/bank-accounts?venueId=${venueId}&accountId=${accountId}`,
-      {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      },
-    );
-    fetchAccounts();
-  };
+  const removeAccount = useCallback(
+    async (accountId: string) => {
+      const token = await getToken();
+      await fetch(
+        `/api/partners/venues/finance/bank-accounts?venueId=${venueId}&accountId=${accountId}`,
+        {
+          method: 'DELETE',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        },
+      );
+      await accountsQuery.refetch();
+    },
+    [accountsQuery, getToken, venueId],
+  );
 
   // ── Payout status badge ────────────────────────────────────────────────────
 
@@ -869,7 +850,7 @@ export default function VenueFinancePageClient() {
             </p>
             <button
               type="button"
-              onClick={() => fetchPayouts(page)}
+              onClick={() => payoutsQuery.refetch()}
               className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
               style={{ border: '1px solid var(--v-border)' }}
             >
@@ -991,7 +972,7 @@ export default function VenueFinancePageClient() {
             venueId={venueId}
             getToken={getToken}
             onClose={() => setShowAddBankModal(false)}
-            onAdded={fetchAccounts}
+            onAdded={() => void accountsQuery.refetch()}
           />
         )}
       </AnimatePresence>

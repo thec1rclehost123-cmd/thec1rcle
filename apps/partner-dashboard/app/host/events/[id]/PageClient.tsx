@@ -603,6 +603,7 @@ export default function HostEventWorkspacePage() {
 
   const [activeSection, setActiveSection] = useState('analytics');
   const [eventInfoDraft, setEventInfoDraft] = useState<EventInfoDraft>(EMPTY_EVENT_INFO_DRAFT);
+  const [eventInfoDirty, setEventInfoDirty] = useState(false);
   const [savingBlockId, setSavingBlockId] = useState<SettingsBlockId | null>(null);
   const [activeSettingsBlock, setActiveSettingsBlock] = useState<SettingsBlockId | null>(null);
 
@@ -927,10 +928,18 @@ export default function HostEventWorkspacePage() {
     }
   }, [event?.eventUrl]);
 
+  const updateEventInfoDraft = useCallback(
+    (update: (current: EventInfoDraft) => EventInfoDraft) => {
+      setEventInfoDirty(true);
+      setEventInfoDraft(update);
+    },
+    [],
+  );
+
   useEffect(() => {
-    if (!event) return;
+    if (!event || eventInfoDirty) return;
     setEventInfoDraft(buildEventInfoDraft(event));
-  }, [event]);
+  }, [event, eventInfoDirty]);
 
   useEffect(() => {
     if (promotersData?.promoters) {
@@ -973,6 +982,7 @@ export default function HostEventWorkspacePage() {
 
     try {
       await saveEventMutation.mutateAsync(payload);
+      setEventInfoDirty(false);
     } finally {
       setSavingBlockId(null);
     }
@@ -2242,7 +2252,7 @@ export default function HostEventWorkspacePage() {
                           label="Event title"
                           value={eventInfoDraft.title}
                           onChange={(eventTarget) =>
-                            setEventInfoDraft((current) => ({
+                            updateEventInfoDraft((current) => ({
                               ...current,
                               title: eventTarget.target.value,
                             }))
@@ -2253,7 +2263,7 @@ export default function HostEventWorkspacePage() {
                           label="Cover image URL"
                           value={eventInfoDraft.coverImage}
                           onChange={(eventTarget) =>
-                            setEventInfoDraft((current) => ({
+                            updateEventInfoDraft((current) => ({
                               ...current,
                               coverImage: eventTarget.target.value,
                             }))
@@ -2264,7 +2274,7 @@ export default function HostEventWorkspacePage() {
                             label="Short description"
                             value={eventInfoDraft.shortDescription}
                             onChange={(eventTarget) =>
-                              setEventInfoDraft((current) => ({
+                              updateEventInfoDraft((current) => ({
                                 ...current,
                                 shortDescription: eventTarget.target.value,
                               }))
@@ -2277,7 +2287,7 @@ export default function HostEventWorkspacePage() {
                             label="Full description"
                             value={eventInfoDraft.description}
                             onChange={(eventTarget) =>
-                              setEventInfoDraft((current) => ({
+                              updateEventInfoDraft((current) => ({
                                 ...current,
                                 description: eventTarget.target.value,
                               }))
@@ -2289,7 +2299,7 @@ export default function HostEventWorkspacePage() {
                           label="Location name"
                           value={eventInfoDraft.venue}
                           onChange={(eventTarget) =>
-                            setEventInfoDraft((current) => ({
+                            updateEventInfoDraft((current) => ({
                               ...current,
                               venue: eventTarget.target.value,
                             }))
@@ -2300,7 +2310,7 @@ export default function HostEventWorkspacePage() {
                           label="Location address"
                           value={eventInfoDraft.venueAddress}
                           onChange={(eventTarget) =>
-                            setEventInfoDraft((current) => ({
+                            updateEventInfoDraft((current) => ({
                               ...current,
                               venueAddress: eventTarget.target.value,
                             }))
@@ -2311,7 +2321,7 @@ export default function HostEventWorkspacePage() {
                           label="City"
                           value={eventInfoDraft.city}
                           onChange={(eventTarget) =>
-                            setEventInfoDraft((current) => ({
+                            updateEventInfoDraft((current) => ({
                               ...current,
                               city: eventTarget.target.value,
                             }))
@@ -2322,7 +2332,7 @@ export default function HostEventWorkspacePage() {
                           label="Timezone"
                           value={eventInfoDraft.timezone}
                           onChange={(eventTarget) =>
-                            setEventInfoDraft((current) => ({
+                            updateEventInfoDraft((current) => ({
                               ...current,
                               timezone: eventTarget.target.value,
                             }))
@@ -2334,7 +2344,7 @@ export default function HostEventWorkspacePage() {
                           type="datetime-local"
                           value={eventInfoDraft.startDate}
                           onChange={(eventTarget) =>
-                            setEventInfoDraft((current) => ({
+                            updateEventInfoDraft((current) => ({
                               ...current,
                               startDate: eventTarget.target.value,
                             }))
@@ -2346,7 +2356,7 @@ export default function HostEventWorkspacePage() {
                           type="datetime-local"
                           value={eventInfoDraft.endDate}
                           onChange={(eventTarget) =>
-                            setEventInfoDraft((current) => ({
+                            updateEventInfoDraft((current) => ({
                               ...current,
                               endDate: eventTarget.target.value,
                             }))
@@ -2358,7 +2368,7 @@ export default function HostEventWorkspacePage() {
                           type="number"
                           value={String(eventInfoDraft.capacity)}
                           onChange={(eventTarget) =>
-                            setEventInfoDraft((current) => ({
+                            updateEventInfoDraft((current) => ({
                               ...current,
                               capacity: Number(eventTarget.target.value || 0),
                             }))

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   CheckCircle2,
   Clock,
@@ -32,31 +33,26 @@ export default function VenuePayoutsSettingsClient() {
   const { profile, getIdToken } = useDashboardAuth();
   const venueId = profile?.activeMembership?.partnerId ?? '';
 
-  const [settingsState, setSettingsState] = useState<PayoutSettingsState>('unconnected');
-  const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [totalSettled, setTotalSettled] = useState(0);
-  const [availableBalance, setAvailableBalance] = useState(0);
   const [showSetup, setShowSetup] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [loadError, setLoadError] = useState('');
 
-  const fetchPayouts = useCallback(async () => {
-    if (!venueId) return;
-    setLoading(true);
-    setLoadError('');
-    try {
+  const payoutsQuery = useQuery({
+    queryKey: ['venue-payout-settings', venueId],
+    queryFn: async ({ signal }) => {
       const token = typeof getIdToken === 'function' ? await getIdToken() : '';
       const [overviewResponse, payoutsResponse, accountsResponse] = await Promise.all([
         fetch(`/api/venue/finance/overview?venueId=${venueId}&period=90d`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal,
         }),
         fetch(`/api/venue/finance/payouts?venueId=${venueId}&limit=50`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal,
         }),
         fetch(`/api/venue/finance/bank-accounts?venueId=${venueId}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal,
         }),
       ]);
       if (!overviewResponse.ok || !payoutsResponse.ok || !accountsResponse.ok) {
@@ -68,12 +64,12 @@ export default function VenuePayoutsSettingsClient() {
         accountsResponse.json(),
       ]);
       const metrics = overviewBody.metrics || overviewBody.data?.metrics || {};
-      setAvailableBalance(Number(metrics.availableBalance || 0));
-      setTotalSettled(Number(metrics.settledPayouts || 0));
       const accounts = accountsBody.accounts || accountsBody.data?.accounts || [];
-      setSettingsState(accounts.length > 0 ? 'active' : 'unconnected');
-      setPayouts(
-        (payoutsBody.payouts || payoutsBody.data?.payouts || []).map((payout: any) => ({
+      return {
+        availableBalance: Number(metrics.availableBalance || 0),
+        totalSettled: Number(metrics.settledPayouts || 0),
+        settingsState: (accounts.length > 0 ? 'active' : 'unconnected') as PayoutSettingsState,
+        payouts: (payoutsBody.payouts || payoutsBody.data?.payouts || []).map((payout: any) => ({
           id: String(payout.id),
           amount: Number(payout.amount || 0),
           status: payout.status || 'pending',
@@ -82,14 +78,21 @@ export default function VenuePayoutsSettingsClient() {
           requestedAt: payout.requestedAt || payout.arrivalDate,
           completedAt: payout.completedAt,
         })),
-      );
-    } catch (error: any) {
-      setPayouts([]);
-      setLoadError(error.message || 'Canonical payout data is unavailable.');
-    } finally {
-      setLoading(false);
-    }
-  }, [venueId, getIdToken]);
+      };
+    },
+    enabled: Boolean(venueId),
+  });
+  const settingsState = payoutsQuery.data?.settingsState ?? 'unconnected';
+  const payouts = (payoutsQuery.data?.payouts ?? []) as PayoutRecord[];
+  const loading = payoutsQuery.isLoading || payoutsQuery.isFetching;
+  const totalSettled = payoutsQuery.data?.totalSettled ?? 0;
+  const availableBalance = payoutsQuery.data?.availableBalance ?? 0;
+  const loadError =
+    payoutsQuery.error instanceof Error
+      ? payoutsQuery.error.message
+      : payoutsQuery.isError
+        ? 'Canonical payout data is unavailable.'
+        : '';
 
   const handleBankSetup = useCallback(
     async (data: BankSetupData) => {
@@ -111,26 +114,22 @@ export default function VenuePayoutsSettingsClient() {
           throw new Error((err as any).error || 'Failed to save bank account.');
         }
         setShowSetup(false);
-        fetchPayouts();
+        await payoutsQuery.refetch();
       } catch (err: any) {
         setSubmitError(err.message);
       } finally {
         setSubmitting(false);
       }
     },
-    [venueId, getIdToken, fetchPayouts],
+    [venueId, getIdToken, payoutsQuery],
   );
-
-  useEffect(() => {
-    fetchPayouts();
-  }, [fetchPayouts]);
 
   return (
     <VenuePageShell
       title="Payout Settings"
       subtitle="Bank account, payout schedule, and settlement history"
       actions={
-        <VenueActionButton variant="ghost" onClick={fetchPayouts}>
+        <VenueActionButton variant="ghost" onClick={() => payoutsQuery.refetch()}>
           <RefreshCw className="w-3.5 h-3.5" />
           Refresh
         </VenueActionButton>
