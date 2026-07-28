@@ -657,25 +657,60 @@ function OnboardingContent() {
   const handleSendPhoneOtp = async () => {
     setError('');
     const cleanPhone = otpPhone.replace(/\s/g, '');
-    if (cleanPhone) {
-      const digitsOnly = cleanPhone.replace(/[^\d]/g, '');
-      if (cleanPhone.startsWith('+')) {
+    if (!cleanPhone) {
+      setError('Please enter a phone number.');
+      return;
+    }
+
+    // Check for only numbers (with optional leading +)
+    if (!/^\+?[0-9]+$/.test(cleanPhone)) {
+      setError('Phone number must contain only numbers (no letters or special characters).');
+      return;
+    }
+
+    const digitsOnly = cleanPhone.replace(/[^\d]/g, '');
+    if (cleanPhone.startsWith('+')) {
+      if (cleanPhone.startsWith('+91')) {
+        const localNumber = cleanPhone.slice(3);
+        if (localNumber.length !== 10) {
+          setError('Please enter a valid 10-digit Indian mobile number after +91.');
+          return;
+        }
+      } else {
         if (digitsOnly.length < 8) {
           setError('Phone number too short. Include your country code (e.g., +919876543210).');
           return;
         }
-      } else {
-        if (digitsOnly.length !== 10) {
-          setError('Please enter a valid 10-digit Indian mobile number.');
-          return;
-        }
       }
     } else {
-      setError('Please enter a phone number.');
-      return;
+      if (digitsOnly.length !== 10) {
+        setError('Please enter a valid 10-digit Indian mobile number.');
+        return;
+      }
     }
+
     setLoading(true);
     try {
+      // Check if phone number is already registered
+      const checkRes = await fetch('/api/auth/check-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: cleanPhone,
+        }),
+      });
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        if (!checkData.available && checkData.taken?.includes('phone')) {
+          setError('This phone number is already registered.');
+          setLoading(false);
+          return;
+        }
+      } else {
+        const data = await checkRes.json().catch(() => ({}));
+        throw new Error(extractError(data, 'Failed to check phone number availability.'));
+      }
+
       await apiSendOtp('phone', cleanPhone);
       setOtpPhoneSent(true);
       setFormData((prev) => ({ ...prev, phone: cleanPhone }));
@@ -725,16 +760,32 @@ function OnboardingContent() {
         }
         const createPhone = formData.phone || otpPhone.replace(/\s/g, '');
         if (createPhone) {
+          // Check for only numbers (with optional leading +)
+          if (!/^\+?[0-9]+$/.test(createPhone)) {
+            setError('Phone number must contain only numbers (no letters or special characters).');
+            setLoading(false);
+            return;
+          }
+
           const digitsOnly = createPhone.replace(/[^\d]/g, '');
           if (createPhone.startsWith('+')) {
-            // International format — expect country code + local number (at least 8 digits after +)
-            if (digitsOnly.length < 8) {
-              setError('Phone number too short. Include your country code (e.g., +919876543210).');
-              setLoading(false);
-              return;
+            if (createPhone.startsWith('+91')) {
+              const localNumber = createPhone.slice(3);
+              if (localNumber.length !== 10) {
+                setError('Please enter a valid 10-digit Indian mobile number after +91.');
+                setLoading(false);
+                return;
+              }
+            } else {
+              if (digitsOnly.length < 8) {
+                setError(
+                  'Phone number too short. Include your country code (e.g., +919876543210).',
+                );
+                setLoading(false);
+                return;
+              }
             }
           } else {
-            // Plain digits — expect exactly 10 (Indian mobile without +91)
             if (digitsOnly.length !== 10) {
               setError('Please enter a valid 10-digit Indian mobile number.');
               setLoading(false);
@@ -1168,7 +1219,14 @@ function OnboardingContent() {
                   icon={Phone}
                   type="tel"
                   value={otpPhone}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOtpPhone(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    const val = e.target.value;
+                    let sanitized = val.replace(/[^0-9+\s]/g, '');
+                    if (sanitized.indexOf('+') > 0) {
+                      sanitized = sanitized[0] + sanitized.slice(1).replace(/\+/g, '');
+                    }
+                    setOtpPhone(sanitized);
+                  }}
                   placeholder="+91 98765 43210"
                   disabled={otpPhoneSent}
                 />
