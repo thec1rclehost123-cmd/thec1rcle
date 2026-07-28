@@ -159,6 +159,7 @@ export default async function orderRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: OrderIdParam, querystring: OrderLookupQuery })],
     },
     async (request: any, reply) => {
@@ -219,6 +220,7 @@ export default async function orderRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/:id/cancel',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: OrderIdParam })],
     },
     async (request: any, reply) => {
@@ -274,6 +276,7 @@ export default async function orderRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/:id/cancel',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: OrderIdParam, body: CancelOrderBody })],
     },
     async (request: any, reply) => {
@@ -491,6 +494,7 @@ export default async function orderRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/:id/reissue',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: OrderIdParam })],
     },
     async (request: any, reply) => {
@@ -562,6 +566,7 @@ export default async function orderRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/event/:eventId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: OrderEventParam, querystring: OrderEventQuery })],
     },
     async (request: any, reply) => {
@@ -636,6 +641,7 @@ export default async function orderRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/stats/:eventId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({ params: OrderEventParam }),
         fastify.requireRoles(['admin', 'partner', 'host']),

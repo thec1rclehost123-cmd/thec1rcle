@@ -29,6 +29,7 @@ export default async function guestPromoterRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/promoters/:username',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: PromoterUsernameParam })],
     },
     async (request: any, reply) => {
@@ -64,6 +65,7 @@ export default async function guestPromoterRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/promoters/:username/links/:alias',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: VanityAliasParam })],
     },
     async (request: any, reply) => {

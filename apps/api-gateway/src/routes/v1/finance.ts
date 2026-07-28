@@ -237,6 +237,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/summary',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: SummaryQuery })],
     },
     async (request, reply) => {
@@ -302,6 +303,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/history',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: HistoryQuery })],
     },
     async (request, reply) => {
@@ -355,6 +357,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/refund',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: RefundBody })],
     },
     async (request, reply) => {
@@ -386,6 +389,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/promoter/balance/:promoterId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: PromoterIdParam })],
     },
     async (request, reply) => {
@@ -407,6 +411,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/promoter/payout',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: PayoutBody })],
     },
     async (request, reply) => {
@@ -431,6 +436,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/promoter/payouts/:promoterId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: PromoterIdParam })],
     },
     async (request, reply) => {
@@ -448,6 +454,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/promoter/payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -473,6 +480,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/promoter/payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: PayoutBody })],
     },
     async (request: any, reply) => {
@@ -496,6 +504,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/promoter/payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -527,6 +536,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/promoter/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -563,6 +573,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/promoter/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -596,6 +607,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/promoter/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -636,6 +648,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partner/promoter/finance',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -677,6 +690,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -713,6 +727,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/wallet',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -758,6 +773,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/payout-balance',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -798,6 +814,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: PayoutHistoryQuery })],
     },
     async (request) => {
@@ -850,6 +867,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/payout-history',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: PayoutHistoryQuery })],
     },
     async (request, reply) => {
@@ -979,6 +997,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/subscription',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -1009,6 +1028,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/billing-methods',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -1040,6 +1060,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/invoices',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: InvoicesQuery })],
     },
     async (request, reply) => {
@@ -1068,6 +1089,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -1105,6 +1127,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/disputes',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request) => {
@@ -1133,6 +1156,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/finance/payout-config',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (_request, _reply) => {
@@ -1147,6 +1171,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/ledger',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1180,6 +1205,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/host-payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -1203,6 +1229,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/promoter-payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {

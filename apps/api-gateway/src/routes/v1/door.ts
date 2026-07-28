@@ -59,6 +59,7 @@ export default async function doorRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/walk-ins',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [requireDoorAuth, fastify.validate({ querystring: DoorQuerySchema })],
     },
     async (request: any, reply) => {
@@ -119,6 +120,7 @@ export default async function doorRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/walk-ins',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [requireDoorAuth, fastify.validate({ body: WalkInBodySchema })],
     },
     async (request: any, reply) => {
@@ -162,6 +164,7 @@ export default async function doorRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/door/dinein',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [requireDoorAuth, fastify.validate({ querystring: DoorQuerySchema })],
     },
     async (request: any, reply) => {
@@ -206,6 +209,7 @@ export default async function doorRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/door/dinein',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [requireDoorAuth, fastify.validate({ body: DineInBodySchema })],
     },
     async (request: any, reply) => {

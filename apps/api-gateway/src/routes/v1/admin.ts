@@ -13,6 +13,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/logs',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAdmin, fastify.validate({ querystring: AdminLogsQuerySchema })],
     },
     async (request: any, reply) => {
@@ -49,7 +50,9 @@ export default async function adminRoutes(fastify: FastifyInstance) {
    * GET /api/v1/admin/cache
    * Show Redis cache stats (keys per namespace, total keys, memory usage)
    */
-  fastify.get('/cache', { preHandler: [fastify.requireAdmin] }, async (_request: any, reply) => {
+  fastify.get('/cache', {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAdmin] }, async (_request: any, reply) => {
     try {
       const stats = await fastify.cache.getStats();
       return { success: true, ...stats };
@@ -63,7 +66,9 @@ export default async function adminRoutes(fastify: FastifyInstance) {
    * DELETE /api/v1/admin/cache
    * Flush entire Redis cache
    */
-  fastify.delete('/cache', { preHandler: [fastify.requireAdmin] }, async (request: any, reply) => {
+  fastify.delete('/cache', {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAdmin] }, async (request: any, reply) => {
     try {
       await fastify.cache.flushAll();
       await fastify.db.collection('admin_audit_logs').add({
@@ -91,6 +96,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/cache/:namespace',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAdmin, fastify.validate({ params: CacheNamespaceParamsSchema })],
     },
     async (request: any, reply) => {

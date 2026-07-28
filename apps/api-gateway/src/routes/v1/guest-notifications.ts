@@ -33,6 +33,7 @@ export default async function guestNotificationRoutes(fastify: FastifyInstance) 
   fastify.get(
     '/guest-notifications',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: GuestNotificationsQuery })],
     },
     async (request: any, reply) => {
@@ -87,6 +88,7 @@ export default async function guestNotificationRoutes(fastify: FastifyInstance) 
   fastify.patch(
     '/guest-notifications',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: GuestNotificationsPatchBody })],
     },
     async (request: any, reply) => {
@@ -132,6 +134,7 @@ export default async function guestNotificationRoutes(fastify: FastifyInstance) 
   fastify.patch(
     '/guest-notifications/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: GuestNotificationIdParam })],
     },
     async (request: any, reply) => {

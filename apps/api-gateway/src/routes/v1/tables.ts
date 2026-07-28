@@ -38,6 +38,7 @@ export default async function tableRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/tables',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -102,6 +103,7 @@ export default async function tableRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/tables',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -164,6 +166,7 @@ export default async function tableRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/venue/tables',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {

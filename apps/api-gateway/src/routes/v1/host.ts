@@ -85,6 +85,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({ querystring: HostOverviewQuery }),
         fastify.requireRoles(['admin', 'partner', 'host']),
@@ -170,6 +171,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -187,6 +189,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/host/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: HostProfilePatch })],
     },
     async (request: any, reply) => {
@@ -222,6 +225,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/partnerships',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -262,6 +266,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/notifications',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -282,6 +287,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/host/notifications/read',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: NotificationsReadBody })],
     },
     async (request: any, reply) => {
@@ -313,6 +319,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/orders',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostOrdersQuery })],
     },
     async (request: any, reply) => {
@@ -346,6 +353,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/finance/disputes',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -366,6 +374,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/finance/payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: HostFinanceQuery })],
     },
     async (request: any, reply) => {
@@ -393,6 +402,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -478,6 +488,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/overview/summary',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -516,6 +527,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/team',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -544,6 +556,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/host/team/:memberId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: TeamMemberPatch })],
     },
     async (request: any, reply) => {
@@ -600,6 +613,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/promoters',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -787,6 +801,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({ querystring: HostEventsQuery }),
         fastify.requireRoles(['admin', 'partner', 'host']),
@@ -878,6 +893,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/analytics/time-series',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostTimeSeriesQuery })],
     },
     async (request: any, reply) => {
@@ -907,6 +923,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/analytics/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -952,6 +969,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/venue-calendar',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostVenueCalendarQuery })],
     },
     async (request: any, reply) => {
@@ -991,6 +1009,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/finance/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {

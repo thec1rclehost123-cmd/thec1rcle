@@ -40,6 +40,7 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: z.object({ id: z.string().min(1) }) })],
     },
     async (request: any, reply: any) => {
@@ -72,6 +73,7 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/create',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: CreateLinkBody })],
     },
     async (request: any, reply) => {
@@ -198,6 +200,7 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: LinksQuery })],
     },
     async (request: any, reply) => {
@@ -248,6 +251,7 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/by-code/:code',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({
           params: CodeParam,
@@ -278,6 +282,7 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/stats/:promoterId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: PromoterIdParam })],
     },
     async (request: any, reply) => {
@@ -327,6 +332,7 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/event-summary/:eventId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: EventIdParam })],
     },
     async (request: any, reply) => {
@@ -366,6 +372,7 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/track-click',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: TrackClickBody })],
     },
     async (request: any, reply) => {
@@ -388,6 +395,7 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/:id/deactivate',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: LinkIdParam })],
     },
     async (request: any, reply) => {

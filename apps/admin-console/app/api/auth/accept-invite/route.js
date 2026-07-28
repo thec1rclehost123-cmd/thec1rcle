@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminDb, getAdminAuth } from '@/lib/firebase/admin';
+import { randomBytes } from 'node:crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -141,7 +142,7 @@ export async function POST(req) {
     } catch (authErr) {
       if (authErr.code === 'auth/user-not-found') {
         // Fallback if auth user was somehow deleted
-        const actualPassword = password || Math.random().toString(36).substring(2, 10) + 'A1!';
+        const actualPassword = password || randomBytes(8).toString('hex') + 'A1!';
         userRecord = await auth.createUser({
           email,
           password: actualPassword,

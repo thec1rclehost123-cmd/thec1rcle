@@ -1762,7 +1762,9 @@ export default async function eventRoutes(fastify: FastifyInstance) {
    */
   fastify.get(
     '/events',
-    { preHandler: [fastify.validate({ querystring: ExploreEventListQuery })] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.validate({ querystring: ExploreEventListQuery })] },
     async (request: any, reply) => {
       try {
         const { lifecycle, creatorId, venueId } = request.query || {};
@@ -1948,7 +1950,9 @@ export default async function eventRoutes(fastify: FastifyInstance) {
    */
   fastify.get(
     '/events/featured',
-    { preHandler: [fastify.validate({ querystring: ExploreFeaturedEventListQuery })] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.validate({ querystring: ExploreFeaturedEventListQuery })] },
     async (request: any, reply) => {
       try {
         await enforcePublicRateLimit(fastify, request, 'events:featured', 120, 60);
@@ -1992,7 +1996,9 @@ export default async function eventRoutes(fastify: FastifyInstance) {
    */
   fastify.get(
     '/events/map',
-    { preHandler: [fastify.validate({ querystring: EventMapQuery })] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.validate({ querystring: EventMapQuery })] },
     async (request: any, reply) => {
       try {
         await enforcePublicRateLimit(fastify, request, 'events:map', 180, 60);
@@ -2041,6 +2047,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events/nearby',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: EventNearbyQuery })],
     },
     async (request: any, reply) => {
@@ -2084,6 +2091,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/:id/view',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId })],
     },
     async (request: any, reply) => {
@@ -2102,6 +2110,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/:id/track',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId, body: EventTrackBody })],
     },
     async (request: any, reply) => {
@@ -2121,6 +2130,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/:id/rsvp',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId, body: EventRsvpBody })],
     },
     async (request: any, reply) => {
@@ -2164,6 +2174,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events/:id/viewer-state',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId })],
     },
     async (request: any, reply) => {
@@ -2201,6 +2212,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events/:id/queue',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId, querystring: EventQueueQuery })],
     },
     async (request: any, reply) => {
@@ -2251,6 +2263,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/:id/queue',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId, body: EventQueueBody })],
     },
     async (request: any, reply) => {
@@ -2287,6 +2300,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/:id/waitlist',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: EventParamId, body: EventWaitlistBody }),
@@ -2358,6 +2372,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events/:id/interested',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: EventParamId, querystring: EventInterestedQuery }),
@@ -2398,6 +2413,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events/:id/attendees',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: EventParamId, querystring: EventAttendeesQuery }),
@@ -2446,6 +2462,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events/:id/tickets',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId })],
     },
     async (request: any, reply) => {
@@ -2498,6 +2515,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId })],
     },
     async (request: any, reply) => {
@@ -2751,6 +2769,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/events/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId, body: PartnerEventUpdateBody })],
     },
     async (request: any, reply) => {
@@ -3136,6 +3155,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/:id/repair',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: EventParamId })],
     },
     async (request: any, reply) => {
@@ -3225,6 +3245,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partner/events/create',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PartnerEventCreateBody })],
     },
     async (request: any, reply) => {
@@ -3568,6 +3589,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/events/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId })],
     },
     async (request: any, reply) => {
@@ -3673,6 +3695,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/wizard/preview-breakdown',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: WizardPreviewSchema })],
     },
     async (request: any, reply) => {

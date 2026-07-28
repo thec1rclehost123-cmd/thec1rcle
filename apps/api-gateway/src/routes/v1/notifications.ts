@@ -47,6 +47,7 @@ export default async function notificationsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requirePartnerAccess((req) => (req.query as any).venueId),
         fastify.validate({ querystring: VenueQuery }),
@@ -71,6 +72,7 @@ export default async function notificationsRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/read',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requirePartnerAccess((req) => (req.body as any).venueId),
         fastify.validate({ body: ReadBody }),
@@ -101,6 +103,7 @@ export default async function notificationsRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/action',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: ActionBody })],
     },
     async (request: any, reply) => {
@@ -138,6 +141,7 @@ export default async function notificationsRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/send',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requirePartnerAccess((req) => (req.body as any).venueId),
         fastify.validate({ body: SendBody }),

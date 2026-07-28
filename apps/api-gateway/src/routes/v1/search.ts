@@ -16,6 +16,7 @@ export default async function searchRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: SearchQuery })],
     },
     async (request, reply) => {

@@ -452,6 +452,7 @@ export default async function refundRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/pending',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: PendingQuery })],
     },
     async (request: any, reply) => {
@@ -474,6 +475,7 @@ export default async function refundRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/order/:orderId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: OrderIdParam })],
     },
     async (request: any, reply) => {
@@ -502,6 +504,7 @@ export default async function refundRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: RefundIdParam, body: ActionBody }),

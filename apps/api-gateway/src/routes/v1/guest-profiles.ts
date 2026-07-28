@@ -79,6 +79,7 @@ export default async function guestProfileRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/guest-profiles/lookup',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: GuestProfileLookupQuery })],
     },
     async (request: any, reply) => {
@@ -130,6 +131,7 @@ export default async function guestProfileRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/guest-profiles/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: GuestProfileIdParam })],
     },
     async (request: any, reply) => {

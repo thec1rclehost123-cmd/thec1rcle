@@ -207,7 +207,9 @@ export default async function userRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/users/me/onboarding',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth] },
     async (request: any, reply: any) => {
       try {
         const { getGuestOnboardingSnapshot } =
@@ -235,6 +237,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/users/me/onboarding/identity',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: IdentityBody })],
     },
     async (request: any, reply: any) => {
@@ -262,6 +265,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/users/me/onboarding/city',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: CityBody })],
     },
     async (request: any, reply: any) => {
@@ -288,6 +292,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/users/me/onboarding/preferences',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: PreferencesBody })],
     },
     async (request: any, reply: any) => {
@@ -315,6 +320,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/users/me/onboarding/email-prompt',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: EmailPromptBody })],
     },
     async (request: any, reply: any) => {
@@ -341,7 +347,9 @@ export default async function userRoutes(fastify: FastifyInstance) {
 
   fastify.post(
     '/users/me/onboarding/complete',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth] },
     async (request: any, reply: any) => {
       try {
         const { completeGuestOnboarding } = await import('@c1rcle/core/guest-onboarding-service');
@@ -364,7 +372,9 @@ export default async function userRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/users/me/subscription',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth] },
     async (request: any, reply: any) => {
       try {
         const { getGuestSubscriptionContext } =
@@ -422,6 +432,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
   fastify.put(
     '/users/me',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: ProfileUpdateBody })],
     },
     async (request: any, reply: any) => {
@@ -460,6 +471,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/users/me/settings',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: UserSettingsBody })],
     },
     async (request: any, reply: any) => {
@@ -498,6 +510,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/users/me/block/:targetUserId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: TargetUserParam })],
     },
     async (request: any, reply: any) => {
@@ -536,6 +549,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/users/me',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {

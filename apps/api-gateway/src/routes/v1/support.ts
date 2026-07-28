@@ -111,6 +111,7 @@ export default async function supportRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/upload',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [...authHandler],
     },
     async (request: any, reply: any) => {
@@ -158,6 +159,7 @@ export default async function supportRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [...authHandler, fastify.validate({ body: TicketCreateSchema })],
     },
     async (request: any, reply) => {
@@ -310,6 +312,7 @@ export default async function supportRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/:id/reply',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [...authHandler, fastify.validate({ body: ReplySchema })],
     },
     async (request: any, reply) => {
@@ -377,6 +380,7 @@ export default async function supportRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/:id/feedback',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [...authHandler, fastify.validate({ body: FeedbackSchema })],
     },
     async (request: any, reply) => {
@@ -493,6 +497,7 @@ export default async function supportRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/bugs',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [...authHandler, fastify.validate({ body: BugReportSchema })],
     },
     async (request: any, reply) => {
@@ -725,6 +730,7 @@ export default async function supportRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/feature-requests',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [...authHandler, fastify.validate({ body: FeatureRequestSchema })],
     },
     async (request: any, reply) => {

@@ -425,6 +425,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/wallet-qr',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CoverWalletQrBody })],
     },
     async (request: any, reply) => {
@@ -533,6 +534,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ScanBody })],
     },
     async (request: any, reply) => {
@@ -1181,6 +1183,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/confirm-couple',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ConfirmCoupleScanBody })],
     },
     async (request: any, reply) => {
@@ -1281,6 +1284,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/history',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HistoryQuery })],
     },
     async (request: any, reply) => {
@@ -1316,6 +1320,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/codes',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: CodesQuery })],
     },
     async (request: any, reply) => {
@@ -1338,6 +1343,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/codes',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CodesBody })],
     },
     async (request: any, reply) => {
@@ -1372,6 +1378,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/codes/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: CodeIdParam, body: DeleteCodesBody })],
     },
     async (request: any, reply) => {
@@ -1402,6 +1409,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/auth',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: AuthBody })],
     },
     async (request: any, reply) => {
@@ -1536,6 +1544,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/auth',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: CodesQuery })],
     },
     async (request: any, reply) => {
@@ -1560,6 +1569,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/stats',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: StatsQuery })],
     },
     async (request: any, reply) => {
@@ -1627,6 +1637,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/guestlist',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: GuestlistQuery })],
     },
     async (request: any, reply) => {
@@ -1720,6 +1731,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/door-entry',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: DoorEntryBody })],
     },
     async (request: any, reply) => {
@@ -2123,6 +2135,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/door-entry',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: DoorEntryQuery })],
     },
     async (request: any, reply) => {
@@ -2166,6 +2179,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/walk-in',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: WalkInBody })],
     },
     async (request: any, reply) => {
@@ -2249,6 +2263,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/walk-in',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: WalkInQuery })],
     },
     async (request: any, reply) => {
@@ -2290,6 +2305,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/dine-in',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: DineInBody })],
     },
     async (request: any, reply) => {
@@ -2352,6 +2368,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/dine-in',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: DineInQuery })],
     },
     async (request: any, reply) => {
@@ -2395,6 +2412,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/devices',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: DeviceBody })],
     },
     async (request: any, reply) => {
@@ -2483,6 +2501,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/heartbeat',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: HeartbeatBody })],
     },
     async (request: any, reply) => {
@@ -2543,6 +2562,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/staff-deny',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: StaffDenyBody })],
     },
     async (request: any, reply) => {
@@ -2601,6 +2621,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/guestlist/check-in',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ManualCheckInBody })],
     },
     async (request: any, reply) => {
@@ -2706,6 +2727,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/entitlements/:id/qr',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: EntitlementsParam })],
     },
     async (request: any, reply) => {
@@ -2825,6 +2847,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: StaffEventsQuery })],
     },
     async (request: any, reply) => {
@@ -2874,6 +2897,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/staff/session',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: StaffSessionBody }), fastify.requireAuth],
     },
     async (request: any, reply) => {

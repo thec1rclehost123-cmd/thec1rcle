@@ -692,6 +692,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/venues/overview/summary',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -781,6 +782,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/venues/calendar',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: CalendarQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -826,6 +828,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partners/venues/calendar',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -918,6 +921,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partners/venues/calendar/slots',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CreateSlotSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -956,6 +960,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/partners/venues/calendar/slots/:slotId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: UpdateSlotSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1011,6 +1016,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/venues/slot-requests',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1049,6 +1055,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/partners/venues/slot-requests/:slotId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: SlotActionSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1112,6 +1119,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/venues/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: EventFiltersSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1164,6 +1172,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/venues/events/:eventId/guest-ops',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1204,6 +1213,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/venues/partnerships',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1250,6 +1260,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/partners/venues/partnerships/:partnershipId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PartnershipUpdateSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1295,6 +1306,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/venues/settings',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1345,6 +1357,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partners/venues/upload',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {

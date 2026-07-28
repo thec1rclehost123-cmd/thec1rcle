@@ -38,6 +38,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/host-click',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: HostClickSchema })],
     },
     async (request, reply) => {
@@ -91,6 +92,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue-click',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: VenueClickSchema })],
     },
     async (request, reply) => {
@@ -144,6 +146,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requirePartnerAccess((req) => (req.params as any).id),
         fastify.validate({ querystring: AnalyticsRangeSchema }),
@@ -175,6 +178,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requirePartnerAccess((req) => (req.params as any).id),
         fastify.validate({ querystring: AnalyticsRangeSchema }),
@@ -259,6 +263,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/promoter/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -299,6 +304,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/event/:id/computed',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {

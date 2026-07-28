@@ -272,6 +272,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/:id/transfer',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: GroupTransferParam })],
     },
     async (request: any, reply) => {
@@ -306,6 +307,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/claim',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: GroupClaimBody })],
     },
     async (request: any, reply) => {
@@ -340,6 +342,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/transfer',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: TransferBody })],
     },
     async (request: any, reply) => {
@@ -382,6 +385,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/tickets/transfer',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: AcceptTransferBody })],
     },
     async (request: any, reply) => {
@@ -475,6 +479,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/share',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ShareBundleBody })],
     },
     async (request: any, reply) => {
@@ -504,6 +509,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/share',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: ShareBundleQuery })],
     },
     async (request: any, reply) => {
@@ -548,6 +554,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/tickets/share',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ShareBundleDeleteBody })],
     },
     async (request: any, reply) => {
@@ -581,6 +588,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/claim',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: ClaimPreviewQuery })],
     },
     async (request: any, reply) => {
@@ -617,6 +625,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/claim/share',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ClaimShareBody })],
     },
     async (request: any, reply) => {
@@ -646,6 +655,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/pair',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: PairPreviewQuery })],
     },
     async (request: any, reply) => {
@@ -702,6 +712,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PairClaimBody })],
     },
     async (request: any, reply) => {
@@ -731,6 +742,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/tickets/pair',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PairCancelBody })],
     },
     async (request: any, reply) => {
@@ -760,6 +772,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair/link',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PairLinkBody })],
     },
     async (request: any, reply) => {
@@ -788,6 +801,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair/assign',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PairAssignBody })],
     },
     async (request: any, reply) => {
@@ -818,6 +832,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair/transfer',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PairTransferBody })],
     },
     async (request: any, reply) => {
@@ -847,6 +862,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/cover-wallet',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: CoverWalletQuery })],
     },
     async (request: any, reply) => {
@@ -883,6 +899,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/cover-wallets',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CoverWalletBatchBody })],
     },
     async (request: any, reply) => {
@@ -915,6 +932,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/download',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: DownloadQuery })],
     },
     async (request: any, reply) => {
@@ -957,6 +975,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/transfer',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: TransferQuery })],
     },
     async (request: any, reply) => {
@@ -1022,6 +1041,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/:ticketId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: TicketIdParam })],
     },
     async (request: any, reply) => {

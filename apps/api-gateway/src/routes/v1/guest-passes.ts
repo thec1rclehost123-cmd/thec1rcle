@@ -46,6 +46,7 @@ export default async function guestPassRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/passes/:platform',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: PassPlatformParam, querystring: PassQuery })],
     },
     async (request: any, reply) => {

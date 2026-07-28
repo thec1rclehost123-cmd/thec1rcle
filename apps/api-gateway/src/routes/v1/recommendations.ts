@@ -48,6 +48,7 @@ export default async function recommendationRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/recommendations',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: RecommendationQuery })],
     },
     async (request: any, reply) => {
@@ -120,6 +121,7 @@ export default async function recommendationRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/users/me/recommendation-signals',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: RecommendationSignalBody })],
     },
     async (request: any, reply) => {

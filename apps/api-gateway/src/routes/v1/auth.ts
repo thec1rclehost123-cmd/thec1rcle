@@ -580,6 +580,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/login',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: LoginSchema })],
     },
     async (request: any, reply) => {
@@ -616,6 +617,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/register',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: RegisterSchema })],
     },
     async (request: any, reply) => {
@@ -704,6 +706,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/password-reset',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PasswordResetSchema })],
     },
     async (request: any, reply) => {
@@ -730,6 +733,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/change-password',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ChangePasswordSchema })],
     },
     async (request: any, reply) => {
@@ -827,6 +831,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/create-account',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CreateAccountSchema })],
     },
     async (request: any, reply) => {
@@ -924,6 +929,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/check-availability',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CheckAvailabilitySchema })],
     },
     async (request: any, reply) => {
@@ -1011,6 +1017,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/google/start',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: GoogleStartQuerySchema })],
     },
     async (request: any, reply) => {
@@ -1038,6 +1045,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/google/callback',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: GoogleCallbackQuerySchema })],
     },
     async (request: any, reply) => {
@@ -1185,6 +1193,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/onboarding-progress',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: OnboardingProgressSchema })],
     },
     async (request: any, reply) => {
@@ -1281,6 +1290,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/onboard',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: OnboardSchema })],
     },
     async (request: any, reply) => {
@@ -1371,6 +1381,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/onboard-status',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1417,6 +1428,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/host-verification',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: HostVerificationSchema })],
     },
     async (request: any, reply) => {
@@ -1461,6 +1473,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partner-context',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {

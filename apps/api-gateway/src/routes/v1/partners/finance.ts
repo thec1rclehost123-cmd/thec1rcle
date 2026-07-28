@@ -282,6 +282,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/finance/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -327,6 +328,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/finance/ledger',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: LedgerQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -361,6 +363,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/finance/payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: PayoutsQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -394,6 +397,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/finance/balances',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -427,6 +431,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -458,6 +463,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partners/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: BankAccountSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -517,6 +523,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/partners/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -561,6 +568,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/finance/disputes',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: DisputesQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {

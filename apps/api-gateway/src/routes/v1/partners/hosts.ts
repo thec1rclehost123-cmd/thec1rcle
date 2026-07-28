@@ -1472,6 +1472,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/hosts/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: OverviewQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1573,6 +1574,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/hosts/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: EventFiltersSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1641,6 +1643,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/hosts/events/:eventId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1689,6 +1692,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/hosts/venue-calendar',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: CalendarQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1726,7 +1730,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/partners/hosts/calendar',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth] },
     async (request: any, reply: any) =>
       reply.status(410).send(
         buildErrorResponse({
@@ -1745,6 +1751,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/hosts/slot-requests',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1861,6 +1868,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partners/hosts/slot-requests',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: SlotRequestSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1901,6 +1909,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/hosts/settings',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -2168,6 +2177,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/hosts/team',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -2289,6 +2299,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/partners/hosts/team/:memberId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: TeamMemberPatch }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -2328,6 +2339,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/partners/hosts/team/:memberId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -2365,6 +2377,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partners/hosts/upload',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {

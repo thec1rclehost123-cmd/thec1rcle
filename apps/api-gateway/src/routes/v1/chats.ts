@@ -105,6 +105,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/chats',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: ChatListQuery })],
     },
     async (request: any, reply) => {
@@ -142,6 +143,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/chats/:id/messages',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: ChatParams, querystring: ChatMessagesQuery }),
@@ -183,6 +185,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/chats/:id/messages',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: ChatParams, body: SendChatMessageBody }),
@@ -242,6 +245,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/chats/:chatId/messages/:messageId/report',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: ReportMessageParams, body: ReportMessageBody }),

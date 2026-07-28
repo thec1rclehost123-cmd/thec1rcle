@@ -306,6 +306,7 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/me',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -356,6 +357,7 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/wallet/:walletId/qr-jwt',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: WalletParams })],
     },
     async (request: any, reply) => {
@@ -394,6 +396,7 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/wallet/by-order/:orderId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: WalletByOrderParams })],
     },
     async (request: any, reply) => {
@@ -452,6 +455,7 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/debit',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: DebitBody })],
     },
     async (request: any, reply) => {
@@ -649,6 +653,7 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/freeze',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: FreezeBody })],
     },
     async (request: any, reply) => {
@@ -669,6 +674,7 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/unfreeze',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: UnfreezeBody })],
     },
     async (request: any, reply) => {
@@ -697,6 +703,7 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/wallet/:walletId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: WalletParams })],
     },
     async (request: any, reply) => {
@@ -756,6 +763,7 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/reconciliation',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: ReconciliationQuery })],
     },
     async (request: any, reply) => {

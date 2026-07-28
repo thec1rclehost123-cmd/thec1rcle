@@ -198,6 +198,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/payments/verify',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: PaymentVerifyBody })],
     },
     async (request: { body: any; user: any }, reply) => {

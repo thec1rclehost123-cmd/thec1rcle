@@ -35,6 +35,7 @@ export default async function matchingRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/feed',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: MatchFeedQuery })],
     },
     async (request: any, reply) => {
@@ -72,6 +73,7 @@ export default async function matchingRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/swipe',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: SwipeBody })],
     },
     async (request: any, reply) => {
@@ -111,6 +113,7 @@ export default async function matchingRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/report',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ReportBody })],
     },
     async (request: any, reply) => {

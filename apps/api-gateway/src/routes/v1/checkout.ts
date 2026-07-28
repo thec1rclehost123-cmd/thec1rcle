@@ -239,6 +239,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/calculate',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CheckoutCalculateBody })],
     },
     async (request: any, reply) => {
@@ -340,6 +341,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/validate',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CheckoutValidateBody })],
     },
     async (request: any, reply) => {
@@ -362,6 +364,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/promo',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutPromoBody })],
     },
     async (request: { body: any; user: any }, reply) => {
@@ -417,6 +420,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/reserve',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutReserveBody })],
     },
     async (request: any, reply) => {
@@ -486,6 +490,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/intent',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutIntentBody })],
     },
     async (request: any, reply) => {
@@ -959,6 +964,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/failure',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutFailureBody })],
     },
     async (request: any, reply) => {

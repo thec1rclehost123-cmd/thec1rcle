@@ -575,6 +575,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/chat',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ChatMessageBody })],
     },
     async (request: any, reply) => {
@@ -700,6 +701,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/can-dm',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({
           body: z.object({ recipientId: z.string(), eventId: z.string() }).strict(),
@@ -776,6 +778,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/mute',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({
           body: z
@@ -900,6 +903,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/remove-from-chat',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({
           body: z
@@ -1013,6 +1017,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/media',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({
           body: z
@@ -1078,6 +1083,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/unblock',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: z.object({ targetUid: z.string() }).strict() })],
     },
     async (request: any, reply) => {
@@ -1155,7 +1161,9 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/social/emergency-contacts',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth] },
     async (request: any) => {
       const snapshot = await fastify.db
         .collection('emergency_contacts')
@@ -1180,6 +1188,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.put(
     '/social/emergency-contacts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: EmergencyContactsBody })],
     },
     async (request: any) => {
@@ -1300,6 +1309,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/location/start',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: LocationStartBody })],
     },
     async (request: any, reply) => {
@@ -1346,6 +1356,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/social/location/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({
@@ -1406,6 +1417,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/location/:id/invites',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({
@@ -1478,6 +1490,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/location/invites/:id/accept',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: LocationSessionParams })],
     },
     async (request: any, reply) => {
@@ -1521,6 +1534,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/social/location/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: LocationSessionParams })],
     },
     async (request: any, reply) => {
@@ -1577,6 +1591,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/location/:id/stop',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: LocationSessionParams })],
     },
     async (request: any, reply) => {
@@ -1600,6 +1615,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/social/location/:id/grants/:targetUserId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: LocationGrantParams })],
     },
     async (request: any, reply) => {
@@ -1784,6 +1800,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/dm/request',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({
           body: z
@@ -1906,6 +1923,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/dm/:id/send',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({
           body: z
@@ -2050,6 +2068,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/typing',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({
           body: z
@@ -2176,6 +2195,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/report',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ReportBody })],
     },
     async (request: any, reply) => {
@@ -2221,6 +2241,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/block',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: BlockBody })],
     },
     async (request: any, reply) => {
@@ -2345,6 +2366,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/swipe',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: SwipeBody })],
     },
     async (request: any, reply: any) => {
@@ -2393,6 +2415,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/social/matches',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({
           querystring: z
@@ -2443,6 +2466,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/users/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: UserIdParam })],
     },
     async (request: any, reply: any) => {

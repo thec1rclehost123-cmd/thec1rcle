@@ -58,6 +58,7 @@ export default async function cronRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/cron/process-cover-expiry-refunds',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: RetryCoverExpiryRefundBody })],
     },
     async (request: any, reply) => {
@@ -105,6 +106,7 @@ export default async function cronRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/cron/retry-ticket-purchase-outbox',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: RetryTicketPurchaseOutboxBody })],
     },
     async (request: any, reply) => {
@@ -144,6 +146,7 @@ export default async function cronRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/cron/archive-chats',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ArchiveChatsBody })],
     },
     async (request: any, reply) => {

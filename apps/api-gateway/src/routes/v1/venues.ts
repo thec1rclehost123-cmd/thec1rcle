@@ -147,6 +147,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -164,6 +165,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: VenueProfilePatch })],
     },
     async (request: any, reply) => {
@@ -194,6 +196,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/partnerships',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -217,6 +220,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/partnerships/:partnershipId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -244,6 +248,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/notifications',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -290,6 +295,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/notifications/read',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: NotificationsReadBody })],
     },
     async (request: any, reply) => {
@@ -321,6 +327,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/orders',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueOrdersQuery })],
     },
     async (request: any, reply) => {
@@ -373,6 +380,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/analytics/time-series',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: TimeSeriesSchema })],
     },
     async (request: any, reply) => {
@@ -486,6 +494,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/analytics/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -534,6 +543,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/overview/summary',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -613,6 +623,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -630,6 +641,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/overview/tonight',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -668,6 +680,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/page',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -693,6 +706,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/page',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -721,6 +735,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/crm/online',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueCrmQuery })],
     },
     async (request: any, reply) => {
@@ -770,6 +785,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueEventsSchema })],
     },
     async (request: any, reply) => {
@@ -810,6 +826,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -849,6 +866,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/events/requests',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -880,6 +898,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/orders/latest',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -912,6 +931,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/staff',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -932,6 +952,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/staff-profiles',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -950,6 +971,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/staff-profiles/assignments',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -968,6 +990,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/staff-profiles/assign',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -986,6 +1009,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/staff',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1014,6 +1038,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/staff',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1047,6 +1072,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/venue/staff',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1073,6 +1099,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/staff/:memberId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1096,6 +1123,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/venue/staff/:memberId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1119,6 +1147,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/events/:id/tickets',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1148,6 +1177,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/slots',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1179,6 +1209,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/slots/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1197,6 +1228,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/slots/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1382,6 +1414,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/cover-recon',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: CoverReconQuery })],
     },
     async (request: any, reply) => {
@@ -1484,6 +1517,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/calendar',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1558,6 +1592,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/calendar',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1623,6 +1658,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/venue/calendar',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1851,6 +1887,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/upload',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1888,6 +1925,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/presence',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1925,6 +1963,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venues',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: VenueDirectoryQuery })],
     },
     async (request: any, reply: any) => {
@@ -1942,6 +1981,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venues/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: VenuePublicIdParam })],
     },
     async (request: any, reply: any) => {
@@ -1962,6 +2002,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venues/:id/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: VenuePublicIdParam })],
     },
     async (request: any, reply: any) => {

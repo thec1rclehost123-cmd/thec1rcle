@@ -157,6 +157,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         async (request) => {
           if ((fastify as any).requireAuth) await (fastify as any).requireAuth(request);
@@ -272,6 +273,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         async (request) => {
           if ((fastify as any).requireAuth) await (fastify as any).requireAuth(request);
@@ -408,6 +410,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/profiles/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: ProfileIdParam, querystring: ProfileTypeQuery })],
     },
     async (request: any, reply) => {
@@ -483,6 +486,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/profiles',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         async (request) => {
           if ((fastify as any).requireAuth) await (fastify as any).requireAuth(request);
@@ -583,6 +587,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/users/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: UserProfileCreateBody })],
     },
     async (request: any, reply) => {

@@ -65,6 +65,7 @@ export default async function registerRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/:venueId/:date',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requirePartnerAccess((req) => (req.params as any).venueId),
         fastify.validate({ params: VenueDateParams }),
@@ -82,6 +83,7 @@ export default async function registerRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/:venueId/range',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requirePartnerAccess((req) => (req.params as any).venueId),
         fastify.validate({ params: RangeParams, querystring: RangeQuery }),
@@ -108,6 +110,7 @@ export default async function registerRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/:venueId/:date',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requirePartnerAccess((req) => (req.params as any).venueId),
         fastify.validate({ params: VenueDateParams, body: PatchBody }),

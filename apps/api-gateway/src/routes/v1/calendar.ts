@@ -61,6 +61,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requirePartnerAccess((req) => (req.params as any).id),
         fastify.validate({ params: VenueIdParam, querystring: DateRangeQuery }),
@@ -85,6 +86,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/block',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requirePartnerAccess((req) => (req.body as any).venueId),
         fastify.validate({ body: BlockDateBody }),
@@ -108,6 +110,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/block',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requirePartnerAccess((req) => (req.body as any).venueId),
         fastify.validate({ body: UnblockDateBody }),
@@ -130,6 +133,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/slots/request',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: SlotRequestBody })],
     },
     async (request, reply) => {
@@ -150,6 +154,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/slots/respond',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: SlotRespondBody })],
     },
     async (request: any, reply) => {
@@ -184,6 +189,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/operating',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: OperatingQuery })],
     },
     async (request: any, reply) => {

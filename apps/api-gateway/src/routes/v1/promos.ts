@@ -44,6 +44,7 @@ export default async function promoRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/event/:eventId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: EventIdParam })],
     },
     async (request: any, reply) => {
@@ -70,6 +71,7 @@ export default async function promoRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: PromoIdParam })],
     },
     async (request, reply) => {
@@ -89,6 +91,7 @@ export default async function promoRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: CreatePromoBody })],
     },
     async (request: any, reply) => {
@@ -115,6 +118,7 @@ export default async function promoRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/validate',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: ValidatePromoBody })],
     },
     async (request: any, reply) => {
