@@ -19,6 +19,29 @@ import {
 } from 'lucide-react';
 import AdminConfirmModal from '@/components/admin/AdminConfirmModal';
 
+const TIER2_ACTIONS = [
+  'ONBOARDING_APPROVE',
+  'VENUE_SUSPEND',
+  'VENUE_REINSTATE',
+  'USER_BAN',
+  'FINANCIAL_REFUND',
+  'PAYOUT_BATCH_RUN',
+  'HOST_SUSPEND',
+  'HOST_REINSTATE',
+  'PROMOTER_SUSPEND',
+  'PROMOTER_ACTIVATE',
+];
+
+const TIER3_ACTIONS = [
+  'ADMIN_PROVISION',
+  'ADMIN_ACCESS_REVOKE',
+  'COMMISSION_ADJUST',
+  'PAYOUT_FREEZE',
+  'IDENTITY_SUSPEND',
+  'IDENTITY_REINSTATE',
+  'ADMIN_ROLE_UPDATE',
+];
+
 export default function AdminProposals() {
   const { user, profile } = useAuth();
   const [proposals, setProposals] = useState([]);
@@ -74,7 +97,7 @@ export default function AdminProposals() {
       setSelectedProp(null);
       setModalConfig(null);
     } catch (err) {
-      alert(err.message);
+      throw err;
     }
   };
 
@@ -258,31 +281,169 @@ export default function AdminProposals() {
                   <h3 className="text-2xl font-semibold tracking-tight text-white uppercase">
                     {selectedProp.action?.replace(/_/g, ' ')}
                   </h3>
-                  <p className="text-sm font-medium text-zinc-500 leading-relaxed italic">
-                    &quot;{selectedProp.reason || 'No reason provided.'}&quot;
-                  </p>
                 </div>
 
                 <div className="space-y-6">
-                  <div className="p-5 rounded-xl bg-white/[0.02] border border-[#ffffff05] space-y-4 shadow-inner">
-                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-zinc-600">
-                      <span>Requested By</span>
-                      <span>Admin Role</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-white truncate pr-4">
-                        {selectedProp.proposerId?.slice(0, 16)}
-                      </span>
-                      <span className="text-[10px] font-bold uppercase text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                        {selectedProp.proposerRole}
-                      </span>
+                  {/* --- TARGET RESOURCE CARD --- */}
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 px-1">
+                      Target Resource
+                    </p>
+                    <div className="p-5 rounded-xl bg-white/[0.02] border border-[#ffffff05] space-y-3 shadow-inner">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="font-bold text-zinc-600 uppercase tracking-widest">
+                          Type:
+                        </span>
+                        <span className="font-bold text-zinc-400 uppercase tracking-widest">
+                          {selectedProp.target?.type || selectedProp.targetType || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="font-bold text-zinc-600 uppercase tracking-widest">
+                          Identifier:
+                        </span>
+                        <span className="font-mono text-zinc-400 select-all font-semibold">
+                          {selectedProp.target?.id || selectedProp.targetId || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="font-bold text-zinc-600 uppercase tracking-widest">
+                          Name:
+                        </span>
+                        <span className="font-bold text-white truncate max-w-[200px]">
+                          {selectedProp.target?.name || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="font-bold text-zinc-600 uppercase tracking-widest">
+                          Contact Email:
+                        </span>
+                        <span className="font-bold text-zinc-400 select-all max-w-[200px] truncate">
+                          {selectedProp.target?.email || 'N/A'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
+                  {/* --- PROPOSER ADMIN CARD --- */}
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 px-1">
+                      Proposed By (Admin 1)
+                    </p>
+                    <div className="p-5 rounded-xl bg-white/[0.02] border border-[#ffffff05] space-y-4 shadow-inner">
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="font-bold text-zinc-600 uppercase tracking-widest">
+                          Name:
+                        </span>
+                        <span className="font-bold text-white">
+                          {selectedProp.proposer?.name || 'Unknown Admin'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="font-bold text-zinc-600 uppercase tracking-widest">
+                          Email:
+                        </span>
+                        <span className="font-bold text-zinc-400 select-all">
+                          {selectedProp.proposer?.email || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="font-bold text-zinc-600 uppercase tracking-widest">
+                          Role Clearance:
+                        </span>
+                        <span className="text-[9px] font-bold uppercase text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                          {selectedProp.proposer?.role || selectedProp.proposerRole || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="font-bold text-zinc-600 uppercase tracking-widest">
+                          Admin ID:
+                        </span>
+                        <span className="font-mono text-zinc-500 select-all">
+                          {(selectedProp.proposer?.id || selectedProp.proposerId || 'N/A').slice(
+                            0,
+                            16,
+                          )}
+                        </span>
+                      </div>
+                      <div className="pt-2 border-t border-[#ffffff05] space-y-1">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+                          Operational Logic:
+                        </span>
+                        <p className="text-xs font-medium text-zinc-400 leading-relaxed italic break-words">
+                          &quot;
+                          {selectedProp.proposer?.reason ||
+                            selectedProp.reason ||
+                            'No justification provided.'}
+                          &quot;
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* --- RESOLVER ADMIN CARD --- */}
+                  {(selectedProp.status !== 'pending' || selectedProp.resolverId) && (
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 px-1">
+                        Resolved By (Admin 2)
+                      </p>
+                      <div className="p-5 rounded-xl bg-white/[0.02] border border-[#ffffff05] space-y-4 shadow-inner">
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="font-bold text-zinc-600 uppercase tracking-widest">
+                            Name:
+                          </span>
+                          <span className="font-bold text-white">
+                            {selectedProp.resolver?.name || 'Unknown Admin'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="font-bold text-zinc-600 uppercase tracking-widest">
+                            Email:
+                          </span>
+                          <span className="font-bold text-zinc-400 select-all">
+                            {selectedProp.resolver?.email || 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="font-bold text-zinc-600 uppercase tracking-widest">
+                            Role Clearance:
+                          </span>
+                          <span className="text-[9px] font-bold uppercase text-iris bg-iris/10 px-2 py-0.5 rounded border border-iris/20">
+                            {selectedProp.resolver?.role || selectedProp.resolverRole || 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="font-bold text-zinc-600 uppercase tracking-widest">
+                            Admin ID:
+                          </span>
+                          <span className="font-mono text-zinc-500 select-all">
+                            {(selectedProp.resolver?.id || selectedProp.resolverId || 'N/A').slice(
+                              0,
+                              16,
+                            )}
+                          </span>
+                        </div>
+                        <div className="pt-2 border-t border-[#ffffff05] space-y-1">
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+                            Resolution Logic:
+                          </span>
+                          <p className="text-xs font-medium text-zinc-400 leading-relaxed italic break-words">
+                            &quot;
+                            {selectedProp.resolver?.reason ||
+                              selectedProp.resolutionReason ||
+                              'No resolution message provided.'}
+                            &quot;
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* --- ACTION PARAMS DATA --- */}
                   {selectedProp.params && Object.keys(selectedProp.params).length > 0 && (
                     <div className="space-y-3">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 px-1">
-                        Action Data
+                        Execution Data
                       </p>
                       <div className="p-5 rounded-xl bg-zinc-900/50 border border-white/5 space-y-3 shadow-inner overflow-hidden">
                         {Object.entries(selectedProp.params).map(([key, val]) => (
@@ -302,6 +463,7 @@ export default function AdminProposals() {
                     </div>
                   )}
 
+                  {/* --- ACTIONS BUTTONS --- */}
                   {selectedProp.status === 'pending' && (
                     <div className="flex flex-col gap-3 pt-2">
                       <button
@@ -355,6 +517,12 @@ export default function AdminProposals() {
           }
           actionLabel={modalConfig.label}
           type={modalConfig.status === 'approved' ? 'info' : 'danger'}
+          isTier2={
+            modalConfig.status === 'approved' && TIER2_ACTIONS.includes(selectedProp?.action)
+          }
+          isTier3={
+            modalConfig.status === 'approved' && TIER3_ACTIONS.includes(selectedProp?.action)
+          }
         />
       )}
     </div>

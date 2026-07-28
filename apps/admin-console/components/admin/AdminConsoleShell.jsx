@@ -89,6 +89,7 @@ const navGroups = [
     id: 'governance',
     label: 'Governance',
     items: [
+      { label: 'Action Proposals', href: '/proposals', icon: Clock, minRole: 'support' },
       { label: 'Support', href: '/support', icon: ShieldCheck, minRole: 'support' },
       { label: 'Safety', href: '/safety', icon: ShieldAlert, minRole: 'content' },
     ],

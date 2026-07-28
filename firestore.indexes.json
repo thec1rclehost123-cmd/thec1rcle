@@ -611,20 +611,6 @@
       ]
     },
     {
-      "collectionGroup": "orders",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "venueId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "promoter_links",
       "queryScope": "COLLECTION",
       "fields": [
@@ -1653,33 +1639,73 @@
       ]
     },
     {
-      "collectionGroup": "events",
+      "collectionGroup": "rsvp_orders",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "venueId",
+          "fieldPath": "promoterCode",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "startDate",
+          "fieldPath": "createdAt",
           "order": "DESCENDING"
         }
       ]
     },
     {
-      "collectionGroup": "events",
+      "collectionGroup": "rsvp_orders",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "venueId",
+          "fieldPath": "promoterCode",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "lifecycle",
+          "fieldPath": "eventId",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "startDate",
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "rsvp_orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "promoterCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "rsvp_orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "promoterCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
           "order": "DESCENDING"
         }
       ]

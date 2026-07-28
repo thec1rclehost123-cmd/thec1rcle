@@ -27,6 +27,8 @@ export const TIER1_ACTIONS = [
 
 export const ALLOWLIST_ACTIONS = [
   ...TIER1_ACTIONS,
+  'ACTION_APPROVE',
+  'ACTION_REJECT',
   'ONBOARDING_APPROVE',
   'ONBOARDING_REJECT',
   'ONBOARDING_REQUEST_CHANGES',
@@ -123,7 +125,7 @@ export const adminStore = {
       throw err;
     }
 
-    return true;
+    return TIER2_ACTIONS.includes(action) || TIER3_ACTIONS.includes(action);
   },
 
   async proposeAction(
@@ -134,6 +136,110 @@ export const adminStore = {
   ) {
     const db = getAdminDb();
     const proposalId = `prop_${Date.now()}_${Math.random().toString(36).slice(-4)}`;
+
+    // Check if a pending proposal for the same action and targetId already exists to prevent duplicate requests
+    if (action && targetId) {
+      const existingQuery = await db
+        .collection('proposed_actions')
+        .where('action', '==', action)
+        .where('targetId', '==', targetId)
+        .where('status', '==', 'pending')
+        .limit(1)
+        .get();
+
+      if (!existingQuery.empty) {
+        throw new Error(
+          'Governance Policy: A pending proposal for this action on this target already exists.',
+        );
+      }
+    }
+
+    // Resolve target details (Name and Email) dynamically
+    let targetName = null;
+    let targetEmail = null;
+
+    if (targetId && targetType) {
+      try {
+        const COLLECTION_MAP = {
+          venue: 'venues',
+          host: 'hosts',
+          promoter: 'promoters',
+          event: 'events',
+          order: 'orders',
+          admin: 'admins',
+          ticket: 'tickets',
+          webhook: 'failed_webhooks',
+          support_ticket: 'support_tickets',
+          safety_report: 'safety_reports',
+          user: 'users',
+          onboarding_request: 'onboarding_requests',
+        };
+        const col = COLLECTION_MAP[targetType];
+        if (col) {
+          const snap = await db.collection(col).doc(targetId).get();
+          if (snap.exists) {
+            const data = snap.data() || {};
+
+            // Name resolution
+            if (targetType === 'venue') {
+              targetName = data.name || data.venueName || null;
+            } else if (targetType === 'event') {
+              targetName = data.title || data.name || null;
+            } else if (targetType === 'user') {
+              targetName = data.displayName || data.name || null;
+            } else if (targetType === 'onboarding_request') {
+              targetName = data.data?.name || data.name || null;
+            } else {
+              targetName = data.name || data.displayName || null;
+            }
+
+            // Email resolution
+            targetEmail = data.email || data.contactEmail || data.ownerEmail || null;
+
+            // Deep email resolution via ownerUid if email is not directly on the document
+            if (!targetEmail && data.ownerUid) {
+              const ownerSnap = await db.collection('users').doc(data.ownerUid).get();
+              if (ownerSnap.exists) {
+                targetEmail = ownerSnap.data().email || null;
+              }
+            } else if (!targetEmail && data.uid) {
+              const userSnap = await db.collection('users').doc(data.uid).get();
+              if (userSnap.exists) {
+                targetEmail = userSnap.data().email || null;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to resolve target metadata:', err);
+      }
+    }
+
+    // Resolve proposer details (Name and Email) dynamically
+    const proposerName = context?.actorName || context?.adminName || null;
+    const proposerEmail = context?.actorEmail || context?.adminEmail || null;
+    let proposerEmailResolved = proposerEmail;
+    let proposerNameResolved = proposerName;
+
+    if ((!proposerEmailResolved || !proposerNameResolved) && adminId && adminId !== 'system') {
+      try {
+        const adminDoc = await db.collection('admins').doc(adminId).get();
+        if (adminDoc.exists) {
+          const ad = adminDoc.data();
+          proposerEmailResolved = ad.email || null;
+          proposerNameResolved = ad.displayName || null;
+        } else {
+          const userDoc = await db.collection('users').doc(adminId).get();
+          if (userDoc.exists) {
+            const ud = userDoc.data();
+            proposerEmailResolved = ud.email || null;
+            proposerNameResolved = ud.displayName || null;
+          }
+        }
+      } catch (_) {
+        // ignore
+      }
+    }
 
     const proposal = {
       id: proposalId,
@@ -151,6 +257,19 @@ export const adminStore = {
       context: {
         ...(context || {}),
         riskScore: TIER3_ACTIONS.includes(action) ? 90 : 60,
+      },
+      proposer: {
+        id: adminId,
+        name: proposerNameResolved || 'Unknown Admin',
+        email: proposerEmailResolved || 'N/A',
+        role: role,
+        reason: reason || '',
+      },
+      target: {
+        id: targetId,
+        type: targetType,
+        name: targetName || 'Unknown Resource',
+        email: targetEmail || 'N/A',
       },
     };
 
@@ -171,7 +290,32 @@ export const adminStore = {
     const db = getAdminDb();
     const propRef = db.collection('proposed_actions').doc(proposalId);
 
-    return await db.runTransaction(async (transaction) => {
+    // Resolve resolver details (Name and Email) dynamically
+    let resolverEmail = context?.actorEmail || context?.adminEmail || null;
+    let resolverName = context?.actorName || context?.adminName || null;
+
+    if ((!resolverEmail || !resolverName) && resolverId && resolverId !== 'system') {
+      try {
+        const adminDoc = await db.collection('admins').doc(resolverId).get();
+        if (adminDoc.exists) {
+          const ad = adminDoc.data();
+          resolverEmail = ad.email || null;
+          resolverName = ad.displayName || null;
+        } else {
+          const userDoc = await db.collection('users').doc(resolverId).get();
+          if (userDoc.exists) {
+            const ud = userDoc.data();
+            resolverEmail = ud.email || null;
+            resolverName = ud.displayName || null;
+          }
+        }
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    // 1. Run the transaction to update the status of the proposal safely and atomically.
+    const proposalData = await db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(propRef);
       if (!snapshot.exists) {
         const err = new Error('Proposal not found.');
@@ -192,37 +336,68 @@ export const adminStore = {
         throw err;
       }
 
+      if (status === 'approved') {
+        // Validate that the resolver has the authority to execute the proposed action
+        await adminStore.validateAuthority(
+          resolverId,
+          resolverRole,
+          proposal.action,
+          proposal.targetId,
+        );
+      }
+
       transaction.update(propRef, {
         status,
         resolverId,
         resolverRole,
         resolutionReason,
         resolvedAt: FieldValue.serverTimestamp(),
+        resolver: {
+          id: resolverId,
+          name: resolverName || 'Unknown Admin',
+          email: resolverEmail || 'N/A',
+          role: resolverRole,
+          reason: resolutionReason || '',
+        },
       });
 
-      if (status === 'approved') {
-        // Execute the actual action
-        await this.executeAction(
-          proposal.action,
-          proposal.targetId,
-          proposal.params,
-          resolverId,
-          proposal.reason,
-          proposal.evidence,
-          context,
-        );
-      }
-
-      await this.logAdminAction({
-        adminId: resolverId,
-        action: status === 'approved' ? 'AUTHORITY_GRANTED' : 'AUTHORITY_DENIED',
-        targetId: proposalId,
-        targetType: 'proposal',
-        reason: resolutionReason || `Proposal ${status}`,
-      });
-
-      return { success: true };
+      return {
+        alreadyProcessed: false,
+        action: proposal.action,
+        targetId: proposal.targetId,
+        params: proposal.params,
+        reason: proposal.reason,
+        evidence: proposal.evidence,
+      };
     });
+
+    if (proposalData.alreadyProcessed) {
+      return { alreadyProcessed: true, status: proposalData.status };
+    }
+
+    // 2. If approved, execute the actual action outside/after the transaction.
+    if (status === 'approved') {
+      await adminStore.executeAction(
+        proposalData.action,
+        proposalData.targetId,
+        proposalData.params,
+        resolverId,
+        proposalData.reason,
+        proposalData.evidence,
+        context,
+      );
+    }
+
+    // 3. Log the admin action outside/after the transaction.
+    await adminStore.logAdminAction({
+      adminId: resolverId,
+      action: status === 'approved' ? 'AUTHORITY_GRANTED' : 'AUTHORITY_DENIED',
+      targetId: proposalId,
+      targetType: 'proposal',
+      reason: resolutionReason || `Proposal ${status}`,
+    });
+
+    return { success: true };
   },
 
   async executeAction(action, targetId, params, adminId, reason, evidence, context) {
@@ -262,6 +437,12 @@ export const adminStore = {
         break;
       case 'VENUE_SUSPEND':
         await this.updateVenueStatus(targetId, 'suspended', adminId, reason, evidence, context);
+        break;
+      case 'VENUE_REINSTATE':
+        await this.updateVenueStatus(targetId, 'active', adminId, reason, evidence, context);
+        break;
+      case 'EVENT_PAUSE':
+        await this.setEventStatus(targetId, 'pause', adminId, reason, evidence);
         break;
       case 'HOST_SUSPEND':
         await this.updateHostStatus(targetId, 'suspended', adminId, reason, evidence, context);
