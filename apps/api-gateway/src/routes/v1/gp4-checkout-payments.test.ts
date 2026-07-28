@@ -487,6 +487,9 @@ describe('GP-4 gateway checkout/payment routes', () => {
       'ord_1',
       'user_1',
       expect.any(Object),
+      expect.objectContaining({
+        id: 'ord_1',
+      }),
     );
 
     await server.close();
