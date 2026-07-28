@@ -1732,7 +1732,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     '/partners/hosts/calendar',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) =>
       reply.status(410).send(
         buildErrorResponse({

@@ -209,7 +209,8 @@ export default async function userRoutes(fastify: FastifyInstance) {
     '/users/me/onboarding',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const { getGuestOnboardingSnapshot } =
@@ -349,7 +350,8 @@ export default async function userRoutes(fastify: FastifyInstance) {
     '/users/me/onboarding/complete',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const { completeGuestOnboarding } = await import('@c1rcle/core/guest-onboarding-service');
@@ -374,7 +376,8 @@ export default async function userRoutes(fastify: FastifyInstance) {
     '/users/me/subscription',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const { getGuestSubscriptionContext } =

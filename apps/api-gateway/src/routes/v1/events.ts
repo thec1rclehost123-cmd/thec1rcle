@@ -1764,7 +1764,8 @@ export default async function eventRoutes(fastify: FastifyInstance) {
     '/events',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.validate({ querystring: ExploreEventListQuery })] },
+      preHandler: [fastify.validate({ querystring: ExploreEventListQuery })],
+    },
     async (request: any, reply) => {
       try {
         const { lifecycle, creatorId, venueId } = request.query || {};
@@ -1952,7 +1953,8 @@ export default async function eventRoutes(fastify: FastifyInstance) {
     '/events/featured',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.validate({ querystring: ExploreFeaturedEventListQuery })] },
+      preHandler: [fastify.validate({ querystring: ExploreFeaturedEventListQuery })],
+    },
     async (request: any, reply) => {
       try {
         await enforcePublicRateLimit(fastify, request, 'events:featured', 120, 60);
@@ -1998,7 +2000,8 @@ export default async function eventRoutes(fastify: FastifyInstance) {
     '/events/map',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.validate({ querystring: EventMapQuery })] },
+      preHandler: [fastify.validate({ querystring: EventMapQuery })],
+    },
     async (request: any, reply) => {
       try {
         await enforcePublicRateLimit(fastify, request, 'events:map', 180, 60);

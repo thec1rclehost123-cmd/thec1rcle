@@ -2545,7 +2545,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/profile',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2575,7 +2576,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/profile',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2614,7 +2616,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/guests',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2662,7 +2665,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/finance',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2692,7 +2696,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/payouts',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2722,7 +2727,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/finance/bank-accounts',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2768,7 +2774,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/finance/bank-accounts',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2807,7 +2814,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/finance/bank-accounts',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2841,7 +2849,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/notifications',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2966,7 +2975,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/notifications',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3024,7 +3034,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/commissions',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3103,7 +3114,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/leaderboard',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3253,7 +3265,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/stats',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3361,7 +3374,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/payouts',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       if (process.env.C1RCLE_PAYOUT_MUTATIONS_ENABLED !== 'true') {
         return reply.status(503).send(
@@ -3476,7 +3490,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/payouts',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       if (process.env.C1RCLE_PAYOUT_MUTATIONS_ENABLED !== 'true') {
         return reply.status(503).send(
@@ -3546,7 +3561,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/upload',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3649,7 +3665,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/partners/:id',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3694,7 +3711,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/settings',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3825,7 +3843,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/settings/notifications',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3875,7 +3894,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/settings/payout',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3917,7 +3937,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/settings/payout',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3961,7 +3982,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/settings/security/logout-all',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3992,7 +4014,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/settings/verification',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -4030,7 +4053,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     '/partners/promoters/settings/verification',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);

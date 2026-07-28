@@ -50,40 +50,50 @@ export default async function adminRoutes(fastify: FastifyInstance) {
    * GET /api/v1/admin/cache
    * Show Redis cache stats (keys per namespace, total keys, memory usage)
    */
-  fastify.get('/cache', {
+  fastify.get(
+    '/cache',
+    {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAdmin] }, async (_request: any, reply) => {
-    try {
-      const stats = await fastify.cache.getStats();
-      return { success: true, ...stats };
-    } catch (error: any) {
-      fastify.log.error(`Error in GET /admin/cache: ${error.message}`);
-      return reply.status(500).send({ error: 'Internal Server Error' });
-    }
-  });
+      preHandler: [fastify.requireAdmin],
+    },
+    async (_request: any, reply) => {
+      try {
+        const stats = await fastify.cache.getStats();
+        return { success: true, ...stats };
+      } catch (error: any) {
+        fastify.log.error(`Error in GET /admin/cache: ${error.message}`);
+        return reply.status(500).send({ error: 'Internal Server Error' });
+      }
+    },
+  );
 
   /**
    * DELETE /api/v1/admin/cache
    * Flush entire Redis cache
    */
-  fastify.delete('/cache', {
+  fastify.delete(
+    '/cache',
+    {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAdmin] }, async (request: any, reply) => {
-    try {
-      await fastify.cache.flushAll();
-      await fastify.db.collection('admin_audit_logs').add({
-        action: 'cache.flush_all',
-        actorId: request.user.uid,
-        actorEmail: request.user.email || null,
-        timestamp: new Date(),
-        requestId: request.id,
-      });
-      return { success: true, message: 'Entire cache flushed' };
-    } catch (error: any) {
-      fastify.log.error(`Error in DELETE /admin/cache: ${error.message}`);
-      return reply.status(500).send({ error: 'Internal Server Error' });
-    }
-  });
+      preHandler: [fastify.requireAdmin],
+    },
+    async (request: any, reply) => {
+      try {
+        await fastify.cache.flushAll();
+        await fastify.db.collection('admin_audit_logs').add({
+          action: 'cache.flush_all',
+          actorId: request.user.uid,
+          actorEmail: request.user.email || null,
+          timestamp: new Date(),
+          requestId: request.id,
+        });
+        return { success: true, message: 'Entire cache flushed' };
+      } catch (error: any) {
+        fastify.log.error(`Error in DELETE /admin/cache: ${error.message}`);
+        return reply.status(500).send({ error: 'Internal Server Error' });
+      }
+    },
+  );
 
   /**
    * DELETE /api/v1/admin/cache/:namespace

@@ -1163,7 +1163,8 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     '/social/emergency-contacts',
     {
       config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-      preHandler: [fastify.requireAuth] },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any) => {
       const snapshot = await fastify.db
         .collection('emergency_contacts')
