@@ -3,6 +3,7 @@ import {
   getDailyUsageDocumentId,
   resolveGuestSubscription,
 } from './guest-subscription-service.js';
+import { FieldPath } from 'firebase-admin/firestore';
 
 const USER_LIKES_COLLECTION = 'userLikes';
 const USER_MATCHES_COLLECTION = 'userMatches';
@@ -484,58 +485,92 @@ function firstNameOnly(nameStr) {
   return nameStr.trim().split(' ')[0];
 }
 
-export async function getUserMatches(db, userId) {
+export async function getUserMatches(db, userId, options = {}) {
   if (!userId) throw new Error('userId is required');
+  const pageSize = Math.min(Math.max(Number(options.limit) || 20, 1), 100);
+  const cursor = typeof options.cursor === 'string' ? options.cursor : '';
+  let cursorValues = null;
+  if (cursor) {
+    const cursorDocument = await db.collection(USER_MATCHES_COLLECTION).doc(cursor).get();
+    const cursorData = cursorDocument.data?.() || {};
+    if (
+      !cursorDocument.exists ||
+      (cursorData.user1Id !== userId && cursorData.user2Id !== userId) ||
+      !cursorData.matchedAt
+    ) {
+      throw new Error('Invalid matches cursor');
+    }
+    cursorValues = [cursorData.matchedAt, cursorDocument.id];
+  }
 
-  // Firestore requires a composite index for OR queries or we can run two parallel queries
-  // since userMatches has user1Id and user2Id
+  const buildQuery = (participantField) => {
+    let query = db
+      .collection(USER_MATCHES_COLLECTION)
+      .where(participantField, '==', userId)
+      .orderBy('matchedAt', 'desc')
+      .orderBy(FieldPath.documentId(), 'desc');
+    if (cursorValues) query = query.startAfter(...cursorValues);
+    return query.limit(pageSize + 1);
+  };
   const [snap1, snap2] = await Promise.all([
-    db.collection('userMatches').where('user1Id', '==', userId).get(),
-    db.collection('userMatches').where('user2Id', '==', userId).get(),
+    buildQuery('user1Id').get(),
+    buildQuery('user2Id').get(),
   ]);
 
-  const matchDocs = [...snap1.docs, ...snap2.docs];
+  const matchesById = new Map(
+    [...snap1.docs, ...snap2.docs].map((doc) => [doc.id, { id: doc.id, ...doc.data() }]),
+  );
+  const matches = [...matchesById.values()].sort((left, right) => {
+    const timeDelta = toMillis(right.matchedAt) - toMillis(left.matchedAt);
+    return timeDelta || right.id.localeCompare(left.id);
+  });
+  const hasMore = matches.length > pageSize;
+  const page = matches.slice(0, pageSize);
 
-  // Sort by matchedAt descending
-  const matches = matchDocs.map((doc) => ({ id: doc.id, ...doc.data() }));
-  matches.sort((a, b) => {
-    const timeA = a.matchedAt ? new Date(a.matchedAt).getTime() : 0;
-    const timeB = b.matchedAt ? new Date(b.matchedAt).getTime() : 0;
-    return timeB - timeA;
+  const otherUserIds = [
+    ...new Set(
+      page
+        .map((match) => (match.user1Id === userId ? match.user2Id : match.user1Id))
+        .filter(Boolean),
+    ),
+  ];
+  const profileSnapshots = await Promise.all(
+    Array.from({ length: Math.ceil(otherUserIds.length / 30) }, (_, index) =>
+      db
+        .collection('users')
+        .where(FieldPath.documentId(), 'in', otherUserIds.slice(index * 30, index * 30 + 30))
+        .get(),
+    ),
+  );
+  const profiles = new Map();
+  for (const snapshot of profileSnapshots) {
+    for (const document of snapshot.docs || []) {
+      const data = document.data() || {};
+      profiles.set(document.id, {
+        id: document.id,
+        firstName: firstNameOnly(data.name || data.displayName || data.fullName),
+        age: data.age || null,
+        photo:
+          Array.isArray(data.photos) && data.photos.length > 0
+            ? data.photos[0]
+            : data.photoURL || null,
+      });
+    }
+  }
+
+  const data = page.map((match) => {
+    const otherUserId = match.user1Id === userId ? match.user2Id : match.user1Id;
+    return {
+      matchId: match.id,
+      conversationId: match.conversationId,
+      matchedAt: match.matchedAt,
+      profile: profiles.get(otherUserId) || null,
+    };
   });
 
-  // Enrich with public profile of the other user
-  const enrichedMatches = await Promise.all(
-    matches.map(async (match) => {
-      const otherUserId = match.user1Id === userId ? match.user2Id : match.user1Id;
-      let otherProfile = null;
-
-      try {
-        const doc = await db.collection('users').doc(otherUserId).get();
-        if (doc.exists) {
-          const data = doc.data();
-          otherProfile = {
-            id: otherUserId,
-            firstName: firstNameOnly(data.name || data.displayName || data.fullName),
-            age: data.age || null,
-            photo:
-              Array.isArray(data.photos) && data.photos.length > 0
-                ? data.photos[0]
-                : data.photoURL || null,
-          };
-        }
-      } catch (e) {
-        console.warn('Failed to fetch profile for match', otherUserId);
-      }
-
-      return {
-        matchId: match.id,
-        conversationId: match.conversationId,
-        matchedAt: match.matchedAt,
-        profile: otherProfile,
-      };
-    }),
-  );
-
-  return enrichedMatches;
+  return {
+    data,
+    hasMore,
+    nextCursor: hasMore ? page[page.length - 1]?.id || null : null,
+  };
 }

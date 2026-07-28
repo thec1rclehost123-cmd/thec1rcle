@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PublicDiscoveryService } from '@c1rcle/core/public-discovery-service';
+import { MockFirestore } from '../test-utils/mock-firestore.js';
 
 function buildService() {
   const service = new PublicDiscoveryService({} as any);
@@ -7,6 +8,26 @@ function buildService() {
 }
 
 describe('PublicDiscoveryService', () => {
+  it('batch-loads pinned event cards by document ID in 30-item chunks', async () => {
+    const db = new MockFirestore();
+    const ids: string[] = [];
+    for (let index = 1; index <= 35; index += 1) {
+      const id = `event_${index}`;
+      ids.push(id);
+      db.seed(`event_card_index/${id}`, {
+        title: `Event ${index}`,
+        visibility: 'public',
+      });
+    }
+    const service = new PublicDiscoveryService(db as any) as any;
+
+    const events = await service.events.getByIds(ids);
+
+    expect(events).toHaveLength(35);
+    expect(events[0]).toMatchObject({ id: 'event_1', title: 'Event 1' });
+    expect(events[34]).toMatchObject({ id: 'event_35', title: 'Event 35' });
+  });
+
   it('keeps the unscoped Explore sort and limit on Firestore for indexed fields', async () => {
     const get = vi.fn(async () => ({ docs: [] }));
     const limit = vi.fn(() => ({ get }));
@@ -36,6 +57,35 @@ describe('PublicDiscoveryService', () => {
     });
 
     expect(orderBy).toHaveBeenCalledWith('heatScore', 'desc');
+    expect(limit).toHaveBeenCalledWith(24);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(unboundedGet).not.toHaveBeenCalled();
+  });
+
+  it('keeps price sorting on the indexed query instead of scanning the read model', async () => {
+    const get = vi.fn(async () => ({ docs: [] }));
+    const limit = vi.fn(() => ({ get }));
+    const orderBy = vi.fn(() => ({ limit }));
+    const unboundedGet = vi.fn(() => {
+      throw new Error('Price sorting must not scan event_card_index');
+    });
+    const query = {
+      where: vi.fn(() => query),
+      orderBy,
+      get: unboundedGet,
+    };
+    const service = new PublicDiscoveryService({
+      collection: vi.fn(() => query),
+    } as any) as any;
+
+    await service.events.queryList({
+      limit: 24,
+      orderByField: 'priceMin',
+      direction: 'asc',
+      cityKey: null,
+    });
+
+    expect(orderBy).toHaveBeenCalledWith('priceMin', 'asc');
     expect(limit).toHaveBeenCalledWith(24);
     expect(get).toHaveBeenCalledTimes(1);
     expect(unboundedGet).not.toHaveBeenCalled();
@@ -248,15 +298,17 @@ describe('PublicDiscoveryService', () => {
       })),
     };
     service.events = {
-      getByIdOrSlug: vi.fn(async (id: string) => ({
-        id,
-        visibility: 'public',
-        lifecycle: 'scheduled',
-        statusKey: 'upcoming',
-        cityKey: 'pune-in',
-        startAt: '2099-04-21T20:00:00.000Z',
-        endAt: '2099-04-22T04:00:00.000Z',
-      })),
+      getByIds: vi.fn(async (ids: string[]) =>
+        ids.map((id) => ({
+          id,
+          visibility: 'public',
+          lifecycle: 'scheduled',
+          statusKey: 'upcoming',
+          cityKey: 'pune-in',
+          startAt: '2099-04-21T20:00:00.000Z',
+          endAt: '2099-04-22T04:00:00.000Z',
+        })),
+      ),
       queryList: vi.fn(async () => [
         {
           id: 'event_heat',
@@ -297,7 +349,7 @@ describe('PublicDiscoveryService', () => {
     };
     service.events = {
       queryList: vi.fn(async () => []),
-      getByIdOrSlug: vi.fn(),
+      getByIds: vi.fn(async () => []),
     };
 
     await Promise.all([

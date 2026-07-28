@@ -137,6 +137,38 @@ export function generateOrderId(prefix = 'ORD') {
   return `${prefix}-${timestamp}-${random}`;
 }
 
+export function normalizeOrderSearchPrefix(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9@+._-]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, 64);
+}
+
+export function buildOrderSearchPrefixes(values) {
+  const prefixes = new Set();
+
+  for (const value of values) {
+    const normalized = normalizeOrderSearchPrefix(value);
+    if (!normalized) continue;
+
+    const candidates = new Set([normalized, ...normalized.split(' ')]);
+    for (const candidate of candidates) {
+      if (candidate.length < 2) continue;
+      const maxLength = Math.min(candidate.length, 64);
+      for (let length = 2; length <= maxLength; length += 1) {
+        prefixes.add(candidate.slice(0, length));
+        if (prefixes.size >= 200) return [...prefixes];
+      }
+    }
+  }
+
+  return [...prefixes];
+}
+
 /**
  * Builds a standardized Order payload
  */
@@ -190,6 +222,14 @@ export function buildOrderPayload(params) {
     userName: user.name,
     userEmail: user.email,
     userPhone: user.phone,
+    searchPrefixes: buildOrderSearchPrefixes([
+      orderId,
+      user.name,
+      user.email,
+      user.phone,
+      event.title,
+      ...pricing.items.map((item) => item.tierName),
+    ]),
     ticketCount,
     coverCreditLiabilityPaise: Number(pricing.coverCreditLiabilityPaise || 0),
     currency: pricing.currency || event.currency || 'INR',

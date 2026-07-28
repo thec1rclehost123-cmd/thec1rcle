@@ -1,5 +1,11 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { syncAuthUser } from '@c1rcle/core/user-service';
+import { buildGuestOnboardingSnapshot } from '@c1rcle/core/guest-onboarding-service';
+import {
+  buildGuestSubscriptionContext,
+  getDailyUsageDocumentId,
+} from '@c1rcle/core/guest-subscription-service';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 
 const ProfileUpdateBody = z
@@ -157,15 +163,10 @@ export default async function userRoutes(fastify: FastifyInstance) {
         const cached = await fastify.cache.get('auth-bootstrap', cacheKey);
         if (cached) return cached;
 
-        const [{ syncAuthUser }, onboardingService, subscriptionService] = await Promise.all([
-          import('@c1rcle/core/user-service'),
-          import('@c1rcle/core/guest-onboarding-service'),
-          import('@c1rcle/core/guest-subscription-service'),
-        ]);
         const now = new Date();
         const usageRef = fastify.db
           .collection('userDailyLimits')
-          .doc(subscriptionService.getDailyUsageDocumentId(userId, now));
+          .doc(getDailyUsageDocumentId(userId, now));
         // One canonical user read is enough for profile, onboarding, and
         // subscription bootstrap. The usage document is independent and can
         // load alongside it.
@@ -173,11 +174,8 @@ export default async function userRoutes(fastify: FastifyInstance) {
           syncAuthUser(fastify.db, userId, request.user),
           usageRef.get(),
         ]);
-        const snapshot = onboardingService.buildGuestOnboardingSnapshot(
-          profile,
-          guestAuthIdentity(request.user),
-        );
-        const subscriptionContext = subscriptionService.buildGuestSubscriptionContext(
+        const snapshot = buildGuestOnboardingSnapshot(profile, guestAuthIdentity(request.user));
+        const subscriptionContext = buildGuestSubscriptionContext(
           profile,
           usageSnapshot.exists ? usageSnapshot.data() || {} : {},
           now,

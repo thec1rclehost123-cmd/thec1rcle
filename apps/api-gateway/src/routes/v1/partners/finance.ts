@@ -38,6 +38,8 @@ const PayoutsQuerySchema = z
 const DisputesQuerySchema = z
   .object({
     status: z.string().optional(),
+    cursor: z.string().optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
   })
   .strict();
 
@@ -573,7 +575,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
         );
 
       try {
-        const result = await financeService.getDisputes(ctx, request.query.status);
+        const result = await financeService.getDisputes(ctx, request.query);
         return reply.header('Cache-Control', 'private, max-age=60').send(result);
       } catch (err: any) {
         return reply.status(500).send(

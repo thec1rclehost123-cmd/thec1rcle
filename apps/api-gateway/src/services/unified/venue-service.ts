@@ -1,4 +1,4 @@
-import type { Firestore } from 'firebase-admin/firestore';
+import { FieldPath, type Firestore } from 'firebase-admin/firestore';
 import type {
   PartnerContext,
   EventSummary,
@@ -19,6 +19,7 @@ import { consoleLogger } from './service-context.js';
 // Venue identity: ctx.partnerId is the venueId for venue_owner / venue_manager.
 
 export class VenueService {
+  private static readonly GUEST_OPS_PAGE_SIZE = 250;
   private db: Firestore;
   private log: ServiceLogger;
 
@@ -162,67 +163,106 @@ export class VenueService {
   // ── Guest Ops ─────────────────────────────────────────────────────────────
 
   async getGuestOps(ctx: PartnerContext, eventId: string): Promise<GuestOpsSummary> {
-    const [ordersSnap, checkInsSnap] = await Promise.all([
-      this.db
-        .collection('orders')
-        .where('eventId', '==', eventId)
-        .get()
-        .catch((err) => {
-          this.log.error(
-            {
-              service: 'VenueService',
-              method: 'getGuestOps',
-              venueId: ctx.partnerId,
-              eventId,
-              collection: 'orders',
-              error: err?.message ?? String(err),
-            },
-            'Guest orders query failed',
-          );
-          return { docs: [] as any[] };
-        }),
-      this.db
-        .collection('check_ins')
-        .where('eventId', '==', eventId)
-        .get()
-        .catch((err) => {
-          this.log.error(
-            {
-              service: 'VenueService',
-              method: 'getGuestOps',
-              venueId: ctx.partnerId,
-              eventId,
-              collection: 'check_ins',
-              error: err?.message ?? String(err),
-            },
-            'Guest check-ins query failed',
-          );
-          return { docs: [] as any[], size: 0 };
-        }),
+    const [orders, checkedIn] = await Promise.all([
+      this.summarizeGuestOrders(ctx, eventId),
+      this.countEventDocuments(ctx, 'check_ins', eventId, 'Guest check-ins query failed'),
     ]);
-
-    const paidOrders = (ordersSnap as any).docs.filter((doc: any) => {
-      const status = String(doc.data()?.status || '').toLowerCase();
-      return ['paid', 'confirmed', 'completed'].includes(status);
-    });
-    const totalGuests = paidOrders.reduce(
-      (sum: number, doc: any) => sum + toNum(doc.data()?.ticketCount ?? 1),
-      0,
-    );
-    const denied = paidOrders.reduce(
-      (sum: number, doc: any) =>
-        doc.data()?.deniedAt ? sum + toNum(doc.data()?.ticketCount ?? 1) : sum,
-      0,
-    );
-    const checkedIn = (checkInsSnap as any).size ?? (checkInsSnap as any).docs?.length ?? 0;
 
     return {
       eventId,
-      totalGuests,
+      totalGuests: orders.totalGuests,
       checkedIn,
-      pending: Math.max(0, totalGuests - checkedIn - denied),
-      denied,
+      pending: Math.max(0, orders.totalGuests - checkedIn - orders.denied),
+      denied: orders.denied,
     };
+  }
+
+  private async summarizeGuestOrders(
+    ctx: PartnerContext,
+    eventId: string,
+  ): Promise<{ totalGuests: number; denied: number }> {
+    let totalGuests = 0;
+    let denied = 0;
+
+    await this.visitEventDocumentPages(
+      ctx,
+      'orders',
+      eventId,
+      'Guest orders query failed',
+      (docs) => {
+        for (const doc of docs) {
+          const order = doc.data();
+          const status = String(order?.status || '').toLowerCase();
+          if (!['paid', 'confirmed', 'completed'].includes(status)) continue;
+
+          const ticketCount = toNum(order?.ticketCount ?? 1);
+          totalGuests += ticketCount;
+          if (order?.deniedAt) denied += ticketCount;
+        }
+      },
+    );
+
+    return { totalGuests, denied };
+  }
+
+  private async countEventDocuments(
+    ctx: PartnerContext,
+    collection: string,
+    eventId: string,
+    failureMessage: string,
+  ): Promise<number> {
+    let count = 0;
+    await this.visitEventDocumentPages(ctx, collection, eventId, failureMessage, (docs) => {
+      count += docs.length;
+    });
+    return count;
+  }
+
+  private async visitEventDocumentPages(
+    ctx: PartnerContext,
+    collection: string,
+    eventId: string,
+    failureMessage: string,
+    visit: (docs: any[]) => void,
+  ): Promise<void> {
+    let cursor: any = null;
+
+    try {
+      while (true) {
+        let query: any = this.db
+          .collection(collection)
+          .where('eventId', '==', eventId)
+          .orderBy(FieldPath.documentId())
+          .limit(VenueService.GUEST_OPS_PAGE_SIZE);
+
+        if (cursor) query = query.startAfter(cursor);
+
+        const snapshot = await query.get();
+        const docs = Array.isArray(snapshot?.docs) ? snapshot.docs : [];
+        if (docs.length === 0) return;
+
+        visit(docs);
+        if (docs.length < VenueService.GUEST_OPS_PAGE_SIZE) return;
+
+        const nextCursor = docs[docs.length - 1];
+        if (!nextCursor || nextCursor.id === cursor?.id) {
+          throw new Error('Guest operations pagination cursor did not advance');
+        }
+        cursor = nextCursor;
+      }
+    } catch (err: any) {
+      this.log.error(
+        {
+          service: 'VenueService',
+          method: 'getGuestOps',
+          venueId: ctx.partnerId,
+          eventId,
+          collection,
+          error: err?.message ?? String(err),
+        },
+        failureMessage,
+      );
+    }
   }
 
   // ── Partnerships ──────────────────────────────────────────────────────────

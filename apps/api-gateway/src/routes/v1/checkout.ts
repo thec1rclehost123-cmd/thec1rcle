@@ -7,7 +7,7 @@ import { calculatePricing, getEffectivePrice } from '@c1rcle/core/pricing-engine
 import { flagPaymentFailure } from '@c1rcle/core/surge';
 // @ts-ignore
 import {
-  calculateEffectiveInventory,
+  calculateEffectiveInventories,
   releaseReservation,
   InventoryReadError,
   InventoryUnavailableError,
@@ -151,30 +151,25 @@ async function buildCheckoutQuote(event: any, items: any[], pricing: any, db: an
   const minTickets = event.isRSVP ? 1 : Number(event.minTicketsPerOrder || 1);
   const maxTickets = event.isRSVP ? 1 : Number(event.maxTicketsPerOrder || 10);
   const totalQuantity = [...selectedByTier.values()].reduce((sum, quantity) => sum + quantity, 0);
-  const eventDocRef = db?.collection?.('events')?.doc?.(event.id);
-  const inventoryDb = typeof eventDocRef?.collection === 'function' ? db : null;
+  const inventoryByTier = await calculateEffectiveInventories(tiers, event);
+  const tierConstraints = tiers.map((tier: any) => {
+    const available = inventoryByTier.get(tier.id) ?? 0;
+    const isFree = Number(tier.basePrice ?? tier.price ?? 0) === 0;
+    const perOrderLimit = isFree ? 1 : maxTickets;
 
-  const tierConstraints = await Promise.all(
-    tiers.map(async (tier: any) => {
-      // Use the authoritative effective inventory — same source as reservation enforcement
-      const available = await calculateEffectiveInventory(tier, event, null, inventoryDb);
-      const isFree = Number(tier.basePrice ?? tier.price ?? 0) === 0;
-      const perOrderLimit = isFree ? 1 : maxTickets;
-
-      return {
-        tierId: tier.id,
-        name: tier.name || tier.label || tier.id,
-        description: tier.description || tier.summary || null,
-        selectedQuantity: selectedByTier.get(tier.id) || 0,
-        available,
-        minPerOrder: 0,
-        maxPerOrder: Math.max(0, Math.min(available || perOrderLimit, perOrderLimit)),
-        isFree,
-        soldOut: available <= 0,
-        unitPrice: getEffectivePrice(tier).price,
-      };
-    }),
-  );
+    return {
+      tierId: tier.id,
+      name: tier.name || tier.label || tier.id,
+      description: tier.description || tier.summary || null,
+      selectedQuantity: selectedByTier.get(tier.id) || 0,
+      available,
+      minPerOrder: 0,
+      maxPerOrder: Math.max(0, Math.min(available || perOrderLimit, perOrderLimit)),
+      isFree,
+      soldOut: available <= 0,
+      unitPrice: getEffectivePrice(tier).price,
+    };
+  });
 
   return {
     pricing,

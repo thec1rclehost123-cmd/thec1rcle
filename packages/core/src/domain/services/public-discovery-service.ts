@@ -283,6 +283,21 @@ class EventCardIndexRepository {
     return null;
   }
 
+  async getByIds(ids: string[]) {
+    const uniqueIds = [...new Set(ids.map(String).filter(Boolean))];
+    const documents = new Map<string, Record<string, any>>();
+    for (let start = 0; start < uniqueIds.length; start += 30) {
+      const snapshot = await this.db
+        .collection(EVENT_CARD_INDEX)
+        .where(FieldPath.documentId(), 'in', uniqueIds.slice(start, start + 30))
+        .get();
+      for (const document of snapshot.docs) {
+        documents.set(document.id, serializeDoc(document));
+      }
+    }
+    return uniqueIds.map((id) => documents.get(id)).filter(Boolean);
+  }
+
   async upsert(id: string, data: Record<string, any>) {
     await this.db.collection(EVENT_CARD_INDEX).doc(id).set(data, { merge: true });
   }
@@ -334,31 +349,14 @@ class EventCardIndexRepository {
       // These public discovery indexes are declared in firestore.indexes.json.
       // Keep the sort and limit on Firestore so the launch feed never performs
       // an unbounded collection read before slicing in memory.
-      const serverIndexedOrderFields = new Set(['startAt', 'heatScore', 'publishedAt']);
+      const serverIndexedOrderFields = new Set(['startAt', 'heatScore', 'publishedAt', 'priceMin']);
       if (!cityKey && serverIndexedOrderFields.has(orderByField)) {
         const snapshot = await query.orderBy(orderByField, direction).limit(limit).get();
         return snapshot.docs.map(serializeDoc);
       }
 
-      // priceMin remains an in-memory fallback until its compound public index
-      // is deployed. This branch is bounded to the uncommon explicit price sort.
       if (!cityKey) {
-        const snapshot = await query.get();
-        const items = snapshot.docs.map(serializeDoc);
-
-        // Sort in memory
-        const multiplier = direction === 'desc' ? -1 : 1;
-        items.sort((left: any, right: any) => {
-          const a = left?.[orderByField] ?? null;
-          const b = right?.[orderByField] ?? null;
-          if (a === b) return 0;
-          if (a === null) return 1;
-          if (b === null) return -1;
-          if (typeof a === 'number' && typeof b === 'number') return (a - b) * multiplier;
-          return String(a).localeCompare(String(b)) * multiplier;
-        });
-
-        return items.slice(0, limit);
+        throw new Error(`Unsupported unindexed event-card sort: ${orderByField}`);
       }
 
       const snapshot = await query.orderBy(orderByField, direction).limit(limit).get();
@@ -1130,9 +1128,7 @@ export class PublicDiscoveryService {
       const pinnedIds = Array.isArray(settings?.data?.()?.featured)
         ? settings.data()!.featured.filter((id: any) => typeof id === 'string' && id.trim())
         : [];
-      const pinned = (
-        await Promise.all(pinnedIds.map((id: string) => this.events.getByIdOrSlug(id)))
-      )
+      const pinned = (await this.events.getByIds(pinnedIds))
         .filter(Boolean)
         .map((event: any) =>
           buildEventCardReadModel(event, {

@@ -2390,36 +2390,55 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
   const UserIdParam = z.object({ id: z.string() }).strict();
 
-  fastify.get('/social/matches', async (request: any, reply: any) => {
-    const userId = request.user?.uid;
-    if (!userId) {
-      return reply.status(401).send(
-        buildErrorResponse({
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required',
-          requestId: request.id,
+  fastify.get(
+    '/social/matches',
+    {
+      preHandler: [
+        fastify.validate({
+          querystring: z
+            .object({
+              cursor: z.string().optional(),
+              limit: z.coerce.number().int().min(1).max(100).optional(),
+            })
+            .strict(),
         }),
-      );
-    }
+      ],
+    },
+    async (request: any, reply: any) => {
+      const userId = request.user?.uid;
+      if (!userId) {
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            requestId: request.id,
+          }),
+        );
+      }
 
-    try {
-      const { getUserMatches } = await import('@c1rcle/core/guest-dating-service');
-      const matches = await getUserMatches(fastify.db, userId);
-      return buildSuccessResponse({ matches });
-    } catch (error: any) {
-      fastify.log.error(
-        { requestId: request.id, userId, error: error.message },
-        'GET /social/matches failed',
-      );
-      return reply.status(500).send(
-        buildErrorResponse({
-          code: 'INTERNAL_ERROR',
-          message: 'Internal server error',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+      try {
+        const { getUserMatches } = await import('@c1rcle/core/guest-dating-service');
+        const result = await getUserMatches(fastify.db, userId, request.query);
+        return buildSuccessResponse({
+          matches: result.data,
+          hasMore: result.hasMore,
+          nextCursor: result.nextCursor,
+        });
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'GET /social/matches failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
   fastify.get(
     '/users/:id',

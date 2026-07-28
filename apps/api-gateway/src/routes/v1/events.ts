@@ -1853,19 +1853,39 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           }
 
           const limit = Math.min(Number(request.query.limit) || 20, 100);
-          let snap;
-          let sortedInMemory = false;
-          try {
-            snap = await q.orderBy('startDate', 'desc').limit(limit).get();
-          } catch (err: any) {
-            fastify.log.warn(
-              `Firestore query with orderBy failed (likely missing index): ${err.message}. Retrying without orderBy and sorting in memory.`,
-            );
-            snap = await q.get();
-            sortedInMemory = true;
+          const cursor = String(request.query.cursor || '');
+          q = q.orderBy('startDate', 'desc');
+          if (cursor) {
+            const cursorDocument = await fastify.db.collection('events').doc(cursor).get();
+            const cursorData = cursorDocument.data() || {};
+            const cursorOwner =
+              partnerCtx.type === 'venue' ? cursorData.venueId : cursorData.creatorId;
+            const allowedLifecycles = lifecycle
+              ? lifecycle
+                  .split(',')
+                  .map((value: string) => value.trim())
+                  .filter(Boolean)
+              : [];
+            if (
+              !cursorDocument.exists ||
+              cursorOwner !== partnerCtx.partnerId ||
+              (allowedLifecycles.length > 0 &&
+                !allowedLifecycles.includes(String(cursorData.lifecycle || '')))
+            ) {
+              return reply.status(400).send(
+                buildErrorResponse({
+                  code: 'INVALID_CURSOR',
+                  message: 'Event cursor is invalid for this query',
+                  requestId: request.id,
+                }),
+              );
+            }
+            q = q.startAfter(cursorDocument);
           }
-
-          let events = snap.docs.map((doc: any) => {
+          const snap = await q.limit(limit + 1).get();
+          const hasMore = snap.docs.length > limit;
+          const pageDocuments = snap.docs.slice(0, limit);
+          const events = pageDocuments.map((doc: any) => {
             const data = doc.data();
             return {
               ...data,
@@ -1874,16 +1894,12 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             };
           });
 
-          if (sortedInMemory) {
-            events.sort((a: any, b: any) => {
-              const dateA = a.startDate || '';
-              const dateB = b.startDate || '';
-              return dateB.localeCompare(dateA);
-            });
-            events = events.slice(0, limit);
-          }
-
-          return { events, success: true };
+          return {
+            events,
+            success: true,
+            hasMore,
+            nextCursor: hasMore ? pageDocuments[pageDocuments.length - 1]?.id || null : null,
+          };
         }
 
         await enforcePublicRateLimit(fastify, request, 'events:explore', 120, 60);

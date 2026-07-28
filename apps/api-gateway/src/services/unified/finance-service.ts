@@ -1,4 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
+import { AggregateField } from 'firebase-admin/firestore';
 import type {
   PartnerContext,
   LedgerEntry,
@@ -11,6 +12,7 @@ import type {
   FinanceOverview,
   BankAccount,
   Dispute,
+  DisputeFilters,
   PaginatedResult,
   DataPoint,
 } from './types.js';
@@ -117,51 +119,37 @@ export class FinanceService {
       }
     }
 
-    const [balances, doc, payoutsSnap] = await Promise.all([
-      this.readBalanceAggregate(partnerId),
-      this.db.collection(LEDGER_AGGREGATES_COLLECTION).doc(partnerId).get(),
-      this.db
-        .collection('payouts')
-        .where('partnerId', '==', partnerId)
-        .where('status', 'in', ['completed', 'paid', 'cleared'])
-        .get(),
-    ]);
+    const [balances, doc, payoutsAggregate, pendingRefundsAggregate, ticketsCount] =
+      await Promise.all([
+        this.readBalanceAggregate(partnerId),
+        this.db.collection(LEDGER_AGGREGATES_COLLECTION).doc(partnerId).get(),
+        this.db
+          .collection('payouts')
+          .where('partnerId', '==', partnerId)
+          .where('status', 'in', ['completed', 'paid', 'cleared'])
+          .aggregate({ totalPaise: AggregateField.sum('amountPaise') })
+          .get(),
+        this.db
+          .collection('partner_ledger')
+          .where('toPartnerId', '==', partnerId)
+          .where('type', '==', 'refund')
+          .where('status', '==', 'pending')
+          .aggregate({ totalPaise: AggregateField.sum('amountPaise') })
+          .get(),
+        this.db
+          .collection('tickets')
+          .where('hostId', '==', partnerId)
+          .where('status', 'in', ['active', 'used', 'transferred'])
+          .count()
+          .get(),
+      ]);
 
     const aggregate = doc.exists ? doc.data() : {};
     const totalsByType = aggregate?.totalsByType || {};
 
-    // Sum all successful payouts
-    const paidOutPaise = payoutsSnap.docs.reduce((sum, d) => {
-      const payout = d.data();
-      const amountPaise = requirePaise(payout.amountPaise, `Payout ${d.id}`);
-      return sum + Math.abs(amountPaise);
-    }, 0);
-
-    // Get pending refunds from ledger (this might be slow if many, but aggregate doesn't split pending by type)
-    // Actually, let's just use 0 if not easily available from aggregate for now,
-    // OR query the ledger for the last few days of pending refunds.
-    // Given it's a P0, let's try to get it right.
-    const pendingRefundsSnap = await this.db
-      .collection('partner_ledger')
-      .where('toPartnerId', '==', partnerId)
-      .where('type', '==', 'refund')
-      .where('status', '==', 'pending')
-      .limit(50)
-      .get();
-
-    const refundPendingPaise = pendingRefundsSnap.docs.reduce(
-      (sum, d) => sum + Math.abs(requirePaise(d.data().amountPaise, `Ledger entry ${d.id}`)),
-      0,
-    );
-
-    // Admission count is ticket truth. Orders remain display metadata only.
-    const ticketsSnap = await this.db
-      .collection('tickets')
-      .where('hostId', '==', partnerId)
-      .where('status', 'in', ['active', 'used', 'transferred'])
-      .get();
-
-    const totalTicketsSold = (ticketsSnap as any).size;
+    const paidOutPaise = Math.abs(toNum(payoutsAggregate.data().totalPaise));
+    const refundPendingPaise = Math.abs(toNum(pendingRefundsAggregate.data().totalPaise));
+    const totalTicketsSold = toNum(ticketsCount.data().count);
 
     const result = {
       netRevenue: (balances.settled + balances.pending) / 100,
@@ -255,14 +243,27 @@ export class FinanceService {
   async getPayouts(ctx: PartnerContext, filters: PayoutFilters): Promise<PaginatedResult<Payout>> {
     const { status, cursor, limit = 20 } = filters;
     const cap = Math.min(limit, 100);
-    const boundedLimit = 501;
+    let query: FirebaseFirestore.Query = this.db
+      .collection('payouts')
+      .where('partnerId', '==', ctx.partnerId);
+    if (status) query = query.where('status', '==', status);
+    query = query.orderBy('requestedAt', 'desc');
+    if (cursor) {
+      const cursorDoc = await this.db.collection('payouts').doc(cursor).get();
+      const cursorData = cursorDoc.data();
+      if (
+        !cursorDoc.exists ||
+        String(cursorData?.partnerId || '') !== ctx.partnerId ||
+        (status && String(cursorData?.status || '') !== status)
+      ) {
+        throw financeUnavailable('Payout cursor is invalid for this query');
+      }
+      query = query.startAfter(cursorDoc);
+    }
+
     let snap: FirebaseFirestore.QuerySnapshot;
     try {
-      snap = await this.db
-        .collection('payouts')
-        .where('partnerId', '==', ctx.partnerId)
-        .limit(boundedLimit)
-        .get();
+      snap = await query.limit(cap + 1).get();
     } catch (err: any) {
       this.log.error(
         {
@@ -276,30 +277,9 @@ export class FinanceService {
       throw financeUnavailable('Canonical payout data is unavailable', err);
     }
 
-    if (snap.size >= boundedLimit) {
-      throw financeUnavailable('Payout history exceeds the bounded launch query window');
-    }
-
-    let allItems = snap.docs.map((doc: any) => this.docToPayout(doc));
-    if (status) allItems = allItems.filter((item) => item.status === status);
-    allItems.sort((a, b) => {
-      const timeDelta =
-        new Date(b.requestedAt || 0).getTime() - new Date(a.requestedAt || 0).getTime();
-      return timeDelta || b.payoutId.localeCompare(a.payoutId);
-    });
-
-    let startIndex = 0;
-    if (cursor) {
-      const cursorIndex = allItems.findIndex((item) => item.payoutId === cursor);
-      if (cursorIndex < 0) {
-        throw financeUnavailable('Payout cursor is outside the bounded launch query window');
-      }
-      startIndex = cursorIndex + 1;
-    }
-
-    const window = allItems.slice(startIndex, startIndex + cap + 1);
-    const hasMore = window.length > cap;
-    const items = window.slice(0, cap);
+    const docs = snap.docs ?? [];
+    const hasMore = docs.length > cap;
+    const items = docs.slice(0, cap).map((doc: any) => this.docToPayout(doc));
     const nextCursor = hasMore ? (items[items.length - 1]?.payoutId ?? null) : null;
 
     return { data: items, hasMore, nextCursor };
@@ -398,15 +378,34 @@ export class FinanceService {
 
   // ── Disputes ──────────────────────────────────────────────────────────────
 
-  async getDisputes(ctx: PartnerContext, status?: string): Promise<PaginatedResult<Dispute>> {
-    const boundedLimit = 501;
+  async getDisputes(
+    ctx: PartnerContext,
+    filters: DisputeFilters | string = {},
+  ): Promise<PaginatedResult<Dispute>> {
+    const normalizedFilters = typeof filters === 'string' ? { status: filters } : filters;
+    const { status, cursor, limit = 50 } = normalizedFilters;
+    const cap = Math.min(limit, 100);
+    let query: FirebaseFirestore.Query = this.db
+      .collection('disputes')
+      .where('partnerId', '==', ctx.partnerId);
+    if (status) query = query.where('status', '==', status);
+    query = query.orderBy('createdAt', 'desc');
+    if (cursor) {
+      const cursorDocument = await this.db.collection('disputes').doc(cursor).get();
+      const cursorData = cursorDocument.data();
+      if (
+        !cursorDocument.exists ||
+        String(cursorData?.partnerId || '') !== ctx.partnerId ||
+        (status && String(cursorData?.status || '') !== status)
+      ) {
+        throw financeUnavailable('Dispute cursor is invalid for this query');
+      }
+      query = query.startAfter(cursorDocument);
+    }
+
     let snap: FirebaseFirestore.QuerySnapshot;
     try {
-      snap = await this.db
-        .collection('disputes')
-        .where('partnerId', '==', ctx.partnerId)
-        .limit(boundedLimit)
-        .get();
+      snap = await query.limit(cap + 1).get();
     } catch (err: any) {
       this.log.error(
         {
@@ -419,10 +418,9 @@ export class FinanceService {
       );
       throw financeUnavailable('Canonical dispute data is unavailable', err);
     }
-    if (snap.size >= boundedLimit) {
-      throw financeUnavailable('Dispute history exceeds the bounded launch query window');
-    }
-    let items = (snap as any).docs.map((doc: any) => {
+    const documents = snap.docs || [];
+    const hasMore = documents.length > cap;
+    const items = documents.slice(0, cap).map((doc: any) => {
       const d = doc.data() as Record<string, any>;
       return {
         disputeId: doc.id,
@@ -433,13 +431,12 @@ export class FinanceService {
         createdAt: toIso(d.createdAt),
       } satisfies Dispute;
     });
-    if (status) items = items.filter((item: Dispute) => item.status === status);
-    items.sort((left: Dispute, right: Dispute) =>
-      String(right.createdAt || '').localeCompare(String(left.createdAt || '')),
-    );
-    items = items.slice(0, 50);
 
-    return { data: items, hasMore: false, nextCursor: null };
+    return {
+      data: items,
+      hasMore,
+      nextCursor: hasMore ? (items[items.length - 1]?.disputeId ?? null) : null,
+    };
   }
 
   // ── Internal write methods (called only by checkout flow, not API routes) ─

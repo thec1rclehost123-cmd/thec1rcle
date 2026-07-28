@@ -12,6 +12,7 @@ import { buildErrorResponse } from '../../../lib/api-contracts.js';
 import { buildPayoutAccountRecord } from '../../../lib/partner-hardening.js';
 import { generateFinanceReportPDF } from '@c1rcle/core/ticket-pdf-engine';
 import { generateReconciliation } from '@c1rcle/core/cover-charge-engine';
+import { normalizeOrderSearchPrefix } from '@c1rcle/core/order-engine';
 import { loadVenueScopedEvent } from '../../../lib/venueEventScope.js';
 import {
   updateEventPromoterCompensation,
@@ -1656,11 +1657,13 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
         if (rest === 'orders' && request.method === 'GET') {
           const pageSize = Math.min(parseInt(String(query.limit || '20'), 10) || 20, 100);
+          const search = normalizeOrderSearchPrefix(query.q);
           let q: any = fastify.db.collection('orders').where('venueId', '==', ctx.partnerId);
           if (query.status) q = q.where('status', '==', query.status);
           if (query.eventId) q = q.where('eventId', '==', String(query.eventId));
           if (query.startDate) q = q.where('createdAt', '>=', String(query.startDate));
           if (query.endDate) q = q.where('createdAt', '<=', String(query.endDate));
+          if (search) q = q.where('searchPrefixes', 'array-contains', search);
           q = q.orderBy('createdAt', 'desc').limit(pageSize + 1);
           if (query.cursor) {
             const cursorDoc = await fastify.db.collection('orders').doc(String(query.cursor)).get();
@@ -1692,13 +1695,13 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             fastify.db,
             docs.map((doc: any) => doc.id),
           );
-          let orders = docs.map((doc: any) => {
+          const orders = docs.map((doc: any) => {
             const d = doc.data() || {};
             return {
               id: doc.id,
-              customerName: d.buyerName || d.customerName || d.name || 'Guest',
-              email: d.buyerEmail || d.email || '',
-              phone: d.buyerPhone || d.phone || '',
+              customerName: d.buyerName || d.customerName || d.userName || d.name || 'Guest',
+              email: d.buyerEmail || d.userEmail || d.email || '',
+              phone: d.buyerPhone || d.userPhone || d.phone || '',
               amount: Number(orderAmounts[doc.id]?.netPaise || 0) / 100,
               ticketsCount: toNumber(d.ticketCount || 1),
               createdAt: d.createdAt || null,
@@ -1712,16 +1715,6 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               promoterCode: d.promoterCode || null,
             };
           });
-          const search = String(query.q || '')
-            .trim()
-            .toLowerCase();
-          if (search) {
-            orders = orders.filter((order: any) =>
-              [order.id, order.customerName, order.email, order.phone, order.eventTitle]
-                .filter(Boolean)
-                .some((value) => String(value).toLowerCase().includes(search)),
-            );
-          }
           return reply.send({
             orders,
             hasMore,

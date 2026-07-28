@@ -369,6 +369,12 @@ export interface PayoutFilters {
   limit?: number;
 }
 
+export interface DisputeFilters {
+  status?: string;
+  cursor?: string;
+  limit?: number;
+}
+
 export interface LinkFilters {
   eventId?: string;
   active?: boolean;

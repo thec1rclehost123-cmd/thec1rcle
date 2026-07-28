@@ -1,4 +1,5 @@
 import { signStorageUrl } from '../lib/signed-urls.js';
+import { FieldPath } from 'firebase-admin/firestore';
 
 export type PartnerEntityType = 'venue' | 'host' | 'promoter';
 
@@ -503,6 +504,87 @@ export async function getPartnerProfileSummary(db: any, id: string) {
   const result = await getPartnerProfileSummaryInternal(db, id);
   if (!result) return null;
   return result.profile;
+}
+
+export async function getPartnerProfileSummariesById(db: any, partnerIds: string[]) {
+  const ids = [...new Set(partnerIds.map(String).filter(Boolean))];
+  const profiles = new Map<string, Record<string, any>>();
+  const collections: Array<{ name: string; type: PartnerEntityType }> = [
+    { name: 'venues', type: 'venue' },
+    { name: 'hosts', type: 'host' },
+    { name: 'promoters', type: 'promoter' },
+  ];
+
+  for (let start = 0; start < ids.length; start += 30) {
+    const chunk = ids.slice(start, start + 30);
+    const snapshots = await Promise.all(
+      collections.map(({ name }) =>
+        db.collection(name).where(FieldPath.documentId(), 'in', chunk).get(),
+      ),
+    );
+    const resolvedProfiles = await Promise.all(
+      snapshots.flatMap((snapshot: any, collectionIndex: number) =>
+        (snapshot.docs || []).map(async (document: any) => {
+          const data = document.data() || {};
+          const type = collections[collectionIndex].type;
+          return {
+            id: document.id,
+            type,
+            name: pickString(
+              data.displayName,
+              data.name,
+              data.brandName,
+              data.venueName,
+              'Unknown Partner',
+            ),
+            city: pickString(data.city),
+            avatarUrl: await signStorageUrl(
+              pickString(
+                data.profileImage,
+                data.avatar,
+                data.avatarUrl,
+                data.photoURL,
+                data.logoUrl,
+                data.logo,
+              ),
+            ),
+            isVerified: Boolean(
+              data.isVerified ||
+              data.isApproved ||
+              data.status === 'active' ||
+              data.verificationStatus === 'verified',
+            ),
+          };
+        }),
+      ),
+    );
+    for (const profile of resolvedProfiles) {
+      if (!profiles.has(profile.id)) profiles.set(profile.id, profile);
+    }
+  }
+
+  const unresolvedIds = ids.filter((id) => !profiles.has(id));
+  for (let start = 0; start < unresolvedIds.length; start += 30) {
+    const chunk = unresolvedIds.slice(start, start + 30);
+    const snapshot = await db.collection('users').where(FieldPath.documentId(), 'in', chunk).get();
+    for (const document of snapshot.docs || []) {
+      const data = document.data() || {};
+      profiles.set(document.id, {
+        id: document.id,
+        type: (['venue', 'host', 'promoter'].includes(data.role)
+          ? data.role
+          : 'host') as PartnerEntityType,
+        name: pickString(data.displayName, data.name, 'Unknown Partner'),
+        city: pickString(data.city),
+        avatarUrl: await signStorageUrl(
+          pickString(data.profileImage, data.avatar, data.avatarUrl, data.photoURL),
+        ),
+        isVerified: Boolean(data.isVerified || data.isApproved || data.status === 'active'),
+      });
+    }
+  }
+
+  return profiles;
 }
 
 export async function getPartnerProfileWithPii(

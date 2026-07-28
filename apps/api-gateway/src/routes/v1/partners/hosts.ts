@@ -364,16 +364,13 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     const snap = await fastify.db
       .collection('partnerships')
       .where('hostId', '==', hostId)
+      .orderBy('createdAt', 'desc')
       .limit(100)
       .get();
     const partnerships = (snap as any).docs.map((doc: any) => ({
       id: doc.id,
       ...(doc.data() || {}),
     }));
-    partnerships.sort(
-      (left: any, right: any) =>
-        new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime(),
-    );
     const venueIds = [
       ...new Set(partnerships.map((item: any) => String(item.venueId || '')).filter(Boolean)),
     ];
@@ -430,51 +427,23 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
   const getHostNotifications = async (hostId: string) => {
     let snap;
-    const fallbackUsed = process.env.NODE_ENV === 'development';
-    if (fallbackUsed) {
-      const fallbackQ = fastify.db
+    try {
+      snap = await fastify.db
         .collection('notifications')
         .where('recipientId', '==', hostId)
-        .limit(100);
-      const tempSnap = await fallbackQ.get().catch(() => ({ docs: [] as any[] }));
-      const sortedDocs = [...(tempSnap.docs || [])].sort((a: any, b: any) => {
-        const aTime = new Date(a.data()?.createdAt || a.data()?.timestamp || 0).getTime();
-        const bTime = new Date(b.data()?.createdAt || b.data()?.timestamp || 0).getTime();
-        return bTime - aTime;
-      });
-      snap = { docs: sortedDocs.slice(0, 50) };
-    } else {
-      try {
-        snap = await fastify.db
-          .collection('notifications')
-          .where('recipientId', '==', hostId)
-          .orderBy('createdAt', 'desc')
-          .limit(50)
-          .get();
-      } catch (err: any) {
-        if (
-          err.code === 9 ||
-          String(err).includes('requires an index') ||
-          String(err).includes('FAILED_PRECONDITION')
-        ) {
-          fastify.log.warn(
-            'Firestore index missing for host notifications query. Falling back to in-memory sort.',
-          );
-          const fallbackQ = fastify.db
-            .collection('notifications')
-            .where('recipientId', '==', hostId)
-            .limit(100);
-          const tempSnap = await fallbackQ.get().catch(() => ({ docs: [] as any[] }));
-          const sortedDocs = [...(tempSnap.docs || [])].sort((a: any, b: any) => {
-            const aTime = new Date(a.data()?.createdAt || a.data()?.timestamp || 0).getTime();
-            const bTime = new Date(b.data()?.createdAt || b.data()?.timestamp || 0).getTime();
-            return bTime - aTime;
-          });
-          snap = { docs: sortedDocs.slice(0, 50) };
-        } else {
-          snap = { docs: [] as any[] };
-        }
-      }
+        .orderBy('createdAt', 'desc')
+        .limit(50)
+        .get();
+    } catch (cause: any) {
+      fastify.log.error(
+        { hostId, error: cause?.message ?? String(cause) },
+        'Canonical host notifications query failed',
+      );
+      const error: any = new Error('Host notifications are temporarily unavailable');
+      error.code = 'HOST_DATA_UNAVAILABLE';
+      error.statusCode = 503;
+      error.cause = cause;
+      throw error;
     }
 
     return {
@@ -697,22 +666,16 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         .collection('events')
         .where('creatorId', '==', hostId)
         .where('lifecycle', 'in', ['submitted', 'scheduled', 'live', 'approved'])
-        // No orderBy here — avoids composite index requirement (FAILED_PRECONDITION).
-        // Sorted in-memory below instead.
-        .limit(50)
-        .get()
-        .catch(() => ({ docs: [] as any[] })),
+        .orderBy('startDate', 'asc')
+        .limit(5)
+        .get(),
       financeService.getFinanceSummary(ctx),
     ]);
     const partnerships = (partnerSnap as any).docs || [];
-    const upcomingEvents = ((eventsSnap as any).docs || [])
-      .map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }))
-      .sort((a: any, b: any) => {
-        const aTime = a.startDate ? new Date(a.startDate).getTime() : 0;
-        const bTime = b.startDate ? new Date(b.startDate).getTime() : 0;
-        return aTime - bTime; // ascending
-      })
-      .slice(0, 5);
+    const upcomingEvents = ((eventsSnap as any).docs || []).map((doc: any) => ({
+      id: doc.id,
+      ...(doc.data() || {}),
+    }));
     return {
       pendingPartnerships: partnerships.filter(
         (doc: any) => (doc.data() || {}).status === 'pending',
@@ -736,13 +699,24 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       throw err;
     }
 
-    const [ordersSnap, checkinsSnap, tiersSnap, eventDoc, commerce] = await Promise.all([
-      fastify.db
-        .collection('orders')
-        .where('eventId', '==', eventId)
-        .where('status', 'in', ['confirmed', 'paid'])
-        .get(),
-      fastify.db.collection('ticket_scans').where('eventId', '==', eventId).get(),
+    const ordersQuery = fastify.db
+      .collection('orders')
+      .where('eventId', '==', eventId)
+      .where('status', 'in', ['confirmed', 'paid']);
+    const checkinsQuery = fastify.db.collection('ticket_scans').where('eventId', '==', eventId);
+    const [
+      ordersSnap,
+      ordersCountSnap,
+      checkinsSnap,
+      checkinsCountSnap,
+      tiersSnap,
+      eventDoc,
+      commerce,
+    ] = await Promise.all([
+      ordersQuery.orderBy('createdAt', 'desc').limit(200).get(),
+      ordersQuery.count().get(),
+      checkinsQuery.orderBy('scannedAt', 'desc').limit(500).get(),
+      checkinsQuery.count().get(),
       fastify.db.collection('events').doc(eventId).collection('ticket_tiers').get(),
       fastify.db.collection('events').doc(eventId).get(),
       getEventCommerceMetrics(fastify.db, eventId),
@@ -766,7 +740,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         )
         .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
     const ticketsSold = commerce.ticketsSold;
-    const totalCheckedIn = checkins.length;
+    const totalCheckedIn = checkinsCountSnap.data().count;
+    const totalOrders = ordersCountSnap.data().count;
     const capacity = tiers.reduce(
       (sum: number, t: any) => sum + toNumber(t.capacity || t.quantity || 0),
       0,
@@ -972,6 +947,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         revenue: commerce.netRevenue,
         ticketsSold,
         checkedIn: totalCheckedIn,
+        orders: totalOrders,
         capacity,
       },
       recentOrders: orders.slice(0, 10).map((o: any) => ({
@@ -1033,14 +1009,17 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   };
 
   const getHostPromoters = async (hostId: string) => {
-    const snap = await fastify.db
-      .collection('promoter_connections')
-      .where('hostId', '==', hostId)
-      .orderBy('createdAt', 'desc')
-      .get()
-      .catch(() => ({ docs: [] as any[] }));
+    const connections = fastify.db.collection('promoter_connections').where('hostId', '==', hostId);
+    const [snap, totalCountSnap, activeCountSnap] = await Promise.all([
+      connections.orderBy('createdAt', 'desc').limit(100).get(),
+      connections.count().get(),
+      connections.where('status', '==', 'active').count().get(),
+    ]);
     return {
       promoters: (snap as any).docs.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) })),
+      total: totalCountSnap.data().count,
+      active: activeCountSnap.data().count,
+      truncated: totalCountSnap.data().count > (snap as any).docs.length,
     };
   };
 

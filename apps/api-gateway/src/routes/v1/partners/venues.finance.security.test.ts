@@ -152,6 +152,47 @@ describe('venue wildcard finance permissions', () => {
     await server.close();
   });
 
+  it('applies Venue order search in Firestore before pagination', async () => {
+    const server = await buildServer('owner');
+    for (let index = 0; index < 25; index += 1) {
+      (server as any).db.seed(`orders/recent-${index}`, {
+        venueId: 'venue-1',
+        status: 'confirmed',
+        userName: `Recent Guest ${index}`,
+        searchPrefixes: ['recent'],
+        createdAt: `2026-07-28T00:${String(index).padStart(2, '0')}:00.000Z`,
+      });
+    }
+    (server as any).db.seed('orders/older-match', {
+      venueId: 'venue-1',
+      status: 'confirmed',
+      userName: 'Aarav Sharma',
+      userEmail: 'aarav@example.com',
+      searchPrefixes: ['aa', 'aar', 'aara', 'aarav'],
+      createdAt: '2026-07-01T00:00:00.000Z',
+    });
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/partners/venues/orders?limit=20&q=aarav',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().orders).toEqual([
+      expect.objectContaining({
+        id: 'older-match',
+        customerName: 'Aarav Sharma',
+        email: 'aarav@example.com',
+      }),
+    ]);
+    expect(response.json().pagination).toEqual({
+      limit: 20,
+      hasMore: false,
+      nextCursor: null,
+    });
+    await server.close();
+  });
+
   it('bounds scanner device oversight payloads', async () => {
     const server = await buildServer('owner');
     (server as any).db.seed('events/event-1', { venueId: 'venue-1' });

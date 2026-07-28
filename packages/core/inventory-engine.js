@@ -372,6 +372,104 @@ export async function calculateEffectiveInventory(
   return Math.max(0, remaining);
 }
 
+export async function calculateEffectiveInventories(
+  tiers,
+  event,
+  excludeReservationId = null,
+  strictMode = false,
+) {
+  const results = new Map();
+  const finiteTiers = [];
+  for (const tier of tiers || []) {
+    if ((tier.inventory?.type || tier.type) === 'unlimited') {
+      results.set(tier.id, Infinity);
+    } else {
+      finiteTiers.push(tier);
+      results.set(tier.id, getBaseRemaining(tier));
+    }
+  }
+  if (finiteTiers.length === 0) return results;
+
+  const fallbackToBase = (message) => {
+    if (strictMode) throw new InventoryUnavailableError(message);
+    console.warn(`[Inventory] Degraded mode: ${message}, using base counts only`);
+    for (const tier of finiteTiers) {
+      results.set(tier.id, Math.max(0, results.get(tier.id) || 0));
+    }
+    return results;
+  };
+
+  if (circuitIsOpen()) {
+    return fallbackToBase('Redis circuit open — cannot guarantee accurate inventory');
+  }
+
+  try {
+    const redis = getRedisClient();
+    if (!redis || (redis.status !== 'ready' && redis.status !== 'connecting')) {
+      recordCircuitFailure();
+      return fallbackToBase('Redis not ready — cannot guarantee accurate inventory');
+    }
+
+    const tierKeys = finiteTiers.map(
+      (tier) => `${REDIS_TIER_RES_PREFIX}${event.id}:tier:${tier.id}`,
+    );
+    let membershipResults;
+    if (typeof redis.pipeline === 'function') {
+      const pipeline = redis.pipeline();
+      tierKeys.forEach((key) => pipeline.smembers(key));
+      membershipResults = (await pipeline.exec()).map(([error, value]) => {
+        if (error) throw error;
+        return value || [];
+      });
+    } else {
+      membershipResults = await Promise.all(tierKeys.map((key) => redis.smembers(key)));
+    }
+
+    const reservationIdsByTier = new Map();
+    finiteTiers.forEach((tier, index) => {
+      reservationIdsByTier.set(
+        tier.id,
+        (membershipResults[index] || []).filter((id) => id !== excludeReservationId),
+      );
+    });
+    const reservationIds = [...new Set([...reservationIdsByTier.values()].flat().filter(Boolean))];
+    const reservationPayloads = reservationIds.length
+      ? await redis.mget(reservationIds.map((id) => `${REDIS_RES_PREFIX}${id}`))
+      : [];
+    const reservations = new Map();
+    reservationIds.forEach((reservationId, index) => {
+      const payload = reservationPayloads[index];
+      if (!payload) {
+        for (const [tierId, ids] of reservationIdsByTier) {
+          if (ids.includes(reservationId)) {
+            redis
+              .srem(`${REDIS_TIER_RES_PREFIX}${event.id}:tier:${tierId}`, reservationId)
+              .catch(() => {});
+          }
+        }
+        return;
+      }
+      reservations.set(reservationId, JSON.parse(payload));
+    });
+
+    for (const tier of finiteTiers) {
+      let remaining = results.get(tier.id) || 0;
+      for (const reservationId of reservationIdsByTier.get(tier.id) || []) {
+        const reservation = reservations.get(reservationId);
+        const item = reservation?.items?.find((candidate) => candidate.tierId === tier.id);
+        if (item) remaining -= Number(item.quantity || 0);
+      }
+      results.set(tier.id, Math.max(0, remaining));
+    }
+    recordCircuitSuccess();
+    return results;
+  } catch (error) {
+    if (error instanceof InventoryUnavailableError) throw error;
+    recordCircuitFailure();
+    return fallbackToBase(`Redis inventory batch failed: ${error.message}`);
+  }
+}
+
 /**
  * Public ticket tier read model for mobile event detail screens.
  * Returns guest-safe tier data with live prices and effective inventory.
@@ -793,6 +891,7 @@ export async function deductInventory(transaction, db, eventId, tierId, quantity
 
 export default {
   calculateEffectiveInventory,
+  calculateEffectiveInventories,
   validatePurchase,
   createReservation,
   listAvailableTicketTiers,

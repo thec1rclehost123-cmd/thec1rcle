@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { FieldValue, FieldPath } from 'firebase-admin/firestore';
+import { AggregateField, FieldValue, FieldPath } from 'firebase-admin/firestore';
 import type {
   PartnerContext,
   EventSummary,
@@ -769,11 +769,15 @@ export class PromoterService {
   private async computeStats(promoterId: string): Promise<PromoterOverviewStats> {
     const startedAt = Date.now();
 
-    const snap = await this.db
+    const aggregateSnap = await this.db
       .collection('promoter_links')
       .where('promoterId', '==', promoterId)
-      .select('clickCount', 'conversionCount', 'revenue', 'active')
-      .limit(500)
+      .aggregate({
+        totalLinks: AggregateField.count(),
+        totalClicks: AggregateField.sum('clickCount'),
+        totalConversions: AggregateField.sum('conversionCount'),
+        totalRevenue: AggregateField.sum('revenue'),
+      })
       .get()
       .catch((err) => {
         this.log.error(
@@ -785,33 +789,29 @@ export class PromoterService {
           },
           'Links stats query failed',
         );
-        return { docs: [] };
+        throw err;
       });
 
-    let clicks = 0;
-    let conversions = 0;
-    let revenue = 0;
-    let totalLinks = 0;
+    const linkStats = aggregateSnap.data();
+    const clicks = toNum(linkStats.totalClicks);
+    const conversions = toNum(linkStats.totalConversions);
+    const revenue = toNum(linkStats.totalRevenue);
+    const totalLinks = toNum(linkStats.totalLinks);
     let commissionEarned = 0;
-
-    for (const doc of (snap as any).docs) {
-      const d = doc.data() as Record<string, any>;
-      clicks += toNum(d.clickCount);
-      conversions += toNum(d.conversionCount);
-      revenue += toNum(d.revenue);
-      totalLinks++;
-    }
 
     const statsDoc = await this.db.collection('promoter_stats').doc(promoterId).get();
 
     if (statsDoc.exists) {
       commissionEarned = toNum(statsDoc.data()?.totalCommissionEarned);
     } else {
-      const commSnap = await this.db
+      const commissionAggregate = await this.db
         .collection('partner_ledger')
         .where('toPartnerId', '==', promoterId)
         .where('type', '==', 'promoter_commission')
-        .select('amount', 'status')
+        .where('status', 'in', ['pending', 'settled', 'disputed'])
+        .aggregate({
+          totalCommissionPaise: AggregateField.sum('amountPaise'),
+        })
         .get()
         .catch((err) => {
           this.log.error(
@@ -823,15 +823,10 @@ export class PromoterService {
             },
             'Ledger commission query failed',
           );
-          return { docs: [] };
+          throw err;
         });
 
-      for (const doc of (commSnap as any).docs) {
-        const d = doc.data() as Record<string, any>;
-        if (d.status !== 'reversed' && d.status !== 'cancelled') {
-          commissionEarned += toNum(d.amount);
-        }
-      }
+      commissionEarned = toNum(commissionAggregate.data().totalCommissionPaise) / 100;
 
       // Auto-backfill to prevent heavy reads on next load
       await statsDoc.ref

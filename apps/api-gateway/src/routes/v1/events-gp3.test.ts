@@ -14,6 +14,7 @@ import {
   trackGuestEventView,
 } from '@c1rcle/core/guest-event-conversion';
 import { InventoryUnavailableError, listAvailableTicketTiers } from '@c1rcle/core/inventory-engine';
+import { MockFirestore } from '../../test-utils/mock-firestore.js';
 
 vi.mock('@c1rcle/core/guest-event-conversion', () => ({
   getEventInterested: vi.fn(async () => ({
@@ -299,6 +300,36 @@ describe('event routes GP-3 conversion contracts', () => {
     );
     expect((server as any).eventService.listEvents).not.toHaveBeenCalled();
 
+    await server.close();
+  });
+
+  it('GET /events paginates a partner event list without an unbounded fallback', async () => {
+    const db = new MockFirestore();
+    for (let index = 1; index <= 5; index += 1) {
+      db.seed(`events/event_${index}`, {
+        creatorId: 'host_123',
+        lifecycle: 'draft',
+        title: `Event ${index}`,
+        startDate: `2026-08-${String(index).padStart(2, '0')}`,
+      });
+    }
+    const server = await buildServer({ authenticated: true, customDb: db as any });
+
+    const first = await server.inject({
+      method: 'GET',
+      url: '/api/v1/events?creatorId=host_123&lifecycle=draft&limit=2',
+    });
+    expect(first.statusCode).toBe(200);
+    expect(first.json().events.map((event: any) => event.id)).toEqual(['event_5', 'event_4']);
+    expect(first.json()).toMatchObject({ hasMore: true, nextCursor: 'event_4' });
+
+    const second = await server.inject({
+      method: 'GET',
+      url: `/api/v1/events?creatorId=host_123&lifecycle=draft&limit=2&cursor=${first.json().nextCursor}`,
+    });
+    expect(second.statusCode).toBe(200);
+    expect(second.json().events.map((event: any) => event.id)).toEqual(['event_3', 'event_2']);
+    expect(second.json()).toMatchObject({ hasMore: true, nextCursor: 'event_2' });
     await server.close();
   });
 

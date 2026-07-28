@@ -15,4 +15,8 @@ export function processSwipeAction(
   action: 'like' | 'pass',
 ): Promise<{ match: boolean; conversationId?: string }>;
 export function getPublicUserProfile(db: any, targetUserId: string): Promise<any>;
-export function getUserMatches(db: any, userId: string): Promise<any>;
+export function getUserMatches(
+  db: any,
+  userId: string,
+  options?: { cursor?: string; limit?: number },
+): Promise<{ data: any[]; hasMore: boolean; nextCursor: string | null }>;

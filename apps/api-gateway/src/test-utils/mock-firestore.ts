@@ -1,4 +1,4 @@
-type FilterOp = '==' | '>=' | '<=' | 'in';
+type FilterOp = '==' | '>=' | '<=' | 'in' | 'array-contains';
 
 interface Filter {
   field: string;
@@ -71,6 +71,15 @@ class MockDocRef {
     this.db.docs.set(this.path, deepMerge(current, data));
   }
 
+  async set(data: Record<string, any>, options?: { merge?: boolean }) {
+    const current = this.db.docs.get(this.path);
+    if (options?.merge && isPlainObject(current)) {
+      this.db.docs.set(this.path, deepMerge(current, data));
+      return;
+    }
+    this.db.docs.set(this.path, data);
+  }
+
   collection(name: string) {
     return new MockCollectionRef(this.db, `${this.path}/${name}`);
   }
@@ -86,27 +95,30 @@ class MockQuery {
     private readonly orderField?: string,
     private readonly orderDirection: 'asc' | 'desc' = 'asc',
     private readonly limitSize?: number,
+    private readonly cursorId?: string,
   ) {}
 
-  where(field: string, op: FilterOp, value: any) {
+  where(field: string | { toString(): string }, op: FilterOp, value: any) {
     return new MockQuery(
       this.db,
       this.collectionPath,
-      [...this.filters, { field, op, value }],
+      [...this.filters, { field: String(field), op, value }],
       this.orderField,
       this.orderDirection,
       this.limitSize,
+      this.cursorId,
     );
   }
 
-  orderBy(field: string, direction: 'asc' | 'desc' = 'asc') {
+  orderBy(field: string | { toString(): string }, direction: 'asc' | 'desc' = 'asc') {
     return new MockQuery(
       this.db,
       this.collectionPath,
       this.filters,
-      field,
+      String(field),
       direction,
       this.limitSize,
+      this.cursorId,
     );
   }
 
@@ -118,7 +130,48 @@ class MockQuery {
       this.orderField,
       this.orderDirection,
       size,
+      this.cursorId,
     );
+  }
+
+  startAfter(cursor: { id: string }) {
+    return new MockQuery(
+      this.db,
+      this.collectionPath,
+      this.filters,
+      this.orderField,
+      this.orderDirection,
+      this.limitSize,
+      cursor.id,
+    );
+  }
+
+  count() {
+    return {
+      get: async () => {
+        const snapshot = await this.get();
+        return { data: () => ({ count: snapshot.size }) };
+      },
+    };
+  }
+
+  aggregate(fields: Record<string, { aggregateType: 'count' | 'sum'; _field?: string }>) {
+    return {
+      get: async () => {
+        const snapshot = await this.get();
+        const data = Object.fromEntries(
+          Object.entries(fields).map(([alias, aggregate]) => {
+            if (aggregate.aggregateType === 'count') return [alias, snapshot.size];
+            const sum = snapshot.docs.reduce(
+              (total, doc) => total + Number(doc.data()?.[aggregate._field as string] || 0),
+              0,
+            );
+            return [alias, sum];
+          }),
+        );
+        return { data: () => data };
+      },
+    };
   }
 
   async get() {
@@ -132,23 +185,33 @@ class MockQuery {
     docs = docs.filter((doc) => {
       const data = doc.data() || {};
       return this.filters.every((filter) => {
-        const value = data[filter.field];
+        const value = filter.field === '__name__' ? doc.id : data[filter.field];
         if (filter.op === '==') return value === filter.value;
         if (filter.op === '>=') return value >= filter.value;
         if (filter.op === '<=') return value <= filter.value;
         if (filter.op === 'in') return Array.isArray(filter.value) && filter.value.includes(value);
+        if (filter.op === 'array-contains') {
+          return Array.isArray(value) && value.includes(filter.value);
+        }
         return false;
       });
     });
 
     if (this.orderField) {
       docs.sort((left, right) => {
-        const leftValue = left.data()?.[this.orderField as string];
-        const rightValue = right.data()?.[this.orderField as string];
+        const leftValue =
+          this.orderField === '__name__' ? left.id : left.data()?.[this.orderField as string];
+        const rightValue =
+          this.orderField === '__name__' ? right.id : right.data()?.[this.orderField as string];
         if (leftValue === rightValue) return 0;
         const result = leftValue > rightValue ? 1 : -1;
         return this.orderDirection === 'desc' ? result * -1 : result;
       });
+    }
+
+    if (this.cursorId) {
+      const cursorIndex = docs.findIndex((doc) => doc.id === this.cursorId);
+      docs = cursorIndex < 0 ? [] : docs.slice(cursorIndex + 1);
     }
 
     if (typeof this.limitSize === 'number') docs = docs.slice(0, this.limitSize);
@@ -172,11 +235,11 @@ class MockCollectionRef {
     return new MockDocRef(this.db, `${this.path}/${resolvedId}`);
   }
 
-  where(field: string, op: FilterOp, value: any) {
+  where(field: string | { toString(): string }, op: FilterOp, value: any) {
     return new MockQuery(this.db, this.path).where(field, op, value);
   }
 
-  orderBy(field: string, direction: 'asc' | 'desc' = 'asc') {
+  orderBy(field: string | { toString(): string }, direction: 'asc' | 'desc' = 'asc') {
     return new MockQuery(this.db, this.path).orderBy(field, direction);
   }
 

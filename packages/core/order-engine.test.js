@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest';
 
-import { buildOrderPayload, validateOrder } from './order-engine.js';
+import { buildOrderPayload, normalizeOrderSearchPrefix, validateOrder } from './order-engine.js';
 
 test('validateOrder rejects gender-mismatched buyers for female-only tiers', async () => {
   const result = await validateOrder(
@@ -76,6 +76,9 @@ test('buildOrderPayload persists the authoritative Cover Wallet liability snapsh
 
   expect(order.coverCreditLiabilityPaise).toBe(100_000);
   expect(order.tickets[0].coverChargeConfig.walletAmountPaise).toBe(50_000);
+  expect(order.searchPrefixes).toEqual(
+    expect.arrayContaining([normalizeOrderSearchPrefix(order.id), 'qa', 'qa@', 'cover', 'package']),
+  );
 });
 
 test('buildOrderPayload persists a fail-closed partner updates consent snapshot', () => {

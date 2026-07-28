@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import validatePlugin from '../../../plugins/validate.js';
 import { MockFirestore } from '../../../test-utils/mock-firestore.js';
 import partnersHostRoutes from './hosts.js';
@@ -42,6 +42,122 @@ async function buildServer() {
 }
 
 describe('host event scheduling submission', () => {
+  it('uses indexed ordering and bounded limits for partnerships and notifications', async () => {
+    const { server, db } = await buildServer();
+    for (let index = 1; index <= 105; index += 1) {
+      const day = String(index).padStart(3, '0');
+      db.seed(`partnerships/partnership_${day}`, {
+        hostId: 'host-1',
+        venueId: `venue_${day}`,
+        createdAt: `2026-07-28T10:${day}.000Z`,
+      });
+    }
+    for (let index = 1; index <= 55; index += 1) {
+      const second = String(index).padStart(2, '0');
+      db.seed(`notifications/notification_${second}`, {
+        recipientId: 'host-1',
+        title: `Notification ${second}`,
+        message: `Message ${second}`,
+        createdAt: `2026-07-28T10:00:${second}.000Z`,
+      });
+    }
+
+    const partnerships = await server.inject({
+      method: 'GET',
+      url: '/partners/hosts/partnerships',
+    });
+    expect(partnerships.statusCode).toBe(200);
+    expect(partnerships.json().partnerships).toHaveLength(100);
+    expect(partnerships.json().partnerships[0].id).toBe('partnership_105');
+
+    const notifications = await server.inject({
+      method: 'GET',
+      url: '/partners/hosts/notifications',
+    });
+    expect(notifications.statusCode).toBe(200);
+    expect(notifications.json().notifications).toHaveLength(50);
+    expect(notifications.json().notifications[0].id).toBe('notification_55');
+    await server.close();
+  });
+
+  it('fails closed when the canonical notification index is unavailable', async () => {
+    const { server, db } = await buildServer();
+    const originalCollection = db.collection.bind(db);
+    const get = vi.fn().mockRejectedValue(new Error('FAILED_PRECONDITION: missing index'));
+    db.collection = ((name: string) => {
+      if (name !== 'notifications') return originalCollection(name);
+      const query: any = {
+        where: () => query,
+        orderBy: () => query,
+        limit: () => query,
+        get,
+      };
+      return query;
+    }) as typeof db.collection;
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/partners/hosts/notifications',
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error.code).toBe('HOST_DATA_UNAVAILABLE');
+    expect(get).toHaveBeenCalledTimes(1);
+    await server.close();
+  });
+
+  it('uses aggregate counts for bounded event overview and promoter lists', async () => {
+    const { server, db } = await buildServer();
+    db.seed('events/event-counts', {
+      creatorId: 'host-1',
+      hostId: 'host-1',
+      title: 'Counted Event',
+      lifecycle: 'live',
+      status: 'live',
+      startDate: '2026-08-15',
+    });
+    db.seed('events/event-counts/ticket_tiers/tier-1', {
+      name: 'General',
+      capacity: 20,
+    });
+    for (let index = 1; index <= 3; index += 1) {
+      db.seed(`ticket_scans/scan-${index}`, {
+        eventId: 'event-counts',
+        scannedAt: `2026-08-15T21:00:0${index}.000Z`,
+      });
+      db.seed(`orders/order-${index}`, {
+        eventId: 'event-counts',
+        status: 'paid',
+        createdAt: `2026-08-15T20:00:0${index}.000Z`,
+      });
+    }
+    for (let index = 1; index <= 105; index += 1) {
+      db.seed(`promoter_connections/connection-${index}`, {
+        hostId: 'host-1',
+        promoterId: `promoter-${index}`,
+        status: index <= 60 ? 'active' : 'pending',
+        createdAt: `2026-07-${String((index % 28) + 1).padStart(2, '0')}T10:00:00.000Z`,
+      });
+    }
+
+    const overview = await server.inject({
+      method: 'GET',
+      url: '/partners/hosts/events/event-counts/overview',
+    });
+    expect(overview.statusCode).toBe(200);
+    expect(overview.json().totalCheckedIn).toBe(3);
+    expect(overview.json().stats.orders).toBe(3);
+
+    const promoters = await server.inject({
+      method: 'GET',
+      url: '/partners/hosts/promoters',
+    });
+    expect(promoters.statusCode).toBe(200);
+    expect(promoters.json()).toMatchObject({ total: 105, active: 60, truncated: true });
+    expect(promoters.json().promoters).toHaveLength(100);
+    await server.close();
+  });
+
   it('serves a cached overview before reading the Host document', async () => {
     const { server, db } = await buildServer();
     const originalCollection = db.collection.bind(db);

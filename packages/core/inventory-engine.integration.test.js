@@ -27,6 +27,9 @@ const redisMock = {
   async get(key) {
     return this._store[key] ?? null;
   },
+  async mget(keys) {
+    return keys.map((key) => this._store[key] ?? null);
+  },
   async del(key) {
     delete this._store[key];
     return 1;
@@ -91,6 +94,7 @@ vi.mock('./redis.js', () => ({
 
 const {
   calculateEffectiveInventory,
+  calculateEffectiveInventories,
   createReservation,
   InventoryUnavailableError,
   LockAcquisitionError,
@@ -168,6 +172,39 @@ describe('calculateEffectiveInventory', () => {
     const tier = event.tickets[0];
     const available = await calculateEffectiveInventory(tier, event);
     expect(available).toBe(Infinity);
+  });
+});
+
+describe('calculateEffectiveInventories', () => {
+  beforeEach(() => {
+    redisMock.reset();
+    redisMock.status = 'ready';
+  });
+
+  it('batch-loads reservation payloads for every quoted tier', async () => {
+    const event = {
+      id: 'evt-batch',
+      tickets: [
+        { id: 'tier-a', quantity: 10 },
+        { id: 'tier-b', quantity: 20 },
+      ],
+    };
+    await redisMock.sadd('res:event:evt-batch:tier:tier-a', 'res-shared');
+    await redisMock.sadd('res:event:evt-batch:tier:tier-b', 'res-shared');
+    redisMock._store['res:data:res-shared'] = JSON.stringify({
+      items: [
+        { tierId: 'tier-a', quantity: 2 },
+        { tierId: 'tier-b', quantity: 3 },
+      ],
+    });
+    const mget = vi.spyOn(redisMock, 'mget');
+
+    const inventory = await calculateEffectiveInventories(event.tickets, event);
+
+    expect(inventory.get('tier-a')).toBe(8);
+    expect(inventory.get('tier-b')).toBe(17);
+    expect(mget).toHaveBeenCalledTimes(1);
+    expect(mget).toHaveBeenCalledWith(['res:data:res-shared']);
   });
 });
 

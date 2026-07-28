@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
 import {
   getPartnerProfileSummary,
+  getPartnerProfileSummariesById,
   getPartnerProfileWithPii,
 } from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
@@ -2344,21 +2345,9 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           ),
         );
 
-        const profilesMap = new Map();
-        await Promise.all(
-          uniqueTargetIds.map(async (tid: any) => {
-            try {
-              const profile = await getPartnerProfileSummary(fastify.db, tid);
-              if (profile) {
-                profilesMap.set(tid, profile);
-              }
-            } catch (err) {
-              fastify.log.error(
-                err,
-                `Failed to fetch partner profile for connection target ${tid}`,
-              );
-            }
-          }),
+        const profilesMap = await getPartnerProfileSummariesById(
+          fastify.db,
+          uniqueTargetIds.map(String),
         );
 
         const mergedConnections = asArray(connections).map((conn: any) => {
