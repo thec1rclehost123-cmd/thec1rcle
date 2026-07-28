@@ -2540,10 +2540,33 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
-          await fastify.db
-            .collection('events')
-            .doc(eventTicketsMatch[1])
-            .update({ ticketTiers: body.tiers, updatedAt: new Date().toISOString() });
+          const activeTiers = body.tiers.filter(
+            (t: any) => t.status !== 'hidden' && t.status !== 'inactive',
+          );
+          const prices = activeTiers.length
+            ? activeTiers.map((t: any) => Number(t.price) || 0)
+            : [0];
+          const priceMin = Math.min(...prices);
+          const priceMax = Math.max(...prices);
+
+          const updatePayload: any = {
+            ticketTiers: body.tiers,
+            priceMin,
+            priceMax,
+            priceRange: { min: priceMin, max: priceMax, currency: event.currency || 'INR' },
+            startingPrice: priceMin,
+            isFree: priceMin === 0,
+            updatedAt: new Date().toISOString(),
+          };
+          if (event.ticketCatalog) {
+            updatePayload['ticketCatalog.tiers'] = body.tiers;
+          } else {
+            updatePayload.tickets = body.tiers;
+          }
+          await fastify.db.collection('events').doc(eventTicketsMatch[1]).update(updatePayload);
+          await fastify.publicDiscoveryService
+            .syncEventReadModels(eventTicketsMatch[1])
+            .catch(() => {});
           await fastify.cache.delete('events:detail', eventTicketsMatch[1]).catch(() => {});
           return reply.send({ success: true });
         }

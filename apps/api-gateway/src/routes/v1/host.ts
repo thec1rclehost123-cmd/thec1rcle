@@ -655,10 +655,27 @@ export default async function hostRoutes(fastify: FastifyInstance) {
     } catch {
       return reply.status(403).send({ error: 'Forbidden' });
     }
-    await fastify.db
-      .collection('events')
-      .doc(eventId)
-      .update({ ticketTiers: tiers, updatedAt: new Date().toISOString() });
+    const activeTiers = tiers.filter((t: any) => t.status !== 'hidden' && t.status !== 'inactive');
+    const prices = activeTiers.length ? activeTiers.map((t: any) => Number(t.price) || 0) : [0];
+    const priceMin = Math.min(...prices);
+    const priceMax = Math.max(...prices);
+
+    const updatePayload: any = {
+      ticketTiers: tiers,
+      priceMin,
+      priceMax,
+      priceRange: { min: priceMin, max: priceMax, currency: ev.currency || 'INR' },
+      startingPrice: priceMin,
+      isFree: priceMin === 0,
+      updatedAt: new Date().toISOString(),
+    };
+    if (ev.ticketCatalog) {
+      updatePayload['ticketCatalog.tiers'] = tiers;
+    } else {
+      updatePayload.tickets = tiers;
+    }
+    await fastify.db.collection('events').doc(eventId).update(updatePayload);
+    await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
     await fastify.cache.delete('events:detail', eventId).catch(() => {});
     return { success: true };
   });
