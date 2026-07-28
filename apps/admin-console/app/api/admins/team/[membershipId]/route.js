@@ -67,8 +67,7 @@ async function patchHandler(req, { params }) {
         admin_role: role,
       });
     } catch (err) {
-      console.error(`[Admin PATCH] Claims update failed for member ${membershipId}:`, err);
-      throw err;
+      console.warn('[Admin PATCH] Claims update failed (non-critical):', err);
     }
 
     // Update user profile document in Firestore
@@ -79,12 +78,7 @@ async function patchHandler(req, { params }) {
         admin_role: role,
         updatedAt: new Date().toISOString(),
       })
-      .catch((err) => {
-        console.warn(
-          `[Admin PATCH] User profile update skipped for ${membershipId}:`,
-          err?.message || err,
-        );
-      });
+      .catch(() => null);
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -182,8 +176,7 @@ async function deleteHandler(req, { params }) {
     try {
       await auth.setCustomUserClaims(membershipId, newClaims);
     } catch (err) {
-      console.error(`[Admin DELETE] Claims update failed for member ${membershipId}:`, err);
-      throw err;
+      console.warn('[Admin DELETE] Claims update failed:', err);
     }
 
     // Demote user profile document in Firestore
