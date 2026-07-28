@@ -61,7 +61,10 @@ export default function SocialSetupReview() {
 
   const photos = useMemo(() => parseStringArray(params.photosJson, []), [params.photosJson]);
   const interestedIn = useMemo(
-    () => parseStringArray(params.interestedIn, ['everyone']) as ('male' | 'female' | 'nonbinary' | 'everyone')[],
+    () =>
+      parseStringArray(params.interestedIn, ['everyone']) as (
+        'male' | 'female' | 'nonbinary' | 'everyone'
+      )[],
     [params.interestedIn],
   );
   const lookingFor = useMemo(
