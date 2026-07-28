@@ -53,7 +53,11 @@ function getActionErrorMessage(err: any): string {
 }
 
 export function useAuth() {
-  const { user, loading, initialized, authSyncFailed, authSyncError } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
+  const loading = useAuthStore((state) => state.loading);
+  const initialized = useAuthStore((state) => state.initialized);
+  const authSyncFailed = useAuthStore((state) => state.authSyncFailed);
+  const authSyncError = useAuthStore((state) => state.authSyncError);
   const [authLoading, setAuthLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

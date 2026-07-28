@@ -102,7 +102,7 @@ export default function EventGroupChatScreen() {
     eventId: string;
     eventTitle: string;
   }>();
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
   const messagesListRef = useRef<FlashListRef<GroupMessage>>(null);
 
   const [messages, setMessages] = useState<GroupMessage[]>([]);

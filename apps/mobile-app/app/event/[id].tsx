@@ -440,7 +440,7 @@ const TicketTierCard = memo(function TicketTierCard({
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const isAvailable = tier.remaining > 0;
-  const { addItem } = useCartStore();
+  const addItem = useCartStore((state) => state.addItem);
   const profile = useProfileStore((s) => s.profile);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -741,16 +741,18 @@ export default memo(function EventDetailScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const profile = useProfileStore((s) => s.profile);
-  const {
-    isInterested,
-    toggleInterest,
-    fetchInterestedUsers,
-    fetchEventInterestState,
-    interestedUsers,
-  } = useEventInterestStore();
-  const { followedVenueIds, followedHostIds, fetchFollows, toggleVenueFollow, toggleHostFollow } =
-    useFollowStore();
-  const { orders, fetchUserOrders } = useTicketsStore();
+  const isInterested = useEventInterestStore((state) => state.isInterested);
+  const toggleInterest = useEventInterestStore((state) => state.toggleInterest);
+  const fetchInterestedUsers = useEventInterestStore((state) => state.fetchInterestedUsers);
+  const fetchEventInterestState = useEventInterestStore((state) => state.fetchEventInterestState);
+  const interestedUsers = useEventInterestStore((state) => state.interestedUsers);
+  const followedVenueIds = useFollowStore((state) => state.followedVenueIds);
+  const followedHostIds = useFollowStore((state) => state.followedHostIds);
+  const fetchFollows = useFollowStore((state) => state.fetchFollows);
+  const toggleVenueFollow = useFollowStore((state) => state.toggleVenueFollow);
+  const toggleHostFollow = useFollowStore((state) => state.toggleHostFollow);
+  const orders = useTicketsStore((state) => state.orders);
+  const fetchUserOrders = useTicketsStore((state) => state.fetchUserOrders);
 
   const [event, setEvent] = useState<Event | null>(initialEvent);
   const [loading, setLoading] = useState(!initialEvent);

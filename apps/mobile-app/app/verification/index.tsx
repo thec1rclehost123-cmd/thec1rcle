@@ -70,8 +70,8 @@ function StatusBanner({ status }: { status: VerificationStatus }) {
 
 export default function VerificationScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuthStore();
-  const { profile } = useProfileStore();
+  const user = useAuthStore((state) => state.user);
+  const profile = useProfileStore((state) => state.profile);
   const [submitting, setSubmitting] = useState(false);
 
   // Derive current status from profile

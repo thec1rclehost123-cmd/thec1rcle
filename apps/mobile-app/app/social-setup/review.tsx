@@ -3,7 +3,7 @@
  * Step 3 — Profile preview card + isVisible toggle + "Go Live" CTA.
  * Calls socialProfileStore.completeSetup() on confirm.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -38,18 +38,36 @@ type Params = {
   lookingFor: string;
 };
 
+function parseStringArray(value: string | undefined, fallback: string[]) {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')
+      ? parsed
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export default function SocialSetupReview() {
   const params = useLocalSearchParams<Params>();
   const { user } = useAuth();
-  const { profile, updateProfile } = useProfileStore();
-  const { completeSetup } = useSocialProfileStore();
+  const profile = useProfileStore((state) => state.profile);
+  const updateProfile = useProfileStore((state) => state.updateProfile);
+  const completeSetup = useSocialProfileStore((state) => state.completeSetup);
 
   const [isVisible, setIsVisible] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const photos: string[] = JSON.parse(params.photosJson ?? '[]');
-  const interestedIn = JSON.parse(params.interestedIn ?? '["everyone"]');
-  const lookingFor = JSON.parse(params.lookingFor ?? '["friends"]');
+  const photos = useMemo(() => parseStringArray(params.photosJson, []), [params.photosJson]);
+  const interestedIn = useMemo(
+    () => parseStringArray(params.interestedIn, ['everyone']) as ('male' | 'female' | 'nonbinary' | 'everyone')[],
+    [params.interestedIn],
+  );
+  const lookingFor = useMemo(
+    () => parseStringArray(params.lookingFor, ['friends']),
+    [params.lookingFor],
+  );
 
   const primaryPhoto = photos[0];
   const displayName = profile?.displayName || user?.displayName || 'You';

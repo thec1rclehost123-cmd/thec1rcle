@@ -78,7 +78,8 @@ const PROMPT_OPTIONS = [
 ];
 
 export default function NightlifePromptsScreen() {
-  const { prompts, setPrompts } = useNightlifeSetupStore();
+  const prompts = useNightlifeSetupStore((state) => state.prompts);
+  const setPrompts = useNightlifeSetupStore((state) => state.setPrompts);
   const [localPrompts, setLocalPrompts] = useState<ProfilePrompt[]>(prompts);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);

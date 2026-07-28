@@ -76,7 +76,8 @@ function flattenTickets(tickets: OrderTicket[]) {
 export default function TicketDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
-  const { getOrderById, fetchUserOrders } = useTicketsStore();
+  const getOrderById = useTicketsStore((state) => state.getOrderById);
+  const fetchUserOrders = useTicketsStore((state) => state.fetchUserOrders);
   const openPaywall = useSubscriptionStore((state) => state.openPaywall);
 
   const [order, setOrder] = useState<Order | null>(null);

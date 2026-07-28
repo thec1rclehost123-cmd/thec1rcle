@@ -23,6 +23,7 @@ import Animated, {
   withTiming,
   Easing,
   runOnJS,
+  cancelAnimation,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
@@ -488,6 +489,7 @@ function TypingDot({
         -1,
       ),
     );
+    return () => cancelAnimation(lift);
   }, [delay, bounceHeight, bounceDuration, restDuration, lift]);
 
   const animatedStyle = useAnimatedStyle(() => ({

@@ -9,8 +9,12 @@ import { trackFirstRun } from '@/lib/firstRunAnalytics';
 import { startFirstRunMetric } from '@/lib/firstRunPerformance';
 
 export default function IntentScreen() {
-  const store = useFirstRunStore();
-  const [selected, setSelected] = useState<UserIntent[]>(store.snapshot?.intents ?? []);
+  const snapshot = useFirstRunStore((state) => state.snapshot);
+  const savePreferences = useFirstRunStore((state) => state.savePreferences);
+  const complete = useFirstRunStore((state) => state.complete);
+  const loading = useFirstRunStore((state) => state.loading);
+  const error = useFirstRunStore((state) => state.error);
+  const [selected, setSelected] = useState<UserIntent[]>(snapshot?.intents ?? []);
   useEffect(() => trackFirstRun('first_run_step_viewed', { stage: 'intent' }), []);
   const toggle = (id: UserIntent) => {
     void Haptics.selectionAsync();
@@ -19,8 +23,8 @@ export default function IntentScreen() {
     );
   };
   const submit = async () => {
-    if (!(await store.savePreferences({ intents: selected }))) return;
-    if (!(await store.complete())) return;
+    if (!(await savePreferences({ intents: selected }))) return;
+    if (!(await complete())) return;
     trackFirstRun('first_run_step_completed', { stage: 'intent', outcome: 'success' });
     trackFirstRun('first_run_completed', {
       stage: 'complete',
@@ -42,7 +46,7 @@ export default function IntentScreen() {
         <FirstRunButton
           label="Build my Explore"
           onPress={submit}
-          loading={store.loading}
+          loading={loading}
           disabled={!selected.length}
         />
       }
@@ -56,7 +60,7 @@ export default function IntentScreen() {
           onPress={() => toggle(intent.id)}
         />
       ))}
-      {store.error ? <FirstRunMessage error>{store.error}</FirstRunMessage> : null}
+      {error ? <FirstRunMessage error>{error}</FirstRunMessage> : null}
     </FirstRunShell>
   );
 }

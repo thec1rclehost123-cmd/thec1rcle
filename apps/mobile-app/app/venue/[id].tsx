@@ -46,7 +46,12 @@ import Animated, {
 import { colors, radii } from '@/lib/design/theme';
 import { EventCard } from '@/components/ui/EventCard';
 import { PremiumButton } from '@/components/ui/PremiumButton';
-import { getFacilityEmoji, type VenueHighlight, useVenuePageStore } from '@/store/venuePageStore';
+import {
+  EMPTY_VENUE_PAGE_ENTRY,
+  getFacilityEmoji,
+  type VenueHighlight,
+  useVenuePageStore,
+} from '@/store/venuePageStore';
 import { useFollowStore } from '@/store/followStore';
 import { useAuth } from '@/hooks/useAuth';
 import { formatCompactCount } from '@/lib/venueDiscovery';
@@ -229,17 +234,13 @@ function StoryModal({
 export default function VenuePageScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
-  const {
-    venue,
-    highlights,
-    gallery,
-    menu,
-    facilities,
-    upcomingEvents,
-    loading,
-    error,
-    fetchVenuePage,
-  } = useVenuePageStore();
+  const venuePageKey = String(id || '');
+  const venuePage = useVenuePageStore(
+    (state) => state.pages[venuePageKey] ?? EMPTY_VENUE_PAGE_ENTRY,
+  );
+  const { venue, highlights, gallery, menu, facilities, upcomingEvents, loading, error } =
+    venuePage;
+  const fetchVenuePage = useVenuePageStore((state) => state.fetchVenuePage);
 
   const [activeTab, setActiveTab] = useState<TabId>('events');
   const [storyModal, setStoryModal] = useState<{
@@ -250,7 +251,10 @@ export default function VenuePageScreen() {
   const [galleryImage, setGalleryImage] = useState<string | null>(null);
 
   const { user } = useAuth();
-  const { isFollowingVenue, toggleVenueFollow, fetchFollows, loadedUserId } = useFollowStore();
+  const isFollowingVenue = useFollowStore((state) => state.isFollowingVenue);
+  const toggleVenueFollow = useFollowStore((state) => state.toggleVenueFollow);
+  const fetchFollows = useFollowStore((state) => state.fetchFollows);
+  const loadedUserId = useFollowStore((state) => state.loadedUserId);
   const isFollowing = venue ? isFollowingVenue(venue.id, user?.uid) : false;
 
   useEffect(() => {

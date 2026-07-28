@@ -60,7 +60,8 @@ export default function CoverChargeScreen() {
   } | null>(null);
   const [isOffline, setIsOffline] = useState(false);
 
-  const { eventData, sessionToken } = useScannerStore();
+  const eventData = useScannerStore((state) => state.eventData);
+  const sessionToken = useScannerStore((state) => state.sessionToken);
   const mountedRef = useRef(true);
   const lastScannedRef = useRef<string | null>(null);
   // H12: idempotencyKey — generated once per item selection, never regenerated on retry

@@ -1,35 +1,5 @@
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { initializeAppCheck, CustomProvider, type AppCheck } from 'firebase/app-check';
 import { NativeModules } from 'react-native';
-import { firebaseConfig } from './config';
 import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
-
-// Initialize Web Firebase App (for App Check / API compatibility if needed)
-let firebaseApp: FirebaseApp;
-let firebaseAppCheck: AppCheck | null = null;
-
-export function getFirebaseApp(): FirebaseApp {
-  if (!firebaseApp) {
-    firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-  }
-  return firebaseApp;
-}
-
-export function initAppCheck(): AppCheck {
-  if (!firebaseAppCheck) {
-    const debugToken = process.env.EXPO_PUBLIC_APPCHECK_DEBUG_TOKEN || '';
-    firebaseAppCheck = initializeAppCheck(getFirebaseApp(), {
-      provider: new CustomProvider({
-        getToken: async () => ({
-          token: debugToken,
-          expireTimeMillis: Date.now() + 1000 * 60 * 60, // 1 hour
-        }),
-      }),
-      isTokenAutoRefreshEnabled: true,
-    });
-  }
-  return firebaseAppCheck;
-}
 
 // Firebase Auth Native
 export function getFirebaseAuth() {

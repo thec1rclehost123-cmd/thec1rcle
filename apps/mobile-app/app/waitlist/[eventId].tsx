@@ -12,8 +12,8 @@ import { colors, radii, gradients } from '@/lib/design/theme';
 
 export default function WaitlistScreen() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
-  const { user } = useAuthStore();
-  const { getEventById } = useEventsStore();
+  const user = useAuthStore((state) => state.user);
+  const getEventById = useEventsStore((state) => state.getEventById);
   const insets = useSafeAreaInsets();
 
   const [joining, setJoining] = useState(false);

@@ -136,6 +136,36 @@ describe('processFullCheckout', () => {
     expect(verifyPayment).not.toHaveBeenCalled();
   });
 
+  it('reuses the screen-owned idempotency key across reserve and initiate phases', async () => {
+    (reserveTickets as jest.Mock).mockResolvedValueOnce({
+      success: true,
+      reservationId: 'res_cached_key',
+      items: baseParams.items,
+      expiresAt: futureExpiry,
+      expiresInSeconds: 600,
+    });
+    (initiateCheckout as jest.Mock).mockResolvedValueOnce({
+      success: true,
+      requiresPayment: false,
+      order: { id: 'order_cached_key' },
+    });
+
+    await processFullCheckout({ ...baseParams, idempotencyKey: 'checkout-session-1' });
+
+    expect(reserveTickets).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        headers: { 'x-idempotency-key': 'checkout-session-1::reserve' },
+      }),
+    );
+    expect(initiateCheckout).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        headers: { 'x-idempotency-key': 'checkout-session-1::initiate' },
+      }),
+    );
+  });
+
   it('does not reuse an expired saved reservation', async () => {
     useCartStore.getState().setPendingReservation({
       reservationId: 'expired_res',

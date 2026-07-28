@@ -58,7 +58,7 @@ export default function ReportScreen() {
     eventId?: string;
     messageId?: string;
   }>();
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
 
   const [selectedCategory, setSelectedCategory] = useState<UserReport['category'] | null>(null);
   const [description, setDescription] = useState('');

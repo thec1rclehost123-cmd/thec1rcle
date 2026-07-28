@@ -163,7 +163,8 @@ export function ScenesWorthIt({ events }: { events: Event[] }) {
 
 // ── 4. Top Venues ──
 export function TopVenues({ city }: { city?: string }) {
-  const { venues, fetchVenues } = useVenuesStore();
+  const venues = useVenuesStore((state) => state.venues);
+  const fetchVenues = useVenuesStore((state) => state.fetchVenues);
   const { user, initialized } = useAuth();
   const profile = useProfileStore((state) => state.profile);
   const profileCity = profile?.discoveryProfile?.cityName || profile?.city || '';

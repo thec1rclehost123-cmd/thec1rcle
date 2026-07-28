@@ -15,13 +15,13 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-describe('venuePageStore request ownership', () => {
+describe('venuePageStore keyed request ownership', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useVenuePageStore.getState().clearVenuePage();
   });
 
-  it('does not let a slower previous venue overwrite the current venue', async () => {
+  it('keeps parallel venue pages isolated when responses settle out of order', async () => {
     const venueARequest = deferred<any>();
     const venueBRequest = deferred<any>();
     mockFetchPublicVenuePage
@@ -36,22 +36,25 @@ describe('venuePageStore request ownership', () => {
     venueARequest.resolve({ venue: { id: 'venue-a', name: 'Venue A' } });
     await venueA;
 
-    expect(useVenuePageStore.getState().venue).toMatchObject({
+    expect(useVenuePageStore.getState().pages['venue-b'].venue).toMatchObject({
       id: 'venue-b',
       name: 'Venue B',
     });
+    expect(useVenuePageStore.getState().pages['venue-a'].venue).toMatchObject({
+      id: 'venue-a',
+      name: 'Venue A',
+    });
   });
 
-  it('ignores a response after the page state is cleared', async () => {
+  it('ignores a response after only its keyed page state is cleared', async () => {
     const request = deferred<any>();
     mockFetchPublicVenuePage.mockReturnValueOnce(request.promise);
 
     const pending = useVenuePageStore.getState().fetchVenuePage('venue-a');
-    useVenuePageStore.getState().clearVenuePage();
+    useVenuePageStore.getState().clearVenuePage('venue-a');
     request.resolve({ venue: { id: 'venue-a', name: 'Venue A' } });
     await pending;
 
-    expect(useVenuePageStore.getState().venue).toBeNull();
-    expect(useVenuePageStore.getState().loading).toBe(false);
+    expect(useVenuePageStore.getState().pages['venue-a']).toBeUndefined();
   });
 });

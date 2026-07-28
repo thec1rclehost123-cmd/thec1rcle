@@ -25,8 +25,8 @@ export default function TransferScreen() {
     ticketId?: string;
     ticketName?: string;
   }>();
-  const { user } = useAuthStore();
-  const { fetchUserOrders } = useTicketsStore();
+  const user = useAuthStore((state) => state.user);
+  const fetchUserOrders = useTicketsStore((state) => state.fetchUserOrders);
   const openPaywall = useSubscriptionStore((state) => state.openPaywall);
 
   const [mode, setMode] = useState<'send' | 'receive'>('send');

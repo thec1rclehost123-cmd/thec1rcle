@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -24,7 +24,12 @@ import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import { trackPurchaseFailed, trackTicketPurchase } from '@/lib/analytics';
 import { calculatePricing, type PricingResult } from '@/lib/api';
 import { colors, gradients, typography } from '@/lib/design/theme';
-import { discardPendingCheckout, processFullCheckout, type CheckoutStatus } from '@/lib/payments';
+import {
+  createCheckoutActionId,
+  discardPendingCheckout,
+  processFullCheckout,
+  type CheckoutStatus,
+} from '@/lib/payments';
 import { formatEventDate, formatEventTime } from '@/lib/utils/date';
 import { formatInr } from '@/lib/money';
 import { useAuthStore } from '@/store/authStore';
@@ -222,22 +227,29 @@ function GlassCard({ children, delay = 0 }: { children: React.ReactNode; delay?:
   );
 }
 
+function PricingUpdateFallback() {
+  return (
+    <View style={styles.quoteIndicator}>
+      <ActivityIndicator size="small" color={colors.irisGlow} />
+      <Text style={styles.quoteIndicatorText}>Updating secure pricing...</Text>
+    </View>
+  );
+}
+
 export default function CheckoutScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
   const profile = useProfileStore((state) => state.profile);
-  const {
-    items,
-    promo,
-    reservationExpiry,
-    pendingPaymentOrderId,
-    pendingReservation,
-    removeItem,
-    updateQuantity,
-    clearPendingReservation,
-    applyPromoCode,
-    clearPromoCode,
-  } = useCartStore();
+  const items = useCartStore((state) => state.items);
+  const promo = useCartStore((state) => state.promo);
+  const reservationExpiry = useCartStore((state) => state.reservationExpiry);
+  const pendingPaymentOrderId = useCartStore((state) => state.pendingPaymentOrderId);
+  const pendingReservation = useCartStore((state) => state.pendingReservation);
+  const removeItem = useCartStore((state) => state.removeItem);
+  const updateQuantity = useCartStore((state) => state.updateQuantity);
+  const clearPendingReservation = useCartStore((state) => state.clearPendingReservation);
+  const applyPromoCode = useCartStore((state) => state.applyPromoCode);
+  const clearPromoCode = useCartStore((state) => state.clearPromoCode);
   const openPaywall = useSubscriptionStore((state) => state.openPaywall);
   const getEventById = useEventsStore((state) => state.getEventById);
 
@@ -250,9 +262,13 @@ export default function CheckoutScreen() {
   const [pricing, setPricing] = useState<PricingResult['pricing'] | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [cartEditPending, setCartEditPending] = useState(false);
+  const [checkoutIdempotencyKey, setCheckoutIdempotencyKey] = useState(createCheckoutActionId);
   const [hostUpdatesOptIn, setHostUpdatesOptIn] = useState(false);
   const [reservationClock, setReservationClock] = useState(Date.now());
   const [authoritativeEvent, setAuthoritativeEvent] = useState<Event | null>(null);
+  const cartEditLockRef = useRef(false);
+  const navigationLockRef = useRef(false);
 
   const reservationExpiresAt = pendingReservation
     ? new Date(pendingReservation.expiresAt).getTime()
@@ -282,6 +298,11 @@ export default function CheckoutScreen() {
     () => items.map((item) => ({ tierId: item.tier.id, quantity: item.quantity })),
     [items],
   );
+
+  useEffect(() => {
+    setCheckoutIdempotencyKey(createCheckoutActionId());
+    navigationLockRef.current = false;
+  }, [eventId]);
 
   const localSubtotal = useMemo(() => {
     return items.reduce((sum, item) => sum + item.tier.price * item.quantity, 0);
@@ -385,7 +406,8 @@ export default function CheckoutScreen() {
     ? 'No payment required'
     : 'UPI, cards, wallets, netbanking';
   const billingEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billingEmail.trim());
-  const payDisabled = processing || quoteLoading || !!quoteError || !billingEmailValid;
+  const payDisabled =
+    processing || cartEditPending || quoteLoading || !!quoteError || !billingEmailValid;
   const payButtonLabel = processing
     ? getCheckoutStatusLabel(checkoutStatus)
     : cartExpired
@@ -398,59 +420,100 @@ export default function CheckoutScreen() {
   const showingPaymentHandoff =
     processing && (checkoutStatus === 'verifying' || checkoutStatus === 'confirmed');
 
+  const beginCartEdit = () => {
+    if (cartEditLockRef.current || navigationLockRef.current || processing) return false;
+    cartEditLockRef.current = true;
+    setCartEditPending(true);
+    return true;
+  };
+
+  const finishCartEdit = () => {
+    cartEditLockRef.current = false;
+    setCartEditPending(false);
+  };
+
+  const rotateCheckoutIdempotencyKey = () => {
+    setCheckoutIdempotencyKey(createCheckoutActionId());
+  };
+
   const handleApplyPromo = async (code: string) => {
-    if (!code || !eventId) return;
+    if (!code || !eventId || !beginCartEdit()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setPromoError(null);
     try {
       await discardPendingCheckout();
+      rotateCheckoutIdempotencyKey();
+      const result = await applyPromoCode(code, eventId);
+      if (!result.success) {
+        setPromoError(result.error || 'This promo code is not available for this order.');
+        return;
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowPromoModal(false);
+      setPromoInput('');
     } catch {
       setPromoError('Could not release the current ticket hold. Please retry.');
-      return;
+    } finally {
+      finishCartEdit();
     }
-    const result = await applyPromoCode(code, eventId);
-    if (!result.success) {
-      setPromoError(result.error || 'This promo code is not available for this order.');
-      return;
-    }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setShowPromoModal(false);
-    setPromoInput('');
   };
 
   const handleRemovePromo = async () => {
+    if (!beginCartEdit()) return;
     Haptics.selectionAsync();
     try {
       await discardPendingCheckout();
+      rotateCheckoutIdempotencyKey();
+      clearPromoCode();
     } catch {
       Alert.alert('Tickets still held', 'Could not release the current hold. Please retry.');
-      return;
+    } finally {
+      finishCartEdit();
     }
-    clearPromoCode();
   };
 
   const handleQuantityChange = async (item: CartItem, quantity: number) => {
-    if (processing) return;
+    if (!beginCartEdit()) return;
     Haptics.selectionAsync();
     try {
       await discardPendingCheckout();
+      rotateCheckoutIdempotencyKey();
+      updateQuantity(item.eventId, item.tier.id, quantity);
     } catch {
       Alert.alert('Tickets still held', 'Could not release the current hold. Please retry.');
-      return;
+    } finally {
+      finishCartEdit();
     }
-    updateQuantity(item.eventId, item.tier.id, quantity);
   };
 
   const handleRemoveItem = async (item: CartItem) => {
-    if (processing) return;
+    if (!beginCartEdit()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       await discardPendingCheckout();
+      rotateCheckoutIdempotencyKey();
+      removeItem(item.eventId, item.tier.id);
     } catch {
       Alert.alert('Tickets still held', 'Could not release the current hold. Please retry.');
-      return;
+    } finally {
+      finishCartEdit();
     }
-    removeItem(item.eventId, item.tier.id);
+  };
+
+  const handleEditTickets = async () => {
+    if (!beginCartEdit()) return;
+    Haptics.selectionAsync();
+    try {
+      await discardPendingCheckout();
+      rotateCheckoutIdempotencyKey();
+      navigationLockRef.current = true;
+      router.push(`/checkout/${eventId}`);
+    } catch {
+      navigationLockRef.current = false;
+      Alert.alert('Tickets still held', 'Could not release the current hold. Please retry.');
+    } finally {
+      finishCartEdit();
+    }
   };
 
   const handlePaymentMethodChange = () => {
@@ -465,7 +528,9 @@ export default function CheckoutScreen() {
   };
 
   const handlePay = async () => {
-    if (items.length === 0) return;
+    if (items.length === 0 || processing || cartEditLockRef.current || navigationLockRef.current) {
+      return;
+    }
     if (!user?.uid) {
       Alert.alert('Sign in needed', 'Please sign in before checkout.');
       return;
@@ -484,6 +549,7 @@ export default function CheckoutScreen() {
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    navigationLockRef.current = true;
     setProcessing(true);
 
     const result = await processFullCheckout({
@@ -496,12 +562,14 @@ export default function CheckoutScreen() {
       promoCode: promo?.code ?? undefined,
       promoterCode: promoterCode ?? undefined,
       hostUpdatesOptIn,
+      idempotencyKey: checkoutIdempotencyKey,
       onStatusChange: setCheckoutStatus,
     });
 
     if (!result.success || !result.orderId) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       setProcessing(false);
+      navigationLockRef.current = false;
       if (result.premiumRequired) return;
       if (result.cancelled) {
         Alert.alert('Payment cancelled', 'No charge was made. Your ticket hold was released.');
@@ -671,19 +739,8 @@ export default function CheckoutScreen() {
               <Text style={styles.cardSectionTitle}>Order Receipt</Text>
             </View>
             <Pressable
-              onPress={async () => {
-                Haptics.selectionAsync();
-                try {
-                  await discardPendingCheckout();
-                } catch {
-                  Alert.alert(
-                    'Tickets still held',
-                    'Could not release the current hold. Please retry.',
-                  );
-                  return;
-                }
-                router.push(`/checkout/${eventId}`);
-              }}
+              onPress={handleEditTickets}
+              disabled={cartEditPending || processing}
               hitSlop={8}
             >
               <Text style={styles.editTicketsText}>Edit tickets</Text>
@@ -708,7 +765,7 @@ export default function CheckoutScreen() {
                   <View style={styles.quantityControls}>
                     <Pressable
                       accessibilityLabel={`Decrease ${item.tier.name} quantity`}
-                      disabled={processing}
+                      disabled={processing || cartEditPending}
                       onPress={() => handleQuantityChange(item, item.quantity - 1)}
                       style={styles.quantityButton}
                     >
@@ -719,6 +776,7 @@ export default function CheckoutScreen() {
                       accessibilityLabel={`Increase ${item.tier.name} quantity`}
                       disabled={
                         processing ||
+                        cartEditPending ||
                         item.quantity >=
                           Math.max(item.quantity, Math.min(10, Number(item.tier.remaining) || 10))
                       }
@@ -729,7 +787,7 @@ export default function CheckoutScreen() {
                     </Pressable>
                     <Pressable
                       accessibilityLabel={`Remove ${item.tier.name} from cart`}
-                      disabled={processing}
+                      disabled={processing || cartEditPending}
                       onPress={() => handleRemoveItem(item)}
                       hitSlop={6}
                       style={styles.removeTicketButton}
@@ -744,42 +802,45 @@ export default function CheckoutScreen() {
 
           <View style={styles.divider} />
 
-          <View style={styles.priceLines}>
-            <View style={styles.priceLine}>
-              <Text style={styles.priceLabel}>Subtotal</Text>
-              <Text style={styles.priceValue}>{formatInr(subtotal)}</Text>
-            </View>
-            {discount > 0 ? (
-              <View style={styles.priceLine}>
-                <Text style={[styles.priceLabel, styles.discountLabel]}>
-                  {promo?.code ? `${promo.code}` : 'Discount'}
-                </Text>
-                <Text style={[styles.priceValue, styles.discountValue]}>
-                  −{formatInr(discount)}
-                </Text>
-              </View>
-            ) : null}
-            {platformFee + paymentFee + taxes > 0 ? (
-              <View style={styles.priceLine}>
-                <Text style={styles.priceLabel}>Taxes & Fees</Text>
-                <Text style={styles.priceValue}>{formatInr(platformFee + paymentFee + taxes)}</Text>
-              </View>
-            ) : null}
-          </View>
+          <Suspense fallback={<PricingUpdateFallback />}>
+            {quoteLoading || cartEditPending ? (
+              <PricingUpdateFallback />
+            ) : (
+              <>
+                <View style={styles.priceLines}>
+                  <View style={styles.priceLine}>
+                    <Text style={styles.priceLabel}>Subtotal</Text>
+                    <Text style={styles.priceValue}>{formatInr(subtotal)}</Text>
+                  </View>
+                  {discount > 0 ? (
+                    <View style={styles.priceLine}>
+                      <Text style={[styles.priceLabel, styles.discountLabel]}>
+                        {promo?.code ? `${promo.code}` : 'Discount'}
+                      </Text>
+                      <Text style={[styles.priceValue, styles.discountValue]}>
+                        −{formatInr(discount)}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {platformFee + paymentFee + taxes > 0 ? (
+                    <View style={styles.priceLine}>
+                      <Text style={styles.priceLabel}>Taxes & Fees</Text>
+                      <Text style={styles.priceValue}>
+                        {formatInr(platformFee + paymentFee + taxes)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
 
-          <View style={styles.divider} />
+                <View style={styles.divider} />
 
-          <View style={styles.totalLine}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>{formatInr(total)}</Text>
-          </View>
-
-          {quoteLoading ? (
-            <View style={styles.quoteIndicator}>
-              <ActivityIndicator size="small" color={colors.irisGlow} />
-              <Text style={styles.quoteIndicatorText}>Updating...</Text>
-            </View>
-          ) : null}
+                <View style={styles.totalLine}>
+                  <Text style={styles.totalLabel}>Total</Text>
+                  <Text style={styles.totalValue}>{formatInr(total)}</Text>
+                </View>
+              </>
+            )}
+          </Suspense>
 
           {quoteError ? (
             <View style={styles.quoteErrorBox}>

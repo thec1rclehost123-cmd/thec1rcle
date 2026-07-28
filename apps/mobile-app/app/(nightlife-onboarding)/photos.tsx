@@ -21,8 +21,11 @@ import { useProfileStore } from '@/store/profileStore';
 import { uploadUserPhoto } from '@/lib/firebase/userProfile';
 import * as ImagePicker from 'expo-image-picker';
 export default function NightlifePhotosScreen() {
-  const { user } = useAuthStore();
-  const { datingPhotos, setDatingPhotos, commitToProfile, reset } = useNightlifeSetupStore();
+  const user = useAuthStore((state) => state.user);
+  const datingPhotos = useNightlifeSetupStore((state) => state.datingPhotos);
+  const setDatingPhotos = useNightlifeSetupStore((state) => state.setDatingPhotos);
+  const commitToProfile = useNightlifeSetupStore((state) => state.commitToProfile);
+  const reset = useNightlifeSetupStore((state) => state.reset);
   const [localPhotos, setLocalPhotos] = useState<(string | null)[]>(
     [...datingPhotos, ...Array(6 - datingPhotos.length).fill(null)].slice(0, 6),
   );

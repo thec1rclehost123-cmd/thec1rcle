@@ -86,8 +86,9 @@ export default function ClaimOrTransferScreen() {
   const params = useLocalSearchParams<{ token?: string; code?: string }>();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
-  const { user, initialized } = useAuthStore();
-  const { fetchUserOrders } = useTicketsStore();
+  const user = useAuthStore((state) => state.user);
+  const initialized = useAuthStore((state) => state.initialized);
+  const fetchUserOrders = useTicketsStore((state) => state.fetchUserOrders);
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);

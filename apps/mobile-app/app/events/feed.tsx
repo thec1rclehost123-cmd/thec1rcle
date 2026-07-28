@@ -291,7 +291,9 @@ function FeedCard({
   const router = useRouter();
   const img = getEventImage(event);
 
-  const { isInterested, toggleInterest, interestedUsers } = useEventInterestStore();
+  const isInterested = useEventInterestStore((state) => state.isInterested);
+  const toggleInterest = useEventInterestStore((state) => state.toggleInterest);
+  const interestedUsers = useEventInterestStore((state) => state.interestedUsers);
   const { user } = useAuth();
   const profile = useProfileStore((s) => s.profile);
   const interested = isInterested(event.id);

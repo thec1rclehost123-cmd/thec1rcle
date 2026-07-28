@@ -176,7 +176,7 @@ function CitySelector({
 }
 
 export default function EditProfileScreen() {
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
   const profile = useProfileStore((state) => state.profile);
   const profileLoading = useProfileStore((state) => state.loading);
   const loadProfile = useProfileStore((state) => state.loadProfile);

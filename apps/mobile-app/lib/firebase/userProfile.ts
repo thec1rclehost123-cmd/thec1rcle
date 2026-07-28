@@ -1,23 +1,10 @@
-import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { getStorage, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { apiFetch } from '@/lib/api';
-import { getFirebaseApp } from './client';
 
-const MAX_UPLOAD_BYTES = 1_000_000;
 const MAX_PHOTO_SIZE = 1080;
-
-function getStore() {
-  return getStorage(getFirebaseApp());
-}
 
 function clean<T extends Record<string, any>>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
-}
-
-async function getFileSize(uri: string): Promise<number | null> {
-  const info = await FileSystem.getInfoAsync(uri);
-  return info.exists && typeof info.size === 'number' ? info.size : null;
 }
 
 export async function prepareSquareJpeg(
@@ -41,29 +28,11 @@ export async function prepareSquareJpeg(
 
   actions.push({ resize: { width: MAX_PHOTO_SIZE, height: MAX_PHOTO_SIZE } });
 
-  let compress = 0.82;
-  let uri = localUri;
-
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const result = await ImageManipulator.manipulateAsync(uri, actions, {
-      compress,
-      format: ImageManipulator.SaveFormat.JPEG,
-    });
-    const size = await getFileSize(result.uri);
-    if (!size || size <= MAX_UPLOAD_BYTES || compress <= 0.35) return result.uri;
-    uri = result.uri;
-    compress = Math.max(0.35, compress - 0.12);
-  }
-
-  return uri;
-}
-
-export async function uploadImage(localUri: string, path: string): Promise<string> {
-  const response = await fetch(localUri);
-  const blob = await response.blob();
-  const storageRef = ref(getStore(), path);
-  await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
-  return getDownloadURL(storageRef);
+  const result = await ImageManipulator.manipulateAsync(localUri, actions, {
+    compress: 0.72,
+    format: ImageManipulator.SaveFormat.JPEG,
+  });
+  return result.uri;
 }
 
 export async function uploadUserPhoto(

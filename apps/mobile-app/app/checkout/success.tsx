@@ -150,8 +150,9 @@ export default function CheckoutSuccessScreen() {
   const searchParams = params as Record<string, SearchParamValue>;
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const { user } = useAuthStore();
-  const { fetchUserOrders, getOrderById } = useTicketsStore();
+  const user = useAuthStore((state) => state.user);
+  const fetchUserOrders = useTicketsStore((state) => state.fetchUserOrders);
+  const getOrderById = useTicketsStore((state) => state.getOrderById);
 
   const routeOrder = useMemo(() => buildRouteOrder(searchParams), [searchParams]);
   const [order, setOrder] = useState<OrderDetails | null>(routeOrder);

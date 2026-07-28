@@ -23,7 +23,8 @@ import QRCode from 'react-native-qrcode-svg';
 type PaymentMethod = 'cash' | 'upi' | 'card';
 
 export default function DoorEntryScreen() {
-  const { eventData, sessionToken } = useScannerStore();
+  const eventData = useScannerStore((state) => state.eventData);
+  const sessionToken = useScannerStore((state) => state.sessionToken);
 
   // H1: Idempotency key — generated once per form session, regenerated on resetForm
   const idempotencyKeyRef = useRef<string>(randomUUID());

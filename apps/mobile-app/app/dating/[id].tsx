@@ -130,9 +130,12 @@ function ReplySheet({
 export default function DatingProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
   const currentUserId = user?.uid?.trim() || null;
-  const { ownerUserId, profilesOwnerUserId, profiles, sendAskOut } = useDatingStore();
+  const ownerUserId = useDatingStore((state) => state.ownerUserId);
+  const profilesOwnerUserId = useDatingStore((state) => state.profilesOwnerUserId);
+  const profiles = useDatingStore((state) => state.profiles);
+  const sendAskOut = useDatingStore((state) => state.sendAskOut);
   const [replyTarget, setReplyTarget] = useState<ReplyTarget>(null);
   const [replyText, setReplyText] = useState('');
   const storeProfile =

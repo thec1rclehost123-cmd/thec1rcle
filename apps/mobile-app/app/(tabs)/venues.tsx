@@ -309,43 +309,46 @@ function CuratedRail({ title, venues }: { title: string; venues: Venue[] }) {
       <FlashList
         data={venues}
         keyExtractor={(venue) => venue.id}
-        renderItem={({ item: v }) => {
-          const image = getVenueImage(v);
-          return (
-            <Pressable
-              style={styles.railCard}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({ pathname: '/venue/[id]', params: { id: v.id } });
-              }}
-            >
-              <Image
-                source={{ uri: image || 'https://thec1rcle.com/placeholder.png' }}
-                style={styles.railImage}
-                contentFit="cover"
-                cachePolicy="memory-disk"
-                transition={300}
-              />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.8)']}
-                style={styles.railGradient}
-              />
-              <View style={styles.railContent}>
-                <Text style={styles.railVenueName} numberOfLines={1}>
-                  {getVenueDisplayName(v)}
-                </Text>
-                <Text style={styles.railVenueLoc} numberOfLines={1}>
-                  {getVenueLocationLabel(v)}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        }}
+        renderItem={renderCuratedVenue}
+        drawDistance={420}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.railScroll}
       />
     </Animated.View>
+  );
+}
+
+function renderCuratedVenue({ item }: { item: Venue }) {
+  return <CuratedVenueCard venue={item} />;
+}
+
+function CuratedVenueCard({ venue }: { venue: Venue }) {
+  const image = getVenueImage(venue);
+  const openVenue = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({ pathname: '/venue/[id]', params: { id: venue.id } });
+  }, [venue.id]);
+
+  return (
+    <Pressable style={styles.railCard} onPress={openVenue}>
+      <Image
+        source={{ uri: image || 'https://thec1rcle.com/placeholder.png' }}
+        style={styles.railImage}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={300}
+      />
+      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={styles.railGradient} />
+      <View style={styles.railContent}>
+        <Text style={styles.railVenueName} numberOfLines={1}>
+          {getVenueDisplayName(venue)}
+        </Text>
+        <Text style={styles.railVenueLoc} numberOfLines={1}>
+          {getVenueLocationLabel(venue)}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -445,7 +448,7 @@ export default function VenuesTab() {
   );
   const { user, initialized } = useAuth();
   const profile = useProfileStore((s) => s.profile);
-  const { fetchFollows } = useFollowStore();
+  const fetchFollows = useFollowStore((state) => state.fetchFollows);
 
   const cityName = profile?.discoveryProfile?.cityName || profile?.city || '';
   const avatarUrl = profile?.photoURL || user?.photoURL || '';
@@ -548,6 +551,7 @@ export default function VenuesTab() {
         <FlashList
           data={feedVenues}
           renderItem={renderVenueCard}
+          drawDistance={720}
           keyExtractor={(item: Venue) => item.id}
           contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 180 }]}
           showsVerticalScrollIndicator={false}

@@ -16,7 +16,8 @@ import {
 type ActiveSheet = 'height' | 'pronouns' | 'lifestyle' | null;
 
 export default function NightlifeVitalsScreen() {
-  const { vitals, setVitals } = useNightlifeSetupStore();
+  const vitals = useNightlifeSetupStore((state) => state.vitals);
+  const setVitals = useNightlifeSetupStore((state) => state.setVitals);
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
 
   const openSheet = (sheet: ActiveSheet) => {

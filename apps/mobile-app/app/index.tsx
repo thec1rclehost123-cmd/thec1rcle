@@ -15,18 +15,20 @@ import { trackFirstRun } from '@/lib/firstRunAnalytics';
 import { startFirstRunMetric } from '@/lib/firstRunPerformance';
 
 export default function Index() {
-  const {
-    user,
-    initialized,
-    serverSynced,
-    authSyncInProgress,
-    authSyncFailed,
-    authSyncError,
-    isGuest,
-  } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
+  const initialized = useAuthStore((state) => state.initialized);
+  const serverSynced = useAuthStore((state) => state.serverSynced);
+  const authSyncInProgress = useAuthStore((state) => state.authSyncInProgress);
+  const authSyncFailed = useAuthStore((state) => state.authSyncFailed);
+  const authSyncError = useAuthStore((state) => state.authSyncError);
+  const isGuest = useAuthStore((state) => state.isGuest);
   const profile = useProfileStore((state) => state.profile);
   const profileLoading = useProfileStore((state) => state.loading);
-  const { snapshot, hydrated, load, loading, error } = useFirstRunStore();
+  const snapshot = useFirstRunStore((state) => state.snapshot);
+  const hydrated = useFirstRunStore((state) => state.hydrated);
+  const load = useFirstRunStore((state) => state.load);
+  const loading = useFirstRunStore((state) => state.loading);
+  const error = useFirstRunStore((state) => state.error);
   const netInfo = useNetInfo();
   const restoredFirebaseUser = authSyncFailed ? getFirebaseAuth().currentUser : null;
   const effectiveUser = user ?? restoredFirebaseUser;

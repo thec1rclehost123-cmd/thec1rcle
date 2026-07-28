@@ -149,7 +149,7 @@ function SheetFrame({
 
 export default function ProfileCreationScreen() {
   const { mode } = useLocalSearchParams<{ mode?: string | string[] }>();
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
   const profile = useProfileStore((state) => state.profile);
   const loadedProfileUserId = useProfileStore((state) => state._loadedUserId);
   const loadProfile = useProfileStore((state) => state.loadProfile);

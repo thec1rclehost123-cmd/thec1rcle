@@ -276,7 +276,7 @@ function AttendeesSheet({
 
 export default function ChatRoomScreen() {
   const { id: eventId, title } = useLocalSearchParams<{ id: string; title: string }>();
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
   const profile = useProfileStore((state) => state.profile);
   const scrollViewRef = useRef<ScrollView>(null);
 

@@ -161,22 +161,20 @@ function PhotoBlock({
 export default function DatingScreen() {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
-  const { user } = useAuthStore();
-  const { profile: currentUserProfile } = useProfileStore();
-  const {
-    ownerUserId,
-    profilesOwnerUserId,
-    profiles,
-    loading,
-    prefetching,
-    error,
-    hasMore,
-    setOwnerUserId,
-    fetchProfiles,
-    likeUser,
-    passUser,
-    sendAskOut,
-  } = useDatingStore();
+  const user = useAuthStore((state) => state.user);
+  const currentUserProfile = useProfileStore((state) => state.profile);
+  const ownerUserId = useDatingStore((state) => state.ownerUserId);
+  const profilesOwnerUserId = useDatingStore((state) => state.profilesOwnerUserId);
+  const profiles = useDatingStore((state) => state.profiles);
+  const loading = useDatingStore((state) => state.loading);
+  const prefetching = useDatingStore((state) => state.prefetching);
+  const error = useDatingStore((state) => state.error);
+  const hasMore = useDatingStore((state) => state.hasMore);
+  const setOwnerUserId = useDatingStore((state) => state.setOwnerUserId);
+  const fetchProfiles = useDatingStore((state) => state.fetchProfiles);
+  const likeUser = useDatingStore((state) => state.likeUser);
+  const passUser = useDatingStore((state) => state.passUser);
+  const sendAskOut = useDatingStore((state) => state.sendAskOut);
   const isPremium = useSubscriptionStore((state) => state.isPremium);
   const openPaywall = useSubscriptionStore((state) => state.openPaywall);
   const [likesSent, setLikesSent] = useState<string[]>([]);

@@ -90,7 +90,7 @@ export default function DirectMessageScreen() {
     recipientName?: string;
     eventId?: string;
   }>();
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
   const messagesListRef = useRef<FlashListRef<DirectMessage>>(null);
 
   const [conversation, setConversation] = useState<PrivateConversation | null>(null);

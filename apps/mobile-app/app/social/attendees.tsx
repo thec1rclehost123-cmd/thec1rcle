@@ -69,8 +69,9 @@ function AttendeeCard({
 
 export default function AttendeesScreen() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
-  const { user } = useAuthStore();
-  const { isPremium, openPaywall } = useSubscriptionStore();
+  const user = useAuthStore((state) => state.user);
+  const isPremium = useSubscriptionStore((state) => state.isPremium);
+  const openPaywall = useSubscriptionStore((state) => state.openPaywall);
 
   const [attendees, setAttendees] = useState<
     Array<{

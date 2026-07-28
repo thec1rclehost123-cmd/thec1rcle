@@ -16,7 +16,9 @@ export default function OptionalEmailScreen() {
   const [email, setEmail] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const { linkEmail, loading: authLoading } = useAuth();
-  const { skipEmail, loading, error } = useFirstRunStore();
+  const skipEmail = useFirstRunStore((state) => state.skipEmail);
+  const loading = useFirstRunStore((state) => state.loading);
+  const error = useFirstRunStore((state) => state.error);
   useEffect(() => trackFirstRun('first_run_step_viewed', { stage: 'email_optional' }), []);
 
   const addEmail = async () => {

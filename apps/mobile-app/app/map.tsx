@@ -304,7 +304,7 @@ export default function MapScreen() {
   const initialLatDelta = normalizeParam(params.latDelta);
   const initialLngDelta = normalizeParam(params.lngDelta);
 
-  const { fetchVenues } = useVenuesStore();
+  const fetchVenues = useVenuesStore((state) => state.fetchVenues);
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
   const eventDetailCacheRef = useRef(new Map<string, EventWithCoords>());

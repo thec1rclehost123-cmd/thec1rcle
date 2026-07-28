@@ -71,7 +71,7 @@ export interface VenuePageData {
   upcomingEventsCount?: number;
 }
 
-interface VenuePageState {
+export interface VenuePageEntry {
   venue: VenuePageData | null;
   highlights: VenueHighlight[];
   gallery: VenueGalleryPhoto[];
@@ -80,13 +80,15 @@ interface VenuePageState {
   upcomingEvents: any[];
   loading: boolean;
   error: string | null;
-  fetchVenuePage: (venueIdOrSlug: string) => Promise<void>;
-  clearVenuePage: () => void;
 }
 
-const venuePageRequestGuard = createLatestRequestGuard();
+interface VenuePageState {
+  pages: Record<string, VenuePageEntry>;
+  fetchVenuePage: (venueIdOrSlug: string) => Promise<void>;
+  clearVenuePage: (venueIdOrSlug?: string) => void;
+}
 
-export const useVenuePageStore = create<VenuePageState>((set) => ({
+export const EMPTY_VENUE_PAGE_ENTRY: VenuePageEntry = {
   venue: null,
   highlights: [],
   gallery: [],
@@ -95,32 +97,67 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
   upcomingEvents: [],
   loading: false,
   error: null,
+};
 
-  clearVenuePage: () => {
-    venuePageRequestGuard.invalidate();
-    set({
-      venue: null,
-      highlights: [],
-      gallery: [],
-      menu: [],
-      facilities: [],
-      upcomingEvents: [],
-      loading: false,
-      error: null,
+const venuePageRequestGuards = new Map<string, ReturnType<typeof createLatestRequestGuard>>();
+
+function getVenuePageRequestGuard(key: string) {
+  const existing = venuePageRequestGuards.get(key);
+  if (existing) return existing;
+  const guard = createLatestRequestGuard();
+  venuePageRequestGuards.set(key, guard);
+  return guard;
+}
+
+export const useVenuePageStore = create<VenuePageState>((set) => ({
+  pages: {},
+
+  clearVenuePage: (venueIdOrSlug?: string) => {
+    if (!venueIdOrSlug) {
+      venuePageRequestGuards.forEach((guard) => guard.invalidate());
+      venuePageRequestGuards.clear();
+      set({ pages: {} });
+      return;
+    }
+
+    getVenuePageRequestGuard(venueIdOrSlug).invalidate();
+    set((state) => {
+      const pages = { ...state.pages };
+      delete pages[venueIdOrSlug];
+      return { pages };
     });
   },
 
   fetchVenuePage: async (venueIdOrSlug: string) => {
-    const requestToken = venuePageRequestGuard.begin(venueIdOrSlug);
-    set({ loading: true, error: null });
+    const requestGuard = getVenuePageRequestGuard(venueIdOrSlug);
+    const requestToken = requestGuard.begin(venueIdOrSlug);
+    set((state) => ({
+      pages: {
+        ...state.pages,
+        [venueIdOrSlug]: {
+          ...(state.pages[venueIdOrSlug] ?? EMPTY_VENUE_PAGE_ENTRY),
+          loading: true,
+          error: null,
+        },
+      },
+    }));
 
     try {
       const response = await fetchPublicVenuePage<any>(venueIdOrSlug);
-      if (!venuePageRequestGuard.isCurrent(requestToken)) return;
+      if (!requestGuard.isCurrent(requestToken)) return;
       const venueDoc = response.venue || response.profile || response;
 
       if (!venueDoc) {
-        set({ loading: false, error: 'Venue not found' });
+        set((state) => ({
+          pages: {
+            ...state.pages,
+            [venueIdOrSlug]: {
+              ...(state.pages[venueIdOrSlug] ?? EMPTY_VENUE_PAGE_ENTRY),
+              loading: false,
+              error: 'Venue not found',
+            },
+          },
+        }));
         return;
       }
 
@@ -146,43 +183,58 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
 
       const leadEventWithCoords = upcomingEvents.find((e: any) => resolveVenueCoordinates(e));
 
-      set({
-        venue: {
-          ...venueDoc,
-          followers:
-            typeof venueDoc.followers === 'number'
-              ? venueDoc.followers
-              : typeof venueDoc.followersCount === 'number'
-                ? venueDoc.followersCount
-                : 0,
-          hasReservation:
-            Boolean(venueDoc.hasReservation) ||
-            Boolean(venueDoc.tablesAvailable) ||
-            Boolean(venueDoc.whatsapp) ||
-            Boolean(venueDoc.phone),
-          coordinates:
-            resolveVenueCoordinates(venueDoc) ||
-            (leadEventWithCoords ? resolveVenueCoordinates(leadEventWithCoords) : null) ||
-            findKnownVenueCoordinates(
-              venueDoc.displayName,
-              venueDoc.name,
-              venueDoc.neighborhood,
-              venueDoc.city,
-              venueDoc.address,
-            ),
-          upcomingEventsCount: upcomingEvents.length,
+      set((state) => ({
+        pages: {
+          ...state.pages,
+          [venueIdOrSlug]: {
+            venue: {
+              ...venueDoc,
+              followers:
+                typeof venueDoc.followers === 'number'
+                  ? venueDoc.followers
+                  : typeof venueDoc.followersCount === 'number'
+                    ? venueDoc.followersCount
+                    : 0,
+              hasReservation:
+                Boolean(venueDoc.hasReservation) ||
+                Boolean(venueDoc.tablesAvailable) ||
+                Boolean(venueDoc.whatsapp) ||
+                Boolean(venueDoc.phone),
+              coordinates:
+                resolveVenueCoordinates(venueDoc) ||
+                (leadEventWithCoords ? resolveVenueCoordinates(leadEventWithCoords) : null) ||
+                findKnownVenueCoordinates(
+                  venueDoc.displayName,
+                  venueDoc.name,
+                  venueDoc.neighborhood,
+                  venueDoc.city,
+                  venueDoc.address,
+                ),
+              upcomingEventsCount: upcomingEvents.length,
+            },
+            highlights,
+            gallery,
+            menu,
+            facilities,
+            upcomingEvents,
+            loading: false,
+            error: null,
+          },
         },
-        highlights,
-        gallery,
-        menu,
-        facilities,
-        upcomingEvents,
-        loading: false,
-      });
+      }));
     } catch (error: any) {
-      if (!venuePageRequestGuard.isCurrent(requestToken)) return;
+      if (!requestGuard.isCurrent(requestToken)) return;
       console.error('[VenuePageStore] Failed to fetch venue page:', error);
-      set({ loading: false, error: error?.message || 'Failed to load venue page' });
+      set((state) => ({
+        pages: {
+          ...state.pages,
+          [venueIdOrSlug]: {
+            ...(state.pages[venueIdOrSlug] ?? EMPTY_VENUE_PAGE_ENTRY),
+            loading: false,
+            error: error?.message || 'Failed to load venue page',
+          },
+        },
+      }));
     }
   },
 }));

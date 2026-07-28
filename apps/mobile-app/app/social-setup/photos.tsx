@@ -128,7 +128,8 @@ function PhotoSlot({
 
 export default function SocialSetupPhotos() {
   const { user } = useAuth();
-  const { uploadPhoto, socialProfile } = useSocialProfileStore();
+  const uploadPhoto = useSocialProfileStore((state) => state.uploadPhoto);
+  const socialProfile = useSocialProfileStore((state) => state.socialProfile);
 
   const [photos, setPhotos] = useState<(string | null)[]>(() => {
     const existing = socialProfile?.photos ?? [];

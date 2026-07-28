@@ -572,16 +572,15 @@ export default function InboxScreen() {
     };
   });
 
-  const { user, isGuest } = useAuthStore();
-  const {
-    eventChats,
-    privateChats,
-    newMatches,
-    totalUnread,
-    loading,
-    fetchAll,
-    subscribeToUpdates,
-  } = useChatStore();
+  const user = useAuthStore((state) => state.user);
+  const isGuest = useAuthStore((state) => state.isGuest);
+  const eventChats = useChatStore((state) => state.eventChats);
+  const privateChats = useChatStore((state) => state.privateChats);
+  const newMatches = useChatStore((state) => state.newMatches);
+  const totalUnread = useChatStore((state) => state.totalUnread);
+  const loading = useChatStore((state) => state.loading);
+  const fetchAll = useChatStore((state) => state.fetchAll);
+  const subscribeToUpdates = useChatStore((state) => state.subscribeToUpdates);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -647,6 +646,15 @@ export default function InboxScreen() {
           runOnJS(handleInboxSwipe)(event.translationX < 0 ? 'next' : 'previous');
         }),
     [handleInboxSwipe],
+  );
+
+  const renderEventChat = useCallback(
+    ({ item, index }: { item: EventChat; index: number }) => (
+      <Animated.View entering={FadeInDown.delay(index * 50).duration(400)}>
+        <EventChatCard chat={item} index={index} />
+      </Animated.View>
+    ),
+    [],
   );
 
   if (isGuest) {
@@ -768,11 +776,8 @@ export default function InboxScreen() {
               <FlashList
                 key="event-chats"
                 data={eventChats}
-                renderItem={({ item, index }) => (
-                  <Animated.View entering={FadeInDown.delay(index * 50).duration(400)}>
-                    <EventChatCard chat={item} index={index} />
-                  </Animated.View>
-                )}
+                renderItem={renderEventChat}
+                drawDistance={640}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}

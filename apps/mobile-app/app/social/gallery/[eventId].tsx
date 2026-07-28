@@ -215,7 +215,7 @@ export default function MediaGalleryScreen() {
     eventId: string;
     eventTitle: string;
   }>();
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
 
   const [media, setMedia] = useState<EventMedia[]>([]);
   const [loading, setLoading] = useState(true);

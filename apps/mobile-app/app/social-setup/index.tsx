@@ -51,8 +51,9 @@ const STEPS = ['Photos', 'Preferences', 'Review'];
 
 export default function SocialSetupIndex() {
   const { user } = useAuth();
-  const { socialState, loadSocialProfile } = useSocialProfileStore();
-  const { updateProfile } = useProfileStore();
+  const socialState = useSocialProfileStore((state) => state.socialState);
+  const loadSocialProfile = useSocialProfileStore((state) => state.loadSocialProfile);
+  const updateProfile = useProfileStore((state) => state.updateProfile);
 
   useEffect(() => {
     if (user?.uid) loadSocialProfile(user.uid);

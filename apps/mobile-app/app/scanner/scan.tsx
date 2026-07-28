@@ -39,7 +39,9 @@ export default function ScanScreen() {
   const [pendingCoupleData, setPendingCoupleData] = useState<any>(null);
   const [entryCount, setEntryCount] = useState(0);
 
-  const { eventData, clearEvent, sessionToken } = useScannerStore();
+  const eventData = useScannerStore((state) => state.eventData);
+  const clearEvent = useScannerStore((state) => state.clearEvent);
+  const sessionToken = useScannerStore((state) => state.sessionToken);
   const lastScannedRef = useRef<string | null>(null);
   const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

@@ -270,20 +270,26 @@ export const useChatStore = create<ChatState>((set, get) => {
 
       // One bounded fallback refresh replaces one polling timer per conversation.
       // The authenticated websocket remains authoritative while connected.
-      const inboxFallbackTimer = setInterval(
-        () => {
+      let inboxFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+      let fallbackStopped = false;
+      const scheduleFallbackRefresh = () => {
+        if (fallbackStopped) return;
+        const delay = wsManager.isConnected ? 30_000 : 5_000;
+        inboxFallbackTimer = setTimeout(async () => {
           if (AppState.currentState === 'active') {
-            void get().fetchAll(userId);
+            await get().fetchAll(userId);
           }
-        },
-        wsManager.isConnected ? 30_000 : 5_000,
-      );
+          scheduleFallbackRefresh();
+        }, delay);
+      };
+      scheduleFallbackRefresh();
 
       const unsubscribe = () => {
+        fallbackStopped = true;
         for (const unsub of subscriptions.values()) unsub();
         subscriptions.clear();
         unsubStore();
-        clearInterval(inboxFallbackTimer);
+        if (inboxFallbackTimer) clearTimeout(inboxFallbackTimer);
       };
 
       set({ _unsubscribe: unsubscribe });

@@ -1,8 +1,11 @@
 module.exports = function (api) {
-  api.cache(true);
+  const isProduction = api.env('production');
 
   return {
     presets: [['babel-preset-expo', { jsxImportSource: 'nativewind' }], 'nativewind/babel'],
-    plugins: ['react-native-reanimated/plugin'],
+    plugins: [
+      ...(isProduction ? ['babel-plugin-transform-remove-console'] : []),
+      'react-native-reanimated/plugin',
+    ],
   };
 };

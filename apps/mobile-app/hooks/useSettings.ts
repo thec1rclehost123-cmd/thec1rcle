@@ -8,17 +8,15 @@ import { useSettingsStore, UserSettings } from '@/store/settingsStore';
 import { useAuthStore } from '@/store/authStore';
 
 export function useSettings() {
-  const { user } = useAuthStore();
-  const {
-    settings,
-    loading,
-    syncing,
-    lastSyncedAt,
-    loadSettings,
-    updateNotificationSetting,
-    updatePrivacySetting,
-    updateAppearanceSetting,
-  } = useSettingsStore();
+  const user = useAuthStore((state) => state.user);
+  const settings = useSettingsStore((state) => state.settings);
+  const loading = useSettingsStore((state) => state.loading);
+  const syncing = useSettingsStore((state) => state.syncing);
+  const lastSyncedAt = useSettingsStore((state) => state.lastSyncedAt);
+  const loadSettings = useSettingsStore((state) => state.loadSettings);
+  const updateNotificationSetting = useSettingsStore((state) => state.updateNotificationSetting);
+  const updatePrivacySetting = useSettingsStore((state) => state.updatePrivacySetting);
+  const updateAppearanceSetting = useSettingsStore((state) => state.updateAppearanceSetting);
 
   // Load settings when user changes
   useEffect(() => {

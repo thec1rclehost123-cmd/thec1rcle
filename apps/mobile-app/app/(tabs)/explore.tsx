@@ -336,18 +336,18 @@ export default function ExploreScreen() {
       fetchEvents: state.fetchEvents,
     })),
   );
-  const {
-    recommendations,
-    reasonLabel,
-    source: recommendationSource,
-    score,
-    loadBrowsed,
-    loadServerRecommendations,
-    setRecommendationsOwner,
-  } = useRecommendationsStore();
-  const ticketsStore = useTicketsStore();
+  const recommendations = useRecommendationsStore((state) => state.recommendations);
+  const reasonLabel = useRecommendationsStore((state) => state.reasonLabel);
+  const recommendationSource = useRecommendationsStore((state) => state.source);
+  const score = useRecommendationsStore((state) => state.score);
+  const loadBrowsed = useRecommendationsStore((state) => state.loadBrowsed);
+  const loadServerRecommendations = useRecommendationsStore(
+    (state) => state.loadServerRecommendations,
+  );
+  const setRecommendationsOwner = useRecommendationsStore((state) => state.setRecommendationsOwner);
+  const ticketOrders = useTicketsStore((state) => state.orders);
   const { user } = useAuth();
-  const { loadUserInterests } = useEventInterestStore();
+  const loadUserInterests = useEventInterestStore((state) => state.loadUserInterests);
   const profile = useProfileStore((s) => s.profile);
   const loadedProfileUserId = useProfileStore((s) => s._loadedUserId);
   const saveCanonicalCity = useFirstRunStore((s) => s.saveCity);
@@ -496,7 +496,7 @@ export default function ExploreScreen() {
   }, [allEvents]);
 
   const pastOrderCategories = useMemo(() => {
-    const orders = ticketsStore.orders;
+    const orders = ticketOrders;
     return Array.from(
       new Set(
         orders.flatMap((o) => {
@@ -505,7 +505,7 @@ export default function ExploreScreen() {
         }),
       ),
     );
-  }, [ticketsStore.orders]);
+  }, [ticketOrders]);
 
   const loadData = useCallback(
     async (city?: string, force = false) => {
@@ -892,6 +892,11 @@ export default function ExploreScreen() {
       visibleRecommendations,
     ],
   );
+  const renderExploreSection = useCallback(
+    ({ item }: { item: ExploreSection }) => item.render(),
+    [],
+  );
+
   return (
     <View style={styles.container}>
       {/* Subtle top-down thec1rcle orange glow */}
@@ -910,9 +915,10 @@ export default function ExploreScreen() {
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: insets.bottom + 76 }}
         data={exploreSections}
+        drawDistance={800}
         getItemType={(section) => section.key}
         keyExtractor={(section) => section.key}
-        renderItem={useCallback(({ item }: any) => item.render(), [])}
+        renderItem={renderExploreSection}
         extraData={useMemo(
           () => ({
             allScenesY,

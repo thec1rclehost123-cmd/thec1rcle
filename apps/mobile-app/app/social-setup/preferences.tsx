@@ -201,7 +201,7 @@ type InterestedIn = 'male' | 'female' | 'nonbinary' | 'everyone';
 export default function SocialSetupPreferences() {
   const params = useLocalSearchParams<{ photosJson: string }>();
   const { user } = useAuth();
-  const { socialProfile } = useSocialProfileStore();
+  const socialProfile = useSocialProfileStore((state) => state.socialProfile);
 
   const [city, setCity] = useState(socialProfile?.city ?? '');
   const [interestedIn, setInterestedIn] = useState<InterestedIn[]>(

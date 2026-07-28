@@ -126,7 +126,7 @@ function EmergencyContactForm({
 }
 
 export default function SafetyScreen() {
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [locationSharing, setLocationSharing] = useState(false);

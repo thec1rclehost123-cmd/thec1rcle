@@ -17,7 +17,10 @@ import { trackFirstRun } from '@/lib/firstRunAnalytics';
 const CITIES = ['Pune', 'Mumbai', 'Delhi', 'Bengaluru', 'Goa', 'Hyderabad', 'Chennai', 'Kolkata'];
 
 export default function CityScreen() {
-  const { snapshot, saveCity, loading, error } = useFirstRunStore();
+  const snapshot = useFirstRunStore((state) => state.snapshot);
+  const saveCity = useFirstRunStore((state) => state.saveCity);
+  const loading = useFirstRunStore((state) => state.loading);
+  const error = useFirstRunStore((state) => state.error);
   const savedCity = snapshot?.cityName ?? '';
   const [query, setQuery] = useState(savedCity);
   const [selected, setSelected] = useState(savedCity);

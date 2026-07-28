@@ -7,8 +7,11 @@ import { useFirstRunStore } from '@/store/firstRunStore';
 import { trackFirstRun } from '@/lib/firstRunAnalytics';
 
 export default function TastesScreen() {
-  const store = useFirstRunStore();
-  const [selected, setSelected] = useState<NightlifeTaste[]>(store.snapshot?.vibeTags ?? []);
+  const snapshot = useFirstRunStore((state) => state.snapshot);
+  const savePreferences = useFirstRunStore((state) => state.savePreferences);
+  const loading = useFirstRunStore((state) => state.loading);
+  const error = useFirstRunStore((state) => state.error);
+  const [selected, setSelected] = useState<NightlifeTaste[]>(snapshot?.vibeTags ?? []);
   const remaining = Math.max(0, MIN_NIGHTLIFE_TASTES - selected.length);
   useEffect(() => trackFirstRun('first_run_step_viewed', { stage: 'tastes' }), []);
   const toggle = (id: NightlifeTaste) => {
@@ -18,7 +21,7 @@ export default function TastesScreen() {
     );
   };
   const submit = async () => {
-    if (await store.savePreferences({ vibeTags: selected })) {
+    if (await savePreferences({ vibeTags: selected })) {
       trackFirstRun('first_run_step_completed', { stage: 'tastes', outcome: 'success' });
       router.replace('/intent' as any);
     }
@@ -33,7 +36,7 @@ export default function TastesScreen() {
         <FirstRunButton
           label={remaining ? `Pick ${remaining} more` : 'Continue'}
           onPress={submit}
-          loading={store.loading}
+          loading={loading}
           disabled={remaining > 0}
         />
       }
@@ -47,7 +50,7 @@ export default function TastesScreen() {
           onPress={() => toggle(taste.id)}
         />
       ))}
-      {store.error ? <FirstRunMessage error>{store.error}</FirstRunMessage> : null}
+      {error ? <FirstRunMessage error>{error}</FirstRunMessage> : null}
     </FirstRunShell>
   );
 }

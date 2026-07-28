@@ -24,7 +24,10 @@ import { trackFirstRun } from '@/lib/firstRunAnalytics';
 export default function IdentityScreen() {
   const user = useAuthStore((state) => state.user);
   const profile = useProfileStore((state) => state.profile);
-  const { snapshot, saveIdentity, loading, error } = useFirstRunStore();
+  const snapshot = useFirstRunStore((state) => state.snapshot);
+  const saveIdentity = useFirstRunStore((state) => state.saveIdentity);
+  const loading = useFirstRunStore((state) => state.loading);
+  const error = useFirstRunStore((state) => state.error);
   const minimumAccountAge = resolveMinimumAccountAge(snapshot);
   const [name, setName] = useState(
     snapshot?.displayName || profile?.displayName || user?.displayName || '',

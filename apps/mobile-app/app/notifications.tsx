@@ -213,18 +213,16 @@ function DittoNotificationEmptyState() {
 }
 
 export default function NotificationsScreen() {
-  const { user } = useAuthStore();
-  const {
-    notifications,
-    unreadCount,
-    loading,
-    error,
-    fetchNotifications,
-    subscribeToNotifications,
-    markAsRead,
-    markAllAsRead,
-    clearNotification,
-  } = useNotificationsStore();
+  const user = useAuthStore((state) => state.user);
+  const notifications = useNotificationsStore((state) => state.notifications);
+  const unreadCount = useNotificationsStore((state) => state.unreadCount);
+  const loading = useNotificationsStore((state) => state.loading);
+  const error = useNotificationsStore((state) => state.error);
+  const fetchNotifications = useNotificationsStore((state) => state.fetchNotifications);
+  const subscribeToNotifications = useNotificationsStore((state) => state.subscribeToNotifications);
+  const markAsRead = useNotificationsStore((state) => state.markAsRead);
+  const markAllAsRead = useNotificationsStore((state) => state.markAllAsRead);
+  const clearNotification = useNotificationsStore((state) => state.clearNotification);
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
 

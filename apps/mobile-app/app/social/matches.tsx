@@ -170,9 +170,12 @@ function MatchCard({ match }: { match: Match }) {
 
 export default function MatchesScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuthStore();
-  const { ownerUserId, matchesOwnerUserId, matches, matchesLoading, fetchMatches } =
-    useDatingStore();
+  const user = useAuthStore((state) => state.user);
+  const ownerUserId = useDatingStore((state) => state.ownerUserId);
+  const matchesOwnerUserId = useDatingStore((state) => state.matchesOwnerUserId);
+  const matches = useDatingStore((state) => state.matches);
+  const matchesLoading = useDatingStore((state) => state.matchesLoading);
+  const fetchMatches = useDatingStore((state) => state.fetchMatches);
   const currentUserId = user?.uid?.trim() || null;
   const ownsCurrentMatches =
     currentUserId !== null && ownerUserId === currentUserId && matchesOwnerUserId === currentUserId;

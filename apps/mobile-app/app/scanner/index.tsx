@@ -22,7 +22,7 @@ export default function ScannerCodeScreen() {
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { setEventData } = useScannerStore();
+  const setEventData = useScannerStore((state) => state.setEventData);
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
 

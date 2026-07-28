@@ -12,7 +12,8 @@ import { colors } from '@/lib/design/theme';
 type FilterType = 'all' | 'entered' | 'not_entered' | 'door';
 
 export default function GuestListScreen() {
-  const { eventData, sessionToken } = useScannerStore();
+  const eventData = useScannerStore((state) => state.eventData);
+  const sessionToken = useScannerStore((state) => state.sessionToken);
   const [guests, setGuests] = useState<Guest[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');

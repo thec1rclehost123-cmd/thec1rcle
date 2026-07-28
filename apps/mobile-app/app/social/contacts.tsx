@@ -57,7 +57,7 @@ function ContactCard({
 }
 
 export default function SavedContactsScreen() {
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
 
   const [contacts, setContacts] = useState<
     {

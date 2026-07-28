@@ -288,7 +288,9 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
 // ── Convenience hook ──────────────────────────────────────────────────────────
 // Usage: const { hasAccess } = useSocialAccess("complete", "like_event")
 export function useSocialAccess(required: 'complete' | 'verified', feature: BlockFeature) {
-  const { checkAccess, socialState, loading } = useSocialProfileStore();
+  const checkAccess = useSocialProfileStore((state) => state.checkAccess);
+  const socialState = useSocialProfileStore((state) => state.socialState);
+  const loading = useSocialProfileStore((state) => state.loading);
   return {
     hasAccess: stateRank(socialState) >= stateRank(required),
     socialState,

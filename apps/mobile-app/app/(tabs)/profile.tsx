@@ -244,8 +244,10 @@ function UpcomingOrderCard({ order, index }: { order: Order; index: number }) {
 }
 
 export default function ProfileScreen() {
-  const { user } = useAuthStore();
-  const { orders, fetchUserOrders, loading: ticketsLoading } = useTicketsStore();
+  const user = useAuthStore((state) => state.user);
+  const orders = useTicketsStore((state) => state.orders);
+  const fetchUserOrders = useTicketsStore((state) => state.fetchUserOrders);
+  const ticketsLoading = useTicketsStore((state) => state.loading);
   const profile = useProfileStore((state) => state.profile);
   const profileError = useProfileStore((state) => state.error);
   const loadProfile = useProfileStore((state) => state.loadProfile);

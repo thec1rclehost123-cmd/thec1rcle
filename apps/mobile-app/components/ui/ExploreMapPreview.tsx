@@ -117,6 +117,7 @@ export function ExploreMapPreview({ events }: { events: Event[] }) {
           style={StyleSheet.absoluteFillObject}
           provider={PROVIDER_DEFAULT}
           initialRegion={initialRegion}
+          liteMode={true}
           scrollEnabled={false}
           zoomEnabled={false}
           rotateEnabled={false}

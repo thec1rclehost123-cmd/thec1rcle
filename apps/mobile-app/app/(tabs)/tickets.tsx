@@ -21,7 +21,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTicketsStore, Order, OrderTicket } from '@/store/ticketsStore';
 import { useAuthStore } from '@/store/authStore';
 import { selectCoverWalletForTicketSlot } from '@/lib/coverWalletMapping';
@@ -453,6 +453,19 @@ function buildTicketDisplaySlots(
   ];
 }
 
+function WalletQrRefreshCountdown({ expiresAt }: { expiresAt: number }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, [expiresAt]);
+
+  const secondsLeft = expiresAt ? Math.max(0, Math.ceil((expiresAt - now) / 1000)) : 0;
+  return <Text style={ms.walletQrTimerText}>Refreshes in {secondsLeft}s</Text>;
+}
+
 // Ticket Detail Sheet — Posh-style with poster flip + QR
 function QRModal({
   visible,
@@ -475,7 +488,7 @@ function QRModal({
   const flipProgress = useSharedValue(0);
   const { width, height } = useWindowDimensions();
   const profile = useProfileStore((state) => state.profile);
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
   const ticketSlots = useMemo(
     () => (order ? buildTicketDisplaySlots(order, profile, user) : []),
     [order, profile, user],
@@ -486,10 +499,8 @@ function QRModal({
   // Wallet State
   const [qrJwt, setQrJwt] = useState<string | null>(null);
   const [qrExpiresAt, setQrExpiresAt] = useState<number>(0);
-  const [qrNowMs, setQrNowMs] = useState(Date.now());
   const [qrRefreshError, setQrRefreshError] = useState(false);
   const qrTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const qrCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
 
   // One deterministic wallet exists per purchased cover admission unit.
@@ -513,7 +524,6 @@ function QRModal({
     : null;
   const activeWalletTransactions = activeWallet ? walletTransactions?.[activeWallet.id] || [] : [];
   const qrRotating = !!qrJwt;
-  const qrTimeLeft = qrExpiresAt ? Math.max(0, Math.ceil((qrExpiresAt - qrNowMs) / 1000)) : 0;
   const cardWidth = Math.min(width - 48, 380);
   const cardPageWidth = width - 32;
   const walletQrSize = 180;
@@ -523,7 +533,6 @@ function QRModal({
     return () => {
       mountedRef.current = false;
       if (qrTimerRef.current) clearInterval(qrTimerRef.current);
-      if (qrCountdownRef.current) clearInterval(qrCountdownRef.current);
     };
   }, []);
 
@@ -553,17 +562,10 @@ function QRModal({
   useEffect(() => {
     if (visible && activeWallet && activeWallet.state === 'ACTIVE') {
       fetchQrJwt(activeWallet.id);
-      setQrNowMs(Date.now());
-      if (qrCountdownRef.current) clearInterval(qrCountdownRef.current);
-      qrCountdownRef.current = setInterval(() => setQrNowMs(Date.now()), 1_000);
     } else {
       if (qrTimerRef.current) {
         clearInterval(qrTimerRef.current);
         qrTimerRef.current = null;
-      }
-      if (qrCountdownRef.current) {
-        clearInterval(qrCountdownRef.current);
-        qrCountdownRef.current = null;
       }
       setQrJwt(null);
     }
@@ -1253,7 +1255,7 @@ function QRModal({
                           </View>
                           <View style={ms.walletQrTimerRow}>
                             <Clock size={12} color="rgba(255,255,255,0.35)" />
-                            <Text style={ms.walletQrTimerText}>Refreshes in {qrTimeLeft}s</Text>
+                            <WalletQrRefreshCountdown expiresAt={qrExpiresAt} />
                           </View>
                           {qrRefreshError && (
                             <Text style={ms.walletQrRetryText}>
@@ -2223,7 +2225,7 @@ function SegmentedHeader({
   scrollX: SharedValue<number>;
 }) {
   const { width: windowWidth } = useWindowDimensions();
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
   const profile = useProfileStore((state) => state.profile);
   const avatarPhoto = resolveCurrentUserPhoto(profile, user);
   const avatarInitials = (profile?.displayName || user?.displayName || '')
@@ -2321,13 +2323,14 @@ function getOrderGroupLabel(order: Order): string {
 }
 
 export default function TicketsScreen() {
-  const { orders: storeOrders, loading: storeLoading, error, fetchUserOrders } = useTicketsStore();
-  const {
-    user,
-    loading: authLoading,
-    initialized: authInitialized,
-    authSyncFailed,
-  } = useAuthStore();
+  const storeOrders = useTicketsStore((state) => state.orders);
+  const storeLoading = useTicketsStore((state) => state.loading);
+  const error = useTicketsStore((state) => state.error);
+  const fetchUserOrders = useTicketsStore((state) => state.fetchUserOrders);
+  const user = useAuthStore((state) => state.user);
+  const authLoading = useAuthStore((state) => state.loading);
+  const authInitialized = useAuthStore((state) => state.initialized);
+  const authSyncFailed = useAuthStore((state) => state.authSyncFailed);
   const stats = (user as any)?.stats ?? {};
   const kpiActiveLinks = stats.activeLinks ?? 0;
   const kpiClicks = stats.totalClicks ?? 0;
@@ -2408,7 +2411,6 @@ export default function TicketsScreen() {
   );
 
   useEffect(() => {
-    trackScreen('Tickets');
     loadCountRef.current += 1;
     setCachedOrders([]);
     setStoreOrdersUserId(null);
@@ -2417,49 +2419,83 @@ export default function TicketsScreen() {
     setGlobalWalletTxns({});
     setSelectedOrder(null);
     setShowQRModal(false);
-    if (user?.uid) void loadData(user.uid);
   }, [user?.uid]);
 
-  const loadData = async (requestedUserId = user?.uid) => {
-    if (!requestedUserId || requestedUserId !== useAuthStore.getState().user?.uid) return;
-    void fetchWallet(requestedUserId);
+  const loadData = useCallback(
+    async (requestedUserId?: string) => {
+      const activeUserId = requestedUserId || useAuthStore.getState().user?.uid;
+      if (!activeUserId || activeUserId !== useAuthStore.getState().user?.uid) return;
+      void fetchWallet(activeUserId);
 
-    const loadId = ++loadCountRef.current;
-
-    const cached = await getCachedUserOrders(requestedUserId);
-    if (loadId !== loadCountRef.current || useAuthStore.getState().user?.uid !== requestedUserId) {
-      return;
-    }
-    if (cached.data && cached.data.length > 0) {
-      setCachedOrders(cached.data);
-    }
-
-    try {
-      await fetchUserOrders();
-      if (
-        loadId !== loadCountRef.current ||
-        useAuthStore.getState().user?.uid !== requestedUserId
-      ) {
+      const loadId = ++loadCountRef.current;
+      const cached = await getCachedUserOrders(activeUserId);
+      if (loadId !== loadCountRef.current || useAuthStore.getState().user?.uid !== activeUserId) {
         return;
       }
-      const store = useTicketsStore.getState();
-      if (store.error) {
-        setIsOffline(true);
-      } else {
-        setStoreOrdersUserId(requestedUserId);
-        await cacheUserOrders(requestedUserId, store.orders);
-        if (
-          loadId !== loadCountRef.current ||
-          useAuthStore.getState().user?.uid !== requestedUserId
-        ) {
+      if (cached.data && cached.data.length > 0) {
+        setCachedOrders(cached.data);
+      }
+
+      try {
+        await fetchUserOrders();
+        if (loadId !== loadCountRef.current || useAuthStore.getState().user?.uid !== activeUserId) {
           return;
         }
-        setIsOffline(false);
+        const store = useTicketsStore.getState();
+        if (store.error) {
+          setIsOffline(true);
+        } else {
+          setStoreOrdersUserId(activeUserId);
+          await cacheUserOrders(activeUserId, store.orders);
+          if (
+            loadId !== loadCountRef.current ||
+            useAuthStore.getState().user?.uid !== activeUserId
+          ) {
+            return;
+          }
+          setIsOffline(false);
+        }
+      } catch {
+        if (loadId === loadCountRef.current) setIsOffline(true);
       }
-    } catch (err) {
-      if (loadId === loadCountRef.current) setIsOffline(true);
-    }
-  };
+    },
+    [fetchUserOrders, fetchWallet],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      trackScreen('Tickets');
+      const requestedUserId = user?.uid;
+      if (requestedUserId) void loadData(requestedUserId);
+      return () => {
+        loadCountRef.current += 1;
+      };
+    }, [loadData, user?.uid]),
+  );
+
+  useEffect(() => {
+    const requestedUserId = user?.uid;
+    if (!isOffline || !requestedUserId) return;
+
+    let cancelled = false;
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRetry = () => {
+      if (cancelled) return;
+      const delay = Math.min(2_000 * 2 ** attempt, 30_000);
+      retryTimer = setTimeout(async () => {
+        await loadData(requestedUserId);
+        attempt += 1;
+        scheduleRetry();
+      }, delay);
+    };
+    scheduleRetry();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [isOffline, loadData, user?.uid]);
 
   useEffect(() => {
     const requestedUserId = user?.uid;

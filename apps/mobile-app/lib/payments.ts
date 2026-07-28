@@ -46,6 +46,7 @@ export interface CheckoutParams {
   promoCode?: string | null;
   promoterCode?: string | null;
   hostUpdatesOptIn?: boolean;
+  idempotencyKey?: string;
   onStatusChange?: (status: CheckoutStatus) => void;
 }
 
@@ -90,7 +91,7 @@ function matchesReservationSelection(
   return JSON.stringify(sortItems(reservation.items)) === JSON.stringify(sortItems(params.items));
 }
 
-function createCheckoutActionId(): string {
+export function createCheckoutActionId(): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
@@ -192,7 +193,7 @@ export async function discardPendingCheckout(): Promise<void> {
  */
 export async function processFullCheckout(params: CheckoutParams): Promise<CheckoutResult> {
   const { onStatusChange } = params;
-  const checkoutActionId = createCheckoutActionId();
+  const checkoutActionId = params.idempotencyKey || createCheckoutActionId();
 
   // Verify auth before making any API calls
   const currentUser = getFirebaseAuth().currentUser;

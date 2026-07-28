@@ -9,7 +9,8 @@ import * as Haptics from 'expo-haptics';
 import { useProfileStore } from '@/store/profileStore';
 
 export default function EditNightlifeScreen() {
-  const { profile, updateProfile } = useProfileStore();
+  const profile = useProfileStore((state) => state.profile);
+  const updateProfile = useProfileStore((state) => state.updateProfile);
 
   if (!profile) return null;
 
