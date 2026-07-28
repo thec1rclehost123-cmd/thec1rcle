@@ -126,8 +126,8 @@ test('Guest portal uses the Next 16 proxy convention for API tracing', () => {
   );
   assert.equal(source.includes('x-request-id'), true, 'proxy should preserve request tracing');
   assert.equal(
-    source.includes("matcher: ['/api/:path*']"),
+    source.includes("matcher: ['/api/:path*', '/confirmation/:path*', '/tickets/pair/:path*']"),
     true,
-    'proxy should stay scoped to API paths',
+    'proxy should stay scoped to API and protected paths',
   );
 });
