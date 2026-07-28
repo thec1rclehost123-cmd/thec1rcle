@@ -320,7 +320,7 @@ export default function SupportClient({ type }: SupportClientProps) {
       const token = await user.getIdToken();
 
       // Stats
-      const statsRes = await fetch('/api/v1/support/stats', {
+      const statsRes = await fetch(`/api/v1/support/stats?t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (statsRes.ok) {
@@ -329,7 +329,7 @@ export default function SupportClient({ type }: SupportClientProps) {
       }
 
       // Tickets
-      const ticketsRes = await fetch('/api/v1/support/tickets', {
+      const ticketsRes = await fetch(`/api/v1/support/tickets?t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (ticketsRes.ok) {
@@ -345,7 +345,7 @@ export default function SupportClient({ type }: SupportClientProps) {
       }
 
       // Announcements
-      const announcementsRes = await fetch('/api/v1/support/announcements', {
+      const announcementsRes = await fetch(`/api/v1/support/announcements?t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (announcementsRes.ok) {
@@ -354,7 +354,7 @@ export default function SupportClient({ type }: SupportClientProps) {
       }
 
       // Feature Requests
-      const featuresRes = await fetch('/api/v1/support/feature-requests', {
+      const featuresRes = await fetch(`/api/v1/support/feature-requests?t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (featuresRes.ok) {
@@ -369,9 +369,12 @@ export default function SupportClient({ type }: SupportClientProps) {
             ? `/api/partners/venues/events?venueId=${partnerId}&limit=100`
             : `/api/partners/hosts/events?hostId=${partnerId}&limit=100`;
 
-        const eventsRes = await fetch(eventsPath, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const eventsRes = await fetch(
+          `${eventsPath}${eventsPath.includes('?') ? '&' : '?'}t=${Date.now()}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
         if (eventsRes.ok) {
           const eventsJson = await eventsRes.json();
           setEvents(eventsJson.events || []);
@@ -618,6 +621,35 @@ export default function SupportClient({ type }: SupportClientProps) {
     e.preventDefault();
     if (!user || !selectedTicket || !replyMessage.trim()) return;
 
+    const messageText = replyMessage;
+    setReplyMessage('');
+
+    // Optimistic update of selectedTicket messages and timeline
+    const newReply = {
+      senderId: user.uid,
+      senderName: user.email || 'you',
+      senderRole: 'user',
+      content: messageText,
+      timestamp: new Date().toISOString(),
+    };
+    const newTimelineEvent = {
+      timestamp: new Date().toISOString(),
+      message: 'User Replied',
+      type: 'reply',
+      actorName: user.email || 'you',
+      detail: `Reply content: "${messageText.slice(0, 40)}..."`,
+    };
+
+    setSelectedTicket((prev: any) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        messages: [...(prev.messages || []), newReply],
+        timeline: [...(prev.timeline || []), newTimelineEvent],
+        status: 'open',
+      };
+    });
+
     setSubmitting(true);
     try {
       const token = await user.getIdToken();
@@ -627,15 +659,16 @@ export default function SupportClient({ type }: SupportClientProps) {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: replyMessage }),
+        body: JSON.stringify({ message: messageText }),
       });
 
       if (!response.ok) throw new Error('Failed to send reply message');
 
-      setReplyMessage('');
       await loadData(false);
     } catch (err) {
       console.error(err);
+      // Fallback reload if it failed
+      await loadData(false);
     } finally {
       setSubmitting(false);
     }
