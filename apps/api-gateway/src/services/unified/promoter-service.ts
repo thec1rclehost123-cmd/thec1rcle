@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { AggregateField, FieldValue, FieldPath } from 'firebase-admin/firestore';
+import { FieldValue, FieldPath } from 'firebase-admin/firestore';
 import type {
   PartnerContext,
   EventSummary,
@@ -57,26 +57,17 @@ export class PromoterService {
     const linksSnap = await this.db
       .collection('promoter_links')
       .where('promoterId', '==', promoterId)
-      .where('active', '==', true)
-      .orderBy('conversionCount', 'desc')
-      .limit(5)
-      .get()
-      .catch((err) => {
-        this.log.error(
-          {
-            service: 'PromoterService',
-            method: 'getOverview',
-            promoterId,
-            error: err?.message ?? String(err),
-          },
-          'Top links query failed',
-        );
-        return { docs: [] };
-      });
+      .limit(500)
+      .get();
 
-    const topLinks = (linksSnap as any).docs.map((doc: any) => this.docToLink(doc));
+    const linkDocs = (linksSnap as any).docs;
+    const topLinks = linkDocs
+      .map((doc: any) => this.docToLink(doc))
+      .filter((link: PromoterLink) => link.active)
+      .sort((a: PromoterLink, b: PromoterLink) => b.conversionCount - a.conversionCount)
+      .slice(0, 5);
 
-    const stats = await this.computeStats(promoterId);
+    const stats = await this.computeStats(promoterId, linkDocs);
 
     const durationMs = Date.now() - startedAt;
     if (durationMs > 500) {
@@ -136,9 +127,9 @@ export class PromoterService {
       return {
         linkId: doc.id,
         code: safeStr(d.code),
-        clicks: toNum(d.clickCount),
-        conversions: toNum(d.conversionCount),
-        revenue: toNum(d.revenue),
+        clicks: toNum(d.clickCount ?? d.clicks),
+        conversions: toNum(d.conversionCount ?? d.conversions),
+        revenue: toNum(d.revenue ?? d.attributedRevenue),
       };
     });
 
@@ -757,46 +748,28 @@ export class PromoterService {
       eventTitle: d.eventTitle ?? null,
       code: safeStr(d.code),
       active: d.active !== false,
-      clickCount: toNum(d.clickCount),
-      conversionCount: toNum(d.conversionCount),
+      clickCount: toNum(d.clickCount ?? d.clicks),
+      conversionCount: toNum(d.conversionCount ?? d.conversions),
       commissionRate: toNum(d.commissionRate),
-      revenue: toNum(d.revenue),
+      revenue: toNum(d.revenue ?? d.attributedRevenue),
       createdAt: toIso(d.createdAt),
       updatedAt: toIso(d.updatedAt),
     };
   }
 
-  private async computeStats(promoterId: string): Promise<PromoterOverviewStats> {
+  private async computeStats(promoterId: string, linkDocs: any[]): Promise<PromoterOverviewStats> {
     const startedAt = Date.now();
-
-    const aggregateSnap = await this.db
-      .collection('promoter_links')
-      .where('promoterId', '==', promoterId)
-      .aggregate({
-        totalLinks: AggregateField.count(),
-        totalClicks: AggregateField.sum('clickCount'),
-        totalConversions: AggregateField.sum('conversionCount'),
-        totalRevenue: AggregateField.sum('revenue'),
-      })
-      .get()
-      .catch((err) => {
-        this.log.error(
-          {
-            service: 'PromoterService',
-            method: 'computeStats',
-            promoterId,
-            error: err?.message ?? String(err),
-          },
-          'Links stats query failed',
-        );
-        throw err;
-      });
-
-    const linkStats = aggregateSnap.data();
-    const clicks = toNum(linkStats.totalClicks);
-    const conversions = toNum(linkStats.totalConversions);
-    const revenue = toNum(linkStats.totalRevenue);
-    const totalLinks = toNum(linkStats.totalLinks);
+    const links = linkDocs.map((doc) => (doc.data() || {}) as Record<string, any>);
+    const clicks = links.reduce((sum, link) => sum + toNum(link.clickCount ?? link.clicks), 0);
+    const conversions = links.reduce(
+      (sum, link) => sum + toNum(link.conversionCount ?? link.conversions),
+      0,
+    );
+    const revenue = links.reduce(
+      (sum, link) => sum + toNum(link.revenue ?? link.attributedRevenue),
+      0,
+    );
+    const totalLinks = links.length;
     let commissionEarned = 0;
 
     const statsDoc = await this.db.collection('promoter_stats').doc(promoterId).get();
@@ -804,14 +777,10 @@ export class PromoterService {
     if (statsDoc.exists) {
       commissionEarned = toNum(statsDoc.data()?.totalCommissionEarned);
     } else {
-      const commissionAggregate = await this.db
+      const commissionSnap = await this.db
         .collection('partner_ledger')
         .where('toPartnerId', '==', promoterId)
-        .where('type', '==', 'promoter_commission')
-        .where('status', 'in', ['pending', 'settled', 'disputed'])
-        .aggregate({
-          totalCommissionPaise: AggregateField.sum('amountPaise'),
-        })
+        .limit(500)
         .get()
         .catch((err) => {
           this.log.error(
@@ -826,7 +795,17 @@ export class PromoterService {
           throw err;
         });
 
-      commissionEarned = toNum(commissionAggregate.data().totalCommissionPaise) / 100;
+      const eligibleStatuses = new Set(['pending', 'settled', 'disputed']);
+      commissionEarned =
+        (commissionSnap as any).docs
+          .map((doc: any) => doc.data() || {})
+          .filter(
+            (entry: Record<string, any>) =>
+              entry.type === 'promoter_commission' &&
+              eligibleStatuses.has(String(entry.status || '').toLowerCase()),
+          )
+          .reduce((sum: number, entry: Record<string, any>) => sum + toNum(entry.amountPaise), 0) /
+        100;
 
       // Auto-backfill to prevent heavy reads on next load
       await statsDoc.ref

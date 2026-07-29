@@ -110,6 +110,10 @@ class MockQuery {
     );
   }
 
+  select(..._fields: Array<string | { toString(): string }>) {
+    return this;
+  }
+
   orderBy(field: string | { toString(): string }, direction: 'asc' | 'desc' = 'asc') {
     return new MockQuery(
       this.db,

@@ -40,8 +40,6 @@ import {
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { AnimatePresence, motion } from 'framer-motion';
 import { VenuePageShell, VenueActionButton } from '@/components/venue-layout/VenuePageShell';
-import { getFirebaseStorage } from '@/lib/firebase/client';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { formatDate, formatNumber } from '@/lib/utils/format';
 
 // Genre options for venues
@@ -87,6 +85,7 @@ const ROLE_OPTIONS = ['DJ', 'Promoter', 'Collective', 'Artist', 'Producer', 'Lab
 
 export default function VenuePresencePageClient() {
   const { profile, user } = useDashboardAuth();
+  const partnerId = profile?.activeMembership?.partnerId;
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
@@ -95,6 +94,7 @@ export default function VenuePresencePageClient() {
     'identity' | 'content' | 'media' | 'engagement' | 'broadcast'
   >('identity');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [operationError, setOperationError] = useState('');
 
   // Broadcast state
   const [broadcastTitle, setBroadcastTitle] = useState('');
@@ -118,7 +118,7 @@ export default function VenuePresencePageClient() {
   const authedFetch = useCallback(
     async (url: string, options: RequestInit = {}) => {
       if (!user) throw new Error('Not authenticated');
-      const token = await user.getIdToken(true);
+      const token = await user.getIdToken();
       return fetch(url, {
         ...options,
         headers: {
@@ -131,12 +131,11 @@ export default function VenuePresencePageClient() {
     [user],
   );
 
-  const fetchProfileData = async () => {
-    if (!profile?.activeMembership?.partnerId || !user) return;
+  const fetchProfileData = useCallback(async () => {
+    if (!partnerId || !user) return;
     setIsLoading(true);
     setIsError(false);
     try {
-      const partnerId = profile.activeMembership.partnerId;
       const res = await authedFetch(
         `/api/partners/venues/page?venueId=${partnerId}&dashboard=true`,
       );
@@ -161,31 +160,40 @@ export default function VenuePresencePageClient() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [authedFetch, partnerId, user]);
 
   useEffect(() => {
     fetchProfileData();
-  }, [profile, user]);
+  }, [fetchProfileData]);
 
   const handleUpdateProfile = async (updates: any) => {
-    if (!profile?.activeMembership?.partnerId || !user) return;
+    if (!partnerId || !user) return;
     setIsSaving(true);
     setSaveStatus('saving');
+    setOperationError('');
     try {
       const res = await authedFetch('/api/partners/venues/page', {
         method: 'POST',
         body: JSON.stringify({
-          venueId: profile.activeMembership.partnerId,
+          venueId: partnerId,
           updates,
         }),
       });
-      if (res.ok) {
-        fetchProfileData();
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000);
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        const message =
+          payload?.error?.message || payload?.error || payload?.message || 'Profile update failed';
+        throw new Error(message);
       }
+      setData((current: any) => ({
+        ...current,
+        profile: { ...(current?.profile || {}), ...updates },
+      }));
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (err) {
       console.error(err);
+      setOperationError(err instanceof Error ? err.message : 'Profile update failed');
       setSaveStatus('idle');
     } finally {
       setIsSaving(false);
@@ -284,17 +292,34 @@ export default function VenuePresencePageClient() {
     target: 'modal' | 'composer' | 'gallery',
   ) => {
     const file = e.target.files?.[0];
-    if (!file || !profile?.activeMembership?.partnerId) return;
+    if (!file || !partnerId || !user) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setOperationError('Use a JPG, PNG, or WebP image.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setOperationError('Image must be 10MB or smaller.');
+      return;
+    }
 
     setIsSaving(true);
+    setOperationError('');
     try {
-      const storage = getFirebaseStorage();
-      const storageRef = ref(
-        storage,
-        `partners/${profile.activeMembership.partnerId}/uploads/${Date.now()}_${file.name}`,
-      );
-      const snapshot = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
+      const formData = new FormData();
+      formData.append('file', file);
+      const token = await user.getIdToken();
+      const response = await fetch('/api/partners/venues/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.url) {
+        throw new Error(
+          payload?.error?.message || payload?.error || payload?.message || 'Upload failed',
+        );
+      }
+      const downloadURL = payload.url;
 
       if (target === 'modal' && photoModal) {
         if (photoModal.field === 'photos') {
@@ -310,8 +335,10 @@ export default function VenuePresencePageClient() {
       }
     } catch (err) {
       console.error('Upload error:', err);
+      setOperationError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setIsSaving(false);
+      e.target.value = '';
     }
   };
 
@@ -345,6 +372,28 @@ export default function VenuePresencePageClient() {
   };
 
   const isPublicProfileEnabled = data?.profile?.publicProfileEnabled !== false;
+  const handleViewLive = () => {
+    const slug = data?.profile?.slug || partnerId;
+    if (!slug) {
+      setOperationError('Publish the venue profile before opening the public page.');
+      return;
+    }
+    let baseUrl = process.env.NEXT_PUBLIC_GUEST_PORTAL_URL || '';
+    if (!baseUrl && typeof window !== 'undefined') {
+      if (window.location.hostname === 'localhost') {
+        baseUrl = 'http://localhost:3000';
+      } else if (window.location.hostname.startsWith('partners.')) {
+        baseUrl = `${window.location.protocol}//${window.location.hostname.replace(/^partners\./, '')}`;
+      } else {
+        baseUrl = 'https://thec1rcle.com';
+      }
+    }
+    window.open(
+      `${baseUrl.replace(/\/$/, '')}/venue/${encodeURIComponent(slug)}`,
+      '_blank',
+      'noopener,noreferrer',
+    );
+  };
 
   if (isLoading) {
     return (
@@ -389,20 +438,28 @@ export default function VenuePresencePageClient() {
         data?.profile?.tagline || 'Curate how your public profile appears to guests and partners'
       }
       actions={
-        data?.profile?.slug ? (
-          <a
-            href={`${process.env.NEXT_PUBLIC_GUEST_PORTAL_URL || ''}/venue/${data.profile.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <VenueActionButton variant="secondary">
-              <Globe className="w-4 h-4 mr-2" /> View Live
-              <ExternalLink className="w-3 h-3 ml-1" />
-            </VenueActionButton>
-          </a>
-        ) : undefined
+        <VenueActionButton variant="secondary" onClick={handleViewLive}>
+          <Globe className="w-4 h-4 mr-2" /> View Live
+          <ExternalLink className="w-3 h-3 ml-1" />
+        </VenueActionButton>
       }
     >
+      {operationError && (
+        <div
+          className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
+          style={{
+            background: 'var(--v-error-bg)',
+            border: '1px solid rgba(248,113,113,0.2)',
+            color: 'var(--v-error)',
+          }}
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="flex-1">{operationError}</span>
+          <button type="button" onClick={() => setOperationError('')} aria-label="Dismiss error">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       {/* Hero Header Card */}
       <div
         className="rounded-[32px] overflow-hidden relative"

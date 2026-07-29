@@ -42,6 +42,44 @@ async function buildServer() {
 }
 
 describe('host event scheduling submission', () => {
+  it('hydrates Host Presence from the approved host profile before a page exists', async () => {
+    const { server, db } = await buildServer();
+    db.seed('hosts/host-1', {
+      uid: 'host-user-1',
+      displayName: 'Approved QA Host',
+      bio: 'Approved registration biography',
+      contactEmail: 'host@example.com',
+      contactPhone: '+15555550123',
+      city: 'Phoenix',
+      website: 'https://host.example.com',
+      photoURL: 'https://images.example.com/host.jpg',
+      socialLinks: { instagram: '@approvedhost' },
+      status: 'active',
+    });
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/partners/hosts/page',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      id: 'host-1',
+      hostId: 'host-1',
+      displayName: 'Approved QA Host',
+      bio: 'Approved registration biography',
+      email: 'host@example.com',
+      phone: '+15555550123',
+      city: 'Phoenix',
+      website: 'https://host.example.com',
+      photoURL: 'https://images.example.com/host.jpg',
+      socialLinks: { instagram: '@approvedhost' },
+      sections: [],
+      isActive: false,
+    });
+    await server.close();
+  });
+
   it('uses indexed ordering and bounded limits for partnerships and notifications', async () => {
     const { server, db } = await buildServer();
     for (let index = 1; index <= 105; index += 1) {
@@ -290,6 +328,106 @@ describe('host event scheduling submission', () => {
     });
     expect(db.listCollection('submission_history')).toHaveLength(1);
     expect(db.listCollection('notifications')).toHaveLength(1);
+    await server.close();
+  });
+
+  it('updates a published event without changing its lifecycle', async () => {
+    const { server, db } = await buildServer();
+    db.seed('events/published-event', {
+      creatorId: 'host-1',
+      hostId: 'host-1',
+      title: 'Original title',
+      lifecycle: 'published',
+      status: 'published',
+      startDate: '2026-08-15T18:00:00.000Z',
+      endDate: '2026-08-15T23:00:00.000Z',
+      capacity: 100,
+      ticketTiers: [],
+    });
+
+    const response = await server.inject({
+      method: 'PATCH',
+      url: '/partners/hosts/events/published-event',
+      payload: {
+        title: 'Updated title',
+        description: 'Updated description',
+        coverImage: 'https://storage.example/poster.webp',
+        lifecycle: 'draft',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(db.getDoc('events/published-event')).toMatchObject({
+      title: 'Updated title',
+      description: 'Updated description',
+      coverImage: 'https://storage.example/poster.webp',
+      lifecycle: 'published',
+      status: 'published',
+    });
+    await server.close();
+  });
+
+  it('accepts the single-tier editor payload and returns field errors for unsafe inventory', async () => {
+    const { server, db } = await buildServer();
+    db.seed('events/tier-event', {
+      creatorId: 'host-1',
+      hostId: 'host-1',
+      title: 'Tier Event',
+      lifecycle: 'published',
+      ticketTiers: [
+        {
+          id: 'general',
+          name: 'General',
+          price: 500,
+          quantity: 100,
+          sold: 12,
+          maxPurchaseQuantity: 6,
+        },
+      ],
+    });
+
+    const response = await server.inject({
+      method: 'PATCH',
+      url: '/partners/hosts/events/tier-event/tickets',
+      payload: {
+        tierId: 'general',
+        name: 'General Admission',
+        description: 'Entry before 10 PM',
+        entryType: 'general',
+        price: 600,
+        quantity: 120,
+        salesStart: '2026-08-01T00:00',
+        salesEnd: '2026-08-15T17:00',
+        minPerOrder: 1,
+        maxPerOrder: 6,
+        promoterEnabled: true,
+      },
+    });
+    const invalid = await server.inject({
+      method: 'PATCH',
+      url: '/partners/hosts/events/tier-event/tickets',
+      payload: {
+        tierId: 'general',
+        name: 'General Admission',
+        price: 600,
+        quantity: 10,
+        minPerOrder: 1,
+        maxPerOrder: 6,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(db.getDoc('events/tier-event')?.ticketTiers[0]).toMatchObject({
+      id: 'general',
+      name: 'General Admission',
+      quantity: 120,
+      sold: 12,
+      remaining: 108,
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json().error.details[0]).toMatchObject({
+      path: 'tiers.general.quantity',
+    });
     await server.close();
   });
 

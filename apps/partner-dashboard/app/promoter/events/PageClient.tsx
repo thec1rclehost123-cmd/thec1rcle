@@ -186,6 +186,7 @@ export default function PromoterEventsPage() {
   const [events, setEvents] = useState<PromoterEvent[]>([]);
   const [myLinks, setMyLinks] = useState<PromoterLink[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [assignmentRequests, setAssignmentRequests] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [activeTab, setActiveTab] = useState<PromoterTab>('available');
@@ -195,6 +196,8 @@ export default function PromoterEventsPage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [openCommissionEventId, setOpenCommissionEventId] = useState<string | null>(null);
+  const [requestingEventId, setRequestingEventId] = useState<string | null>(null);
+  const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
 
   const eventsQuery = useQuery({
     queryKey: ['promoter-events-page', promoterId, selectedCity],
@@ -224,6 +227,9 @@ export default function PromoterEventsPage() {
     const { eventsData, linksData } = eventsQuery.data;
     setEvents(Array.isArray(eventsData.events) ? eventsData.events : []);
     setAssignments(Array.isArray(eventsData.assignments) ? eventsData.assignments : []);
+    setAssignmentRequests(
+      Array.isArray(eventsData.assignmentRequests) ? eventsData.assignmentRequests : [],
+    );
     setNextCursor(eventsData.discoverCursor || null);
     setMyLinks(Array.isArray(linksData.links) ? linksData.links : []);
   }, [eventsQuery.data]);
@@ -287,8 +293,59 @@ export default function PromoterEventsPage() {
   );
 
   const assignedEventIds = useMemo(() => {
-    return new Set((assignments || []).map((a) => String(a.eventId || '')));
+    return new Set(
+      (assignments || [])
+        .filter((assignment) => String(assignment.status || '').toLowerCase() === 'active')
+        .map((assignment) => String(assignment.eventId || '')),
+    );
   }, [assignments]);
+
+  const pendingRequestEventIds = useMemo(() => {
+    return new Set(
+      assignmentRequests
+        .filter((request) => String(request.status || '').toLowerCase() === 'pending')
+        .map((request) => String(request.eventId || '')),
+    );
+  }, [assignmentRequests]);
+
+  const requestPromotionAccess = useCallback(
+    async (eventId: string) => {
+      if (!eventId || requestingEventId) return;
+      setRequestingEventId(eventId);
+      setRequestErrors((current) => ({ ...current, [eventId]: '' }));
+      try {
+        const token = authToken || (await user?.getIdToken()) || '';
+        const response = await fetch(`/api/partners/promoters/events/${eventId}/request`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ promoterName: promoterName || undefined }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(payload?.error?.message || 'Unable to request promotion access');
+        }
+        if (payload?.request?.status === 'assigned') {
+          await eventsQuery.refetch();
+          return;
+        }
+        setAssignmentRequests((current) => [
+          ...current.filter((request) => String(request.eventId || '') !== eventId),
+          { id: payload?.request?.requestId || eventId, eventId, status: 'pending' },
+        ]);
+      } catch (error) {
+        setRequestErrors((current) => ({
+          ...current,
+          [eventId]: error instanceof Error ? error.message : 'Unable to request promotion access',
+        }));
+      } finally {
+        setRequestingEventId(null);
+      }
+    },
+    [authToken, eventsQuery, promoterName, requestingEventId, user],
+  );
 
   const filteredEvents = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -443,6 +500,8 @@ export default function PromoterEventsPage() {
           {filteredEvents.map((event) => {
             const link = getActiveLink(event.id);
             const hasLink = Boolean(link);
+            const isAssigned = assignedEventIds.has(String(event.id));
+            const requestPending = pendingRequestEventIds.has(String(event.id));
             const dateParts = formatEventDate(event.startDate);
             const partnerLabel = event.creatorRole === 'host' ? 'Host' : 'Venue';
             const partnerValue =
@@ -481,9 +540,15 @@ export default function PromoterEventsPage() {
                   <div className="absolute top-4 left-4 right-4 flex justify-between">
                     <span className="inline-flex items-center gap-2 rounded-full bg-black/60 border border-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-md">
                       <span
-                        className={`h-1.5 w-1.5 rounded-full ${hasLink ? 'bg-violet-400' : 'bg-emerald-400'}`}
+                        className={`h-1.5 w-1.5 rounded-full ${hasLink ? 'bg-violet-400' : requestPending ? 'bg-amber-400' : 'bg-emerald-400'}`}
                       />
-                      {hasLink ? 'Link Active' : 'Ready to Promote'}
+                      {hasLink
+                        ? 'Link Active'
+                        : isAssigned
+                          ? 'Ready to Generate'
+                          : requestPending
+                            ? 'Request Pending'
+                            : 'Access Required'}
                     </span>
                   </div>
                 </div>
@@ -552,7 +617,7 @@ export default function PromoterEventsPage() {
                         </button>
                       </div>
                     </div>
-                  ) : (
+                  ) : isAssigned ? (
                     <button
                       onClick={() => setSelectedEventIdForModal(event.id)}
                       className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 text-black font-bold text-[15px] flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(16,185,129,0.2)]"
@@ -560,6 +625,32 @@ export default function PromoterEventsPage() {
                       <LinkIcon className="w-5 h-5" />
                       Get Promoter Link
                     </button>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => requestPromotionAccess(event.id)}
+                        disabled={requestPending || requestingEventId === event.id}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 py-3.5 text-[15px] font-bold text-black shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {requestingEventId === event.id ? (
+                          <RefreshCw className="h-5 w-5 animate-spin" />
+                        ) : requestPending ? (
+                          <Clock className="h-5 w-5" />
+                        ) : (
+                          <ArrowRight className="h-5 w-5" />
+                        )}
+                        {requestingEventId === event.id
+                          ? 'Requesting...'
+                          : requestPending
+                            ? 'Request Pending'
+                            : 'Request Promotion Access'}
+                      </button>
+                      {requestErrors[event.id] ? (
+                        <p className="text-center text-xs font-semibold text-red-400">
+                          {requestErrors[event.id]}
+                        </p>
+                      ) : null}
+                    </div>
                   )}
                 </div>
               </motion.div>

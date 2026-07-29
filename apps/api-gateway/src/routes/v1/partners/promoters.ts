@@ -28,6 +28,10 @@ import {
   signPromoterAttribution,
   verifyPromoterAttribution,
 } from '@c1rcle/core/promoter-attribution';
+import {
+  PromoterAssignmentRequestError,
+  requestPromoterAssignment,
+} from '@c1rcle/core/promoter-assignment-request';
 
 const AnalyticsQuerySchema = z
   .object({
@@ -75,6 +79,12 @@ const EventsQuerySchema = z
     city: z.string().optional(),
   })
   .passthrough();
+
+const PromoterAssignmentRequestSchema = z
+  .object({
+    promoterName: z.string().trim().max(120).optional(),
+  })
+  .strict();
 
 const ConnectionsQuerySchema = z
   .object({
@@ -886,6 +896,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     const assignedEventIds: string[] = Array.from(
       new Set(
         ((assignmentsSnap as any).docs || [])
+          .filter((doc: any) => String(doc.data()?.status || '').toLowerCase() === 'active')
           .map((doc: any) => String(doc.data()?.eventId || ''))
           .filter(Boolean),
       ),
@@ -2228,14 +2239,25 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           cursor: request.query.cursor,
           limit: request.query.limit,
         };
-        const [result, legacyEventsBody, legacyAssignments] = await Promise.all([
-          promoterService.getEvents(ctx, filters),
-          getLegacyEvents(ctx.partnerId, request.query),
-          buildLegacyAssignments(ctx.partnerId, request.query.status),
-        ]);
+        const [result, legacyEventsBody, legacyAssignments, assignmentRequestsSnap] =
+          await Promise.all([
+            promoterService.getEvents(ctx, filters),
+            getLegacyEvents(ctx.partnerId, request.query),
+            buildLegacyAssignments(ctx.partnerId, request.query.status),
+            fastify.db
+              .collection('promoter_assignment_requests')
+              .where('promoterId', '==', ctx.partnerId)
+              .limit(100)
+              .get()
+              .catch(() => ({ docs: [] as any[] })),
+          ]);
         return reply.header('Cache-Control', 'no-store, no-cache, must-revalidate').send({
           ...legacyEventsBody,
           assignments: legacyAssignments,
+          assignmentRequests: (assignmentRequestsSnap as any).docs.map((doc: any) => ({
+            id: doc.id,
+            ...(doc.data() || {}),
+          })),
           events: asArray(legacyEventsBody.events),
           data: asArray(result.data),
           hasMore: Boolean(result.hasMore),
@@ -2249,6 +2271,59 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             .send(
               buildErrorResponse({ code: err.code, message: err.message, requestId: request.id }),
             );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    '/partners/promoters/events/:eventId/request',
+    {
+      config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+      preHandler: [
+        fastify.validate({ body: PromoterAssignmentRequestSchema }),
+        fastify.requireAuth,
+      ],
+    },
+    async (request: any, reply: any) => {
+      const ctx = await resolvePartnerContext(fastify.db, request);
+      if (!ctx) {
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'FORBIDDEN',
+            message: 'No partner identity found',
+            requestId: request.id,
+          }),
+        );
+      }
+
+      try {
+        requireType(ctx, 'promoter');
+        const result = await requestPromoterAssignment(fastify.db, {
+          promoterId: ctx.partnerId,
+          eventId: String(request.params.eventId || ''),
+          promoterName: request.body.promoterName,
+        });
+        return reply.status(result.status === 'pending' && !result.duplicate ? 201 : 200).send({
+          request: result,
+        });
+      } catch (err: any) {
+        if (err instanceof PromoterAssignmentRequestError || err.statusCode) {
+          return reply.status(err.statusCode || 400).send(
+            buildErrorResponse({
+              code: err.code || 'BAD_REQUEST',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        }
+        request.log.error({ err, eventId: request.params.eventId }, 'Promoter request failed');
         return reply.status(500).send(
           buildErrorResponse({
             code: 'INTERNAL_ERROR',

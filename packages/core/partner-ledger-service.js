@@ -400,6 +400,8 @@ export function writePartnerRefundInTransaction({
     allocationType: allocation.type,
     promoterId: order.promoterId || null,
     promoterLinkId: order.promoterLinkId || allocation.promoterLinkId || null,
+    hostId: order.hostId || null,
+    venueId: order.venueId || null,
     refundGrossPaise: refundPaise,
     type: 'refund',
     amountPaise: -allocatedPaise,

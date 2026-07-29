@@ -24,7 +24,11 @@ const getGuestPortalUrl = () => {
     return process.env.NEXT_PUBLIC_SITE_URL;
   }
   if (typeof window !== 'undefined') {
-    return window.location.origin;
+    if (['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+      return 'http://localhost:3000';
+    }
+    const guestHostname = window.location.hostname.replace(/^partners\./, '');
+    return `${window.location.protocol}//${guestHostname}`;
   }
   return 'https://thec1rcle.com';
 };
@@ -35,6 +39,13 @@ function sanitizeLabel(val: string) {
     .toLowerCase()
     .replace(/\s+/g, '_')
     .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 32);
+}
+
+function sanitizeTrackingCode(val: string) {
+  return val
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
     .slice(0, 32);
 }
 
@@ -69,6 +80,7 @@ export default function GenerateLinkModal({
   const [selectedTicketTierIds, setSelectedTicketTierIds] = useState<string[]>([]);
   const [customTrackingCode, setCustomTrackingCode] = useState('');
   const [customTrackingCodeError, setCustomTrackingCodeError] = useState('');
+  const [generateError, setGenerateError] = useState('');
   const [generating, setGenerating] = useState(false);
   const [generatedLink, setGeneratedLink] = useState<any>(null);
   const [isDuplicate, setIsDuplicate] = useState(false);
@@ -114,6 +126,13 @@ export default function GenerateLinkModal({
 
   const handleGenerate = useCallback(async () => {
     if (!selectedEventId) return;
+    const normalizedTrackingCode = sanitizeTrackingCode(customTrackingCode);
+    if (customTrackingCode && normalizedTrackingCode.length < 3) {
+      setCustomTrackingCodeError('Use at least 3 letters or numbers.');
+      return;
+    }
+    setGenerateError('');
+    setCustomTrackingCodeError('');
     setGenerating(true);
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -126,7 +145,7 @@ export default function GenerateLinkModal({
           promoterName: promoterName || 'Promoter',
           eventId: selectedEventId,
           ticketTierIds: selectedTicketTierIds,
-          customTrackingCode: customTrackingCode || undefined,
+          customTrackingCode: normalizedTrackingCode || undefined,
         }),
       });
 
@@ -134,7 +153,13 @@ export default function GenerateLinkModal({
         const errData = await res.json().catch(() => null);
         const errMsg = errData?.error?.message || errData?.error || '';
         if (errMsg.includes('taken') || res.status === 409) {
-          setCustomTrackingCodeError('This code is already taken. Please choose another.');
+          if (errMsg.includes('taken')) {
+            setCustomTrackingCodeError('This code is already taken. Please choose another.');
+          } else {
+            setGenerateError(errMsg || 'This link cannot be generated yet.');
+          }
+        } else {
+          setGenerateError(errMsg || 'Unable to generate the link. Please try again.');
         }
         console.error('[GenerateLinkModal] Generate failed with status:', res.status, errData);
         return;
@@ -148,10 +173,11 @@ export default function GenerateLinkModal({
       }
     } catch (e) {
       console.error('[GenerateLinkModal] Generate failed:', e);
+      setGenerateError('Unable to reach the link service. Please try again.');
     } finally {
       setGenerating(false);
     }
-  }, [selectedEventId, selectedTicketTierIds, promoterId, promoterName, token, onCreated]);
+  }, [selectedEventId, selectedTicketTierIds, customTrackingCode, promoterName, token, onCreated]);
 
   const buildDisplayUrl = (link: any) => {
     if (link.fullUrl) return link.fullUrl;
@@ -217,6 +243,7 @@ export default function GenerateLinkModal({
     setSelectedTicketTierIds([]);
     setCustomTrackingCode('');
     setCustomTrackingCodeError('');
+    setGenerateError('');
     if (!lockEvent) {
       setSelectedEventId(initialEventId || '');
     }
@@ -406,8 +433,9 @@ export default function GenerateLinkModal({
                   placeholder="e.g. aayush333"
                   value={customTrackingCode}
                   onChange={(e) => {
-                    setCustomTrackingCode(e.target.value);
+                    setCustomTrackingCode(sanitizeTrackingCode(e.target.value));
                     setCustomTrackingCodeError('');
+                    setGenerateError('');
                   }}
                   className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-[14px] text-white placeholder-white/30 focus:outline-none focus:border-emerald-500/50 transition-colors"
                 />
@@ -420,6 +448,12 @@ export default function GenerateLinkModal({
                   </p>
                 )}
               </div>
+
+              {generateError ? (
+                <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-[12px] font-semibold text-red-300">
+                  {generateError}
+                </p>
+              ) : null}
 
               {/* Generate button */}
               <button

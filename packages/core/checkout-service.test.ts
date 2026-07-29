@@ -77,6 +77,7 @@ class FakeOrderRepository {
   rsvpOrders = new Map<string, any>();
   reservations = new Map<string, any>();
   payments = new Map<string, any>();
+  freeTicketClaims = new Map<string, any>();
   orderByIdReads = 0;
 
   async getOrderById(id: string) {
@@ -139,6 +140,25 @@ class FakeOrderRepository {
       }
     }
     return total;
+  }
+
+  async checkExistingFreeTicketClaim(eventId: string, tierId: string, userId: string) {
+    const claim = this.freeTicketClaims.get(`${eventId}:${tierId}:${userId}`);
+    if (claim?.status !== 'cancelled') return Boolean(claim);
+
+    return [...this.orders.values()].some(
+      (order) =>
+        order.eventId === eventId &&
+        order.userId === userId &&
+        order.status === 'confirmed' &&
+        (order.tickets || []).some(
+          (ticket: any) => ticket.ticketId === tierId && Number(ticket.price || 0) <= 0,
+        ),
+    );
+  }
+
+  async createFreeTicketClaim(claim: any) {
+    this.freeTicketClaims.set(`${claim.eventId}:${claim.tierId}:${claim.userId}`, claim);
   }
 
   async getReservationById(id: string) {
@@ -496,6 +516,69 @@ describe('CheckoutService parity', () => {
     expect(secondResult.requiresPayment).toBe(false);
     expect(secondResult.order.id).toBe(firstResult.order.id);
     expect(orderRepo.orders.size).toBe(1);
+  });
+
+  it('rejects more than one ticket from a zero-priced tier at the core transaction boundary', async () => {
+    const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
+    const eventRepo = new FakeEventRepository({
+      'evt-free': buildEvent({ id: 'evt-free', price: 0 }),
+    });
+    orderRepo.reservations.set('res-free-two', {
+      ...buildReservation({ id: 'res-free-two', eventId: 'evt-free' }),
+      items: [{ tierId: 'tier-1', quantity: 2 }],
+    });
+    const service = new CheckoutService(orderRepo as any, eventRepo as any);
+
+    await expect(
+      service.initiateCheckout({
+        reservationId: 'res-free-two',
+        userId: 'user_1',
+        userName: 'Test User',
+        userEmail: 'test@example.com',
+        userPhone: '+15555550123',
+      }),
+    ).rejects.toMatchObject({ code: 'FREE_TICKET_LIMIT_EXCEEDED' });
+    expect(orderRepo.orders.size).toBe(0);
+    expect(orderRepo.freeTicketClaims.size).toBe(0);
+  });
+
+  it('prevents the same account from claiming the same free tier through a new reservation', async () => {
+    const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
+    const eventRepo = new FakeEventRepository({
+      'evt-free': buildEvent({ id: 'evt-free', price: 0 }),
+    });
+    orderRepo.reservations.set(
+      'res-free-first',
+      buildReservation({ id: 'res-free-first', eventId: 'evt-free' }),
+    );
+    orderRepo.reservations.set(
+      'res-free-second',
+      buildReservation({ id: 'res-free-second', eventId: 'evt-free' }),
+    );
+    const service = new CheckoutService(orderRepo as any, eventRepo as any);
+
+    const first = await service.initiateCheckout({
+      reservationId: 'res-free-first',
+      userId: 'user_1',
+      userName: 'Test User',
+      userEmail: 'test@example.com',
+      userPhone: '+15555550123',
+    });
+
+    await expect(
+      service.initiateCheckout({
+        reservationId: 'res-free-second',
+        userId: 'user_1',
+        userName: 'Test User',
+        userEmail: 'test@example.com',
+        userPhone: '+15555550123',
+      }),
+    ).rejects.toMatchObject({ code: 'FREE_TICKET_ALREADY_CLAIMED' });
+    expect(first.order.status).toBe('confirmed');
+    expect(orderRepo.orders.size).toBe(1);
+    expect(orderRepo.freeTicketClaims.size).toBe(1);
   });
 
   it('blocks duplicate RSVP purchases for the same user identity', async () => {

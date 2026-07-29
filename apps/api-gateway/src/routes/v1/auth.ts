@@ -1343,24 +1343,41 @@ export default async function authRoutes(fastify: FastifyInstance) {
         if (body.role) updateData.onboardingRole = body.role;
         await userRef.set(updateData, { merge: true });
 
-        const requestId = `req_${Date.now()}_${userId.substring(0, 5)}`;
+        const userDoc = await userRef.get();
+        const existingRequestId = String(userDoc.data()?.onboardingRequestId || '');
+        const requestId = existingRequestId || `req_${type}_${userId}`;
+        const requestRef = fastify.db.collection('onboarding_requests').doc(requestId);
+        const existingRequest = await requestRef.get();
+        const existingData = existingRequest.exists ? existingRequest.data() || {} : null;
+        if (existingData?.status === 'approved') {
+          return buildSuccessResponse({ requestId, alreadyApproved: true });
+        }
+        if (existingData) {
+          const historyId = `${requestId}_${Date.now()}`;
+          await fastify.db
+            .collection('onboarding_request_history')
+            .doc(historyId)
+            .set({
+              ...existingData,
+              id: historyId,
+              sourceRequestId: requestId,
+              archivedAt: FieldValue.serverTimestamp(),
+            });
+        }
         // Store the requestId on the user doc so getGuestOnboardingRequest
         // can do a direct lookup instead of a Firestore query (which needs an index).
         await userRef.set({ onboardingRequestId: requestId }, { merge: true });
-        await fastify.db
-          .collection('onboarding_requests')
-          .doc(requestId)
-          .set({
-            id: requestId,
-            uid: userId,
-            type,
-            status: 'pending',
-            data: {
-              ...body,
-            },
-            submittedAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          });
+        await requestRef.set({
+          id: requestId,
+          uid: userId,
+          type,
+          status: 'pending',
+          data: {
+            ...body,
+          },
+          submittedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
 
         return buildSuccessResponse({ requestId });
       } catch (error: any) {

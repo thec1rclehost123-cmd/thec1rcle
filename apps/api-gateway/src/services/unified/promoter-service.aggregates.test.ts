@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { MockFirestore } from '../../test-utils/mock-firestore.js';
 import { PromoterService } from './promoter-service.js';
 
-describe('PromoterService aggregate stats', () => {
-  it('uses aggregate link metrics and canonical commission paise', async () => {
+describe('PromoterService index-independent stats', () => {
+  it('normalizes link metrics and canonical commission paise without composite queries', async () => {
     const db = new MockFirestore();
     db.seed('promoter_links/link_1', {
       promoterId: 'promoter_1',
@@ -16,9 +16,9 @@ describe('PromoterService aggregate stats', () => {
     db.seed('promoter_links/link_2', {
       promoterId: 'promoter_1',
       active: true,
-      clickCount: 30,
-      conversionCount: 6,
-      revenue: 700,
+      clicks: 30,
+      conversions: 6,
+      attributedRevenue: 700,
       createdAt: '2026-07-28T10:00:00.000Z',
     });
     db.seed('partner_ledger/commission_1', {
@@ -60,6 +60,7 @@ describe('PromoterService aggregate stats', () => {
       totalCommissionEarned: 125,
       conversionRate: 0.2,
     });
+    expect(overview.topLinks.map((link) => link.linkId)).toEqual(['link_2', 'link_1']);
     expect(db.getDoc('promoter_stats/promoter_1')).toMatchObject({
       totalCommissionEarned: 125,
     });

@@ -236,7 +236,10 @@ function TicketTierRow({
 }) {
   const isSoldOut = tier.remaining <= 0;
   const isLowStock = tier.remaining > 0 && tier.remaining <= 8;
-  const limit = Math.max(0, Math.min(tier.remaining || 0, 10));
+  const limit =
+    Number(tier.price || 0) <= 0
+      ? Math.min(Math.max(tier.remaining || 0, 0), 1)
+      : Math.max(0, Math.min(tier.remaining || 0, 10));
   const meta = getTierMeta(tier, index);
   const availabilityLabel = isSoldOut
     ? 'Sold out'

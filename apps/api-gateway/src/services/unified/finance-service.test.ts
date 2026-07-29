@@ -419,3 +419,63 @@ describe('FinanceService.getFinanceSummary', () => {
     });
   });
 });
+
+describe('FinanceService.getVenueFinancialBreakdown', () => {
+  it('reconciles gross, refunds, platform fees, and venue earnings from canonical ledger rows', async () => {
+    const db = new MockFirestore();
+    db.seed('partner_ledger/order_1_revenue', {
+      venueId: 'venue_1',
+      eventId: 'event_1',
+      type: 'ticket_revenue',
+      status: 'settled',
+      amountPaise: 10000,
+    });
+    db.seed('partner_ledger/order_1_platform', {
+      venueId: 'venue_1',
+      eventId: 'event_1',
+      type: 'platform_fee',
+      status: 'settled',
+      amountPaise: 1000,
+    });
+    db.seed('partner_ledger/order_1_venue', {
+      venueId: 'venue_1',
+      eventId: 'event_1',
+      toPartnerId: 'venue_1',
+      type: 'venue_share',
+      status: 'settled',
+      amountPaise: 2000,
+    });
+    db.seed('partner_ledger/refund_1_venue', {
+      eventId: 'event_1',
+      refundId: 'refund_1',
+      refundGrossPaise: 3000,
+      allocationType: 'venue_share',
+      toPartnerId: 'venue_1',
+      type: 'refund',
+      status: 'settled',
+      amountPaise: -600,
+    });
+    const service = new FinanceService({
+      db: db as any,
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+      redis: undefined,
+    } as any);
+
+    await expect(service.getVenueFinancialBreakdown('venue_1')).resolves.toMatchObject({
+      grossSalesPaise: 10000,
+      refundsPaise: 3000,
+      platformFeesPaise: 1000,
+      paymentGatewayFeesPaise: null,
+      taxesPaise: null,
+      netVenueEarningsPaise: 1400,
+      eventBreakdown: [
+        {
+          eventId: 'event_1',
+          grossSalesPaise: 10000,
+          refundsPaise: 3000,
+          netVenueEarningsPaise: 1400,
+        },
+      ],
+    });
+  });
+});

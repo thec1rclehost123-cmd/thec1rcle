@@ -67,11 +67,25 @@ export default function AdminPromoters() {
         );
 
         if (pendingSuspend) {
-          return { ...promoter, pendingAction: 'suspend', displayStatus: 'Restriction Requested' };
+          return {
+            ...promoter,
+            pendingAction: 'suspend',
+            accountStatus: promoter.status || 'active',
+            operationsStatus: 'Suspension Requested',
+          };
         } else if (pendingReinstate) {
-          return { ...promoter, pendingAction: 'reinstate', displayStatus: 'Restore Requested' };
+          return {
+            ...promoter,
+            pendingAction: 'reinstate',
+            accountStatus: promoter.status || 'suspended',
+            operationsStatus: 'Reinstatement Requested',
+          };
         }
-        return { ...promoter, displayStatus: promoter.status };
+        return {
+          ...promoter,
+          accountStatus: promoter.status || 'active',
+          operationsStatus: 'No Pending Action',
+        };
       });
 
       setPromoters(mergedPromoters);
@@ -269,31 +283,23 @@ export default function AdminPromoters() {
                     </div>
                     <div
                       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[9px] font-bold uppercase tracking-widest ${
-                        (promoter.displayStatus || promoter.status) === 'active'
+                        promoter.accountStatus === 'active'
                           ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
-                          : (promoter.displayStatus || promoter.status) ===
-                                'Restriction Requested' ||
-                              (promoter.displayStatus || promoter.status) === 'pending'
+                          : promoter.accountStatus === 'pending'
                             ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
-                            : (promoter.displayStatus || promoter.status) === 'Restore Requested'
-                              ? 'bg-emerald-400/10 border-emerald-400/20 text-emerald-400'
-                              : 'bg-iris/10 border-iris/20 text-iris'
+                            : 'bg-iris/10 border-iris/20 text-iris'
                       }`}
                     >
                       <div
                         className={`h-1.5 w-1.5 rounded-full ${
-                          (promoter.displayStatus || promoter.status) === 'active'
+                          promoter.accountStatus === 'active'
                             ? 'bg-emerald-500'
-                            : (promoter.displayStatus || promoter.status) ===
-                                  'Restriction Requested' ||
-                                (promoter.displayStatus || promoter.status) === 'pending'
+                            : promoter.accountStatus === 'pending'
                               ? 'bg-amber-500 animate-pulse'
-                              : (promoter.displayStatus || promoter.status) === 'Restore Requested'
-                                ? 'bg-emerald-400 animate-pulse'
-                                : 'bg-iris'
+                              : 'bg-iris'
                         }`}
                       />
-                      {(promoter.displayStatus || promoter.status) ?? 'Active'}
+                      Account: {promoter.accountStatus || promoter.status || 'active'}
                     </div>
                   </div>
 
@@ -303,6 +309,9 @@ export default function AdminPromoters() {
                     </h3>
                     <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
                       ID: {promoter.id?.slice(0, 12)}
+                    </p>
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
+                      Operations: {promoter.operationsStatus || 'No Pending Action'}
                     </p>
                   </div>
 

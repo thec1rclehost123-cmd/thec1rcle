@@ -105,6 +105,101 @@ export class FinanceService {
     };
   }
 
+  async getVenueFinancialBreakdown(venueId: string): Promise<{
+    grossSalesPaise: number;
+    refundsPaise: number;
+    platformFeesPaise: number;
+    paymentGatewayFeesPaise: null;
+    taxesPaise: null;
+    netVenueEarningsPaise: number;
+    eventBreakdown: Array<{
+      eventId: string;
+      grossSalesPaise: number;
+      refundsPaise: number;
+      netVenueEarningsPaise: number;
+    }>;
+  }> {
+    const [venueSnapshot, venuePartnerSnapshot] = await Promise.all([
+      this.db.collection('partner_ledger').where('venueId', '==', venueId).get(),
+      this.db.collection('partner_ledger').where('toPartnerId', '==', venueId).get(),
+    ]).catch((err: any) => {
+      this.log.error(
+        {
+          service: 'FinanceService',
+          method: 'getVenueFinancialBreakdown',
+          venueId,
+          error: err?.message ?? String(err),
+        },
+        'Venue finance ledger query failed',
+      );
+      throw financeUnavailable('Canonical venue finance data is unavailable', err);
+    });
+    const entriesById = new Map<
+      string,
+      FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>
+    >();
+    for (const document of [...venueSnapshot.docs, ...venuePartnerSnapshot.docs]) {
+      entriesById.set(document.id, document);
+    }
+
+    let grossSalesPaise = 0;
+    let refundsPaise = 0;
+    let platformFeesPaise = 0;
+    let netVenueEarningsPaise = 0;
+    const byEvent = new Map<
+      string,
+      { grossSalesPaise: number; refundsPaise: number; netVenueEarningsPaise: number }
+    >();
+
+    const countedRefunds = new Set<string>();
+    for (const document of entriesById.values()) {
+      const entry = document.data() as Record<string, any>;
+      if (entry.status === 'reversed') continue;
+      const amountPaise = requirePaise(entry.amountPaise, `Ledger entry ${document.id}`);
+      const eventId = safeStr(entry.eventId || 'unattributed');
+      const row = byEvent.get(eventId) || {
+        grossSalesPaise: 0,
+        refundsPaise: 0,
+        netVenueEarningsPaise: 0,
+      };
+      if (entry.type === 'ticket_revenue') {
+        grossSalesPaise += amountPaise;
+        row.grossSalesPaise += amountPaise;
+      } else if (entry.type === 'refund') {
+        const refundId = safeStr(entry.refundId || document.id);
+        const refund = Math.abs(toNum(entry.refundGrossPaise || amountPaise));
+        if (!countedRefunds.has(refundId)) {
+          refundsPaise += refund;
+          row.refundsPaise += refund;
+          countedRefunds.add(refundId);
+        }
+        if (entry.allocationType === 'venue_share' && entry.toPartnerId === venueId) {
+          netVenueEarningsPaise += amountPaise;
+          row.netVenueEarningsPaise += amountPaise;
+        }
+      } else if (entry.type === 'platform_fee') {
+        platformFeesPaise += amountPaise;
+      } else if (entry.type === 'venue_share' && entry.toPartnerId === venueId) {
+        netVenueEarningsPaise += amountPaise;
+        row.netVenueEarningsPaise += amountPaise;
+      }
+      byEvent.set(eventId, row);
+    }
+
+    return {
+      grossSalesPaise,
+      refundsPaise,
+      platformFeesPaise,
+      paymentGatewayFeesPaise: null,
+      taxesPaise: null,
+      netVenueEarningsPaise,
+      eventBreakdown: [...byEvent.entries()]
+        .filter(([eventId]) => eventId !== 'unattributed')
+        .map(([eventId, values]) => ({ eventId, ...values }))
+        .sort((left, right) => right.grossSalesPaise - left.grossSalesPaise),
+    };
+  }
+
   async getFinanceSummary(ctx: PartnerContext): Promise<any> {
     const partnerId = ctx.partnerId;
 

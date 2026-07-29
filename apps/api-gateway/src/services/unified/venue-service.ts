@@ -115,15 +115,18 @@ export class VenueService {
     ctx: PartnerContext,
     filters: EventFilters,
   ): Promise<PaginatedResult<EventSummary>> {
-    const { status, date, cursor, limit = 20 } = filters;
+    const { status, date, q: rawSearch, cursor, limit = 20 } = filters;
     const cap = Math.min(limit, 100);
     const venueId = ctx.partnerId;
+    const search = String(rawSearch || '')
+      .trim()
+      .toLowerCase();
 
     let q: any = this.db
       .collection('events')
       .where('venueId', '==', venueId)
       .orderBy('startDate', 'desc')
-      .limit(cap + 1);
+      .limit(search ? 500 : cap + 1);
 
     if (status) q = q.where('lifecycle', '==', status);
     if (date === 'today') {
@@ -132,7 +135,7 @@ export class VenueService {
         .where('startDate', '>=', todayKey)
         .where('startDate', '<=', `${todayKey}T23:59:59.999Z`);
     }
-    if (cursor) {
+    if (cursor && !search) {
       const cursorDoc = await this.db.collection('events').doc(cursor).get();
       if (cursorDoc.exists) q = q.startAfter(cursorDoc);
     }
@@ -153,8 +156,29 @@ export class VenueService {
       throw unavailable;
     });
     const docs: FirebaseFirestore.QueryDocumentSnapshot[] = (snap as any).docs;
-    const hasMore = docs.length > cap;
-    const items = docs.slice(0, cap).map((doc) => this.docToEventSummary(doc));
+    const matchingDocs = search
+      ? docs.filter((doc) => {
+          const event = doc.data() as Record<string, any>;
+          const lifecycle = String(event.lifecycle || event.status || '');
+          return [
+            event.title,
+            event.name,
+            event.venueName,
+            event.hostName,
+            event.category,
+            event.eventType,
+            lifecycle,
+            event.startDate,
+            event.date,
+          ].some((value) =>
+            String(value || '')
+              .toLowerCase()
+              .includes(search),
+          );
+        })
+      : docs;
+    const hasMore = matchingDocs.length > cap;
+    const items = matchingDocs.slice(0, cap).map((doc) => this.docToEventSummary(doc));
     const nextCursor = hasMore ? (items[items.length - 1]?.eventId ?? null) : null;
 
     return { data: items, hasMore, nextCursor };

@@ -36,6 +36,14 @@ export class InventoryReadError extends Error {
     this.name = 'InventoryReadError';
   }
 }
+export class PurchaseValidationError extends Error {
+  constructor(message = 'Ticket selection is invalid', issues = []) {
+    super(message);
+    this.name = 'PurchaseValidationError';
+    this.code = 'CHECKOUT_VALIDATION_ERROR';
+    this.issues = issues;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Redis circuit breaker — opens after 3 errors in 30s, half-opens after 30s
@@ -587,8 +595,9 @@ export async function validatePurchase(event, items, options = {}) {
       continue;
     }
 
-    // 3. Purchase Limit Check (Simpified for MVP)
-    const maxPerOrder = tier.limits?.maxPerOrder || 10;
+    // 3. Purchase Limit Check. Free tiers default to one per order even when
+    // older event documents do not carry an explicit limits object.
+    const maxPerOrder = getMaxPerOrder(tier, event, available);
     if (item.quantity > maxPerOrder) {
       results.push({ tierId: tier.id, valid: false, error: `Max ${maxPerOrder} per order` });
       allValid = false;
@@ -614,10 +623,14 @@ export async function createReservation(event, customerId, deviceId, items, opti
     throw new InventoryUnavailableError('Authenticated reservation ownership is required');
   }
   if (!Array.isArray(items) || items.length === 0) {
-    throw new InventoryUnavailableError('At least one ticket tier is required');
+    throw new PurchaseValidationError('At least one ticket tier is required', [
+      { field: 'items', message: 'Select at least one ticket tier' },
+    ]);
   }
   if (new Set(items.map((item) => String(item.tierId))).size !== items.length) {
-    throw new InventoryUnavailableError('Duplicate ticket tier rows are not allowed');
+    throw new PurchaseValidationError('Duplicate ticket tier rows are not allowed', [
+      { field: 'items', message: 'Each ticket tier may appear only once' },
+    ]);
   }
 
   if (!redis) {
@@ -705,8 +718,14 @@ export async function createReservation(event, customerId, deviceId, items, opti
     const strictMode = true;
     const validation = await validatePurchase(event, items, { strictMode });
     if (!validation.success) {
-      const errors = validation.items.filter((i) => !i.valid).map((i) => i.error);
-      throw new Error(errors.join(', '));
+      const issues = validation.items
+        .filter((item) => !item.valid)
+        .map((item) => ({
+          field: `items.${item.tierId}`,
+          tierId: item.tierId,
+          message: item.error,
+        }));
+      throw new PurchaseValidationError(issues.map((issue) => issue.message).join(', '), issues);
     }
 
     // 2. Commit to Redis

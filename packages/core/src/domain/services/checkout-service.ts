@@ -318,6 +318,18 @@ export class CheckoutService {
 
       if (!pricingResult.success) throw new Error(pricingResult.error);
       const pricing = pricingResult.pricing;
+      const freeTierItems = (pricing.items || []).filter(
+        (item: any) => Number(item.unitPrice || 0) <= 0,
+      );
+
+      for (const item of freeTierItems) {
+        if (Number(item.quantity || 0) !== 1) {
+          throw this.withCode(
+            new Error(`${item.tierName || 'Free ticket'} is limited to one per account`),
+            'FREE_TICKET_LIMIT_EXCEEDED',
+          );
+        }
+      }
 
       if (existingOrder) {
         return this.buildExistingOrderResponse(
@@ -538,12 +550,43 @@ export class CheckoutService {
           );
           if (hasExistingRSVP) throw new Error('Already registered. One RSVP per person.');
         }
-        await executeOrderCreation(transaction, {
+        for (const item of freeTierItems) {
+          const hasExistingClaim = await this.orderRepo.checkExistingFreeTicketClaim(
+            authoritativeEvent.id,
+            String(item.tierId),
+            userId,
+            transaction,
+          );
+          if (hasExistingClaim) {
+            throw this.withCode(
+              new Error(
+                `${item.tierName || 'Free ticket'} has already been claimed by this account`,
+              ),
+              'FREE_TICKET_ALREADY_CLAIMED',
+            );
+          }
+        }
+
+        const createdOrder = await executeOrderCreation(transaction, {
           db,
           event: authoritativeEvent,
           orderData: orderPayload,
           reservationId: reservationId,
         });
+        const claimTimestamp = createdOrder?.confirmedAt || new Date().toISOString();
+        for (const item of freeTierItems) {
+          await this.orderRepo.createFreeTicketClaim(
+            {
+              eventId: authoritativeEvent.id,
+              tierId: String(item.tierId),
+              userId,
+              orderId: orderPayload.id,
+              status: 'confirmed',
+              createdAt: claimTimestamp,
+            },
+            transaction,
+          );
+        }
       });
 
       telemetry.track('CHECKOUT_INITIATED', {

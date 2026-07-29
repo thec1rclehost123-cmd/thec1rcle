@@ -51,7 +51,7 @@ describe('partner-profiles PII isolation validation tests', () => {
                 exists: true,
                 data: () => ({
                   venueName: 'Test Venue',
-                  ownerId: 'owner_123',
+                  ownerUid: 'owner_123',
                   city: 'Pune',
                 }),
               };
@@ -112,6 +112,59 @@ describe('partner-profiles PII isolation validation tests', () => {
     expect(result && (result.profile as any)._pii).toBeUndefined();
     expect(result && result.connection).not.toBeNull();
     expect(result && result.connection!.status).toBe('active');
+  });
+
+  it('prefers a connected legacy record over a newer pending duplicate', async () => {
+    const duplicateConnectionDb = {
+      collection: (name: string) => ({
+        doc: (id: string) => ({
+          get: async () => {
+            if (name === 'venues') {
+              return {
+                exists: true,
+                data: () => ({ venueName: 'Test Venue', ownerUid: 'owner_123' }),
+              };
+            }
+            if (name === 'users' && id === 'owner_123') {
+              return {
+                exists: true,
+                data: () => ({
+                  email: 'connected@example.com',
+                  phoneNumber: '9876543210',
+                }),
+              };
+            }
+            return { exists: false };
+          },
+        }),
+        where: () =>
+          name === 'promoter_connections'
+            ? new MockQuery({
+                empty: false,
+                docs: [
+                  {
+                    id: 'pending_duplicate',
+                    data: () => ({ status: 'pending' }),
+                  },
+                  {
+                    id: 'legacy_connected',
+                    data: () => ({ status: 'connected' }),
+                  },
+                ],
+              })
+            : new MockQuery(),
+      }),
+    };
+
+    const result = await getPartnerProfileWithPii(duplicateConnectionDb as any, {
+      partnerId: 'venue_123',
+      viewerRole: 'promoter',
+      viewerId: 'promoter_123',
+    });
+
+    expect(result?.connection).toMatchObject({ id: 'legacy_connected', status: 'active' });
+    expect((result?.profile as any).email).toBe('connected@example.com');
+    expect((result?.profile as any).phone).toBe('9876543210');
   });
 
   it('getPartnerProfileWithPii does not fetch or expose email/phone in profile or socialLinks when not connected', async () => {

@@ -60,11 +60,25 @@ export default function AdminHosts() {
         );
 
         if (pendingSuspend) {
-          return { ...host, pendingAction: 'suspend', displayStatus: 'Restriction Requested' };
+          return {
+            ...host,
+            pendingAction: 'suspend',
+            accountStatus: host.status || 'active',
+            operationsStatus: 'Suspension Requested',
+          };
         } else if (pendingReinstate) {
-          return { ...host, pendingAction: 'reinstate', displayStatus: 'Restore Requested' };
+          return {
+            ...host,
+            pendingAction: 'reinstate',
+            accountStatus: host.status || 'suspended',
+            operationsStatus: 'Reinstatement Requested',
+          };
         }
-        return { ...host, displayStatus: host.status };
+        return {
+          ...host,
+          accountStatus: host.status || 'active',
+          operationsStatus: 'No Pending Action',
+        };
       });
 
       setHosts(mergedHosts);
@@ -197,26 +211,22 @@ export default function AdminHosts() {
     },
     {
       key: 'status',
-      label: 'Status',
+      label: 'Account Status',
       sortable: true,
       render: (val, row) => {
-        const displayStatus = row.displayStatus || val;
+        const displayStatus = row.accountStatus || val || 'active';
         const colorClass =
           displayStatus === 'active'
             ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
-            : displayStatus === 'Restriction Requested'
-              ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)] animate-pulse'
-              : displayStatus === 'Restore Requested'
-                ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)] animate-pulse'
-                : displayStatus === 'pending'
-                  ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
-                  : 'bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]';
+            : displayStatus === 'pending'
+              ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
+              : 'bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]';
 
         return (
           <div className="flex items-center justify-end gap-2.5">
             <div className={`h-1.5 w-1.5 rounded-full ${colorClass}`}></div>
             <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">
-              {displayStatus}
+              Account: {displayStatus}
             </span>
           </div>
         );
@@ -357,25 +367,25 @@ export default function AdminHosts() {
           <div className="grid grid-cols-2 gap-4">
             <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5">
               <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1">
-                Network Status
+                Account Status
               </p>
               <div className="flex items-center gap-2">
                 <div
                   className={`h-1.5 w-1.5 rounded-full ${
-                    selectedHost?.displayStatus === 'active'
+                    selectedHost?.accountStatus === 'active'
                       ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
-                      : selectedHost?.displayStatus === 'Restriction Requested' ||
-                          selectedHost?.displayStatus === 'pending'
+                      : selectedHost?.accountStatus === 'pending'
                         ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)] animate-pulse'
-                        : selectedHost?.displayStatus === 'Restore Requested'
-                          ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)] animate-pulse'
-                          : 'bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]'
+                        : 'bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]'
                   }`}
                 />
                 <p className="text-[11px] font-bold uppercase tracking-widest text-white truncate max-w-[150px]">
-                  {selectedHost?.displayStatus || selectedHost?.status}
+                  Account: {selectedHost?.accountStatus || selectedHost?.status || 'active'}
                 </p>
               </div>
+              <p className="mt-2 text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+                Operations: {selectedHost?.operationsStatus || 'No Pending Action'}
+              </p>
             </div>
             <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5">
               <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1">

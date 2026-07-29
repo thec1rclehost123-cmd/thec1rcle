@@ -92,6 +92,15 @@ export interface OrderIdentityLookup {
   email?: string | null;
 }
 
+export interface FreeTicketClaim {
+  eventId: string;
+  tierId: string;
+  userId: string;
+  orderId: string;
+  status: 'confirmed' | 'cancelled';
+  createdAt: string;
+}
+
 export interface IOrderRepository {
   getOrderById(id: string, transaction?: any): Promise<Order | null>;
   getOrderByReservationId(reservationId: string, transaction?: any): Promise<Order | null>;
@@ -108,6 +117,13 @@ export interface IOrderRepository {
     transaction?: any,
   ): Promise<boolean>;
   getUserTicketCountForEvent(eventId: string, lookup: OrderIdentityLookup): Promise<number>;
+  checkExistingFreeTicketClaim(
+    eventId: string,
+    tierId: string,
+    userId: string,
+    transaction?: any,
+  ): Promise<boolean>;
+  createFreeTicketClaim(claim: FreeTicketClaim, transaction?: any): Promise<void>;
 
   getReservationById(id: string, transaction?: any): Promise<Reservation | null>;
   createReservation(reservation: Reservation): Promise<void>;

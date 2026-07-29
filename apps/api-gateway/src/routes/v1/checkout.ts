@@ -12,6 +12,7 @@ import {
   InventoryReadError,
   InventoryUnavailableError,
   LockAcquisitionError,
+  PurchaseValidationError,
   ReservationCommitError,
 } from '@c1rcle/core/inventory-engine';
 // @ts-ignore
@@ -469,6 +470,19 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
 
         return result;
       } catch (error: any) {
+        if (error instanceof PurchaseValidationError) {
+          return reply.status(400).send({
+            success: false,
+            error: {
+              code: error.code,
+              message: error.message,
+              fields: Object.fromEntries(
+                (error.issues || []).map((issue: any) => [issue.field, issue.message]),
+              ),
+            },
+            requestId: request.id,
+          });
+        }
         if (isInventoryError(error)) {
           fastify.log.warn(`Inventory service unavailable during reserve: ${error.message}`);
           reply.header('Retry-After', '5');
@@ -952,6 +966,21 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           return reply.status(503).send({
             success: false,
             error: 'Payments are temporarily unavailable. Please try again shortly.',
+          });
+        }
+
+        if (
+          error.code === 'FREE_TICKET_LIMIT_EXCEEDED' ||
+          error.code === 'FREE_TICKET_ALREADY_CLAIMED'
+        ) {
+          return reply.status(409).send({
+            success: false,
+            error: {
+              code: error.code,
+              message: error.message,
+              fields: { items: error.message },
+            },
+            requestId: request.id,
           });
         }
 

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { trackEventView } from './analytics-service.js';
 import * as surgeCore from './surge.js';
@@ -189,19 +189,44 @@ export async function trackGuestEventView(db, { eventId, viewerId }) {
   if (!eventId || !viewerId) return { ok: true };
 
   try {
-    const isNewSession = await trackEventView(eventId, viewerId);
-    if (isNewSession) {
-      await db
-        .collection(EVENT_COLLECTION)
-        .doc(eventId)
-        .set(
-          {
-            stats: { views: FieldValue.increment(1) },
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true },
-        );
-    }
+    await trackEventView(eventId, viewerId).catch(() => undefined);
+    const viewerHash = createHash('sha256').update(String(viewerId)).digest('hex');
+    const viewRef = db.collection('event_views').doc(String(eventId));
+    const sessionRef = db.collection('event_view_sessions').doc(`${eventId}_${viewerHash}`);
+    const eventRef = db.collection(EVENT_COLLECTION).doc(String(eventId));
+
+    await db.runTransaction(async (transaction) => {
+      const sessionDoc = await transaction.get(sessionRef);
+      const now = new Date().toISOString();
+      transaction.set(
+        viewRef,
+        {
+          eventId: String(eventId),
+          count: FieldValue.increment(1),
+          uniqueCount: FieldValue.increment(sessionDoc.exists ? 0 : 1),
+          updatedAt: now,
+        },
+        { merge: true },
+      );
+      transaction.set(
+        eventRef,
+        {
+          stats: { views: FieldValue.increment(1) },
+          updatedAt: now,
+        },
+        { merge: true },
+      );
+      if (!sessionDoc.exists) {
+        transaction.set(sessionRef, {
+          eventId: String(eventId),
+          viewerHash,
+          firstViewedAt: now,
+          lastViewedAt: now,
+        });
+      } else {
+        transaction.set(sessionRef, { lastViewedAt: now }, { merge: true });
+      }
+    });
   } catch {
     return { ok: true };
   }

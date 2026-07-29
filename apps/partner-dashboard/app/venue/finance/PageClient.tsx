@@ -3,20 +3,17 @@
 import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  X,
   Loader2,
   AlertCircle,
   Building2,
   Plus,
   Pencil,
-  Zap,
   Landmark,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
   HelpCircle,
 } from 'lucide-react';
-import { Select } from '@/components/ui/Select';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { ConnectPayoutMethodModal } from '@/components/finance/ConnectPayoutMethodModal';
@@ -28,6 +25,20 @@ interface BalanceData {
   available: number;
   pending: number;
   instantAvailable: number;
+  breakdown: {
+    grossSalesPaise: number;
+    refundsPaise: number;
+    platformFeesPaise: number;
+    paymentGatewayFeesPaise: number | null;
+    taxesPaise: number | null;
+    netVenueEarningsPaise: number;
+    eventBreakdown: Array<{
+      eventId: string;
+      grossSalesPaise: number;
+      refundsPaise: number;
+      netVenueEarningsPaise: number;
+    }>;
+  };
 }
 
 interface Payout {
@@ -63,13 +74,6 @@ interface Dispute {
   curatorStatus: 'covered' | 'not_covered' | null;
 }
 
-interface Settings {
-  country: string;
-  currency: string;
-  statementDescriptor: string;
-  payoutSchedule: string;
-}
-
 type ActiveView = 'main' | 'disputes';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -93,161 +97,6 @@ function fmtDateTime(iso: string | null) {
   if (!iso) return '—';
   const d = new Date(iso);
   return `${d.toLocaleDateString('en-IN', { month: 'numeric', day: 'numeric', year: '2-digit' })} ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
-}
-
-// ── Initiate Payout Modal ─────────────────────────────────────────────────────
-
-function InitiatePayoutModal({
-  available,
-  currency,
-  onClose,
-  instantFeeRate = 0,
-}: {
-  available: number;
-  currency: string;
-  onClose: () => void;
-  instantFeeRate?: number;
-}) {
-  const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<'standard' | 'instant'>('standard');
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-
-  const max = available;
-  const fee = method === 'instant' ? Number(amount || 0) * instantFeeRate : 0;
-
-  const handleSubmit = async () => {
-    if (!amount || Number(amount) <= 0) return;
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setSuccess(true);
-    setLoading(false);
-    setTimeout(onClose, 1500);
-  };
-
-  return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 16 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ duration: 0.2 }}
-        className="relative w-full max-w-[480px] rounded-2xl overflow-hidden"
-        style={{
-          background: 'var(--v-card)',
-          border: '2px solid #f59e0b',
-          boxShadow: '0 0 60px rgba(245,158,11,0.15)',
-        }}
-      >
-        <div className="flex items-center justify-end px-6 pt-5">
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10"
-            style={{ color: 'var(--v-text-tertiary)' }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="px-8 pb-8">
-          <h2 className="text-[26px] font-bold text-center text-[var(--v-text-primary)] mb-6">
-            Initiate Payout
-          </h2>
-
-          {success ? (
-            <p className="text-center text-[15px] font-semibold py-8" style={{ color: '#34d399' }}>
-              Payout initiated successfully!
-            </p>
-          ) : (
-            <>
-              <div className="flex items-center justify-center gap-3 mb-2">
-                <span className="text-[20px] font-bold text-[var(--v-text-tertiary)]">
-                  {currency === 'INR' ? '₹' : '$'}
-                </span>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0"
-                  max={max}
-                  className="text-[56px] font-bold w-40 bg-transparent outline-none text-center tabular-nums"
-                  style={{ color: 'var(--v-text-primary)' }}
-                />
-              </div>
-              <p
-                className="text-center text-[13px] mb-6"
-                style={{ color: 'var(--v-text-tertiary)' }}
-              >
-                Transfer up to {fmt(max, currency)}
-              </p>
-
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                <button
-                  type="button"
-                  onClick={() => setMethod('standard')}
-                  className="flex flex-col items-center gap-2 p-4 rounded-2xl transition-all"
-                  style={{
-                    background: method === 'standard' ? 'var(--v-elevated)' : 'var(--v-canvas)',
-                    border: `1px solid ${method === 'standard' ? 'rgba(255,255,255,0.2)' : 'var(--v-border)'}`,
-                  }}
-                >
-                  <Landmark size={24} style={{ color: 'var(--v-text-secondary)' }} />
-                  <span className="text-[13px] font-bold text-[var(--v-text-primary)]">
-                    2-3 Biz Days
-                  </span>
-                  <span className="text-[12px]" style={{ color: 'var(--v-text-tertiary)' }}>
-                    No Fee
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMethod('instant')}
-                  className="flex flex-col items-center gap-2 p-4 rounded-2xl transition-all"
-                  style={{
-                    background: method === 'instant' ? 'var(--v-elevated)' : 'var(--v-canvas)',
-                    border: `1px solid ${method === 'instant' ? 'rgba(255,255,255,0.2)' : 'var(--v-border)'}`,
-                  }}
-                >
-                  <Zap size={24} style={{ color: '#a78bfa' }} />
-                  <span className="text-[13px] font-bold text-[var(--v-text-primary)]">
-                    INSTANT
-                  </span>
-                  <span className="text-[12px]" style={{ color: 'var(--v-text-tertiary)' }}>
-                    3% Fee
-                  </span>
-                </button>
-              </div>
-
-              {method === 'instant' && Number(amount) > 0 && (
-                <p
-                  className="text-center text-[12px] mb-4"
-                  style={{ color: 'var(--v-text-tertiary)' }}
-                >
-                  Fee: {fmt(fee, currency)} · You receive {fmt(Number(amount) - fee, currency)}
-                </p>
-              )}
-
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!amount || Number(amount) <= 0 || loading}
-                className="w-full py-4 rounded-2xl text-[15px] font-bold flex items-center justify-center gap-2 transition-all"
-                style={{
-                  background: 'white',
-                  color: '#000',
-                  opacity: !amount || Number(amount) <= 0 ? 0.5 : 1,
-                }}
-              >
-                {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-                Transfer Balance
-              </button>
-            </>
-          )}
-        </div>
-      </motion.div>
-    </div>
-  );
 }
 
 // ── Add Bank Account Modal ────────────────────────────────────────────────────
@@ -475,14 +324,6 @@ export default function VenueFinancePageClient() {
 
   const [page, setPage] = useState(1);
 
-  // Settings (local state until we wire a save endpoint)
-  const [settings, setSettings] = useState<Settings>({
-    country: 'India',
-    currency: 'INR',
-    statementDescriptor: 'C1RCLE',
-    payoutSchedule: 'weekly',
-  });
-
   // Modals
   const [showAddBankModal, setShowAddBankModal] = useState(false);
 
@@ -504,6 +345,15 @@ export default function VenueFinancePageClient() {
         available: m?.availableBalance || 0,
         pending: m?.pendingPayouts || 0,
         instantAvailable: m?.availableBalance || 0,
+        breakdown: d.breakdown || {
+          grossSalesPaise: 0,
+          refundsPaise: 0,
+          platformFeesPaise: 0,
+          paymentGatewayFeesPaise: null,
+          taxesPaise: null,
+          netVenueEarningsPaise: 0,
+          eventBreakdown: [],
+        },
       } as BalanceData;
     },
     enabled: Boolean(venueId),
@@ -545,7 +395,20 @@ export default function VenueFinancePageClient() {
     enabled: Boolean(venueId),
   });
 
-  const balance = balanceQuery.data ?? { available: 0, pending: 0, instantAvailable: 0 };
+  const balance = balanceQuery.data ?? {
+    available: 0,
+    pending: 0,
+    instantAvailable: 0,
+    breakdown: {
+      grossSalesPaise: 0,
+      refundsPaise: 0,
+      platformFeesPaise: 0,
+      paymentGatewayFeesPaise: null,
+      taxesPaise: null,
+      netVenueEarningsPaise: 0,
+      eventBreakdown: [],
+    },
+  };
   const balanceLoading = balanceQuery.isLoading;
   const payouts = payoutsQuery.data?.payouts ?? [];
   const payoutsLoading = payoutsQuery.isLoading || payoutsQuery.isFetching;
@@ -619,6 +482,70 @@ export default function VenueFinancePageClient() {
 
   return (
     <div className="max-w-[1400px] mx-auto">
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-6">
+        {[
+          { label: 'Gross Ticket Sales', paise: balance.breakdown.grossSalesPaise },
+          { label: 'Refunds', paise: balance.breakdown.refundsPaise },
+          { label: 'Platform Fees', paise: balance.breakdown.platformFeesPaise },
+          { label: 'Gateway Fees', paise: balance.breakdown.paymentGatewayFeesPaise },
+          { label: 'Taxes', paise: balance.breakdown.taxesPaise },
+          { label: 'Net Venue Earnings', paise: balance.breakdown.netVenueEarningsPaise },
+        ].map((metric) => (
+          <div
+            key={metric.label}
+            className="rounded-2xl p-4"
+            style={{ background: 'var(--v-card)', border: '1px solid var(--v-border)' }}
+          >
+            <p
+              className="text-[10px] font-black uppercase tracking-widest"
+              style={{ color: 'var(--v-text-tertiary)' }}
+            >
+              {metric.label}
+            </p>
+            <p className="mt-2 text-lg font-bold text-[var(--v-text-primary)]">
+              {balanceLoading
+                ? '—'
+                : metric.paise === null
+                  ? 'Not tracked'
+                  : fmt(metric.paise / 100)}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {balance.breakdown.eventBreakdown.length > 0 ? (
+        <div
+          className="mb-6 rounded-2xl p-5"
+          style={{ background: 'var(--v-card)', border: '1px solid var(--v-border)' }}
+        >
+          <p
+            className="mb-3 text-[11px] font-black uppercase tracking-widest"
+            style={{ color: 'var(--v-text-tertiary)' }}
+          >
+            Event Breakdown
+          </p>
+          <div className="space-y-2">
+            {balance.breakdown.eventBreakdown.slice(0, 10).map((event) => (
+              <div
+                key={event.eventId}
+                className="grid grid-cols-[1fr_repeat(3,auto)] gap-5 rounded-xl bg-white/[0.02] px-4 py-3 text-sm"
+              >
+                <span className="font-semibold text-[var(--v-text-primary)]">{event.eventId}</span>
+                <span className="text-[var(--v-text-secondary)]">
+                  Gross {fmt(event.grossSalesPaise / 100)}
+                </span>
+                <span className="text-[var(--v-text-secondary)]">
+                  Refunds {fmt(event.refundsPaise / 100)}
+                </span>
+                <span className="font-semibold text-[var(--v-text-primary)]">
+                  Net {fmt(event.netVenueEarningsPaise / 100)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
         {/* ── LEFT COLUMN ── */}
         <div className="space-y-4">
@@ -664,65 +591,6 @@ export default function VenueFinancePageClient() {
                   )}
                 </div>
               ))}
-            </div>
-          </div>
-
-          {/* SETTINGS */}
-          <div
-            className="rounded-2xl p-6"
-            style={{ background: 'var(--v-card)', border: '1px solid var(--v-border)' }}
-          >
-            <p
-              className="text-[11px] font-black uppercase tracking-widest mb-4"
-              style={{ color: 'var(--v-text-tertiary)' }}
-            >
-              Settings
-            </p>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[14px]" style={{ color: 'var(--v-text-secondary)' }}>
-                  Country
-                </span>
-                <span className="text-[14px]" style={{ color: 'var(--v-text-primary)' }}>
-                  🇮🇳
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[14px]" style={{ color: 'var(--v-text-secondary)' }}>
-                  Currency
-                </span>
-                <span className="text-[14px]" style={{ color: 'var(--v-text-primary)' }}>
-                  INR
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[14px]" style={{ color: 'var(--v-text-secondary)' }}>
-                  Statement Descriptor
-                </span>
-                <span
-                  className="text-[13px] font-medium truncate ml-4 max-w-[140px]"
-                  style={{ color: 'var(--v-text-primary)' }}
-                >
-                  {settings.statementDescriptor}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-[14px] shrink-0" style={{ color: 'var(--v-text-secondary)' }}>
-                  Payout Schedule
-                </span>
-                <div className="w-32">
-                  <Select
-                    value={settings.payoutSchedule}
-                    onChange={(e) => setSettings((s) => ({ ...s, payoutSchedule: e.target.value }))}
-                    options={[
-                      { value: 'daily', label: 'Daily' },
-                      { value: 'weekly', label: 'Weekly' },
-                      { value: 'monthly', label: 'Monthly' },
-                    ]}
-                    className="py-1 px-3 text-[12px] h-9 bg-transparent border-white/10 hover:bg-white/5"
-                  />
-                </div>
-              </div>
             </div>
           </div>
 

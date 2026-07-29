@@ -101,6 +101,33 @@ describe('SchedulingService', () => {
   it('detects overlap across the nightlife midnight boundary', () => {
     expect(schedulingRangesOverlap('21:00', '03:00', '01:00', '02:00')).toBe(true);
     expect(schedulingRangesOverlap('21:00', '23:00', '01:00', '02:00')).toBe(false);
+    expect(schedulingRangesOverlap('18:00', '21:00', '21:00', '23:00')).toBe(false);
+  });
+
+  it('allows separate time ranges on the same day', async () => {
+    const db = new MockFirestore();
+    db.seed('availability_slots/early_event', {
+      venueId: 'venue_1',
+      date: '2026-05-01',
+      startTime: '18:00',
+      endTime: '21:00',
+      status: 'approved',
+    });
+    const service = new SchedulingService(db as any);
+
+    await expect(
+      service.createSlot(venueCtx as any, 'venue_1', {
+        date: '2026-05-01',
+        startTime: '21:00',
+        endTime: '23:00',
+        status: 'open',
+      }),
+    ).resolves.toMatchObject({
+      venueId: 'venue_1',
+      date: '2026-05-01',
+      startTime: '21:00',
+      endTime: '23:00',
+    });
   });
 
   it('uses the event id as the idempotent slot-request document', async () => {

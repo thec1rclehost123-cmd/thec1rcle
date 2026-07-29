@@ -58,48 +58,33 @@ const FeedbackSchema = z.object({
   resolved: z.boolean(),
 });
 
-const DEFAULT_ANNOUNCEMENTS = [
-  {
-    id: 'ann-1',
-    title: 'Platform Maintenance Notice',
-    content:
-      'Scheduled maintenance is planned for next Sunday at 2:00 AM PST. The dashboard may be temporarily offline for 10-15 minutes.',
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-    tag: 'Scheduled Maintenance',
-  },
-  {
-    id: 'ann-2',
-    title: 'New Ticketing Features Released',
-    content:
-      'You can now set custom ticket inventories and promo codes directly from the Events tab. Check out the updated docs for more details.',
-    createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-    tag: 'New Feature Releases',
-  },
-  {
-    id: 'ann-3',
-    title: 'Critical Security Patch',
-    content:
-      'We have updated authentication endpoints to enforce enhanced CSRF guards. No action is required from dashboard hosts.',
-    createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
-    tag: 'Security Updates',
-  },
-  {
-    id: 'ann-4',
-    title: 'GST Policy Updates',
-    content:
-      'Platform billing invoices will reflect localized tax compliance structures starting next month.',
-    createdAt: new Date(Date.now() - 3600000 * 72).toISOString(),
-    tag: 'Policy Changes',
-  },
-  {
-    id: 'ann-5',
-    title: 'Known Issue: Payout Delay on Bank Holidays',
-    content:
-      'Automatic bank sweeps might experience 24-hour delays on regional bank holidays. Check payout schedules for details.',
-    createdAt: new Date(Date.now() - 3600000 * 96).toISOString(),
-    tag: 'Known Issues',
-  },
-];
+function announcementDate(value: any) {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isAnnouncementVisible(data: any, viewerRole: string, now: Date) {
+  const status = String(data.status || 'published').toLowerCase();
+  if (!['published', 'active'].includes(status)) return false;
+
+  const start = announcementDate(data.publishStart || data.startAt);
+  const end = announcementDate(data.publishEnd || data.endAt);
+  if (start && start.getTime() > now.getTime()) return false;
+  if (end && end.getTime() <= now.getTime()) return false;
+
+  const rawAudience = data.audience || 'all_partners';
+  const audience = (Array.isArray(rawAudience) ? rawAudience : [rawAudience]).map((value) =>
+    String(value).toLowerCase(),
+  );
+  return (
+    audience.includes('all') ||
+    audience.includes('all_partners') ||
+    audience.includes('partners') ||
+    audience.includes(viewerRole)
+  );
+}
 
 export default async function supportRoutes(fastify: FastifyInstance) {
   const authHandler = [fastify.requireAuth];
@@ -599,26 +584,44 @@ export default async function supportRoutes(fastify: FastifyInstance) {
     },
     async (request: any, reply) => {
       try {
-        const snapshot = await fastify.db
-          .collection('platform_announcements')
-          .orderBy('createdAt', 'desc')
-          .limit(10)
-          .get();
+        const snapshot = await fastify.db.collection('platform_announcements').get();
 
         if (snapshot.empty) {
           return { success: true, announcements: [] };
         }
 
-        const announcements = snapshot.docs.map((doc: any) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            createdAt: data.createdAt?.toDate
-              ? data.createdAt.toDate().toISOString()
-              : data.createdAt,
-          };
-        });
+        const viewerRole = String(
+          request.user?.partner_type ||
+            request.user?.partnerType ||
+            request.user?.role ||
+            'partners',
+        ).toLowerCase();
+        const now = new Date();
+        const announcements = snapshot.docs
+          .map((doc: any) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              ...data,
+              createdAt: announcementDate(data.createdAt)?.toISOString() || data.createdAt,
+              publishStart:
+                announcementDate(data.publishStart || data.startAt)?.toISOString() || null,
+              publishEnd: announcementDate(data.publishEnd || data.endAt)?.toISOString() || null,
+            };
+          })
+          .filter((announcement: any) => isAnnouncementVisible(announcement, viewerRole, now))
+          .sort((left: any, right: any) => {
+            const priorityRank: Record<string, number> = { critical: 3, high: 2, normal: 1 };
+            const priorityDelta =
+              (priorityRank[String(right.priority || 'normal').toLowerCase()] || 0) -
+              (priorityRank[String(left.priority || 'normal').toLowerCase()] || 0);
+            if (priorityDelta !== 0) return priorityDelta;
+            return (
+              (announcementDate(right.createdAt)?.getTime() || 0) -
+              (announcementDate(left.createdAt)?.getTime() || 0)
+            );
+          })
+          .slice(0, 10);
 
         return { success: true, announcements };
       } catch (error: any) {

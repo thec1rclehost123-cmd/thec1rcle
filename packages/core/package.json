@@ -95,7 +95,12 @@
     "./guest-chat-service": "./guest-chat-service.js",
     "./guest-dating-service": "./guest-dating-service.js",
     "./guest-onboarding-service": "./guest-onboarding-service.js",
-    "./guest-subscription-service": "./guest-subscription-service.js",
+        "./guest-subscription-service": "./guest-subscription-service.js",
+    "./partner-profile-normalizer": "./partner-profile-normalizer.js",
+    "./venue-presence-config": "./venue-presence-config.js",
+    "./event-update-policy": "./event-update-policy.js",
+    "./promoter-assignment-request": "./promoter-assignment-request.js",
+    "./venue-menu-service": "./venue-menu-service.js",
     "./user-service": "./user-service.js"
   },
     "dependencies": {

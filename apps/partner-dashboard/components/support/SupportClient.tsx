@@ -32,6 +32,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { readSupportApiError } from '@/lib/support/apiError';
 
 const SUPPORT_CATEGORIES = {
   Account: {
@@ -177,33 +178,6 @@ const HELP_CENTER_GUIDES = [
 2. Set dress codes and age limitations.
 3. Set operating hours and door rules.
 4. Change profile/banner images using the settings client.`,
-  },
-];
-
-const DEFAULT_ANNOUNCEMENTS = [
-  {
-    id: 'ann-1',
-    title: 'Platform Maintenance Notice',
-    content:
-      'Scheduled maintenance is planned for next Sunday at 2:00 AM PST. The dashboard may be temporarily offline for 10-15 minutes.',
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-    tag: 'Scheduled Maintenance',
-  },
-  {
-    id: 'ann-2',
-    title: 'New Ticketing Features Released',
-    content:
-      'You can now set custom ticket inventories and promo codes directly from the Events tab. Check out the updated docs for more details.',
-    createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-    tag: 'New Feature Releases',
-  },
-  {
-    id: 'ann-3',
-    title: 'Critical Security Patch',
-    content:
-      'We have updated authentication endpoints to enforce enhanced CSRF guards. No action is required from dashboard hosts.',
-    createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
-    tag: 'Security Updates',
   },
 ];
 
@@ -495,7 +469,7 @@ export default function SupportClient({ type }: SupportClientProps) {
   // Submit standard support ticket
   const handleSubmitTicket = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || submitting) return;
     if (!formSubject.trim() || !formDescription.trim() || !formCategory) {
       setFormError('Subject, Category and Description are required.');
       return;
@@ -540,8 +514,9 @@ export default function SupportClient({ type }: SupportClientProps) {
           errorLogs: ctx.errorLogs,
         }),
       });
-      console.log(' response is', response);
-      if (!response.ok) throw new Error('Failed to create support ticket');
+      if (!response.ok) {
+        throw new Error(await readSupportApiError(response, 'Failed to create support ticket'));
+      }
 
       setFormSuccess(true);
       setTimeout(() => {
@@ -568,9 +543,15 @@ export default function SupportClient({ type }: SupportClientProps) {
   // Submit bug report
   const handleSubmitBug = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
-    if (!bugTitle.trim() || !bugDescription.trim() || !bugSteps.trim()) {
-      setFormError('Title, Description and Steps to Reproduce are required.');
+    if (!user || submitting) return;
+    if (
+      !bugTitle.trim() ||
+      !bugDescription.trim() ||
+      !bugSteps.trim() ||
+      !bugExpected.trim() ||
+      !bugActual.trim()
+    ) {
+      setFormError('Title, description, steps, expected result, and actual result are required.');
       return;
     }
 
@@ -597,9 +578,9 @@ export default function SupportClient({ type }: SupportClientProps) {
           stepsToReproduce: bugSteps,
           expectedResult: bugExpected,
           actualResult: bugActual,
-          browserInfo: bugBrowser,
-          deviceInfo: bugDevice,
-          appVersion: bugVersion,
+          browserInfo: ctx.browserInfo,
+          deviceInfo: ctx.deviceInfo,
+          appVersion: ctx.appVersion,
           screenshots: screenshotsList,
           screenRecordings: [],
           partnerId: ctx.partnerId,
@@ -608,7 +589,9 @@ export default function SupportClient({ type }: SupportClientProps) {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to submit bug report');
+      if (!response.ok) {
+        throw new Error(await readSupportApiError(response, 'Failed to submit bug report'));
+      }
 
       setFormSuccess(true);
       setTimeout(() => {
@@ -715,7 +698,7 @@ export default function SupportClient({ type }: SupportClientProps) {
   // Submit feature request
   const handleSubmitFeature = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || submitting) return;
     if (!featureTitle.trim() || !featureDescription.trim()) {
       setFormError('Feature Title and Description are required.');
       return;
@@ -738,7 +721,9 @@ export default function SupportClient({ type }: SupportClientProps) {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to create feature request');
+      if (!response.ok) {
+        throw new Error(await readSupportApiError(response, 'Failed to create feature request'));
+      }
 
       setFormSuccess(true);
       setTimeout(() => {
@@ -1075,30 +1060,32 @@ export default function SupportClient({ type }: SupportClientProps) {
                 <div className="mt-4 space-y-4 overflow-y-auto max-h-[360px] pr-1">
                   {loading ? (
                     <div className="h-24 rounded-2xl v-skeleton bg-white/[0.01]" />
+                  ) : announcements.length === 0 ? (
+                    <div className="p-4 rounded-2xl border border-white/[0.02] bg-white/[0.01] text-[11px] text-[var(--v-text-secondary)]">
+                      No active bulletins for your workspace.
+                    </div>
                   ) : (
-                    (announcements.length > 0 ? announcements : DEFAULT_ANNOUNCEMENTS).map(
-                      (bulletin, idx) => (
-                        <div
-                          key={bulletin.id || idx}
-                          className="p-4 rounded-2xl border border-white/[0.02] bg-white/[0.01]"
-                        >
-                          <div className="flex justify-between items-center gap-2 mb-2">
-                            <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border bg-orange-500/10 text-orange-400 border-orange-500/20">
-                              {bulletin.tag}
-                            </span>
-                            <span className="text-[10px] text-zinc-600 font-mono">
-                              {formatDate(bulletin.createdAt)}
-                            </span>
-                          </div>
-                          <h4 className="text-[12px] font-bold text-white mb-1 leading-snug">
-                            {bulletin.title}
-                          </h4>
-                          <p className="text-[11px] text-[var(--v-text-secondary)] leading-relaxed">
-                            {bulletin.content}
-                          </p>
+                    announcements.map((bulletin, idx) => (
+                      <div
+                        key={bulletin.id || idx}
+                        className="p-4 rounded-2xl border border-white/[0.02] bg-white/[0.01]"
+                      >
+                        <div className="flex justify-between items-center gap-2 mb-2">
+                          <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border bg-orange-500/10 text-orange-400 border-orange-500/20">
+                            {bulletin.tag}
+                          </span>
+                          <span className="text-[10px] text-zinc-600 font-mono">
+                            {formatDate(bulletin.createdAt)}
+                          </span>
                         </div>
-                      ),
-                    )
+                        <h4 className="text-[12px] font-bold text-white mb-1 leading-snug">
+                          {bulletin.title}
+                        </h4>
+                        <p className="text-[11px] text-[var(--v-text-secondary)] leading-relaxed">
+                          {bulletin.content}
+                        </p>
+                      </div>
+                    ))
                   )}
                 </div>
               </div>

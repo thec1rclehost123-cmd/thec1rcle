@@ -15,6 +15,7 @@ import {
   enrichVenueProfileWithSignedUrls,
   cleanVenueProfilePatch,
 } from '../../lib/signed-urls.js';
+import { getPartnerProfileWithPii } from '../../utils/partner-profiles.js';
 
 const ProfileIdParam = z.object({ id: z.string() }).strict();
 const ProfileTypeQuery = z.object({ type: z.string().optional() }).strict();
@@ -91,8 +92,10 @@ export default async function profileRoutes(fastify: FastifyInstance) {
     'photoURL',
     'profileImage',
     'phone',
+    'contactEmail',
     'contactPhone',
     'instagram',
+    'instagramHandle',
     'bio',
     'summary',
     'city',
@@ -180,7 +183,26 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           if (!doc.exists) {
             return { profile: { id: profileId } };
           }
-          const enriched = await enrichPromoterProfileWithSignedUrls({ id: doc.id, ...doc.data() });
+          const raw = { id: doc.id, ...doc.data() };
+          const fallback = await getPartnerProfileWithPii(fastify.db, {
+            viewerRole: 'promoter',
+            viewerId: profileId,
+            partnerId: profileId,
+          });
+          const profile = {
+            ...fallback?.profile,
+            ...raw,
+            displayName: (raw as any).displayName || fallback?.profile?.name || '',
+            bio: (raw as any).bio || fallback?.profile?.bio || '',
+            contactEmail: (raw as any).contactEmail || (fallback?.profile as any)?.email || '',
+            contactPhone: (raw as any).contactPhone || (fallback?.profile as any)?.phone || '',
+            website: (raw as any).website || fallback?.profile?.website || '',
+            socialLinks: {
+              ...(fallback?.profile?.socialLinks || {}),
+              ...((raw as any).socialLinks || {}),
+            },
+          };
+          const enriched = await enrichPromoterProfileWithSignedUrls(profile);
           return { profile: enriched };
         }
 

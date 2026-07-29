@@ -459,7 +459,14 @@ interface TicketTierDraft {
   soldOut: boolean;
 }
 
-const FOUNDATION_EDITABLE = new Set(['draft', 'needs_changes']);
+const FOUNDATION_EDITABLE = new Set([
+  'draft',
+  'needs_changes',
+  'submitted',
+  'approved',
+  'scheduled',
+  'published',
+]);
 
 const SECTION_TABS = [
   { label: 'Analytics', value: 'analytics' },

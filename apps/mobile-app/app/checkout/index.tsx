@@ -478,7 +478,11 @@ export default function CheckoutScreen() {
     try {
       await discardPendingCheckout();
       rotateCheckoutIdempotencyKey();
-      updateQuantity(item.eventId, item.tier.id, quantity);
+      const tierLimit =
+        Number(item.tier.price || 0) <= 0
+          ? 1
+          : Math.min(10, Math.max(1, Number(item.tier.remaining) || 10));
+      updateQuantity(item.eventId, item.tier.id, Math.min(quantity, tierLimit));
     } catch {
       Alert.alert('Tickets still held', 'Could not release the current hold. Please retry.');
     } finally {
@@ -778,7 +782,9 @@ export default function CheckoutScreen() {
                         processing ||
                         cartEditPending ||
                         item.quantity >=
-                          Math.max(item.quantity, Math.min(10, Number(item.tier.remaining) || 10))
+                          (Number(item.tier.price || 0) <= 0
+                            ? 1
+                            : Math.min(10, Math.max(1, Number(item.tier.remaining) || 10)))
                       }
                       onPress={() => handleQuantityChange(item, item.quantity + 1)}
                       style={styles.quantityButton}

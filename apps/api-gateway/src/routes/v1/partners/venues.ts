@@ -29,6 +29,12 @@ import { getPermissionsForRole, type Permission } from '../../../lib/rbac-permis
 
 import { uploadPartnerAsset } from '../../../lib/partner-upload.js';
 import {
+  getVenuePresenceConfig,
+  saveVenuePresenceConfig,
+  VenuePresenceConfigSchema,
+} from '@c1rcle/core/venue-presence-config';
+import { getVenueMenu, saveVenueMenu, VenueMenuSchema } from '@c1rcle/core/venue-menu-service';
+import {
   signStorageUrl,
   enrichVenueProfileWithSignedUrls,
   cleanVenueProfilePatch,
@@ -51,6 +57,7 @@ const EventFiltersSchema = z
     lastId: z.string().optional(),
     limit: z.coerce.number().int().min(1).max(100).optional(),
     date: z.enum(['today']).optional(),
+    q: z.string().trim().max(120).optional(),
   })
   .passthrough();
 
@@ -1138,6 +1145,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         const filters = {
           status: request.query.status,
           date: request.query.date,
+          q: request.query.q,
           cursor: request.query.cursor ?? request.query.lastId,
           limit: request.query.limit,
         };
@@ -1368,6 +1376,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         const uploadResult = await uploadPartnerAsset(request, {
           partnerId: ctx.partnerId,
           partnerType: 'venue',
+          maxBytes: 10 * 1024 * 1024,
+          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
         });
         const signedUrl = await signStorageUrl(uploadResult.url);
         return {
@@ -1384,6 +1394,36 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           }),
         );
       }
+    },
+  );
+
+  fastify.get(
+    '/partners/venues/menu',
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      const ctx = await requireVenueContext(request, reply);
+      if (!ctx) return;
+      return reply.header('Cache-Control', 'no-store').send({
+        menu: await getVenueMenu(fastify.db, ctx.partnerId),
+      });
+    },
+  );
+
+  fastify.put(
+    '/partners/venues/menu',
+    {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      preHandler: [fastify.validate({ body: VenueMenuSchema }), fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      const ctx = await requireVenueContext(request, reply);
+      if (!ctx) return;
+      const menu = await saveVenueMenu(fastify.db, ctx.partnerId, request.body, ctx.uid);
+      await fastify.cache.delete('venues:detail', ctx.partnerId).catch(() => {});
+      return reply.send({ menu });
     },
   );
 
@@ -1432,8 +1472,26 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
-          const data = doc.data() || {};
-          const enriched = await enrichVenueProfileWithSignedUrls({ id: doc.id, ...data });
+          const raw = { id: doc.id, ...(doc.data() || {}) };
+          const fallback = await getPartnerProfileWithPii(fastify.db, {
+            viewerRole: 'venue',
+            viewerId: ctx.partnerId,
+            partnerId: ctx.partnerId,
+          });
+          const data = {
+            ...fallback?.profile,
+            ...raw,
+            displayName: (raw as any).displayName || fallback?.profile?.name || '',
+            bio: (raw as any).bio || fallback?.profile?.bio || '',
+            contactEmail: (raw as any).contactEmail || (fallback?.profile as any)?.email || '',
+            contactPhone: (raw as any).contactPhone || (fallback?.profile as any)?.phone || '',
+            website: (raw as any).website || fallback?.profile?.website || '',
+            socialLinks: {
+              ...(fallback?.profile?.socialLinks || {}),
+              ...((raw as any).socialLinks || {}),
+            },
+          };
+          const enriched = await enrichVenueProfileWithSignedUrls(data);
           return reply.send({
             venue: enriched,
             profile: enriched,
@@ -1951,6 +2009,12 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             slug: venueData.slug || pageData.slug || ctx.partnerId,
             photoURL: venueData.photoURL || venueData.image || pageData.photoURL || null,
             coverPhoto: venueData.coverPhoto || venueData.coverImage || pageData.coverPhoto || null,
+            coverURL:
+              venueData.coverURL ||
+              venueData.coverImage ||
+              pageData.coverURL ||
+              pageData.coverPhoto ||
+              null,
             tagline: venueData.tagline || pageData.tagline || '',
             bio: venueData.bio || venueData.description || pageData.bio || '',
             address: venueData.address || pageData.address || '',
@@ -1981,6 +2045,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             'bio',
             'photoURL',
             'coverPhoto',
+            'coverURL',
+            'coverImage',
+            'backdropURL',
             'address',
             'city',
             'photos',
@@ -1990,6 +2057,16 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const venuePatch: PlainRecord = { updatedAt: now };
           for (const key of profileFields)
             if (updates[key] !== undefined) venuePatch[key] = updates[key];
+          if (venuePatch.coverURL) {
+            venuePatch.coverImage = venuePatch.coverURL;
+            venuePatch.backdropURL = venuePatch.coverURL;
+            venuePatch.coverPhoto = venuePatch.coverURL;
+          }
+          if (venuePatch.coverImage) {
+            venuePatch.coverURL = venuePatch.coverImage;
+            venuePatch.backdropURL = venuePatch.coverImage;
+            venuePatch.coverPhoto = venuePatch.coverImage;
+          }
           if (Object.keys(venuePatch).length > 1)
             await fastify.db
               .collection('venues')
@@ -4095,29 +4172,32 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         }
 
         if (rest === 'presence' && request.method === 'GET') {
-          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-          const [staffSnap, heartbeatsSnap] = await Promise.all([
-            fastify.db
-              .collection('venue_staff')
-              .where('venueId', '==', ctx.partnerId)
-              .where('isActive', '==', true)
-              .get()
-              .catch(() => ({ docs: [] as any[] })),
-            fastify.db
-              .collection('staff_heartbeats')
-              .where('venueId', '==', ctx.partnerId)
-              .where('lastSeenAt', '>=', fiveMinutesAgo)
-              .get()
-              .catch(() => ({ docs: [] as any[] })),
-          ]);
-          const onlineIds = new Set(((heartbeatsSnap as any).docs || []).map((d: any) => d.id));
           return reply.send({
-            presence: ((staffSnap as any).docs || []).map((doc: any) => ({
-              id: doc.id,
-              ...(doc.data() || {}),
-              isOnline: onlineIds.has(doc.id),
-            })),
+            presenceConfig: await getVenuePresenceConfig(fastify.db, ctx.partnerId),
           });
+        }
+
+        if (rest === 'presence' && request.method === 'POST') {
+          const parsed = VenuePresenceConfigSchema.safeParse(body.presenceConfig);
+          if (!parsed.success) {
+            return reply.status(400).send(
+              buildErrorResponse({
+                code: 'VALIDATION_ERROR',
+                message: 'Invalid presence configuration',
+                details: parsed.error.issues.map((issue: z.ZodIssue) => ({
+                  path: issue.path.join('.'),
+                  message: issue.message,
+                })),
+                requestId: request.id,
+              }),
+            );
+          }
+          const presenceConfig = await saveVenuePresenceConfig(
+            fastify.db,
+            ctx.partnerId,
+            parsed.data,
+          );
+          return reply.send({ success: true, presenceConfig });
         }
 
         if (rest === 'finance/cover-recon' && request.method === 'GET') {
@@ -5595,8 +5675,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         const financeDisputesMatch = rest === 'finance/disputes';
 
         if (financeOverviewMatch && request.method === 'GET') {
-          const [overview, payoutsSnap, accountsSnap] = await Promise.all([
+          const [overview, breakdown, payoutsSnap, accountsSnap] = await Promise.all([
             financeService.getOverview(ctx),
+            financeService.getVenueFinancialBreakdown(ctx.partnerId),
             fastify.db
               .collection('payouts')
               .where('recipientId', '==', ctx.partnerId)
@@ -5638,6 +5719,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             },
             grossRevenue: toNumber(overview.totalRevenue),
             pendingPayout: toNumber(overview.pendingPayouts),
+            breakdown,
             recentPayouts,
             revenueByPeriod: overview.revenueByPeriod || [],
           });

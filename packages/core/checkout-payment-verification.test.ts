@@ -30,6 +30,12 @@ class FakeOrderRepository {
     return 0;
   }
 
+  async checkExistingFreeTicketClaim() {
+    return false;
+  }
+
+  async createFreeTicketClaim() {}
+
   async getReservationById(id: string) {
     return this.reservations.get(id) || null;
   }

@@ -2,7 +2,9 @@ import { getAdminDb, getAdminAuth } from '@/lib/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
 import { getRedisClient } from '@c1rcle/core/redis';
+import { normalizePartnerProfileFields } from '@c1rcle/core/partner-profile-normalizer';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { dedupeCurrentOnboardingRequests } from './onboardingRequests.js';
 
 export const adminStoreContext = new AsyncLocalStorage();
 
@@ -497,12 +499,14 @@ export const adminStore = {
       let partnerId = '';
       let partnerType = '';
       let partnerRole = 'OWNER';
+      const normalizedProfile = normalizePartnerProfileFields(type, data);
 
       if (type === 'venue') {
         partnerId = `venue_${uid.substring(0, 8)}`;
         partnerType = 'venue';
         const venueRef = db.collection('venues').doc(partnerId);
         transaction.set(venueRef, {
+          ...normalizedProfile,
           id: partnerId,
           name: data.name || 'Unknown Venue',
           city: data.city || 'Unknown',
@@ -522,6 +526,7 @@ export const adminStore = {
         partnerType = 'host';
         const hostRef = db.collection('hosts').doc(partnerId);
         transaction.set(hostRef, {
+          ...normalizedProfile,
           id: partnerId,
           name: data.name || 'Unknown Host',
           role: data.role || 'GENERAL',
@@ -537,6 +542,7 @@ export const adminStore = {
         partnerRole = 'PROMOTER';
         const promoterRef = db.collection('promoters').doc(partnerId);
         transaction.set(promoterRef, {
+          ...normalizedProfile,
           id: partnerId,
           name: data.name || 'Unknown Promoter',
           ownerUid: uid,
@@ -1755,6 +1761,13 @@ export const adminStore = {
       title,
       content,
       tag,
+      audience: ['all_partners'],
+      status: 'published',
+      publishStart: FieldValue.serverTimestamp(),
+      publishEnd: null,
+      priority: 'normal',
+      dismissible: true,
+      action: null,
       createdBy: adminId,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -2177,8 +2190,10 @@ export const adminStore = {
       if (cursorDoc.exists) query = query.startAfter(cursorDoc);
     }
     const pageLimit = limit || 50;
-    const snapshot = await query.limit(pageLimit + 1).get(); // +1 to detect hasMore
-    const docs = snapshot.docs.slice(0, pageLimit);
+    const readLimit =
+      collection === 'onboarding_requests' ? Math.min(pageLimit * 4, 500) : pageLimit;
+    const snapshot = await query.limit(readLimit + 1).get(); // +1 to detect hasMore
+    const docs = snapshot.docs.slice(0, readLimit);
     const hasMore = snapshot.docs.length > pageLimit;
     const nextCursor = hasMore ? docs[docs.length - 1].id : null;
 
@@ -2199,7 +2214,7 @@ export const adminStore = {
       return undefined;
     };
 
-    const items = docs.map((doc) => {
+    let items = docs.map((doc) => {
       const d = doc.data();
       const tsVal = safeDate(d.timestamp) || safeDate(d.ts) || safeDate(d.createdAt);
       return {
@@ -2212,6 +2227,9 @@ export const adminStore = {
         ts: safeDate(d.ts) || tsVal,
       };
     });
+    if (collection === 'onboarding_requests') {
+      items = dedupeCurrentOnboardingRequests(items).slice(0, pageLimit);
+    }
     return items; // backward-compatible: callers that just use the array still work
   },
 

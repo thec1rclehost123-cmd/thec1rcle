@@ -350,6 +350,7 @@ export interface DataPoint {
 export interface EventFilters {
   status?: EventStatus;
   date?: 'today';
+  q?: string;
   cursor?: string;
   limit?: number;
 }

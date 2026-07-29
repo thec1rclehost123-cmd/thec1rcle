@@ -6,6 +6,11 @@ import { getPartnerProfileWithPii } from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { HostService } from '../../../services/unified/host-service.js';
 import { SchedulingService } from '../../../services/unified/scheduling-service.js';
+import {
+  buildHostEventUpdatePatch,
+  buildHostTicketTierUpdate,
+  EventUpdateValidationError,
+} from '@c1rcle/core/event-update-policy';
 import type { PartnerContext } from '../../../services/unified/types.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
 import {
@@ -301,7 +306,33 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       err.code = 'NOT_FOUND';
       throw err;
     }
-    const data = { id: doc.id, ...(doc.data() || {}) };
+    const raw = { id: doc.id, ...(doc.data() || {}) };
+    const fallback = await getPartnerProfileWithPii(fastify.db, {
+      viewerRole: 'host',
+      viewerId: hostId,
+      partnerId: hostId,
+    });
+    const data = {
+      ...fallback?.profile,
+      ...raw,
+      displayName: (raw as any).displayName || fallback?.profile?.name || '',
+      bio: (raw as any).bio || fallback?.profile?.bio || '',
+      contactEmail:
+        (raw as any).contactEmail ||
+        (raw as any).supportEmail ||
+        (fallback?.profile as any)?.email ||
+        '',
+      contactPhone:
+        (raw as any).contactPhone ||
+        (raw as any).legalPhone ||
+        (fallback?.profile as any)?.phone ||
+        '',
+      website: (raw as any).website || fallback?.profile?.website || '',
+      socialLinks: {
+        ...(fallback?.profile?.socialLinks || {}),
+        ...((raw as any).socialLinks || {}),
+      },
+    };
     const enriched = await enrichHostProfileWithSignedUrls(data);
     return { host: enriched, profile: enriched };
   };
@@ -1085,22 +1116,15 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   };
 
   const updateHostEventTickets = async (hostId: string, eventId: string, body: PlainRecord) => {
-    if (!Array.isArray(body.tiers)) {
-      const err: any = new Error('tiers array required');
-      err.statusCode = 400;
-      err.code = 'BAD_REQUEST';
-      throw err;
-    }
     const event = await getHostEventAndVerify(hostId, eventId);
-    const activeTiers = body.tiers.filter(
-      (t: any) => t.status !== 'hidden' && t.status !== 'inactive',
-    );
+    const tiers = buildHostTicketTierUpdate(event, body);
+    const activeTiers = tiers.filter((t: any) => t.status !== 'hidden' && t.status !== 'inactive');
     const prices = activeTiers.length ? activeTiers.map((t: any) => Number(t.price) || 0) : [0];
     const priceMin = Math.min(...prices);
     const priceMax = Math.max(...prices);
 
     const updatePayload: any = {
-      ticketTiers: body.tiers,
+      ticketTiers: tiers,
       priceMin,
       priceMax,
       priceRange: { min: priceMin, max: priceMax, currency: event.currency || 'INR' },
@@ -1109,9 +1133,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       updatedAt: new Date().toISOString(),
     };
     if (event.ticketCatalog) {
-      updatePayload['ticketCatalog.tiers'] = body.tiers;
+      updatePayload['ticketCatalog.tiers'] = tiers;
     } else {
-      updatePayload.tickets = body.tiers;
+      updatePayload.tickets = tiers;
     }
     await fastify.db.collection('events').doc(eventId).update(updatePayload);
     await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
@@ -1569,6 +1593,68 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     },
   );
 
+  fastify.patch(
+    '/partners/hosts/events/:eventId',
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      const ctx = await resolvePartnerContext(fastify.db, request);
+      if (!ctx) {
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'FORBIDDEN',
+            message: 'No partner identity found',
+            requestId: request.id,
+          }),
+        );
+      }
+
+      try {
+        requireType(ctx, 'host');
+        const event = await getHostEventAndVerify(ctx.partnerId, request.params.eventId);
+        const patch = buildHostEventUpdatePatch(event, asRecord(request.body));
+        await fastify.db.collection('events').doc(request.params.eventId).update(patch);
+        await fastify.publicDiscoveryService
+          .syncEventReadModels(request.params.eventId)
+          .catch(() => {});
+        await fastify.cache.delete('events:detail', request.params.eventId).catch(() => {});
+        await fastify
+          .writeAuditLog({
+            action: 'EVENT_UPDATED',
+            actorUid: request.user?.uid || ctx.partnerId,
+            entityId: request.params.eventId,
+            payload: { hostId: ctx.partnerId, fields: Object.keys(patch) },
+          })
+          .catch(() => {});
+        return reply.send({ success: true, eventId: request.params.eventId });
+      } catch (err: any) {
+        if (err instanceof EventUpdateValidationError || err.statusCode) {
+          return reply.status(err.statusCode || 400).send(
+            buildErrorResponse({
+              code: err.code || 'EVENT_UPDATE_INVALID',
+              message: err.message,
+              details: err.issues?.map((issue: any) => ({
+                path: issue.path || issue.field || '',
+                message: issue.message,
+              })),
+              requestId: request.id,
+            }),
+          );
+        }
+        fastify.log.error({ err, eventId: request.params.eventId }, 'Host event update failed');
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
   // ── Events list ────────────────────────────────────────────────────────────
 
   fastify.get(
@@ -1772,7 +1858,14 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
         // Fetch events in review-relevant lifecycle states, by both owner fields.
         // No orderBy — avoids composite index requirement (FAILED_PRECONDITION).
-        const reviewLifecycles = ['submitted', 'approved', 'needs_changes', 'denied'];
+        const reviewLifecycles = [
+          'submitted',
+          'approved',
+          'scheduled',
+          'published',
+          'needs_changes',
+          'denied',
+        ];
 
         const [creatorSnap, hostSnap] = await Promise.all([
           fastify.db
@@ -1826,6 +1919,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
                       ?.slice(0, 5) ?? '')
                   : ''),
               status: String(d.lifecycle || d.status || 'pending'),
+              event: {
+                id: doc.id,
+                title: String(d.title || d.name || 'Untitled Event'),
+                poster: d.poster || d.coverImage || d.image || null,
+                lifecycle: String(d.lifecycle || d.status || 'pending'),
+              },
               notes: d.notes ?? d.description ?? null,
               clubResponse: d.clubResponse ?? d.venueNote ?? d.adminNote ?? null,
               alternativeDate: d.alternativeDate ?? null,
@@ -3730,19 +3829,69 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         }
 
         if (rest === 'page' && request.method === 'GET') {
-          const doc = await fastify.db
-            .collection('host_pages')
-            .doc(ctx.partnerId)
-            .get()
-            .catch(() => null);
-          if (!doc || !doc.exists)
-            return reply.send({
-              hostId: ctx.partnerId,
-              sections: [],
-              isActive: false,
-              theme: { primary: '#F44A22' },
-            });
-          return reply.send({ id: doc.id, ...(doc.data() || {}) });
+          const [pageDoc, hostProfileResult] = await Promise.all([
+            fastify.db
+              .collection('host_pages')
+              .doc(ctx.partnerId)
+              .get()
+              .catch(() => null),
+            getHostProfile(ctx.partnerId).catch(() => null),
+          ]);
+          const profile = (hostProfileResult?.profile || {}) as PlainRecord;
+          const page = pageDoc?.exists ? ((pageDoc.data() || {}) as PlainRecord) : {};
+          const pickPopulated = (...values: unknown[]) =>
+            values.find((value) => typeof value === 'string' && value.trim()) || '';
+
+          return reply.send({
+            hostId: ctx.partnerId,
+            sections: [],
+            isActive: false,
+            theme: { primary: '#F44A22' },
+            ...profile,
+            ...page,
+            id: pageDoc?.exists ? pageDoc.id : ctx.partnerId,
+            displayName: pickPopulated(
+              page.displayName,
+              page.name,
+              profile.displayName,
+              profile.name,
+            ),
+            bio: pickPopulated(page.bio, page.description, profile.bio, profile.description),
+            city: pickPopulated(page.city, profile.city),
+            website: pickPopulated(page.website, profile.website),
+            email: pickPopulated(
+              page.email,
+              page.contactEmail,
+              profile.email,
+              profile.contactEmail,
+            ),
+            phone: pickPopulated(
+              page.phone,
+              page.contactPhone,
+              profile.phone,
+              profile.contactPhone,
+            ),
+            photoURL: pickPopulated(
+              page.photoURL,
+              page.profileImage,
+              page.avatar,
+              profile.photoURL,
+              profile.profileImage,
+              profile.avatar,
+              profile.avatarUrl,
+            ),
+            coverImage: pickPopulated(
+              page.coverImage,
+              page.coverURL,
+              profile.coverImage,
+              profile.coverURL,
+              profile.coverImageUrl,
+            ),
+            socialLinks: {
+              ...((profile.socialLinks as PlainRecord) || {}),
+              ...((page.socialLinks as PlainRecord) || {}),
+            },
+          });
         }
 
         if (rest === 'page' && (request.method === 'POST' || request.method === 'PATCH')) {
@@ -3834,6 +3983,10 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             buildErrorResponse({
               code: err.code || 'FORBIDDEN',
               message: err.message,
+              details: err.issues?.map((issue: any) => ({
+                path: issue.path || issue.field || '',
+                message: issue.message,
+              })),
               requestId: request.id,
             }),
           );

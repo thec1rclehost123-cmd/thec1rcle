@@ -30,6 +30,31 @@ function pickString(...values: any[]) {
   return '';
 }
 
+const ACTIVE_CONNECTION_STATUSES = new Set([
+  'active',
+  'approved',
+  'accepted',
+  'connected',
+  'verified',
+]);
+
+export function isActivePartnerConnectionStatus(value: unknown) {
+  return ACTIVE_CONNECTION_STATUSES.has(
+    String(value || '')
+      .trim()
+      .toLowerCase(),
+  );
+}
+
+function selectPreferredConnection(snapshot: any) {
+  const documents = snapshot?.docs || [];
+  return (
+    documents.find((document: any) => isActivePartnerConnectionStatus(document.data()?.status)) ||
+    documents[0] ||
+    null
+  );
+}
+
 function pickNumber(...values: any[]) {
   for (const value of values) {
     const numericValue = typeof value === 'number' ? value : Number(value);
@@ -339,7 +364,7 @@ async function getPartnerProfileSummaryInternal(db: any, id: string) {
   }
 
   const { type, doc } = resolved;
-  const ownerUid = pickString(doc.uid, doc.userId, doc.ownerId, resolved.id);
+  const ownerUid = pickString(doc.uid, doc.userId, doc.ownerUid, doc.ownerId, resolved.id);
 
   const [userSnap, onboarding, eventDocs] = await Promise.all([
     isUserFallback
@@ -474,6 +499,15 @@ async function getPartnerProfileSummaryInternal(db: any, id: string) {
         pickString(doc.coverImage, doc.bannerImage, doc.heroImage),
       ),
       website: pickString(doc.website, onboardingData.website),
+      handle: pickString(doc.handle, doc.username, onboardingData.handle, onboardingData.username),
+      username: pickString(
+        doc.username,
+        doc.handle,
+        onboardingData.username,
+        onboardingData.handle,
+      ),
+      instagram: pickString(doc.instagram, doc.instagramHandle, onboardingData.instagram),
+      instagramHandle: pickString(doc.instagramHandle, doc.instagram, onboardingData.instagram),
       socialLinks,
       isVerified: Boolean(
         doc.isVerified ||
@@ -609,8 +643,7 @@ export async function getPartnerProfileWithPii(
   });
 
   const isSelf = viewerId === partnerId;
-  const hasPermission =
-    isSelf || (connection && (connection.status === 'active' || connection.status === 'approved'));
+  const hasPermission = isSelf || isActivePartnerConnectionStatus(connection?.status);
 
   // Clone profile and nested socialLinks to avoid mutating shared/cached references
   const clonedProfile = {
@@ -652,14 +685,15 @@ export async function getConnectionForViewer(
       .collection('partnerships')
       .where('venueId', '==', venueId)
       .where('hostId', '==', hostId)
-      .limit(1)
+      .limit(10)
       .get()
       .catch(() => null);
     if (snapshot && !snapshot.empty) {
-      const data = snapshot.docs[0].data();
+      const selected = selectPreferredConnection(snapshot);
+      const data = selected.data();
       return {
-        id: snapshot.docs[0].id,
-        status: data.status || null,
+        id: selected.id,
+        status: isActivePartnerConnectionStatus(data.status) ? 'active' : data.status || null,
         type: 'partnership',
         initiatedBy: data.initiatedBy || null,
       };
@@ -683,15 +717,16 @@ export async function getConnectionForViewer(
     }
 
     const snapshot = await query
-      .limit(1)
+      .limit(10)
       .get()
       .catch(() => null);
 
     if (snapshot && !snapshot.empty) {
-      const data = snapshot.docs[0].data();
+      const selected = selectPreferredConnection(snapshot);
+      const data = selected.data();
       return {
-        id: snapshot.docs[0].id,
-        status: data.status || null,
+        id: selected.id,
+        status: isActivePartnerConnectionStatus(data.status) ? 'active' : data.status || null,
         type: 'promoter_connection',
         initiatedBy: data.initiatedBy || null,
       };

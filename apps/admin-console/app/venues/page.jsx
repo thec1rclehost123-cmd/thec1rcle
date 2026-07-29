@@ -60,11 +60,25 @@ export default function AdminVenues() {
         );
 
         if (pendingSuspend) {
-          return { ...venue, pendingAction: 'suspend', displayStatus: 'Restriction Requested' };
+          return {
+            ...venue,
+            pendingAction: 'suspend',
+            accountStatus: venue.status || 'active',
+            operationsStatus: 'Suspension Requested',
+          };
         } else if (pendingReinstate) {
-          return { ...venue, pendingAction: 'reinstate', displayStatus: 'Restore Requested' };
+          return {
+            ...venue,
+            pendingAction: 'reinstate',
+            accountStatus: venue.status || 'suspended',
+            operationsStatus: 'Reinstatement Requested',
+          };
         }
-        return { ...venue, displayStatus: venue.status };
+        return {
+          ...venue,
+          accountStatus: venue.status || 'active',
+          operationsStatus: 'No Pending Action',
+        };
       });
 
       setVenues(mergedVenues);
@@ -212,26 +226,22 @@ export default function AdminVenues() {
     },
     {
       key: 'status',
-      label: 'Status',
+      label: 'Account Status',
       sortable: true,
       render: (val, row) => {
-        const displayStatus = row.displayStatus || val;
+        const displayStatus = row.accountStatus || val || 'active';
         const colorClass =
           displayStatus === 'active'
             ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
-            : displayStatus === 'Restriction Requested'
-              ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)] animate-pulse'
-              : displayStatus === 'Restore Requested'
-                ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)] animate-pulse'
-                : displayStatus === 'pending'
-                  ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
-                  : 'bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]';
+            : displayStatus === 'pending'
+              ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
+              : 'bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]';
 
         return (
           <div className="flex items-center justify-end gap-2.5">
             <div className={`h-1.5 w-1.5 rounded-full ${colorClass}`}></div>
             <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">
-              {displayStatus}
+              Account: {displayStatus}
             </span>
           </div>
         );
@@ -391,25 +401,25 @@ export default function AdminVenues() {
           <div className="grid grid-cols-2 gap-4">
             <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5">
               <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1">
-                Network Status
+                Account Status
               </p>
               <div className="flex items-center gap-2">
                 <div
                   className={`h-1.5 w-1.5 rounded-full ${
-                    selectedVenue?.displayStatus === 'active'
+                    selectedVenue?.accountStatus === 'active'
                       ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
-                      : selectedVenue?.displayStatus === 'Restriction Requested' ||
-                          selectedVenue?.displayStatus === 'pending'
+                      : selectedVenue?.accountStatus === 'pending'
                         ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)] animate-pulse'
-                        : selectedVenue?.displayStatus === 'Restore Requested'
-                          ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)] animate-pulse'
-                          : 'bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]'
+                        : 'bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]'
                   }`}
                 />
                 <p className="text-[11px] font-bold uppercase tracking-widest text-white truncate max-w-[150px]">
-                  {selectedVenue?.displayStatus || selectedVenue?.status}
+                  Account: {selectedVenue?.accountStatus || selectedVenue?.status || 'active'}
                 </p>
               </div>
+              <p className="mt-2 text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+                Operations: {selectedVenue?.operationsStatus || 'No Pending Action'}
+              </p>
             </div>
             <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5">
               <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1">
