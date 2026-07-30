@@ -9,7 +9,6 @@ import { useAuth } from './AuthProvider';
 
 const GlobalAuthManager = dynamic(() => import('../GlobalAuthManager'));
 const OfflineListener = dynamic(() => import('../OfflineListener'));
-const CacheWarmer = dynamic(() => import('../CacheWarmer'));
 import ProfileCompletionPrompt from '../ProfileCompletionPrompt';
 
 // Defers the ProfileCompletionPrompt dynamic chunk until auth is confirmed.
@@ -29,7 +28,6 @@ export default function AppProviders({ children }) {
         <ToastProvider>
           <GlobalAuthManager />
           <OfflineListener />
-          <CacheWarmer />
           <AuthGatedProfilePrompt />
           {children}
         </ToastProvider>

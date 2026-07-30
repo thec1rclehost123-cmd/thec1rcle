@@ -1,5 +1,8 @@
 import { describe, expect, it, beforeEach, afterAll, vi } from 'vitest';
-import { CheckoutService } from './src/domain/services/checkout-service.js';
+import {
+  calculatePromoterCommissionPaise,
+  CheckoutService,
+} from './src/domain/services/checkout-service.js';
 import { createReservation } from './inventory-engine.js';
 
 vi.mock('./admin.js', () => ({
@@ -32,9 +35,20 @@ vi.mock('./admin.js', () => ({
 
 vi.mock('./inngest-client.js', () => ({
   sendEvent: vi.fn(async () => ({ ids: ['mock-event-id'] })),
+  inngest: {
+    createFunction: vi.fn((_config, _trigger, handler) => handler),
+  },
   Events: {
     TICKET_PURCHASED: 'ticket/purchased',
   },
+}));
+
+vi.mock('@c1rcle/core/workflows/ticketing', () => ({
+  finalizeFreeTicketOrder: vi.fn(async ({ orderId }) => ({
+    success: true,
+    orderId,
+    status: 'confirmed',
+  })),
 }));
 
 export let currentOrderRepo: any = null;
@@ -308,6 +322,23 @@ function buildReservation({
 }
 
 describe('CheckoutService parity', () => {
+  it('does not allocate a fixed promoter commission to a zero-value free order', () => {
+    expect(
+      calculatePromoterCommissionPaise({
+        commissionBasePaise: 0,
+        commissionType: 'fixed',
+        rate: 15,
+      }),
+    ).toBe(0);
+    expect(
+      calculatePromoterCommissionPaise({
+        commissionBasePaise: 100_000,
+        commissionType: 'fixed',
+        rate: 15,
+      }),
+    ).toBe(1_500);
+  });
+
   it('reuses the same paid order for repeated calls on one reservation', async () => {
     const orderRepo = new FakeOrderRepository();
     currentOrderRepo = orderRepo;

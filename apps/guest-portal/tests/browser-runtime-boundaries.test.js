@@ -41,6 +41,8 @@ const seoRenderingPages = new Set([
   'app/venue/[slug]/page.jsx',
 ]);
 
+const boundedIsrPages = new Set(['app/page.js', 'app/explore/page.js']);
+
 test('Guest portal runtime files stay free of server bridge imports and unsafe request helpers', () => {
   for (const relativePath of runtimeFiles) {
     const source = readFileSync(join(root, relativePath), 'utf8');
@@ -59,11 +61,19 @@ test('Guest portal runtime files stay free of server bridge imports and unsafe r
       false,
       `${relativePath} must not read request cookies`,
     );
-    assert.equal(
-      source.includes('export const revalidate'),
-      false,
-      `${relativePath} must not own ISR revalidation`,
-    );
+    if (boundedIsrPages.has(relativePath)) {
+      assert.equal(
+        source.includes('export const revalidate = 60'),
+        true,
+        `${relativePath} should bound public discovery revalidation`,
+      );
+    } else {
+      assert.equal(
+        source.includes('export const revalidate'),
+        false,
+        `${relativePath} must not add unreviewed ISR revalidation`,
+      );
+    }
 
     if (!seoRenderingPages.has(relativePath)) {
       assert.equal(

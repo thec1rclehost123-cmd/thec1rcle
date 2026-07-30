@@ -121,6 +121,14 @@
         ]
       }
     },
+    "/profiles": {
+      "patch": {
+        "operationId": "updateGuestProfile",
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
     "/profiles/personal": {
       "patch": {
         "operationId": "updateGuestPersonalProfile",

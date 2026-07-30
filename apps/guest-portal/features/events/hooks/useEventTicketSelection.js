@@ -13,6 +13,7 @@ import {
   formatTimeLabel,
   formatTimeShort,
 } from '../eventDetailUtils';
+import { getTicketSelectionLimit } from '../ticketSelectionLimits';
 
 function getAvailability(ticket) {
   const quantity = Number(ticket.quantity || ticket.totalQuantity || 0);
@@ -69,28 +70,6 @@ function getAvailability(ticket) {
     barClass: 'bg-white',
     fill: 1,
   };
-}
-
-function getTierLimit(ticket, pendingTotalFree = 0, currentQty = 0) {
-  const maxPerOrder = Number(ticket?.maxPerOrder || 10);
-  const remaining =
-    ticket?.remaining !== undefined
-      ? Number(ticket.remaining)
-      : ticket?.remainingQuantity !== undefined
-        ? Number(ticket.remainingQuantity)
-        : ticket?.quantity !== undefined
-          ? Number(ticket.quantity)
-          : maxPerOrder;
-
-  const computedMax = maxPerOrder;
-
-  if (remaining > 0) {
-    return Math.max(0, Math.min(computedMax, remaining));
-  }
-  if (ticket?.quantity === 0 || ticket?.remaining === 0 || ticket?.remainingQuantity === 0) {
-    return 0;
-  }
-  return maxPerOrder;
 }
 
 export function useEventTicketSelection({ event, host, interestedData, onAction, user }) {
@@ -203,14 +182,24 @@ export function useEventTicketSelection({ event, host, interestedData, onAction,
           : 'Get Tickets'
         : 'Get Tickets';
 
-  const setQuantity = useCallback((ticket, nextQuantity) => {
-    const limit = getTierLimit(ticket);
-    const safeQuantity = Math.max(0, Math.min(limit, nextQuantity));
-    setQuantities((current) => ({
-      ...current,
-      [ticket.id]: safeQuantity,
-    }));
-  }, []);
+  const getTierLimit = useCallback(
+    (ticket) => getTicketSelectionLimit({ event, quantities, ticket }),
+    [event, quantities],
+  );
+
+  const setQuantity = useCallback(
+    (ticket, nextQuantity) => {
+      setQuantities((current) => {
+        const limit = getTicketSelectionLimit({ event, quantities: current, ticket });
+        const safeQuantity = Math.max(0, Math.min(limit, nextQuantity));
+        return {
+          ...current,
+          [ticket.id]: safeQuantity,
+        };
+      });
+    },
+    [event],
+  );
 
   const handlePrimaryAction = useCallback(() => {
     if (selectedTickets.length > 0) {

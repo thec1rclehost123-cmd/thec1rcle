@@ -3,20 +3,39 @@
 import { useCallback } from 'react';
 import { verifyCheckoutPayment } from '../api/checkoutApi';
 
-function loadRazorpayScript() {
-  return new Promise((resolve, reject) => {
-    if (typeof window !== 'undefined' && window.Razorpay) {
-      resolve(window.Razorpay);
-      return;
-    }
+const RAZORPAY_SCRIPT_ID = 'c1rcle-razorpay-checkout';
+let razorpayScriptPromise = null;
 
-    const script = document.createElement('script');
+function loadRazorpayScript() {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('Payment gateway requires a browser.'));
+  }
+  if (window.Razorpay) return Promise.resolve(window.Razorpay);
+  if (razorpayScriptPromise) return razorpayScriptPromise;
+
+  razorpayScriptPromise = new Promise((resolve, reject) => {
+    const existingScript = document.getElementById(RAZORPAY_SCRIPT_ID);
+    const script = existingScript || document.createElement('script');
+    script.id = RAZORPAY_SCRIPT_ID;
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.async = true;
-    script.onload = () => resolve(window.Razorpay);
-    script.onerror = () => reject(new Error('Failed to load payment gateway'));
-    document.body.appendChild(script);
+    script.onload = () => {
+      if (window.Razorpay) {
+        resolve(window.Razorpay);
+        return;
+      }
+      razorpayScriptPromise = null;
+      reject(new Error('Payment gateway loaded without a checkout runtime.'));
+    };
+    script.onerror = () => {
+      razorpayScriptPromise = null;
+      script.remove();
+      reject(new Error('Failed to load payment gateway'));
+    };
+    if (!existingScript) document.body.appendChild(script);
   });
+
+  return razorpayScriptPromise;
 }
 
 export function useRazorpayCheckout({

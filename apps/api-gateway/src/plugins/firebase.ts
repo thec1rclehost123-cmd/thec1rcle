@@ -163,18 +163,18 @@ export default fp(async (fastify) => {
     request.log.info({ durationMs, ...details }, label);
   }
 
-  const positiveMembershipCache = new Map<
+  const membershipCache = new Map<
     string,
     { memberships: Array<Record<string, any>>; expiresAt: number }
   >();
   const membershipCacheTtlMs = 15_000;
 
   async function loadMemberships(uid: string) {
-    const cached = positiveMembershipCache.get(uid);
+    const cached = membershipCache.get(uid);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.memberships;
     }
-    if (cached) positiveMembershipCache.delete(uid);
+    if (cached) membershipCache.delete(uid);
 
     const startedAt = Date.now();
     const activeQuery = db
@@ -206,16 +206,14 @@ export default fp(async (fastify) => {
     }
 
     const memberships = finalSnapshot.docs.map((doc) => doc.data());
-    if (memberships.length > 0) {
-      if (positiveMembershipCache.size >= 5_000) {
-        const oldestUid = positiveMembershipCache.keys().next().value;
-        if (oldestUid) positiveMembershipCache.delete(oldestUid);
-      }
-      positiveMembershipCache.set(uid, {
-        memberships,
-        expiresAt: Date.now() + membershipCacheTtlMs,
-      });
+    if (membershipCache.size >= 5_000) {
+      const oldestUid = membershipCache.keys().next().value;
+      if (oldestUid) membershipCache.delete(oldestUid);
     }
+    membershipCache.set(uid, {
+      memberships,
+      expiresAt: Date.now() + membershipCacheTtlMs,
+    });
     const durationMs = Number((Date.now() - startedAt).toFixed(2));
     if (durationMs >= 150) {
       fastify.log.info(
@@ -228,10 +226,10 @@ export default fp(async (fastify) => {
 
   fastify.decorate('invalidateAuthMembershipCache', (uid?: string) => {
     if (uid) {
-      positiveMembershipCache.delete(uid);
+      membershipCache.delete(uid);
       return;
     }
-    positiveMembershipCache.clear();
+    membershipCache.clear();
   });
 
   function applyRequestAuth(

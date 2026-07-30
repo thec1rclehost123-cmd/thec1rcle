@@ -218,6 +218,8 @@ export const guestApi = Object.freeze({
     bio: (body, options) => guestApiOperationJson('updateGuestBioProfile', { body, ...options }),
     avatarUpdate: (body, options) =>
       guestApiOperationJson('updateGuestAvatarProfile', { body, ...options }),
+    update: (body, options) =>
+      guestApiOperationJson('updateGuestProfile', { body, ...options }),
     create: (body, options) => guestApiOperationJson('createGuestProfile', { body, ...options }),
     get: (id, options) =>
       guestApiOperationJson('getGuestPublicProfile', { params: { id }, ...options }),

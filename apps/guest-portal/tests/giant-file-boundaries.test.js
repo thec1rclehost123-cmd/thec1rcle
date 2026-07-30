@@ -75,7 +75,7 @@ test('root client providers defer side-effect managers out of the provider modul
   assert.equal(source.includes("import CacheWarmer from '../CacheWarmer'"), false);
   assert.equal(source.includes("dynamic(() => import('../GlobalAuthManager')"), true);
   assert.equal(source.includes("dynamic(() => import('../OfflineListener')"), true);
-  assert.equal(source.includes("dynamic(() => import('../CacheWarmer')"), true);
+  assert.equal(source.includes("dynamic(() => import('../CacheWarmer')"), false);
 });
 
 test('guest API client records duplicate GET diagnostics in development only', () => {

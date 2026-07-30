@@ -132,6 +132,7 @@ function buildTicketDocuments(order, event, issuedAt) {
         quantity: 1,
         originalQuantity: quantity,
         entryType: group.entryType || 'general',
+        ticketType: Number(group.price || 0) <= 0 ? 'free' : 'paid',
         status: 'active',
         qrMode: 'dynamic_jwt',
         qrPayload: null,
@@ -201,7 +202,7 @@ function buildEntitlementDocuments(order, event, ticketDocs, issuedAt) {
       hostId: order.hostId,
       venueId: order.venueId || null,
       promoterId: order.promoterId || null,
-      ticketType: ticket.entryType === 'couple' ? 'couple' : 'paid',
+      ticketType: ticket.entryType === 'couple' ? 'couple' : ticket.ticketType || 'paid',
       genderConstraint: ticket.genderRequirement || 'none',
       scanCountAllowed: ticket.scanCountAllowed,
       scanCountUsed: 0,
@@ -261,6 +262,7 @@ const FINALIZATION_ARTIFACT_FIELDS = {
     'quantity',
     'originalQuantity',
     'entryType',
+    'ticketType',
     'qrMode',
     'scanCountAllowed',
   ],
@@ -303,6 +305,199 @@ export function finalizationArtifactMatches(kind, actual, expected) {
   const fields = FINALIZATION_ARTIFACT_FIELDS[kind];
   if (!fields || !actual || !expected) return false;
   return fields.every((field) => isDeepStrictEqual(actual[field] ?? null, expected[field] ?? null));
+}
+
+/**
+ * Atomically finalizes a zero-value ticket order.
+ *
+ * A free checkout has no provider payment and therefore cannot use
+ * finalizeTicketPayment. It must still use the same authoritative transaction
+ * boundary for inventory, ticket/wallet artifacts, and the delivery outbox.
+ */
+export async function finalizeFreeTicketOrder({
+  db = getAdminDb(),
+  orderId,
+  userId = null,
+  requestId = null,
+}) {
+  if (!orderId) throw codedError('Order id is required', 'BAD_REQUEST');
+
+  const issuedAt = new Date().toISOString();
+  let result = null;
+
+  await db.runTransaction(async (transaction) => {
+    const orderRef = db.collection('orders').doc(orderId);
+    const orderSnapshot = await transaction.get(orderRef);
+    if (!orderSnapshot.exists) throw codedError('Order not found', 'NOT_FOUND');
+
+    const order = { id: orderSnapshot.id, ...orderSnapshot.data(), isRSVP: false };
+    if (userId && order.userId !== userId) throw codedError('Forbidden', 'FORBIDDEN');
+    if (order.status !== 'confirmed') {
+      throw codedError(`Order is ${order.status}`, 'ORDER_NOT_FINALIZABLE');
+    }
+    if (Number(order.totalPaise) !== 0 || Number(order.totalAmount) !== 0) {
+      throw codedError('Order is not a zero-value checkout', 'ORDER_NOT_FINALIZABLE');
+    }
+    if (!order.hostId) {
+      throw codedError('Order is missing host attribution', 'ORDER_ATTRIBUTION_MISSING');
+    }
+
+    const event = await getEventSnapshot(db, transaction, order.eventId);
+    if (!event) throw codedError('Event not found', 'NOT_FOUND');
+
+    const ticketDocs = buildTicketDocuments(order, event, issuedAt);
+    if (ticketDocs.length === 0 || ticketDocs.length > 50) {
+      throw codedError(
+        'Ticket quantity is outside the atomic finalization limit',
+        'TICKET_TRANSACTION_LIMIT_EXCEEDED',
+      );
+    }
+    const entitlementDocs = buildEntitlementDocuments(order, event, ticketDocs, issuedAt);
+    const coverWalletDocs = buildCoverWalletDocumentsForOrder(order, event, issuedAt);
+    const ticketRefs = ticketDocs.map((ticket) => db.collection('tickets').doc(ticket.id));
+    const entitlementRefs = entitlementDocs.map((entitlement) =>
+      db.collection('entitlements').doc(entitlement.id),
+    );
+    const coverWalletRefs = coverWalletDocs.map((wallet) =>
+      db.collection('cover_wallets').doc(wallet.id),
+    );
+    const outboxRef = db.collection('domain_event_outbox').doc(`ticket-purchase-${order.id}`);
+
+    const [ticketSnapshots, entitlementSnapshots, coverWalletSnapshots, outboxSnapshot] =
+      await Promise.all([
+        Promise.all(ticketRefs.map((ref) => transaction.get(ref))),
+        Promise.all(entitlementRefs.map((ref) => transaction.get(ref))),
+        Promise.all(coverWalletRefs.map((ref) => transaction.get(ref))),
+        transaction.get(outboxRef),
+      ]);
+
+    for (const [kind, snapshots, expectedDocuments] of [
+      ['ticket', ticketSnapshots, ticketDocs],
+      ['entitlement', entitlementSnapshots, entitlementDocs],
+      ['coverWallet', coverWalletSnapshots, coverWalletDocs],
+    ]) {
+      snapshots.forEach((snapshot, index) => {
+        if (
+          snapshot.exists &&
+          !finalizationArtifactMatches(kind, snapshot.data(), expectedDocuments[index])
+        ) {
+          throw codedError(
+            `${kind} finalization artifact conflicts with the authoritative order`,
+            'FINALIZATION_ARTIFACT_CONFLICT',
+          );
+        }
+      });
+    }
+
+    const artifactSnapshots = [
+      ...ticketSnapshots,
+      ...entitlementSnapshots,
+      ...coverWalletSnapshots,
+    ];
+    const artifactsExist = artifactSnapshots.some((snapshot) => snapshot.exists);
+    const artifactsComplete = artifactSnapshots.every((snapshot) => snapshot.exists);
+    const isCompleteReplay =
+      artifactsComplete &&
+      order.fulfillmentStatus === 'authoritative_committed' &&
+      Boolean(order.inventoryCommittedAt);
+
+    if (!isCompleteReplay && artifactsExist) {
+      throw codedError(
+        'Free order has a partial authoritative artifact set',
+        'FINALIZATION_ARTIFACT_CONFLICT',
+      );
+    }
+
+    if (!isCompleteReplay) {
+      await commitInventory(transaction, {
+        db,
+        event,
+        items: order.tickets,
+        reservationId: order.reservationId || null,
+      });
+
+      ticketSnapshots.forEach((snapshot, index) => {
+        if (!snapshot.exists) transaction.create(ticketRefs[index], ticketDocs[index]);
+      });
+      entitlementSnapshots.forEach((snapshot, index) => {
+        if (!snapshot.exists) {
+          transaction.create(entitlementRefs[index], entitlementDocs[index]);
+        }
+      });
+      coverWalletSnapshots.forEach((snapshot, index) => {
+        if (!snapshot.exists) {
+          transaction.create(coverWalletRefs[index], coverWalletDocs[index]);
+        }
+      });
+    }
+
+    const qrCodes = buildOrderQrCodes(order, ticketDocs).map((qr) => ({
+      ...qr,
+      entitlementIds: entitlementDocs
+        .filter((entitlement) => entitlement.metadata.tierId === qr.ticketId)
+        .map((entitlement) => entitlement.id),
+    }));
+    const orderUpdate = {
+      ticketIds: ticketDocs.map((ticket) => ticket.id),
+      entitlementIds: entitlementDocs.map((entitlement) => entitlement.id),
+      coverWalletIds: coverWalletDocs.map((wallet) => wallet.id),
+      inventoryCommittedAt: order.inventoryCommittedAt || issuedAt,
+      qrCodes,
+      ticketsIssuedAt: order.ticketsIssuedAt || issuedAt,
+      fulfillmentStatus: 'authoritative_committed',
+      updatedAt: issuedAt,
+    };
+    if (!isCompleteReplay) transaction.update(orderRef, orderUpdate);
+
+    if (!outboxSnapshot.exists) {
+      transaction.create(outboxRef, {
+        id: outboxRef.id,
+        type: 'ticket.purchase.confirmed',
+        aggregateId: order.id,
+        orderId: order.id,
+        eventId: order.eventId,
+        userId: order.userId,
+        hostId: order.hostId,
+        venueId: order.venueId || null,
+        promoterId: order.promoterId || null,
+        coverWalletIds: coverWalletDocs.map((wallet) => wallet.id),
+        requestId,
+        status: 'pending',
+        attempts: 0,
+        createdAt: issuedAt,
+      });
+    }
+
+    result = {
+      order: { ...order, ...orderUpdate },
+      tickets: ticketDocs,
+      entitlements: entitlementDocs,
+      coverWallets: coverWalletDocs,
+      alreadyFinalized: isCompleteReplay,
+      outboxEventId: outboxRef.id,
+      outboxDispatchRequired:
+        !outboxSnapshot.exists || outboxSnapshot.data()?.status !== 'dispatched',
+    };
+  });
+
+  if (result.outboxDispatchRequired) {
+    dispatchTicketPurchaseOutbox(db, result.outboxEventId).catch((error) => {
+      console.error('[ticketing] Failed to dispatch free ticket purchased event:', error);
+    });
+  }
+
+  return {
+    success: true,
+    orderId: result.order.id,
+    status: 'confirmed',
+    alreadyFinalized: result.alreadyFinalized,
+    ticketIds: result.tickets.map((ticket) => ticket.id),
+    entitlementIds: result.entitlements.map((entitlement) => entitlement.id),
+    coverWalletIds: result.coverWallets.map((wallet) => wallet.id),
+    outboxEventId: result.outboxEventId,
+    order: result.order,
+    tickets: result.tickets,
+  };
 }
 
 async function findPaymentRecordByRazorpayOrderId(db, transaction, razorpayOrderId) {

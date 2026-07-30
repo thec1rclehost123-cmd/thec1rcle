@@ -1,5 +1,5 @@
 import { headers } from 'next/headers';
-import { resolveGuestApiBaseUrl } from './base-url.js';
+import { resolveGuestApiBaseUrl } from './base-url.mjs';
 
 const API_BASE_URL = resolveGuestApiBaseUrl(process.env);
 

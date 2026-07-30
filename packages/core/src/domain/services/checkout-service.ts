@@ -22,6 +22,22 @@ import { getAdminDb } from '@c1rcle/core/admin';
 // @ts-ignore
 import { verifyPromoterAttribution } from '@c1rcle/core/promoter-attribution';
 
+export function calculatePromoterCommissionPaise({
+  commissionBasePaise,
+  commissionType,
+  rate,
+}: {
+  commissionBasePaise: number;
+  commissionType: string;
+  rate: number;
+}): number {
+  if (!Number.isSafeInteger(commissionBasePaise) || commissionBasePaise <= 0) return 0;
+
+  return commissionType === 'percentage' || commissionType === 'percent'
+    ? Math.round((commissionBasePaise * rate) / 100)
+    : Math.round(rate * 100);
+}
+
 /**
  * Optimized Checkout Orchestrator
  *
@@ -295,6 +311,13 @@ export class CheckoutService {
         this.orderRepo.getOrderByReservationId(reservationId),
       ]);
       if (existingOrder && reservation.status !== 'active') {
+        if (
+          existingOrder.status === 'confirmed' &&
+          !existingOrder.isRSVP &&
+          Number((existingOrder as any).totalPaise ?? existingOrder.totalAmount ?? 0) === 0
+        ) {
+          await this.fulfillment.processFulfillment(existingOrder, null);
+        }
         return this.buildExistingOrderResponse(existingOrder, reservationId);
       }
 
@@ -332,6 +355,13 @@ export class CheckoutService {
       }
 
       if (existingOrder) {
+        if (
+          existingOrder.status === 'confirmed' &&
+          !existingOrder.isRSVP &&
+          Number((existingOrder as any).totalPaise ?? existingOrder.totalAmount ?? 0) === 0
+        ) {
+          await this.fulfillment.processFulfillment(existingOrder, null);
+        }
         return this.buildExistingOrderResponse(
           existingOrder,
           reservationId,
@@ -450,10 +480,11 @@ export class CheckoutService {
           const rate = Number(link.commissionRate || 0);
           const commissionType = link.commissionType || 'percentage';
           const commissionBasePaise = Math.round(Number(pricing.subtotal || 0) * 100);
-          const promoterCommissionPaise =
-            commissionType === 'percentage' || commissionType === 'percent'
-              ? Math.round((commissionBasePaise * rate) / 100)
-              : Math.round(rate * 100);
+          const promoterCommissionPaise = calculatePromoterCommissionPaise({
+            commissionBasePaise,
+            commissionType,
+            rate,
+          });
           promoterAttribution = {
             promoterId: link.promoterId,
             promoterLinkId: linkSnapshot.id,

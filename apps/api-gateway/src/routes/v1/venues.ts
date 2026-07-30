@@ -1319,6 +1319,11 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           }
         }
 
+        const linkedEventRef = liveSlot.eventId
+          ? fastify.db.collection('events').doc(liveSlot.eventId)
+          : null;
+        const linkedEventDoc = linkedEventRef ? await transaction.get(linkedEventRef) : null;
+
         const updates: Record<string, any> = {
           status: nextStatus,
           updatedAt: now,
@@ -1337,10 +1342,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         if (message || notes) updates.responseMessage = message || notes;
         transaction.update(ref, updates);
 
-        if (liveSlot.eventId) {
-          const eventRef = fastify.db.collection('events').doc(liveSlot.eventId);
-          const eventDoc = await transaction.get(eventRef);
-          if (eventDoc.exists) {
+        if (linkedEventRef && linkedEventDoc?.exists) {
             const eventUpdates: Record<string, any> = {
               slotStatus: nextStatus,
               slotRespondedAt: now,
@@ -1352,8 +1354,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
             } else if (action === 'reject') {
               eventUpdates.lifecycle = 'denied';
             }
-            transaction.update(eventRef, eventUpdates);
-          }
+            transaction.update(linkedEventRef, eventUpdates);
         }
 
         return {

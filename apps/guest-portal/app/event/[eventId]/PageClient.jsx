@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import EventRSVP from '../../../components/EventRSVP';
 import { fetchPublicEvent } from '../../../features/discovery/publicDiscovery';
-import { fetchGuestBffEventDetail } from '../../../lib/bff/fetchers.js';
-import { isGuestBffEnabled } from '../../../lib/bff/flags.js';
 import { PUBLIC_LIFECYCLE_STATES } from '@c1rcle/core/events';
 import { useParams } from 'next/navigation';
 
@@ -80,9 +78,7 @@ export default function EventDetailPageClient({ initialDetail = null, initialEve
     async function loadDetail() {
       setStatus('loading');
       try {
-        const nextPayload = isGuestBffEnabled('eventDetail')
-          ? await fetchGuestBffEventDetail(eventId)
-          : await fetchPublicEvent(eventId);
+        const nextPayload = await fetchPublicEvent(eventId);
         const nextDetail = normalizeDetailPayload(nextPayload);
         if (cancelled) return;
         setDetail(nextDetail);

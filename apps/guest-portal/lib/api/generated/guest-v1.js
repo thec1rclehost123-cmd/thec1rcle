@@ -17,6 +17,7 @@ export const guestV1Operations = Object.freeze({
   updateGuestSocialProfile: { method: 'PATCH', path: '/profiles/social' },
   updateGuestBioProfile: { method: 'PATCH', path: '/profiles/bio' },
   updateGuestAvatarProfile: { method: 'PATCH', path: '/profiles/avatar' },
+  updateGuestProfile: { method: 'PATCH', path: '/profiles' },
   createGuestProfile: { method: 'POST', path: '/users/profile' },
   getGuestPublicProfile: { method: 'GET', path: '/guest-profiles/:id' },
   lookupGuestProfile: { method: 'GET', path: '/guest-profiles/lookup' },

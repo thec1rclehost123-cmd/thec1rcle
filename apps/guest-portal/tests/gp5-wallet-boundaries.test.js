@@ -138,7 +138,7 @@ test('ticket wallet list reads stay on a single grouped wallet payload', () => {
     'ticket wallet queries must stay on a single wallet query',
   );
   assert.equal(
-    ticketQueries.includes('coverWalletsByOrder'),
+    ticketQueries.includes('normalizeTicketsWallet'),
     true,
     'ticket wallet normalization should preserve grouped cover wallets',
   );

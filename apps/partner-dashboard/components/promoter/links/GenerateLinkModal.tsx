@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { mapEventForClient } from '@c1rcle/core/events';
 import EditLinkModal from './EditLinkModal';
+import { buildPromoterShareUrl } from '@/lib/promoter/linkUrl';
 
 const getGuestPortalUrl = () => {
   if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_GUEST_PORTAL_URL) {
@@ -180,19 +181,15 @@ export default function GenerateLinkModal({
   }, [selectedEventId, selectedTicketTierIds, customTrackingCode, promoterName, token, onCreated]);
 
   const buildDisplayUrl = (link: any) => {
-    if (link.fullUrl) return link.fullUrl;
-
-    if (link.vanityAlias || link.vanitySlug) {
-      const alias = link.vanityAlias || link.vanitySlug;
-      const prefix = link.vanityPrefix || `${GUEST_PORTAL_URL}/event/`;
-      return `${prefix}${alias}`;
-    }
-
     const event = events.find((e) => e.id === link.eventId);
-    const slug = event?.slug || link.eventId;
-    const ref = link.code || link.shortId || link.token || link.id;
-    const channel = link.channel ? `&s=${encodeURIComponent(link.channel)}` : '';
-    return `${GUEST_PORTAL_URL}/event/${slug}?ref=${encodeURIComponent(ref)}${channel}`;
+    return buildPromoterShareUrl(
+      {
+        ...link,
+        code: link.code || link.shortId || link.token || link.id,
+      },
+      GUEST_PORTAL_URL,
+      event?.slug || link.eventId,
+    );
   };
 
   const handleCopy = () => {

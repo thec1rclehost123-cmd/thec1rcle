@@ -1239,8 +1239,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         slotRequestId = await schedulingService.requestSlotInTransaction(tx, ctx, {
           eventId,
           venueId,
-          venueName: String(event.venueName || event.venue || ''),
+          venueName: String(event.venueData?.name || event.venueName || event.venue || ''),
           hostName: String(event.hostName || event.host || ctx.displayName || ''),
+          timezone: String(event.timezone || ''),
           date,
           startTime,
           endTime,

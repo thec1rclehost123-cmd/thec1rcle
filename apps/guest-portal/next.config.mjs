@@ -1,6 +1,6 @@
 import { withSentryConfig } from '@sentry/nextjs';
-import './lib/env.js';
-import { resolveGuestApiOrigin } from './lib/api/base-url.js';
+import './lib/env.mjs';
+import { resolveGuestApiOrigin } from './lib/api/base-url.mjs';
 
 const gatewayOrigin = resolveGuestApiOrigin(process.env);
 

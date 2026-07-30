@@ -16,8 +16,6 @@ import {
   PROMOTER_COMMISSION_TIERS,
 } from '../../lib/rbac-permissions';
 import { encrypt, decrypt } from '../../lib/encryption';
-// @ts-ignore
-import { getGuestUnreadCount } from '@c1rcle/core/guest-wallet-profile-notification-service';
 
 const SESSION_COOKIE_NAME = '__session';
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 5;
@@ -152,11 +150,15 @@ const HostVerificationSchema = z
     country: z.string().optional(),
   })
   .catchall(z.any()); // Allowed catchall just for host-verification because frontend fields vary, but will use .strict() in standard entities.
-async function getGuestOnboardingRequest(fastify: FastifyInstance, userId: string) {
+async function getGuestOnboardingRequest(
+  fastify: FastifyInstance,
+  userId: string,
+  knownUserData?: Record<string, any> | null,
+) {
   // 1. Direct lookup via onboardingRequestId stored on the user doc
   try {
-    const userDoc = await fastify.db.collection('users').doc(userId).get();
-    const userData = userDoc.data() || {};
+    const userData =
+      knownUserData || (await fastify.db.collection('users').doc(userId).get()).data() || {};
     const requestId = userData.onboardingRequestId;
     if (requestId) {
       const reqDoc = await fastify.db.collection('onboarding_requests').doc(requestId).get();
@@ -199,15 +201,6 @@ async function getGuestOnboardingRequest(fastify: FastifyInstance, userId: strin
   }
 
   return null;
-}
-
-async function getUnreadNotificationCount(fastify: FastifyInstance, userId: string) {
-  try {
-    return await getGuestUnreadCount(fastify.db, userId);
-  } catch (error) {
-    fastify.log.warn({ userId, error }, 'Unable to load guest unread notification count');
-    return 0;
-  }
 }
 
 function isProduction() {
@@ -373,7 +366,11 @@ function mapAuthErrorMessage(error: any) {
  * 🛡️ Self-Healing: Ensures a Firestore profile exists for an authenticated user.
  * Prevents "Ghost Users" if registration or OAuth callback fails mid-flow.
  */
-async function ensureProfile(fastify: FastifyInstance, user: any) {
+async function ensureProfile(
+  fastify: FastifyInstance,
+  user: any,
+  knownMemberships?: Array<Record<string, any>>,
+) {
   const userId = user.uid;
   const profileRef = fastify.db.collection('users').doc(userId);
 
@@ -381,25 +378,34 @@ async function ensureProfile(fastify: FastifyInstance, user: any) {
   if (doc.exists) {
     const data = doc.data() || {};
     // Self-heal: if user has active memberships but isApproved or onboardingComplete is false, update them!
-    const memberships = await fastify.db
-      .collection('partner_memberships')
-      .where('uid', '==', userId)
-      .get()
-      .catch(() => null);
+    const memberships = Array.isArray(knownMemberships)
+      ? knownMemberships
+      : await fastify.db
+          .collection('partner_memberships')
+          .where('uid', '==', userId)
+          .get()
+          .then((snapshot) => snapshot.docs.map((entry) => entry.data()))
+          .catch(() => []);
     const hasActiveMembership =
-      memberships &&
-      !memberships.empty &&
-      memberships.docs.some((d: any) => d.data()?.isActive === true);
+      memberships.length > 0 &&
+      memberships.some(
+        (membership: any) =>
+          membership?.isActive === true || membership?.status === 'active',
+      );
 
     if (
       hasActiveMembership &&
       (!data.isApproved || !data.onboardingComplete || data.role === 'user')
     ) {
-      const isVenueStaff = memberships.docs.some(
-        (d: any) => d.data()?.partnerType === 'venue' && d.data()?.isActive === true,
+      const isVenueStaff = memberships.some(
+        (membership: any) =>
+          membership?.partnerType === 'venue' &&
+          (membership?.isActive === true || membership?.status === 'active'),
       );
-      const isHostMember = memberships.docs.some(
-        (d: any) => d.data()?.partnerType === 'host' && d.data()?.isActive === true,
+      const isHostMember = memberships.some(
+        (membership: any) =>
+          membership?.partnerType === 'host' &&
+          (membership?.isActive === true || membership?.status === 'active'),
       );
       const updatedRole = isVenueStaff ? 'staff' : isHostMember ? 'host' : data.role || 'user';
 
@@ -445,27 +451,51 @@ async function ensureProfile(fastify: FastifyInstance, user: any) {
   });
 }
 
-async function buildBootstrapForUid(fastify: FastifyInstance, userLike: Record<string, any>) {
+async function optionalWithin<T>(
+  promise: Promise<T>,
+  fallback: T,
+  timeoutMs: number,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timeout = setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } catch {
+    return fallback;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+async function buildBootstrapForUid(
+  fastify: FastifyInstance,
+  userLike: Record<string, any>,
+  memberships: Array<Record<string, any>> = [],
+) {
   const userId = userLike?.uid;
 
-  // We try to fetch the profile. If it's missing, we self-heal.
-  const [profile, onboardingRequestResult, unreadCountResult] = await Promise.allSettled([
-    ensureProfile(fastify, userLike),
-    getGuestOnboardingRequest(fastify, userId),
-    getUnreadNotificationCount(fastify, userId),
-  ]);
-
-  if (profile.status !== 'fulfilled') {
-    // If critical failure, throw
-    throw profile.reason;
-  }
+  // Profile is the only critical read. Notification count has a dedicated
+  // React Query endpoint and must not delay session restoration.
+  const profile = (await ensureProfile(
+    fastify,
+    userLike,
+    memberships,
+  )) as Record<string, any>;
+  const shouldLoadOnboarding =
+    Boolean(profile?.onboardingRequestId) || profile?.onboardingComplete !== true;
+  const onboardingRequest = shouldLoadOnboarding
+    ? await optionalWithin(getGuestOnboardingRequest(fastify, userId, profile), null, 1_500)
+    : null;
 
   return buildGuestAuthBootstrap({
     user: userLike,
-    rawProfile: profile.value,
-    onboardingRequest:
-      onboardingRequestResult.status === 'fulfilled' ? onboardingRequestResult.value : null,
-    unreadNotificationCount: unreadCountResult.status === 'fulfilled' ? unreadCountResult.value : 0,
+    rawProfile: profile,
+    onboardingRequest,
+    unreadNotificationCount: 0,
     activeMembership: userLike.activeMembership || null,
   });
 }
@@ -521,7 +551,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       try {
         await fastify.enrichAuthContext(request);
-        const bootstrap = (await buildBootstrapForUid(fastify, request.user)) as any;
+        const bootstrap = (await buildBootstrapForUid(
+          fastify,
+          request.user,
+          request.authContext?.memberships || [],
+        )) as any;
         const activeMembership = (request.user as any)?.activeMembership || null;
         return {
           authenticated: true,

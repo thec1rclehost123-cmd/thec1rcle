@@ -284,13 +284,15 @@ describe('host event scheduling submission', () => {
       hostId: 'host-1',
       hostName: 'QA Host',
       venueId: 'venue-1',
-      venueName: 'QA Venue',
+      venueName: 'Venue',
+      venueData: { name: 'QA Venue' },
       title: '[QA-TEST-2026] Host Slot',
       lifecycle: 'draft',
       status: 'draft',
       startDate: '2026-08-15',
       startTime: '21:00',
       endTime: '03:00',
+      timezone: 'Asia/Kolkata',
     });
     db.seed('partnerships/host-venue-1', {
       hostId: 'host-1',
@@ -323,6 +325,8 @@ describe('host event scheduling submission', () => {
       date: '2026-08-15',
       startTime: '21:00',
       endTime: '03:00',
+      venueName: 'QA Venue',
+      timezone: 'Asia/Kolkata',
       status: 'pending',
       source: 'host_event_request',
     });

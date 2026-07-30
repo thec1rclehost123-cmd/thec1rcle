@@ -56,6 +56,7 @@ const LinksQuerySchema = z
 const CreateLinkSchema = z
   .object({
     eventId: z.string().min(1),
+    promoterName: z.string().trim().max(120).optional(),
     ticketTierIds: z.array(z.string()).max(50).optional(),
     customTrackingCode: z.string().min(3).max(32).optional(),
     campaignLabel: z.string().max(120).optional(),
@@ -455,6 +456,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       endTime: pickString(event.endTime),
       campaignLabel: pickString(link.campaignLabel, link.label),
       label: pickString(link.label, link.campaignLabel),
+      promoterHandle: pickString(link.promoterHandle) || null,
       code: pickString(link.code),
       shortCode: pickString(link.shortCode, link.code),
       channel: pickString(link.channel),
@@ -672,7 +674,11 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
     const promoterRef = fastify.db.collection('promoters').doc(promoterId);
     const promoterDoc = await promoterRef.get();
-    let trackingCode = promoterDoc.exists ? promoterDoc.data()?.trackingCode : null;
+    const promoterData = promoterDoc.exists ? promoterDoc.data() || {} : {};
+    const promoterHandle = pickString(promoterData.handle, promoterData.username)
+      .replace(/^@/, '')
+      .toLowerCase();
+    let trackingCode = promoterData.trackingCode || null;
 
     if (!trackingCode) {
       if (body.customTrackingCode) {
@@ -741,6 +747,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       id,
       promoterId,
       promoterName: body.promoterName || '',
+      promoterHandle: promoterHandle || null,
       eventId,
       eventTitle: pickString(body.eventTitle, event.title, event.name),
       campaignLabel: pickString(body.campaignLabel),
@@ -760,7 +767,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       active: true,
       status: 'active',
       fullUrl: pickString(body.fullUrl) || null,
-      vanityPrefix: pickString(body.vanityPrefix) || null,
+      vanityPrefix: promoterHandle ? `/${promoterHandle}/` : null,
       vanitySlug: pickString(body.editableSlug) || null,
       vanityAlias: pickString(body.editableSlug) || null,
       channel: pickString(body.channel, 'organic'),

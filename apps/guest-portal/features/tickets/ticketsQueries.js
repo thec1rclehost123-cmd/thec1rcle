@@ -2,9 +2,6 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { guestApi, getApiErrorMessage } from '../../lib/api/client';
-import { getGuestBffFlags, isGuestBffEnabled } from '../../lib/bff/flags.js';
-import { fetchGuestBffTicketsOverview } from '../../lib/bff/fetchers.js';
-import { logGuestBffParity } from '../../lib/bff/parity.js';
 import { EMPTY_TICKETS, normalizeTicketsWallet } from './ticketsModel.js';
 
 export { EMPTY_TICKETS } from './ticketsModel.js';
@@ -21,28 +18,6 @@ export function ticketDetailQueryKey(uid, ticketId) {
 }
 
 export async function fetchTicketsWallet() {
-  if (isGuestBffEnabled('tickets')) {
-    const overview = await fetchGuestBffTicketsOverview();
-    const overviewWallet = overview?.wallet || EMPTY_TICKETS;
-    const wallet = {
-      ...overviewWallet,
-      coverWalletsByOrder: overviewWallet.coverWalletsByOrder || {},
-    };
-
-    if (getGuestBffFlags().parity) {
-      try {
-        const { response, data } = await guestApi.tickets.wallet();
-        if (response.ok) {
-          logGuestBffParity('tickets.wallet', normalizeTicketsWallet(data), wallet, {
-            source: overview?.meta?.source || 'bff',
-          });
-        }
-      } catch {}
-    }
-
-    return wallet;
-  }
-
   const { response, data } = await guestApi.tickets.wallet();
   if (!response.ok) {
     throw new Error(getApiErrorMessage(data, 'Failed to load tickets'));

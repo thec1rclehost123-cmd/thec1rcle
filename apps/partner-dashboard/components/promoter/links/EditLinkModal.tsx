@@ -3,6 +3,10 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Loader2, Lock, PencilLine, X } from 'lucide-react';
+import { buildPromoterVanityPrefix } from '@/lib/promoter/linkUrl';
+
+const GUEST_PORTAL_URL =
+  process.env.NEXT_PUBLIC_GUEST_PORTAL_URL || process.env.NEXT_PUBLIC_SITE_URL || '';
 
 interface EditLinkModalProps {
   link: any;
@@ -29,6 +33,8 @@ export default function EditLinkModal({ link, token, onClose, onSaved }: EditLin
   const [error, setError] = useState<string | null>(null);
 
   const prefix = useMemo(() => {
+    const vanityPrefix = buildPromoterVanityPrefix(link || {}, GUEST_PORTAL_URL);
+    if (vanityPrefix) return vanityPrefix;
     const fullUrl = String(link?.fullUrl || '');
     const alias = String(link?.vanityAlias || '');
     if (fullUrl && alias && fullUrl.endsWith(alias)) {

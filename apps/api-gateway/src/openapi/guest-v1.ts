@@ -49,6 +49,7 @@ export const guestV1OpenApi = {
     '/profiles/social': { patch: { operationId: 'updateGuestSocialProfile', tags: ['profiles'] } },
     '/profiles/bio': { patch: { operationId: 'updateGuestBioProfile', tags: ['profiles'] } },
     '/profiles/avatar': { patch: { operationId: 'updateGuestAvatarProfile', tags: ['profiles'] } },
+    '/profiles': { patch: { operationId: 'updateGuestProfile', tags: ['profiles'] } },
     '/users/profile': { post: { operationId: 'createGuestProfile', tags: ['profiles'] } },
     '/guest-profiles/{id}': { get: { operationId: 'getGuestPublicProfile', tags: ['profiles'] } },
     '/guest-profiles/lookup': { get: { operationId: 'lookupGuestProfile', tags: ['profiles'] } },

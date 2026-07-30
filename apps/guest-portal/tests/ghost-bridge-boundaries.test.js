@@ -22,7 +22,7 @@ test('Guest Portal no longer ships a local app/api runtime bridge', () => {
   }
 });
 
-test('Guest Portal app/api only contains approved BFF route handlers', () => {
+test('Guest Portal app/api only contains internal or development-only handlers', () => {
   const apiRoot = join(root, 'app/api');
   if (!existsSync(apiRoot)) return;
 
@@ -42,16 +42,18 @@ test('Guest Portal app/api only contains approved BFF route handlers', () => {
   const relativeRouteFiles = routeFiles.map((filePath) =>
     relative(root, filePath).replace(/\\/g, '/'),
   );
-  const approvedInternalRoutes = new Set(['app/api/internal/revalidate/route.ts']);
+  const approvedInternalRoutes = new Set([
+    'app/api/dev/email-preview/route.js',
+    'app/api/internal/revalidate/route.ts',
+  ]);
   const disallowedRoutes = relativeRouteFiles.filter(
-    (relativePath) =>
-      !relativePath.startsWith('app/api/app/') && !approvedInternalRoutes.has(relativePath),
+    (relativePath) => !approvedInternalRoutes.has(relativePath),
   );
 
   assert.deepEqual(
     disallowedRoutes,
     [],
-    'app/api must stay scoped to approved /api/app BFF handlers and signed internal consumers',
+    'app/api must not restore a Guest Portal BFF or proxy layer',
   );
 });
 

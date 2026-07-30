@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Minus, Plus, Share2, Sparkles, Ticket } from 'lucide-react';
 import { GlassCard, SectionLabel } from '../EventDetailPrimitives';
 import { formatINR, getTierBadge } from '../eventDetailUtils';
+import { getTicketSelectionLimitLabel } from '../ticketSelectionLimits';
 
 export function EventTicketsSidebar({
   appUrl,
@@ -101,10 +102,7 @@ export function EventTicketsSidebar({
             const quantity = Number(quantities[ticket.id] || 0);
             const limit = getTierLimit(ticket, totalFreeSelected, quantity);
             const isSelected = quantity > 0;
-            const freeTierLimitLabel =
-              quantity >= 1 || (totalFreeSelected >= 1 && quantity === 0)
-                ? 'Limit Reached'
-                : 'Limit 1';
+            const limitLabel = getTicketSelectionLimitLabel({ limit, quantity });
 
             return (
               <div
@@ -150,11 +148,7 @@ export function EventTicketsSidebar({
                       {Number(ticket.price || 0) === 0 ? 'Free' : formatINR(ticket.price)}
                     </div>
                     <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.2em] text-white/30">
-                      {Number(ticket.price || 0) === 0
-                        ? freeTierLimitLabel
-                        : limit > 0
-                          ? `Limit ${limit}`
-                          : 'Closed'}
+                      {limitLabel}
                     </div>
                   </div>
                 </div>
@@ -184,6 +178,7 @@ export function EventTicketsSidebar({
                     <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-black/40 px-1 py-1 backdrop-blur-md">
                       <button
                         type="button"
+                        aria-label={`Decrease ${ticket.name || 'ticket'} quantity`}
                         onClick={() => setQuantity(ticket, quantity - 1)}
                         disabled={quantity <= 0}
                         className="inline-flex h-10 w-10 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-white/[0.06] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-30"
@@ -195,6 +190,7 @@ export function EventTicketsSidebar({
                       </span>
                       <button
                         type="button"
+                        aria-label={`Increase ${ticket.name || 'ticket'} quantity`}
                         onClick={() => setQuantity(ticket, quantity + 1)}
                         disabled={quantity >= limit}
                         className="inline-flex h-10 w-10 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-white text-black transition hover:scale-105 hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-30"

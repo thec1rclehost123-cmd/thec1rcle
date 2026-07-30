@@ -5,44 +5,13 @@ import { join } from 'node:path';
 
 const root = process.cwd();
 
-test('CacheWarmer no longer prewarms public discovery server state', () => {
-  const source = readFileSync(join(root, 'components/CacheWarmer.js'), 'utf8');
+test('Root providers do not prewarm page-owned server state', () => {
+  const source = readFileSync(join(root, 'components/providers/AppProviders.jsx'), 'utf8');
 
-  assert.equal(
-    source.includes('useExploreStore'),
-    false,
-    'public events must not be prewarmed from the root provider',
-  );
-  assert.equal(
-    source.includes('useHostsStore'),
-    false,
-    'public hosts/venues must not be prewarmed from the root provider',
-  );
-  assert.equal(
-    source.includes('fetchEvents'),
-    false,
-    'root provider must not trigger duplicate public event fetches',
-  );
-  assert.equal(
-    source.includes('fetchHosts'),
-    false,
-    'root provider must not trigger duplicate host/venue fetches',
-  );
-  assert.equal(
-    source.includes('useTicketsStore'),
-    false,
-    'root provider must not mutate Zustand server-state caches',
-  );
-  assert.equal(
-    source.includes('useQueryClient'),
-    true,
-    'authenticated wallet warmup must prefetch through React Query',
-  );
-  assert.equal(
-    source.includes('fetchTicketsWallet'),
-    true,
-    'authenticated wallet warmup must use the feature query seam',
-  );
+  assert.equal(source.includes('CacheWarmer'), false);
+  assert.equal(source.includes('fetchTicketsWallet'), false);
+  assert.equal(source.includes('fetchEvents'), false);
+  assert.equal(source.includes('fetchHosts'), false);
 });
 
 test('Ticket wallet server state has a feature-owned React Query seam', () => {

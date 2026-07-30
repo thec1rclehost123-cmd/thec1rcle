@@ -37,6 +37,7 @@ export interface SlotRequestInput {
   eventId?: string;
   venueName?: string;
   hostName?: string;
+  timezone?: string;
   source?: string;
 }
 
@@ -527,6 +528,7 @@ export class SchedulingService {
     const record = {
       venueId: input.venueId,
       venueName: input.venueName ?? existingData.venueName ?? null,
+      timezone: input.timezone ?? existingData.timezone ?? null,
       date: input.date,
       startTime: input.startTime,
       endTime: input.endTime,
