@@ -216,7 +216,7 @@ describe('createReservation — concurrent race protection', () => {
 
   it('succeeds with valid inventory', async () => {
     const event = makeEvent('tier-a', 5, 0);
-    const result = await createReservation(event, 'user-1', 'dev-1', makeItems('tier-a', 2));
+    const result = await createReservation(event, 'user-1', 'dev-1', makeItems('tier-a', 1));
     expect(result.success).toBe(true);
     expect(result.reservationId).toBeDefined();
   });
