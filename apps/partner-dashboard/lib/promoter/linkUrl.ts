@@ -14,10 +14,7 @@ function trimTrailingSlash(value: string) {
   return value.replace(/\/+$/, '');
 }
 
-export function buildPromoterVanityPrefix(
-  link: PromoterLinkUrlInput,
-  guestPortalUrl: string,
-) {
+export function buildPromoterVanityPrefix(link: PromoterLinkUrlInput, guestPortalUrl: string) {
   const configuredPrefix =
     String(link.vanityPrefix || '').trim() ||
     (link.promoterHandle ? `/${String(link.promoterHandle).replace(/^@/, '')}/` : '');
