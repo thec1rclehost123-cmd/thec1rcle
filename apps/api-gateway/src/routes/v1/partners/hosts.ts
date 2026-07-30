@@ -10,7 +10,7 @@ import {
   buildHostEventUpdatePatch,
   buildHostTicketTierUpdate,
   EventUpdateValidationError,
-} from '@c1rcle/core/event-update-policy.js';
+} from '@c1rcle/core/event-update-policy';
 import type { PartnerContext } from '../../../services/unified/types.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
 import {
