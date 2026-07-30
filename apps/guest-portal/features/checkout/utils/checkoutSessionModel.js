@@ -7,12 +7,7 @@ export function getReservationItemsSignature(items) {
   return JSON.stringify(normalizeReservationItems(items));
 }
 
-export function isPendingOrderSnapshotCurrent({
-  eventId,
-  snapshot,
-  ticketSignature,
-  userId,
-}) {
+export function isPendingOrderSnapshotCurrent({ eventId, snapshot, ticketSignature, userId }) {
   if (!snapshot?.orderId || !snapshot?.ticketSignature) return false;
   if (snapshot.eventId && eventId && snapshot.eventId !== eventId) return false;
   if (snapshot.userId && userId && snapshot.userId !== userId) return false;

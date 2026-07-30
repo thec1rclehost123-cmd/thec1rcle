@@ -389,8 +389,7 @@ async function ensureProfile(
     const hasActiveMembership =
       memberships.length > 0 &&
       memberships.some(
-        (membership: any) =>
-          membership?.isActive === true || membership?.status === 'active',
+        (membership: any) => membership?.isActive === true || membership?.status === 'active',
       );
 
     if (
@@ -451,11 +450,7 @@ async function ensureProfile(
   });
 }
 
-async function optionalWithin<T>(
-  promise: Promise<T>,
-  fallback: T,
-  timeoutMs: number,
-): Promise<T> {
+async function optionalWithin<T>(promise: Promise<T>, fallback: T, timeoutMs: number): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
@@ -480,11 +475,7 @@ async function buildBootstrapForUid(
 
   // Profile is the only critical read. Notification count has a dedicated
   // React Query endpoint and must not delay session restoration.
-  const profile = (await ensureProfile(
-    fastify,
-    userLike,
-    memberships,
-  )) as Record<string, any>;
+  const profile = (await ensureProfile(fastify, userLike, memberships)) as Record<string, any>;
   const shouldLoadOnboarding =
     Boolean(profile?.onboardingRequestId) || profile?.onboardingComplete !== true;
   const onboardingRequest = shouldLoadOnboarding

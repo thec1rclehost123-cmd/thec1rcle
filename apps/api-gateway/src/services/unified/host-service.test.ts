@@ -73,7 +73,8 @@ describe('HostService.getPerformance', () => {
 
   it('builds revenue and ticket series only from bounded ledger projections', async () => {
     const db = new MockFirestore();
-    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     db.seed(`partner_finance_aggregates/host_1/daily/${today}`, {
       date: today,
       grossRevenue: 49_900,

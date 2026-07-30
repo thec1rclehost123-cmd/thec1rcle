@@ -1343,18 +1343,18 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         transaction.update(ref, updates);
 
         if (linkedEventRef && linkedEventDoc?.exists) {
-            const eventUpdates: Record<string, any> = {
-              slotStatus: nextStatus,
-              slotRespondedAt: now,
-              updatedAt: now,
-            };
-            if (action === 'approve') {
-              eventUpdates.lifecycle = 'scheduled';
-              eventUpdates.approvedAt = now;
-            } else if (action === 'reject') {
-              eventUpdates.lifecycle = 'denied';
-            }
-            transaction.update(linkedEventRef, eventUpdates);
+          const eventUpdates: Record<string, any> = {
+            slotStatus: nextStatus,
+            slotRespondedAt: now,
+            updatedAt: now,
+          };
+          if (action === 'approve') {
+            eventUpdates.lifecycle = 'scheduled';
+            eventUpdates.approvedAt = now;
+          } else if (action === 'reject') {
+            eventUpdates.lifecycle = 'denied';
+          }
+          transaction.update(linkedEventRef, eventUpdates);
         }
 
         return {

@@ -142,9 +142,9 @@ describe('ticketing checkout verification primitives', () => {
       entitlementIds: first.entitlementIds,
     });
     expect([...db.documents.keys()].filter((key) => key.startsWith('tickets/'))).toHaveLength(1);
-    expect(
-      [...db.documents.keys()].filter((key) => key.startsWith('entitlements/')),
-    ).toHaveLength(1);
+    expect([...db.documents.keys()].filter((key) => key.startsWith('entitlements/'))).toHaveLength(
+      1,
+    );
     expect([...db.documents.keys()].filter((key) => key.startsWith('payments/'))).toHaveLength(0);
     expect(
       [...db.documents.keys()].filter((key) => key.startsWith('partner_ledger/')),
