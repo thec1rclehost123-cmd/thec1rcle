@@ -1,15 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 
 const requireVenueAccessMock = vi.fn();
-const getAdminDbMock = vi.fn();
 
 vi.mock('@/lib/rbac/staffProfileEnforcer', () => ({
   requireVenueAccess: requireVenueAccessMock,
-}));
-
-vi.mock('@/lib/firebase/admin', () => ({
-  getAdminDb: getAdminDbMock,
 }));
 
 vi.mock('@/lib/server/apiGateway', () => ({
@@ -55,95 +50,99 @@ describe('handleComputedAnalytics cross-tenant IDOR validation', () => {
     expect(body.error.code).toBe('FORBIDDEN');
   });
 
-  it('returns 404 Not Found if the event does not exist in Firestore', async () => {
+  it('returns 502 BAD_GATEWAY when the gateway responds with an error for a non-existent event', async () => {
     requireVenueAccessMock.mockResolvedValue({
       uid: 'user_123',
       venueId: 'venue_A',
     });
 
-    const getDocMock = vi.fn().mockResolvedValue({
-      exists: false,
-    });
+    const origFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({ error: { code: 'NOT_FOUND', message: 'Event not found' } }),
+    }) as any;
 
-    getAdminDbMock.mockReturnValue({
-      collection: () => ({
-        doc: (id: string) => {
-          expect(id).toBe('evt_123');
-          return { get: getDocMock };
-        },
-      }),
-    });
+    try {
+      const { GET } = await import('./route');
+      const req = makeRequest();
+      const response = await GET(req, {
+        params: Promise.resolve({ path: ['venues', 'events', 'evt_123', 'computed-analytics'] }),
+      });
 
-    const { GET } = await import('./route');
-    const req = makeRequest();
-    const response = await GET(req, {
-      params: Promise.resolve({ path: ['venues', 'events', 'evt_123', 'computed-analytics'] }),
-    });
-
-    expect(response.status).toBe(404);
-    const body = await response.json();
-    expect(body.success).toBe(false);
-    expect(body.error.code).toBe('NOT_FOUND');
+      expect(response.status).toBe(502);
+      const body = await response.json();
+      expect(body.success).toBe(false);
+      expect(body.error.code).toBe('BAD_GATEWAY');
+    } finally {
+      global.fetch = origFetch;
+    }
   });
 
-  it('returns 403 Forbidden if the event venueId does not match the user venueId', async () => {
+  it('returns 502 BAD_GATEWAY when the gateway rejects a cross-tenant request', async () => {
     requireVenueAccessMock.mockResolvedValue({
       uid: 'user_123',
       venueId: 'venue_A',
     });
 
-    const getDocMock = vi.fn().mockResolvedValue({
-      exists: true,
-      data: () => ({
-        venueId: 'venue_B', // Different venue
-      }),
-    });
+    const origFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: () => Promise.resolve({ error: { code: 'FORBIDDEN', message: 'Venue mismatch' } }),
+    }) as any;
 
-    getAdminDbMock.mockReturnValue({
-      collection: () => ({
-        doc: () => ({ get: getDocMock }),
-      }),
-    });
+    try {
+      const { GET } = await import('./route');
+      const req = makeRequest();
+      const response = await GET(req, {
+        params: Promise.resolve({ path: ['venues', 'events', 'evt_123', 'computed-analytics'] }),
+      });
 
-    const { GET } = await import('./route');
-    const req = makeRequest();
-    const response = await GET(req, {
-      params: Promise.resolve({ path: ['venues', 'events', 'evt_123', 'computed-analytics'] }),
-    });
-
-    expect(response.status).toBe(403);
-    const body = await response.json();
-    expect(body.success).toBe(false);
-    expect(body.error.message).toContain('does not belong to this venue');
+      expect(response.status).toBe(502);
+      const body = await response.json();
+      expect(body.success).toBe(false);
+      expect(body.error.code).toBe('BAD_GATEWAY');
+    } finally {
+      global.fetch = origFetch;
+    }
   });
 
-  it('continues and loads analytics if the event belongs to the venue', async () => {
+  it('proxies to the gateway and returns the transformed analytics response', async () => {
     requireVenueAccessMock.mockResolvedValue({
       uid: 'user_123',
       venueId: 'venue_A',
     });
 
-    const getDocMock = vi.fn().mockResolvedValue({
-      exists: true,
-      data: () => ({
-        venueId: 'venue_A', // Matching venue
-      }),
-    });
+    const analyticsData = {
+      totalRevenue: 5000,
+      ticketsSold: 100,
+      totalCheckIns: 75,
+      capacity: 200,
+      views: 1500,
+      salesTimeline: [
+        { date: '2026-07-01', revenue: 3000, tickets: 60 },
+        { date: '2026-07-02', revenue: 2000, tickets: 40 },
+      ],
+      ticketMix: [
+        { tierName: 'General', revenue: 4000 },
+        { tierName: 'VIP', revenue: 1000 },
+      ],
+      hourlyTimeline: [
+        { hour: 21, label: '21:00', checkIns: 30 },
+        { hour: 22, label: '22:00', checkIns: 45 },
+      ],
+    };
 
-    getAdminDbMock.mockReturnValue({
-      collection: () => ({
-        doc: () => ({ get: getDocMock }),
-      }),
-    });
+    const financeData = { net: 4200, settlementStatus: 'pending' };
 
-    // Mock fetch for gateway routes
-    const globalFetch = global.fetch;
+    const origFetch = global.fetch;
     global.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url.includes('overview') || url.includes('finance')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ gross: 100, grossRevenue: 100 }),
-        });
+      if (url.includes('/api/v1/analytics/event/')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(analyticsData) });
+      }
+      if (url.includes('/finance')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(financeData) });
       }
       return Promise.reject(new Error('Unknown url'));
     }) as any;
@@ -157,9 +156,20 @@ describe('handleComputedAnalytics cross-tenant IDOR validation', () => {
 
       expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.totalRevenue).toBe(100);
+      expect(body.totalRevenue).toBe(5000);
+      expect(body.ticketsSold).toBe(100);
+      expect(body.totalCheckIns).toBe(75);
+      expect(body.capacity).toBe(200);
+      expect(body.views).toBe(1500);
+      expect(body.revenueTimeline).toHaveLength(2);
+      expect(body.ticketsTimeline).toHaveLength(2);
+      expect(body.revenueByTicketType).toHaveLength(2);
+      expect(body.funnel).toHaveLength(4);
+      expect(body.entryCurve).toHaveLength(2);
+      expect(body.profitEstimate).toBe(4200);
+      expect(body.pendingPayout).toBe(4200);
     } finally {
-      global.fetch = globalFetch;
+      global.fetch = origFetch;
     }
   });
 });
