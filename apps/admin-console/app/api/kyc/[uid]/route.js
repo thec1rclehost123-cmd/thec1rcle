@@ -314,5 +314,5 @@ async function patchHandler(req, { params }) {
   return NextResponse.json({ success: true, kycStatus: newKycStatus, stepStatus: newStepStatus });
 }
 
-export const GET = withAdminAuth(getHandler, 'support');
+export const GET = withAdminAuth(getHandler);
 export const PATCH = withAdminAuth(patchHandler, 'support');

@@ -4,7 +4,7 @@ import { Resend } from 'resend';
 import { getRedisClient } from '@c1rcle/core/redis';
 import { normalizePartnerProfileFields } from '@c1rcle/core/partner-profile-normalizer';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { dedupeCurrentOnboardingRequests } from './onboardingRequests.js';
+import { dedupeCurrentOnboardingRequests } from './onboardingRequests';
 
 export const adminStoreContext = new AsyncLocalStorage();
 
