@@ -294,19 +294,44 @@ function HeroMetric({
 
   return (
     <div
-      className="rounded-2xl p-5 sm:p-6 flex flex-col gap-3 relative overflow-hidden"
+      className="rounded-2xl p-5 sm:p-6 flex flex-col gap-3 relative overflow-visible group"
       style={{ background: 'var(--v-card)', border: '1px solid var(--v-border)' }}
     >
+      {metric.tooltip && (
+        <div className="absolute left-1/2 -top-2 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-30 whitespace-nowrap">
+          <div
+            className="px-3 py-2 rounded-xl text-[11px] font-bold max-w-xs"
+            style={{
+              background: '#18181b',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: 'var(--v-text-primary)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+            }}
+          >
+            {metric.tooltip}
+          </div>
+          <div
+            className="w-2 h-2 mx-auto -mt-1 rotate-45"
+            style={{
+              background: '#18181b',
+              borderRight: '1px solid rgba(255,255,255,0.1)',
+              borderBottom: '1px solid rgba(255,255,255,0.1)',
+            }}
+          />
+        </div>
+      )}
       {/* Accent glow */}
       {accentColor && (
-        <div
-          className="absolute top-0 right-0 w-32 h-32 opacity-[0.07] rounded-full"
-          style={{
-            background: accentColor,
-            filter: 'blur(40px)',
-            transform: 'translate(30%, -30%)',
-          }}
-        />
+        <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+          <div
+            className="absolute top-0 right-0 w-32 h-32 opacity-[0.07] rounded-full"
+            style={{
+              background: accentColor,
+              filter: 'blur(40px)',
+              transform: 'translate(30%, -30%)',
+            }}
+          />
+        </div>
       )}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">

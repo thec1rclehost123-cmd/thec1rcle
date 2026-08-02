@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getVenueAnalytics, getPromoterFunnel } from '@c1rcle/core/analytics-engine';
 import { PROMOTER_COMMISSION_TIERS } from '../../lib/rbac-permissions';
 import { getEventCommerceMetrics } from '../../lib/canonicalCommerceMetrics';
+import { aggregateAudience } from '../../lib/analyticsAudience';
 import { HostService } from '../../services/unified/host-service.js';
 import type { OverviewRange, PartnerContext } from '../../services/unified/types.js';
 
@@ -203,13 +204,49 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
           venueIds: [],
           displayName: String((request as any).user?.displayName || 'Host'),
         };
-        const [performance, statsSnap] = await Promise.all([
+        const windowStart = new Date();
+        if (overviewRange === '1w') windowStart.setDate(windowStart.getDate() - 7);
+        else if (overviewRange === 'all') windowStart.setMonth(windowStart.getMonth() - 6);
+        else windowStart.setDate(windowStart.getDate() - 30);
+        const fromIso = windowStart.toISOString();
+        const [performance, statsSnap, audience] = await Promise.all([
           hostService.getPerformance(ctx, overviewRange, 'tickets'),
           fastify.db.collection('host_stats').doc(id).get(),
+          aggregateAudience(fastify.db, { hostId: id }, fromIso),
         ]);
         const hostStats = statsSnap.exists ? (statsSnap.data() as Record<string, any>) : {};
         const totalRevenue = performance.series.reduce((sum, point) => sum + point.revenue, 0);
-        const ticketsSold = performance.series.reduce((sum, point) => sum + point.ticketsSold, 0);
+        const paidTickets = performance.series.reduce((sum, point) => sum + point.ticketsSold, 0);
+        // Guest RSVPs are written without hostId (guest-order-engine), so resolve
+        // them via the host's events instead of filtering rsvp_orders by hostId.
+        const eventsSnap = await fastify.db
+          .collection('events')
+          .where('hostId', '==', id)
+          .limit(500)
+          .get()
+          .catch(() => ({ docs: [] as any[] }));
+        const eventIds = ((eventsSnap as any).docs || []).map((d: any) => d.id);
+        const rsvpDocs: any[] = [];
+        for (let i = 0; i < eventIds.length; i += 30) {
+          const batch = eventIds.slice(i, i + 30);
+          const snap = await fastify.db
+            .collection('rsvp_orders')
+            .where('eventId', 'in', batch)
+            .limit(2000)
+            .get()
+            .catch(() => ({ docs: [] as any[] }));
+          rsvpDocs.push(...((snap as any).docs || []));
+        }
+        const rsvpTickets = rsvpDocs.reduce((count: number, doc: any) => {
+          const rsvp = doc.data() || {};
+          const created = rsvp.createdAt?.toDate?.()
+            ? rsvp.createdAt.toDate().toISOString()
+            : rsvp.createdAt;
+          if (rsvp.status !== 'confirmed') return count;
+          if (created && created < fromIso) return count;
+          return count + (Number(rsvp.ticketCount || rsvp.quantity || 1) || 1);
+        }, 0);
+        const ticketsSold = paidTickets + rsvpTickets;
         const result = {
           role: 'host',
           rangeLabel:
@@ -223,6 +260,8 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
           totalRevenue,
           ticketsSold,
           totalTicketsSold: ticketsSold,
+          ticketsSoldPaid: paidTickets,
+          ticketsSoldRsvp: rsvpTickets,
           totalCheckIns: Number(hostStats.totalCheckIns || 0),
           guestlistSignups: Number(hostStats.guestlistSignups || hostStats.totalRsvps || 0),
           revenueTimeline: performance.series.map((point) => ({
@@ -235,6 +274,8 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
             label: point.label,
             tickets: point.ticketsSold,
           })),
+          genderRatio: audience.genderRatio,
+          ageBands: audience.ageBands,
         };
 
         await fastify.cache.set('analytics:host', cacheKey, result, 120);

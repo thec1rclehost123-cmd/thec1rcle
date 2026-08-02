@@ -97,13 +97,38 @@ function HeaderStatCard({
   label,
   value,
   icon: Icon,
+  tooltip,
 }: {
   label: string;
   value: string;
   icon: React.ElementType;
+  tooltip?: string;
 }) {
   return (
-    <div className="rounded-[22px] bg-white/[0.045] p-4 backdrop-blur-sm">
+    <div className="relative group rounded-[22px] bg-white/[0.045] p-4 backdrop-blur-sm">
+      {tooltip && (
+        <div className="absolute left-1/2 -top-2 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-30 whitespace-nowrap">
+          <div
+            className="px-3 py-2 rounded-xl text-[11px] font-bold max-w-xs"
+            style={{
+              background: '#18181b',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: 'var(--v-text-primary)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+            }}
+          >
+            {tooltip}
+          </div>
+          <div
+            className="w-2 h-2 mx-auto -mt-1 rotate-45"
+            style={{
+              background: '#18181b',
+              borderRight: '1px solid rgba(255,255,255,0.1)',
+              borderBottom: '1px solid rgba(255,255,255,0.1)',
+            }}
+          />
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-white">{label}</p>
         <Icon className="h-4 w-4 text-[var(--v-orange)]" />
@@ -139,7 +164,7 @@ export default function EventAnalyticsClient({
 }) {
   const { profile, user } = useDashboardAuth();
   const entityId = profile?.activeMembership?.partnerId;
-  const useComputedEventAnalytics = role === 'venue' && Boolean(eventId);
+  const useComputedEventAnalytics = Boolean(eventId);
 
   const [rangeDays, setRangeDays] = useState<number>(30);
   const [activeTab, setActiveTab] = useState<string>('summary');
@@ -204,9 +229,12 @@ export default function EventAnalyticsClient({
       };
 
       if (useComputedEventAnalytics && eventId) {
-        const res = await fetch(`/api/partners/venues/events/${eventId}/computed-analytics`, {
-          headers,
-        });
+        const res = await fetch(
+          `/api/partners/${role === 'host' ? 'hosts' : 'venues'}/events/${eventId}/computed-analytics`,
+          {
+            headers,
+          },
+        );
         if (!res.ok) throw new Error('Failed to load event analytics');
         return res.json();
       }
@@ -387,6 +415,7 @@ export default function EventAnalyticsClient({
               label="Tickets Sold"
               value={isAnalyticsLoading ? '—' : data.executive.ticketsSold.formatted}
               icon={Ticket}
+              tooltip={data.executive.ticketsSold.tooltip}
             />
             <HeaderStatCard
               label="Page Visits"
