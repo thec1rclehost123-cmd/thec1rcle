@@ -367,7 +367,7 @@ async function main() {
         firebaseProjectId:
           process.env.FIREBASE_PROJECT_ID ||
           process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ||
-          'thec1rcle-india',
+          'c1rcle-staging',
         nodeEnv: process.env.NODE_ENV || 'development',
       },
       services: {
