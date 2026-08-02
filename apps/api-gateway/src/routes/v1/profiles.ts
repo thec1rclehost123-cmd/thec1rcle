@@ -27,7 +27,7 @@ const guestPhoneSchema = z
   .string()
   .max(20)
   .refine((value) => value === '' || GUEST_PHONE_REGEX.test(value), {
-    message: 'Phone number must contain exactly 10 digits',
+    message: 'Phone number must be a 10-digit number optionally prefixed with +91',
   })
   .optional();
 
@@ -81,7 +81,31 @@ const UserProfileCreateBody = z
     onboardingComplete: z.boolean().optional(),
     bio: z.string().max(500).optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (data) => {
+      if (data.onboardingComplete === true) {
+        return (
+          data.phone &&
+          data.phone.trim() !== '' &&
+          data.displayName &&
+          data.displayName.trim() !== '' &&
+          data.age !== undefined &&
+          data.age !== null &&
+          data.gender &&
+          data.gender.trim() !== '' &&
+          data.city &&
+          data.city.trim() !== ''
+        );
+      }
+      return true;
+    },
+    {
+      message:
+        'displayName, age, gender, city, and phone are all required when onboardingComplete is true',
+      path: ['onboardingComplete'],
+    },
+  );
 
 export default async function profileRoutes(fastify: FastifyInstance) {
   const ALLOWED_PROMOTER_PROFILE_FIELDS = [
