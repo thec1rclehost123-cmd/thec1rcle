@@ -1,6 +1,6 @@
 const GENDER_CHANGE_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 
-export const GUEST_PHONE_REGEX = /^\d{10}$/;
+export const GUEST_PHONE_REGEX = /^(\+91)?\d{10}$/;
 
 const GUEST_PROFILE_UPDATE_FIELDS = new Set([
   'displayName',
@@ -192,13 +192,23 @@ export function buildGuestProfileCreatePayload(
     avatar: body.avatar,
   });
 
+  let phone = body.phone || body.phoneNumber || user.phone_number || null;
+  if (phone) {
+    const trimmed = String(phone).trim();
+    if (/^\d{10}$/.test(trimmed)) {
+      phone = `+91${trimmed}`;
+    } else if (/^\+91\d{10}$/.test(trimmed)) {
+      phone = trimmed;
+    }
+  }
+
   return {
     uid,
     email,
     displayName,
     photoURL: photoURL || '',
     avatar: avatar || '',
-    phone: body.phone || body.phoneNumber || user.phone_number || null,
+    phone,
     city: body.city || '',
     instagram: body.instagram || '',
     age: body.age ?? null,
@@ -229,18 +239,26 @@ export function buildGuestProfileUpdates(
   }
 
   if (safeUpdates.phone !== undefined) {
-    const trimmedPhone = String(safeUpdates.phone).trim();
+    let trimmedPhone = String(safeUpdates.phone).trim();
 
     if (trimmedPhone && !GUEST_PHONE_REGEX.test(trimmedPhone)) {
       return {
         safeUpdates: {},
-        error: 'Phone number must contain exactly 10 digits.',
+        error: 'Phone number must contain exactly 10 digits, optionally prefixed with +91.',
         statusCode: 400,
       };
     }
 
-    safeUpdates.phone = trimmedPhone;
-    safeUpdates.phoneNumber = trimmedPhone;
+    if (trimmedPhone) {
+      if (/^\d{10}$/.test(trimmedPhone)) {
+        trimmedPhone = `+91${trimmedPhone}`;
+      }
+      safeUpdates.phone = trimmedPhone;
+      safeUpdates.phoneNumber = trimmedPhone;
+    } else {
+      safeUpdates.phone = '';
+      safeUpdates.phoneNumber = '';
+    }
   }
 
   if (safeUpdates.photoURL !== undefined && safeUpdates.avatar === undefined) {
@@ -274,6 +292,38 @@ export function buildGuestProfileUpdates(
       safeUpdates.genderLastChangedAt = now;
     } else if (!existingGender) {
       safeUpdates.genderLastChangedAt = now;
+    }
+  }
+
+  const willBeOnboardingComplete =
+    safeUpdates.onboardingComplete === true ||
+    (existing.onboardingComplete === true && safeUpdates.onboardingComplete !== false);
+  if (willBeOnboardingComplete) {
+    const merged = { ...existing, ...safeUpdates };
+    const phoneVal = merged.phone || merged.phoneNumber;
+    const nameVal = merged.displayName;
+    const ageVal = merged.age;
+    const genderVal = merged.gender;
+    const cityVal = merged.city;
+
+    if (
+      !phoneVal ||
+      String(phoneVal).trim() === '' ||
+      !nameVal ||
+      String(nameVal).trim() === '' ||
+      ageVal === undefined ||
+      ageVal === null ||
+      !genderVal ||
+      String(genderVal).trim() === '' ||
+      !cityVal ||
+      String(cityVal).trim() === ''
+    ) {
+      return {
+        safeUpdates: {},
+        error:
+          'Cannot complete onboarding: displayName, age, gender, city, and phone are all required.',
+        statusCode: 400,
+      };
     }
   }
 
