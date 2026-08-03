@@ -351,16 +351,35 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
     async (request: any, reply) => {
       const { id: eventId } = request.params as { id: string };
 
-      // Resolve the event's partner for access check
+      // Resolve the event's partner for access check (allows either host or venue partner)
       const eventDoc = await fastify.db.collection('events').doc(eventId).get();
       if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
-      const partnerId = (eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId;
-      if (partnerId) {
+      const eventData = eventDoc.data() as any;
+      const hostId =
+        eventData.hostId || (eventData.creatorRole === 'host' ? eventData.creatorId : null);
+      const venueId =
+        eventData.venueId || (eventData.creatorRole === 'venue' ? eventData.creatorId : null);
+
+      let allowed = false;
+      if (hostId) {
         try {
-          await fastify.verifyPartnerAccess(request, partnerId);
+          await fastify.verifyPartnerAccess(request, hostId);
+          allowed = true;
         } catch {
-          return reply.status(403).send({ error: 'Forbidden' });
+          // User might be the venue partner for this event
         }
+      }
+      if (!allowed && venueId) {
+        try {
+          await fastify.verifyPartnerAccess(request, venueId);
+          allowed = true;
+        } catch {
+          // User is neither host nor venue
+        }
+      }
+
+      if (!allowed && (hostId || venueId)) {
+        return reply.status(403).send({ error: 'Forbidden' });
       }
 
       try {
@@ -369,18 +388,122 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
         if (cached) return cached;
 
         // Finance and admission truth come from the canonical ledger and tickets.
-        const [overviewSnap, commerce] = await Promise.all([
-          fastify.db.collection('event_analytics').doc(eventId).get(),
-          getEventCommerceMetrics(fastify.db, eventId),
-        ]);
+        const [overviewSnap, eventSnap, commerce, ordersSnap, checkinsCountSnap] =
+          await Promise.all([
+            fastify.db.collection('event_analytics').doc(eventId).get(),
+            fastify.db.collection('events').doc(eventId).get(),
+            getEventCommerceMetrics(fastify.db, eventId),
+            fastify.db
+              .collection('orders')
+              .where('eventId', '==', eventId)
+              .where('status', 'in', ['confirmed', 'paid'])
+              .get()
+              .catch(() => ({ docs: [] as any[] })),
+            fastify.db
+              .collection('ticket_scans')
+              .where('eventId', '==', eventId)
+              .count()
+              .get()
+              .catch(() => null),
+          ]);
 
         const overview = overviewSnap.exists ? (overviewSnap.data() as Record<string, any>) : {};
+        const eventData = eventSnap.exists ? (eventSnap.data() as Record<string, any>) : {};
+
+        // Derive the per-phase breakdown from canonical orders + ledger so the
+        // values stay refund-aware and net-consistent with the KPI figures.
+        const orderDocs = (ordersSnap as any).docs || [];
+        const computedPhaseBreakdown: Record<string, { ticketsSold: number; revenue: number }> = {};
+        for (const orderDoc of orderDocs) {
+          const o = orderDoc.data() as Record<string, any>;
+          const orderNet = Number(commerce.orderRevenuePaise[orderDoc.id]?.netPaise ?? 0) / 100;
+          const lines = Array.isArray(o.tickets) ? o.tickets : [];
+          const lineGrossTotal = lines.reduce(
+            (sum, line) =>
+              sum +
+              (Number(line.total ?? line.subtotal ?? line.price * Number(line.quantity || 1)) || 0),
+            0,
+          );
+          for (const line of lines) {
+            const phase = String(line.priceLabel || 'Regular');
+            const qty = Number(line.quantity) || 1;
+            const gross = Number(line.total ?? line.subtotal ?? line.price * qty) || 0;
+            const share =
+              lineGrossTotal > 0 ? gross / lineGrossTotal : lines.length > 0 ? 1 / lines.length : 0;
+            const entry = computedPhaseBreakdown[phase] || { ticketsSold: 0, revenue: 0 };
+            entry.ticketsSold += qty;
+            entry.revenue += orderNet * share;
+            computedPhaseBreakdown[phase] = entry;
+          }
+        }
+        const salesByPhase =
+          Object.keys(computedPhaseBreakdown).length > 0
+            ? computedPhaseBreakdown
+            : (overview.salesByPhase ?? eventData.stats?.salesByPhase ?? {});
+
+        // Daily sales timeline from canonical tickets + ledger (refund-aware, net).
+        const salesByDate = new Map<string, { tickets: number; revenue: number }>();
+        for (const ticket of commerce.soldTickets) {
+          const date = String(ticket.issuedAt || ticket.createdAt || '').slice(0, 10);
+          if (!date) continue;
+          if (!salesByDate.has(date)) salesByDate.set(date, { tickets: 0, revenue: 0 });
+          salesByDate.get(date)!.tickets += 1;
+        }
+        for (const ledgerEntry of [...commerce.revenueEntries, ...commerce.refundEntries]) {
+          const date = String(ledgerEntry.createdAt || '').slice(0, 10);
+          if (!date) continue;
+          if (!salesByDate.has(date)) salesByDate.set(date, { tickets: 0, revenue: 0 });
+          salesByDate.get(date)!.revenue += Number(ledgerEntry.amountPaise || 0) / 100;
+        }
+        const salesTimeline = Array.from(salesByDate.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, b]) => ({
+            date,
+            label: new Date(date + 'T00:00:00Z').toLocaleDateString('en-IN', {
+              month: 'short',
+              day: 'numeric',
+            }),
+            tickets: b.tickets,
+            revenue: b.revenue,
+          }));
+
+        // Ticket mix from canonical tickets, allocating net order revenue per ticket.
+        const soldCountByOrder: Record<string, number> = {};
+        for (const t of commerce.soldTickets) {
+          soldCountByOrder[t.orderId] = (soldCountByOrder[t.orderId] || 0) + 1;
+        }
+        const tierMap = new Map<string, { tierName: string; sold: number; revenue: number }>();
+        for (const ticket of commerce.soldTickets) {
+          const tierId = String(ticket.tierId || ticket.metadata?.tierId || 'unknown');
+          const tierName = String(ticket.tierName || ticket.metadata?.tierName || 'Ticket');
+          if (!tierMap.has(tierId)) tierMap.set(tierId, { tierName, sold: 0, revenue: 0 });
+          const entry = tierMap.get(tierId)!;
+          entry.sold += 1;
+          const orderNet = Number(commerce.orderRevenuePaise[ticket.orderId]?.netPaise ?? 0) / 100;
+          const count = soldCountByOrder[ticket.orderId] || 1;
+          entry.revenue += orderNet / count;
+        }
+        const ticketMix = Array.from(tierMap.entries()).map(([tierId, v]) => ({
+          tierId,
+          tierName: v.tierName,
+          revenue: v.revenue,
+          sold: v.sold,
+        }));
         const grossRevenue = commerce.grossRevenue;
         const netRevenue = commerce.netRevenue;
         const ticketsSold = commerce.ticketsSold;
-        const totalCheckedIn = Number(overview.totalCheckedIn ?? 0);
-        const capacity = Number(overview.capacity ?? 0);
-        const views = Number(overview.views ?? 0);
+        const totalCheckedIn = checkinsCountSnap
+          ? Number(checkinsCountSnap.data().count ?? 0)
+          : Number(overview.totalCheckedIn ?? 0);
+        const tierCapacity = Array.isArray(eventData.tiers)
+          ? eventData.tiers.reduce(
+              (sum: number, t: any) => sum + Number(t.capacity ?? t.quantity ?? 0),
+              0,
+            )
+          : 0;
+        const capacity =
+          tierCapacity > 0 ? tierCapacity : Number(eventData.capacity ?? overview.capacity ?? 0);
+        const views = Number(eventData.stats?.views ?? overview.views ?? 0);
         const guestlistSignups = Number(overview.guestListSize ?? 0);
         const refundAmount = commerce.refundAmount;
         const uniqueAttendees = Number(overview.uniqueAttendees ?? 0);
@@ -395,7 +518,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
           views,
           avgTicketPrice: ticketsSold > 0 ? netRevenue / ticketsSold : 0,
           occupancyRate: capacity > 0 ? (totalCheckedIn / capacity) * 100 : 0,
-          sellThroughRate: Number(overview.sellThrough ?? 0),
+          sellThroughRate: capacity > 0 ? (ticketsSold / capacity) * 100 : 0,
           refundAmount,
           refundRate: grossRevenue > 0 ? (refundAmount / grossRevenue) * 100 : 0,
           noShowRate:
@@ -417,9 +540,10 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
             guestlistSignups > 0
               ? (Math.min(totalCheckedIn, guestlistSignups) / guestlistSignups) * 100
               : 0,
-          salesTimeline: overview.salesTimeline ?? [],
+          salesTimeline,
           hourlyTimeline: overview.hourlyTimeline ?? [],
-          ticketMix: overview.ticketMix ?? [],
+          ticketMix,
+          salesByPhase,
           peakCheckInHour: overview.peakCheckInHour ?? null,
         };
 

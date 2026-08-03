@@ -24,11 +24,24 @@ export function buildHostTicketPurchaseStats({ order, marker, ledgerRows }) {
   }
   const ticketCount = Array.isArray(order.entitlementIds) ? order.entitlementIds.length : 0;
   if (ticketCount <= 0) throw new Error('Confirmed order entitlements are required');
+  const phaseBreakdown = {};
+  if (Array.isArray(order.tickets)) {
+    for (const t of order.tickets) {
+      const phase = t.priceLabel || 'Regular';
+      const qty = Number(t.quantity) || 1;
+      const rev = Number(t.total || t.subtotal || t.price * qty) || 0;
+      if (!phaseBreakdown[phase]) phaseBreakdown[phase] = { ticketsSold: 0, revenue: 0 };
+      phaseBreakdown[phase].ticketsSold += qty;
+      phaseBreakdown[phase].revenue += rev;
+    }
+  }
+
   return {
     hostId: order.hostId,
     orderId: order.id,
     ticketCount,
     grossPaise: revenueEntry.amountPaise,
+    phaseBreakdown,
   };
 }
 
@@ -97,15 +110,17 @@ export const syncHostStats = inngest.createFunction(
 
       // For ticket purchases, we can use atomic increments
       if (event.name === Events.TICKET_PURCHASED) {
-        await statsRef.set(
-          {
-            totalTicketsSold: FieldValue.increment(purchaseStats.ticketCount),
-            totalRevenuePaise: FieldValue.increment(purchaseStats.grossPaise),
-            totalRevenue: FieldValue.increment(purchaseStats.grossPaise / 100),
-            lastUpdatedAt: new Date().toISOString(),
-          },
-          { merge: true },
-        );
+        const updates = {
+          totalTicketsSold: FieldValue.increment(purchaseStats.ticketCount),
+          totalRevenuePaise: FieldValue.increment(purchaseStats.grossPaise),
+          totalRevenue: FieldValue.increment(purchaseStats.grossPaise / 100),
+          lastUpdatedAt: new Date().toISOString(),
+        };
+        for (const [phase, data] of Object.entries(purchaseStats.phaseBreakdown || {})) {
+          updates[`salesByPhase.${phase}.ticketsSold`] = FieldValue.increment(data.ticketsSold);
+          updates[`salesByPhase.${phase}.revenue`] = FieldValue.increment(data.revenue);
+        }
+        await statsRef.set(updates, { merge: true });
       } else {
         // For event lifecycle changes, it's safer to re-calculate counts
         const eventsSnapshot = await db

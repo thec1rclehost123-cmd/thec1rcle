@@ -1335,13 +1335,22 @@ export const handleTicketFulfillment = inngest.createFunction(
     // Inngest throttles this to ≤100 executions/min/event, preventing write bursts.
     await step.run('update-event-stats', async () => {
       const count = ticketsCount ?? entitlements.length;
-      await db
-        .collection('events')
-        .doc(eventId)
-        .update({
-          'stats.ticketsSold': FieldValue.increment(count),
-          'stats.totalRevenue': FieldValue.increment(totalAmount || 0),
-        });
+      const updates = {
+        'stats.ticketsSold': FieldValue.increment(count),
+        'stats.totalRevenue': FieldValue.increment(totalAmount || 0),
+      };
+
+      if (Array.isArray(tickets)) {
+        for (const item of tickets) {
+          const phase = item.priceLabel || 'Regular';
+          const qty = Number(item.quantity) || 1;
+          const rev = Number(item.total || item.subtotal || item.price * qty) || 0;
+          updates[`stats.salesByPhase.${phase}.ticketsSold`] = FieldValue.increment(qty);
+          updates[`stats.salesByPhase.${phase}.revenue`] = FieldValue.increment(rev);
+        }
+      }
+
+      await db.collection('events').doc(eventId).update(updates);
       return { ticketsSold: count, revenue: totalAmount };
     });
 
@@ -1349,22 +1358,43 @@ export const handleTicketFulfillment = inngest.createFunction(
     await step.run('update-analytics', async () => {
       const now = new Date();
       const dateKey = now.toISOString().split('T')[0]; // YYYY-MM-DD
+      const ticketQty = entitlements.length;
 
-      // Atomic increment on event stats
-      await db
-        .collection('event_analytics')
-        .doc(`${eventId}_${dateKey}`)
-        .set(
-          {
-            eventId,
-            date: dateKey,
-            ticketsSold: FieldValue.increment(entitlements.length),
-            revenue: FieldValue.increment(totalAmount),
-            ordersCount: FieldValue.increment(1),
-            updatedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true },
-        );
+      const mainAnalyticsUpdates = {
+        eventId,
+        ticketsSold: FieldValue.increment(ticketQty),
+        revenue: FieldValue.increment(totalAmount),
+        ordersCount: FieldValue.increment(1),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      if (Array.isArray(tickets)) {
+        for (const item of tickets) {
+          const phase = item.priceLabel || 'Regular';
+          const qty = Number(item.quantity) || 1;
+          const rev = Number(item.total || item.subtotal || item.price * qty) || 0;
+          mainAnalyticsUpdates[`salesByPhase.${phase}.ticketsSold`] = FieldValue.increment(qty);
+          mainAnalyticsUpdates[`salesByPhase.${phase}.revenue`] = FieldValue.increment(rev);
+        }
+      }
+
+      await Promise.all([
+        db.collection('event_analytics').doc(eventId).set(mainAnalyticsUpdates, { merge: true }),
+        db
+          .collection('event_analytics')
+          .doc(`${eventId}_${dateKey}`)
+          .set(
+            {
+              eventId,
+              date: dateKey,
+              ticketsSold: FieldValue.increment(ticketQty),
+              revenue: FieldValue.increment(totalAmount),
+              ordersCount: FieldValue.increment(1),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          ),
+      ]);
 
       return { updated: true };
     });

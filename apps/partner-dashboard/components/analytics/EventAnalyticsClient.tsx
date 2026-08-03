@@ -229,12 +229,11 @@ export default function EventAnalyticsClient({
       };
 
       if (useComputedEventAnalytics && eventId) {
-        const res = await fetch(
-          `/api/partners/${role === 'host' ? 'hosts' : 'venues'}/events/${eventId}/computed-analytics`,
-          {
-            headers,
-          },
-        );
+        const url =
+          role === 'host'
+            ? `/api/host/events/${eventId}/computed-analytics`
+            : `/api/partners/venues/events/${eventId}/computed-analytics`;
+        const res = await fetch(url, { headers });
         if (!res.ok) throw new Error('Failed to load event analytics');
         return res.json();
       }

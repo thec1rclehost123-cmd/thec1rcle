@@ -502,6 +502,11 @@ export function normalizeAnalyticsV2(raw: Record<string, unknown> | null | undef
         { type: 'VIP', revenue: 0, pct: 0 },
         { type: 'Table', revenue: 0, pct: 0 },
       ]),
+      revenueByPhase: arr(r.revenueByPhase, [
+        { phase: 'Early Bird', revenue: 0, ticketsSold: 0, pct: 0 },
+        { phase: 'Regular', revenue: 0, ticketsSold: 0, pct: 0 },
+        { phase: 'Last Call', revenue: 0, ticketsSold: 0, pct: 0 },
+      ]),
       revenueBySource: arr(r.sources, [
         { source: 'Direct', revenue: 0, pct: 0 },
         { source: 'Instagram', revenue: 0, pct: 0 },
