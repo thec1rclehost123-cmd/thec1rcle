@@ -24,6 +24,7 @@ describe('ledger-backed host ticket purchase statistics', () => {
       orderId: 'order_1',
       ticketCount: 2,
       grossPaise: 108632,
+      phaseBreakdown: {},
     });
   });
 

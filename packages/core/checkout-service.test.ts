@@ -507,6 +507,8 @@ describe('CheckoutService parity', () => {
         entryType: 'general',
         genderRequirement: null,
         coverChargeConfig: null,
+        priceLabel: null,
+        scheduleSource: null,
       },
     ]);
     expect(orderRepo.payments.size).toBe(1);
