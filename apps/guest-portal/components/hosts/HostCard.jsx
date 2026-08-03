@@ -1,11 +1,57 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { BadgeCheck, TrendingUp, Share2, User, Heart, ImageOff } from 'lucide-react';
 import ShimmerImage from '../ShimmerImage';
+import { useAuth } from '../providers/AuthProvider';
+import { getHostFollowStatus, followHost, unfollowHost } from '../../features/social/api/socialApi';
 
 export default function HostCard({ host, onFollow, index }) {
+  const { user } = useAuth() || {};
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(host.followers ?? 0);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
+
+  useEffect(() => {
+    if (!user || !host?.id) return;
+    getHostFollowStatus(host.id)
+      .then(setIsFollowing)
+      .catch(() => {});
+  }, [user, host?.id]);
+
+  useEffect(() => {
+    setFollowersCount(host.followers ?? 0);
+  }, [host.followers]);
+
+  const handleFollowClick = async (e) => {
+    e.preventDefault();
+    if (isFollowLoading) return;
+    if (!user) {
+      onFollow && onFollow(host.id);
+      return;
+    }
+
+    const newStatus = !isFollowing;
+    setIsFollowing(newStatus);
+    setFollowersCount((prev) => (newStatus ? prev + 1 : Math.max(0, prev - 1)));
+    setIsFollowLoading(true);
+
+    try {
+      if (newStatus) {
+        await followHost(host.id);
+      } else {
+        await unfollowHost(host.id);
+      }
+    } catch {
+      setIsFollowing(!newStatus);
+      setFollowersCount((prev) => (!newStatus ? prev + 1 : Math.max(0, prev - 1)));
+    } finally {
+      setIsFollowLoading(false);
+    }
+  };
+
   const nextEventDateLabel = host.nextEventDate
     ? new Date(host.nextEventDate).toLocaleDateString('en-IN', {
         day: 'numeric',
@@ -104,9 +150,16 @@ export default function HostCard({ host, onFollow, index }) {
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <span className="inline-flex max-w-full px-2.5 py-1 rounded-full bg-[#F44A22]/20 border border-[#F44A22]/30 text-[9px] font-black uppercase tracking-widest text-[#FF8A6D]">
-                  {host.role ?? 'Host'}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="inline-flex max-w-full px-2.5 py-1 rounded-full bg-[#F44A22]/20 border border-[#F44A22]/30 text-[9px] font-black uppercase tracking-widest text-[#FF8A6D]">
+                    {host.role ?? 'Host'}
+                  </span>
+                  {isFollowing && (
+                    <span className="inline-flex max-w-full px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[9px] font-black uppercase tracking-widest text-emerald-400">
+                      Following
+                    </span>
+                  )}
+                </div>
 
                 <h3 className="mt-3 text-[22px] font-heading font-black uppercase tracking-tight text-white leading-[0.95] break-words [text-wrap:balance]">
                   {host.name ?? host.displayName ?? 'Unnamed Host'}
@@ -137,7 +190,7 @@ export default function HostCard({ host, onFollow, index }) {
       <div className="flex items-center justify-between px-5 py-3 border-b border-black/5 dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02]">
         <div>
           <p className="text-sm font-black text-black dark:text-white">
-            {(host.followers ?? 0).toLocaleString('en-IN')}
+            {followersCount.toLocaleString('en-IN')}
           </p>
           <p className="text-[9px] uppercase font-bold tracking-widest text-black/40 dark:text-white/40">
             Followers
@@ -163,14 +216,15 @@ export default function HostCard({ host, onFollow, index }) {
       {/* Actions */}
       <div className="p-4 flex items-center gap-3">
         <button
-          onClick={(e) => {
-            e.preventDefault();
-            onFollow && onFollow(host.id);
-          }}
+          onClick={handleFollowClick}
           className="flex-1 px-5 py-2.5 rounded-full bg-black dark:bg-white text-white dark:text-black text-[10px] font-black uppercase tracking-widest transition-all hover:opacity-80 active:scale-95 flex items-center justify-center gap-2 shadow"
         >
-          <Heart size={12} fill="currentColor" />
-          Follow
+          <Heart
+            size={12}
+            fill={isFollowing ? 'currentColor' : 'none'}
+            className={isFollowing ? 'text-[#F44A22]' : ''}
+          />
+          {isFollowing ? 'Following' : 'Follow'}
         </button>
         <button
           className="flex h-10 w-10 items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/20 dark:hover:border-white/20 transition-all active:scale-90"
