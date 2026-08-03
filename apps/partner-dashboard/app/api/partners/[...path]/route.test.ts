@@ -121,13 +121,18 @@ describe('handleComputedAnalytics cross-tenant IDOR validation', () => {
       capacity: 200,
       views: 1500,
       salesTimeline: [
-        { date: '2026-07-01', revenue: 3000, tickets: 60 },
-        { date: '2026-07-02', revenue: 2000, tickets: 40 },
+        { date: '2026-07-28', revenue: 3000, tickets: 60 },
+        { date: '2026-07-29', revenue: 2000, tickets: 40 },
       ],
       ticketMix: [
         { tierName: 'General', revenue: 4000 },
         { tierName: 'VIP', revenue: 1000 },
       ],
+      salesByPhase: {
+        'Early Bird': { ticketsSold: 50, revenue: 2500 },
+        Regular: { ticketsSold: 30, revenue: 1500 },
+        'Last Call': { ticketsSold: 20, revenue: 1000 },
+      },
       hourlyTimeline: [
         { hour: 21, label: '21:00', checkIns: 30 },
         { hour: 22, label: '22:00', checkIns: 45 },
@@ -161,9 +166,17 @@ describe('handleComputedAnalytics cross-tenant IDOR validation', () => {
       expect(body.totalCheckIns).toBe(75);
       expect(body.capacity).toBe(200);
       expect(body.views).toBe(1500);
-      expect(body.revenueTimeline).toHaveLength(2);
+      expect(body.revenueTimeline).toHaveLength(30);
+      expect(body.revenueTimeline.some((d: any) => d.gross === 3000)).toBe(true);
+      expect(body.revenueTimeline.some((d: any) => d.gross === 2000)).toBe(true);
       expect(body.ticketsTimeline).toHaveLength(2);
       expect(body.revenueByTicketType).toHaveLength(2);
+      expect(body.revenueByPhase).toHaveLength(3);
+      expect(body.revenueByPhase[0]).toMatchObject({
+        phase: 'Early Bird',
+        revenue: 2500,
+        ticketsSold: 50,
+      });
       expect(body.funnel).toHaveLength(4);
       expect(body.entryCurve).toHaveLength(2);
       expect(body.profitEstimate).toBe(4200);

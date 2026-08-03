@@ -17,34 +17,78 @@ const PLATFORM_FEES = {
 const MINIMUM_PAYOUT_FLOOR = 10; // ₹10
 
 /**
- * Get the effective price for a tier at a given timestamp
- * Handles scheduled pricing (Early Bird, Regular, Last Call)
+ * Convert a defaultScheduledPrice (%-based) to an absolute ₹ schedule for a given base price.
  */
-export function getEffectivePrice(tier, timestamp = new Date()) {
-  const now = timestamp instanceof Date ? timestamp : new Date(timestamp);
+function convertDefaultScheduleToAbsolute(dp, basePrice) {
+  const price =
+    dp.type === 'discount'
+      ? Math.round(basePrice * (1 - dp.value / 100))
+      : Math.round(basePrice * (1 + dp.value / 100));
+  return { startsAt: dp.startsAt, endsAt: dp.endsAt, name: dp.name, price };
+}
 
-  // Check scheduled prices in order of specificity
-  if (tier.scheduledPrices && Array.isArray(tier.scheduledPrices)) {
+/**
+ * Get the effective price for a tier at a given timestamp.
+ * Handles scheduled pricing (Early Bird, Regular, Last Call).
+ *
+ * Priority:
+ *   1. tier.scheduledPrices  — explicit absolute ₹ schedules on this tier
+ *   2. defaultScheduledPrices — event-level %-based schedules converted to ₹
+ *   3. tier.basePrice / tier.price — flat base price
+ *
+ * @param {object} tier
+ * @param {Date|string} [timestamp=new Date()]
+ * @param {Array}  [defaultScheduledPrices=[]] - Event-level default schedules (%-based)
+ */
+export function getEffectivePrice(tier, timestamp = new Date(), defaultScheduledPrices = []) {
+  const now = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  const basePrice = tier.basePrice ?? tier.price ?? 0;
+
+  // 1. Tier-specific absolute ₹ schedules
+  if (
+    tier.scheduledPrices &&
+    Array.isArray(tier.scheduledPrices) &&
+    tier.scheduledPrices.length > 0
+  ) {
     for (const schedule of tier.scheduledPrices) {
       const startsAt = new Date(schedule.startsAt);
       const endsAt = new Date(schedule.endsAt);
-
       if (now >= startsAt && now <= endsAt) {
         return {
           price: schedule.price,
           label: schedule.name,
           isScheduled: true,
+          scheduleSource: 'custom',
           endsAt: schedule.endsAt,
         };
       }
     }
   }
 
-  // Fall back to base price
+  // 2. Event-level default schedules (%-based → converted to ₹)
+  if (Array.isArray(defaultScheduledPrices) && defaultScheduledPrices.length > 0 && basePrice > 0) {
+    for (const dp of defaultScheduledPrices) {
+      const startsAt = new Date(dp.startsAt);
+      const endsAt = new Date(dp.endsAt);
+      if (now >= startsAt && now <= endsAt) {
+        const absolute = convertDefaultScheduleToAbsolute(dp, basePrice);
+        return {
+          price: absolute.price,
+          label: absolute.name,
+          isScheduled: true,
+          scheduleSource: 'default',
+          endsAt: dp.endsAt,
+        };
+      }
+    }
+  }
+
+  // 3. Fall back to base price
   return {
-    price: tier.basePrice ?? tier.price ?? 0,
+    price: basePrice,
     label: null,
     isScheduled: false,
+    scheduleSource: null,
     endsAt: null,
   };
 }
@@ -72,6 +116,9 @@ export function calculateOrderPricing(items, event, options = {}) {
   };
 
   const tiers = event.ticketCatalog?.tiers || event.tickets || [];
+  const eventDefaultScheduledPrices = Array.isArray(event?.defaultScheduledPrices)
+    ? event.defaultScheduledPrices
+    : [];
 
   // Calculate each item's pricing
   for (const item of items) {
@@ -82,7 +129,7 @@ export function calculateOrderPricing(items, event, options = {}) {
       continue;
     }
 
-    const effectivePrice = getEffectivePrice(tier, timestamp);
+    const effectivePrice = getEffectivePrice(tier, timestamp, eventDefaultScheduledPrices);
     const quantity = Number(item.quantity) || 1;
     const subtotal = effectivePrice.price * quantity;
 
@@ -463,11 +510,19 @@ export function checkUserRedemptionLimit(promoCode, userId, userRedemptions = 0)
 /**
  * Get price schedule summary for display
  */
-export function getPriceScheduleSummary(tier) {
-  const schedules = tier.scheduledPrices || [];
+export function getPriceScheduleSummary(tier, defaultScheduledPrices = []) {
+  const tierSchedules = tier.scheduledPrices || [];
   const basePrice = tier.basePrice ?? tier.price ?? 0;
 
-  if (schedules.length === 0) {
+  // Merge tier-specific and event defaults (tier-specific takes precedence)
+  const effectiveSchedules =
+    tierSchedules.length > 0
+      ? tierSchedules
+      : Array.isArray(defaultScheduledPrices) && basePrice > 0
+        ? defaultScheduledPrices.map((dp) => convertDefaultScheduleToAbsolute(dp, basePrice))
+        : [];
+
+  if (effectiveSchedules.length === 0) {
     return {
       currentPrice: basePrice,
       currentLabel: 'Regular',
@@ -477,10 +532,10 @@ export function getPriceScheduleSummary(tier) {
   }
 
   const now = new Date();
-  const current = getEffectivePrice(tier, now);
+  const current = getEffectivePrice(tier, now, defaultScheduledPrices);
 
   // Find upcoming price changes
-  const upcoming = schedules
+  const upcoming = effectiveSchedules
     .filter((s) => new Date(s.startsAt) > now)
     .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))
     .map((s) => ({

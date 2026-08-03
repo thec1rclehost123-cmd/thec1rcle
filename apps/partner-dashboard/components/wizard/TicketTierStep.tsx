@@ -858,16 +858,16 @@ const TicketTierCard = forwardRef<
                           className={`text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest ${
                             tier.overrideScheduledPricing
                               ? 'bg-orange-500 text-white'
-                              : 'bg-surface-tertiary text-text-tertiary border border-border-subtle'
+                              : 'bg-emerald-500 text-white'
                           }`}
                         >
-                          {tier.overrideScheduledPricing ? 'CUSTOM' : 'DEFAULT'}
+                          {tier.overrideScheduledPricing ? 'CUSTOM' : 'ACTIVE'}
                         </span>
                       </div>
                       <span className="text-[11px] text-text-tertiary font-bold uppercase tracking-widest">
                         {tier.overrideScheduledPricing
                           ? `${(tier.scheduledPrices || []).length} custom`
-                          : `${(defaultScheduledPrices || []).length} default`}
+                          : `${(defaultScheduledPrices || []).length} active (default)`}
                       </span>
                     </button>
                     {tier.overrideScheduledPricing && (

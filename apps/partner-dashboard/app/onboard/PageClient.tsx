@@ -72,12 +72,19 @@ const STEP_LABELS: Record<OnboardingStep, string> = {
 function extractError(data: unknown, fallback: string): string {
   if (!data || typeof data !== 'object') return fallback;
   const obj = data as Record<string, unknown>;
-  if (
-    typeof obj.error === 'object' &&
-    obj.error &&
-    typeof (obj.error as Record<string, unknown>).message === 'string'
-  )
-    return (obj.error as Record<string, unknown>).message as string;
+  const errorObj = obj.error as Record<string, any> | undefined;
+  if (errorObj && typeof errorObj === 'object') {
+    if (Array.isArray(errorObj.details) && errorObj.details.length > 0) {
+      const detailsMsg = errorObj.details
+        .map((d: any) => {
+          const field = d.path ? d.path.replace(/^(body\.|query\.|params\.)/, '') : '';
+          return field ? `${field}: ${d.message}` : d.message;
+        })
+        .join(', ');
+      return `${errorObj.message || 'Validation failed'}: ${detailsMsg}`;
+    }
+    if (typeof errorObj.message === 'string') return errorObj.message;
+  }
   if (typeof obj.message === 'string') return obj.message;
   if (typeof obj.error === 'string') return obj.error;
   return fallback;
@@ -758,6 +765,11 @@ function OnboardingContent() {
           setLoading(false);
           return;
         }
+        if (formData.password.length < 8) {
+          setError('Password must be at least 8 characters long.');
+          setLoading(false);
+          return;
+        }
         const createPhone = formData.phone || otpPhone.replace(/\s/g, '');
         if (createPhone) {
           // Check for only numbers (with optional leading +)
@@ -791,6 +803,13 @@ function OnboardingContent() {
               setLoading(false);
               return;
             }
+          }
+          if (createPhone.length < 10) {
+            setError(
+              'Please enter a valid phone number (at least 10 characters long, including country code).',
+            );
+            setLoading(false);
+            return;
           }
         }
         // Check if email or phone is already registered before creating
@@ -872,7 +891,7 @@ function OnboardingContent() {
             router.push(loginUrl);
             return;
           }
-          throw new Error(data.error?.message || data.error || 'Failed to create account.');
+          throw new Error(extractError(data, 'Failed to create account.'));
         }
         // Sign the client in using the custom token returned by the server
         const { customToken, uid: newUid } = data;

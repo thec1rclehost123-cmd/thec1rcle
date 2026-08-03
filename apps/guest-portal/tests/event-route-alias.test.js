@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
-const aliasPath = new URL('../app/events/[id]/page.jsx', import.meta.url).pathname;
+const aliasPath = fileURLToPath(new URL('../app/events/[id]/page.jsx', import.meta.url));
 
 test('plural event detail route redirects to the canonical event page', () => {
   const source = readFileSync(aliasPath, 'utf8');

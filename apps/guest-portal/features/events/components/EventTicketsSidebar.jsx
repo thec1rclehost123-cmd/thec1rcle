@@ -102,7 +102,11 @@ export function EventTicketsSidebar({
             const quantity = Number(quantities[ticket.id] || 0);
             const limit = getTierLimit(ticket, totalFreeSelected, quantity);
             const isSelected = quantity > 0;
-            const limitLabel = getTicketSelectionLimitLabel({ limit, quantity });
+            const limitLabel = getTicketSelectionLimitLabel({
+              limit,
+              quantity,
+              isFree: Number(ticket.price || 0) === 0,
+            });
 
             return (
               <div

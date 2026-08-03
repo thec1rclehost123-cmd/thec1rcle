@@ -376,12 +376,29 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         const data: MeApiResponse | null = await res.json().catch(() => null);
         if (cancelled || !data?.user) return;
         const userData = data.user;
-        setPermissions({
-          tabVisibility: userData._staffTabVisibility ?? null,
-          actionPermissions: userData._staffActionPermissions ?? null,
-          piiPolicy: userData._staffPiiPolicy ?? null,
+        const newTabVisibility = userData._staffTabVisibility ?? null;
+        const newActionPermissions = userData._staffActionPermissions ?? null;
+        const newPiiPolicy = userData._staffPiiPolicy ?? null;
+        // Only update state if something actually changed — avoids context re-renders
+        // on every 30s poll when permissions haven't changed (new object === re-render).
+        setPermissions((prev) => {
+          if (
+            JSON.stringify(prev.tabVisibility) === JSON.stringify(newTabVisibility) &&
+            JSON.stringify(prev.actionPermissions) === JSON.stringify(newActionPermissions) &&
+            JSON.stringify(prev.piiPolicy) === JSON.stringify(newPiiPolicy)
+          ) {
+            return prev; // same reference → no re-render
+          }
+          return {
+            tabVisibility: newTabVisibility,
+            actionPermissions: newActionPermissions,
+            piiPolicy: newPiiPolicy,
+          };
         });
-        setMembershipId(userData.activeMembership?.membershipId ?? membershipId);
+        const newMembershipId = userData.activeMembership?.membershipId ?? membershipId;
+        if (newMembershipId !== membershipId) {
+          setMembershipId(newMembershipId);
+        }
         lastProfileFetchRef.current = Date.now();
       } catch (err) {
         console.error('Error refreshing staff permissions:', err);

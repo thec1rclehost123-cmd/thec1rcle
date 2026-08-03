@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GATEWAY_URL, proxyToGateway } from '@/lib/server/apiGateway';
 import { requireVenueAccess } from '@/lib/rbac/staffProfileEnforcer';
+import { transformComputedAnalytics } from '@/lib/server/eventAnalyticsTransform';
 
 const FORWARDED_HEADERS = [
   'authorization',
@@ -86,80 +87,7 @@ async function handleComputedAnalytics(req: NextRequest, id: string): Promise<Ne
   );
   const finance = financeRes.ok ? await financeRes.json() : {};
 
-  // 3. Transform gateway response to match normalizeAnalyticsV2 contract
-  const totalRevenue = data.totalRevenue ?? 0;
-  const ticketsSold = data.ticketsSold ?? 0;
-  const totalCheckIns = data.totalCheckIns ?? 0;
-  const guestlistSignups = data.guestlistSignups ?? 0;
-  const capacity = data.capacity ?? 0;
-  const views = data.views ?? 0;
-  const refundAmount = data.refundAmount ?? 0;
-  const repeatGuests = data.repeatGuests ?? 0;
-  const salesTimeline = Array.isArray(data.salesTimeline) ? data.salesTimeline : [];
-  const hourlyTimeline = Array.isArray(data.hourlyTimeline) ? data.hourlyTimeline : [];
-  const netFinance = finance?.net ?? 0;
-
-  return NextResponse.json({
-    dataReady: totalRevenue > 0 || ticketsSold > 0 || totalCheckIns > 0 || views > 0,
-    totalRevenue,
-    totalNetPayable: netFinance || totalRevenue,
-    ticketsSold,
-    totalCheckIns,
-    guestlistSignups,
-    capacity,
-    views,
-    avgTicketPrice: data.avgTicketPrice ?? 0,
-    occupancyRate: data.occupancyRate ?? 0,
-    sellThroughRate: data.sellThroughRate ?? 0,
-    refundAmount,
-    refundRate: data.refundRate ?? 0,
-    noShowRate: data.noShowRate ?? 0,
-    repeatGuests,
-    repeatGuestRate: data.repeatGuestRate ?? 0,
-    firstTimeGuestRate: data.firstTimeGuestRate ?? 0,
-    promoterDrivenSales: 0,
-    directSales: totalRevenue,
-    pendingPayout: finance?.settlementStatus === 'paid' ? 0 : netFinance || totalRevenue,
-    completedPayout: finance?.settlementStatus === 'paid' ? netFinance || totalRevenue : 0,
-    profitEstimate: netFinance,
-    contributionMargin: totalRevenue > 0 ? (netFinance / totalRevenue) * 100 : 0,
-    purchaseToArrival: data.purchaseToArrival ?? 0,
-    guestlistToArrival: data.guestlistToArrival ?? 0,
-    viewToPurchase: data.viewToPurchase ?? 0,
-    viewToGuestlist: data.viewToGuestlist ?? 0,
-    uniqueAttendees: repeatGuests || 0,
-    newGuests: 0,
-    totalScans: totalCheckIns,
-    revenueTimeline: salesTimeline.map((p: any) => ({
-      date: p.date ?? p.label,
-      gross: Number(p.revenue ?? 0),
-      net: Number(p.revenue ?? 0),
-    })),
-    ticketsTimeline: salesTimeline.map((p: any) => ({
-      date: p.date ?? p.label,
-      tickets: Number(p.tickets ?? 0),
-    })),
-    revenueByTicketType: Array.isArray(data.ticketMix)
-      ? data.ticketMix.map((t: any) => ({
-          type: t.tierName ?? 'General',
-          revenue: Number(t.revenue ?? 0),
-          pct: totalRevenue > 0 ? (Number(t.revenue ?? 0) / totalRevenue) * 100 : 0,
-        }))
-      : [],
-    funnel: [
-      { stage: 'Page Views', count: views },
-      { stage: 'Guestlist Starts', count: guestlistSignups },
-      { stage: 'Purchases', count: ticketsSold },
-      { stage: 'Arrived & Checked In', count: totalCheckIns },
-    ],
-    entryCurve: hourlyTimeline.map((p: any) => ({
-      hour: p.label ?? `${p.hour}:00`,
-      count: Number(p.checkIns ?? 0),
-      pct: totalCheckIns > 0 ? (Number(p.checkIns ?? 0) / totalCheckIns) * 100 : 0,
-    })),
-    peakArrivalWindow: data.peakCheckInHour?.label ?? '—',
-    scanSuccessRate: data.purchaseToArrival ?? 0,
-  });
+  return NextResponse.json(transformComputedAnalytics(data, finance));
 }
 
 function redactQueryString(searchStr: string): string {

@@ -695,7 +695,7 @@ export default function HostEventWorkspacePage() {
   const authedFetch = useCallback(
     async (url: string, options: RequestInit = {}) => {
       if (!user) throw new Error('Not authenticated');
-      const token = await user.getIdToken(true);
+      const token = await user.getIdToken();
       return fetch(url, {
         ...options,
         headers: {
@@ -735,7 +735,8 @@ export default function HostEventWorkspacePage() {
       return (await authedJson(`/api/partners/hosts/events/${eventId}/overview`)) as OverviewData;
     },
     enabled: Boolean(eventId && user && partnerId),
-    refetchInterval: activeSection === 'analytics' ? 15000 : false,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const ticketsQuery = useQuery({
@@ -1213,23 +1214,43 @@ export default function HostEventWorkspacePage() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <HeaderStatCard
-                  label="Tickets sold"
-                  value={formatNumber(overview?.ticketsSold || 0)}
-                  icon={Ticket}
-                />
-                <HeaderStatCard
-                  label="Page visits"
-                  value={formatNumber(overview?.views || 0)}
-                  icon={Eye}
-                />
-                <HeaderStatCard
-                  label="Conversions"
-                  value={formatPercent(overview?.conversionRate || 0, 0)}
-                  icon={TrendingUp}
-                />
-              </div>
+              {(() => {
+                const effectiveTicketsSold = Number(
+                  overview?.ticketsSold ?? event?.ticketsSold ?? 0,
+                );
+                const effectiveViews = Math.max(
+                  Number(overview?.views || 0),
+                  Number(event?.stats?.views || 0),
+                  Number(event?.views || 0),
+                );
+                const effectiveConversionRate =
+                  overview?.conversionRate && overview.conversionRate > 0
+                    ? overview.conversionRate
+                    : effectiveViews > 0
+                      ? Math.round((effectiveTicketsSold / effectiveViews) * 1000) / 10
+                      : effectiveTicketsSold > 0
+                        ? 100
+                        : 0;
+                return (
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <HeaderStatCard
+                      label="Tickets sold"
+                      value={formatNumber(effectiveTicketsSold)}
+                      icon={Ticket}
+                    />
+                    <HeaderStatCard
+                      label="Page visits"
+                      value={formatNumber(effectiveViews)}
+                      icon={Eye}
+                    />
+                    <HeaderStatCard
+                      label="Conversions"
+                      value={formatPercent(effectiveConversionRate, 0)}
+                      icon={TrendingUp}
+                    />
+                  </div>
+                );
+              })()}
 
               <div className="mt-2">
                 <div className="mb-4 flex flex-wrap items-center gap-3 text-[12px] text-[var(--v-text-secondary)]">
