@@ -1,3 +1,5 @@
+import { parseAsIST } from '@c1rcle/core/time';
+
 export const AMBIENT_DOTS = [
   { left: '6%', size: 4, duration: 11, delay: 0.2, drift: 18 },
   { left: '12%', size: 6, duration: 14, delay: 1.1, drift: -22 },
@@ -83,15 +85,18 @@ export function parseParagraphs(value) {
 
 function formatTimeStr(timeValue) {
   if (!timeValue) return '';
-  if (typeof timeValue === 'string' && (timeValue.includes('AM') || timeValue.includes('PM'))) {
-    return timeValue;
+  if (
+    typeof timeValue === 'string' &&
+    (timeValue.toLowerCase().includes('am') || timeValue.toLowerCase().includes('pm'))
+  ) {
+    return timeValue.toLowerCase();
   }
   if (typeof timeValue === 'string' && /^\d{1,2}:\d{2}(?::\d{2})?$/.test(timeValue)) {
     try {
       const parts = timeValue.split(':');
       const hours = Number(parts[0]);
       const minutes = Number(parts[1]);
-      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const ampm = hours >= 12 ? 'pm' : 'am';
       const hours12 = hours % 12 || 12;
       const minutesStr = String(minutes).padStart(2, '0');
       return `${hours12}:${minutesStr} ${ampm}`;
@@ -114,6 +119,9 @@ export function formatTimeLabel(event) {
   }
 
   if (!event?.startDate) return '';
+  if (typeof event.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(event.startDate.trim())) {
+    return '';
+  }
 
   try {
     const formatter = new Intl.DateTimeFormat('en-IN', {
@@ -122,9 +130,14 @@ export function formatTimeLabel(event) {
       hour12: true,
       timeZone: 'Asia/Kolkata',
     });
-    const startLabel = formatter.format(new Date(event.startDate));
-    if (!event?.endDate) return startLabel;
-    const endLabel = formatter.format(new Date(event.endDate));
+    const startLabel = formatter.format(parseAsIST(event.startDate)).toLowerCase();
+    if (
+      !event?.endDate ||
+      (typeof event.endDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(event.endDate.trim()))
+    ) {
+      return startLabel;
+    }
+    const endLabel = formatter.format(parseAsIST(event.endDate)).toLowerCase();
     return `${startLabel} - ${endLabel}`;
   } catch {
     return '';
@@ -225,7 +238,7 @@ export function resolveInstagramProfile(host) {
 export function formatDateShort(event) {
   if (!event?.startDate) return 'Date TBA';
   try {
-    const d = new Date(event.startDate);
+    const d = parseAsIST(event.startDate);
     const day = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Kolkata' });
     const month = d.toLocaleDateString('en-US', { month: 'short', timeZone: 'Asia/Kolkata' });
     const date = d.toLocaleDateString('en-US', { day: '2-digit', timeZone: 'Asia/Kolkata' });
@@ -238,13 +251,18 @@ export function formatDateShort(event) {
 export function formatTimeShort(event) {
   if (event?.startTime) return formatTimeStr(event.startTime);
   if (!event?.startDate) return '';
+  if (typeof event.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(event.startDate.trim())) {
+    return '';
+  }
   try {
     return new Intl.DateTimeFormat('en-IN', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
       timeZone: 'Asia/Kolkata',
-    }).format(new Date(event.startDate));
+    })
+      .format(parseAsIST(event.startDate))
+      .toLowerCase();
   } catch {
     return '';
   }
