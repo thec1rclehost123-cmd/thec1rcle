@@ -277,6 +277,49 @@ describe('host event scheduling submission', () => {
     await server.close();
   });
 
+  it('masks events not owned by the host but exposes their times for scheduling overlap checks', async () => {
+    const { server, db } = await buildServer();
+    db.seed('partnerships/host-venue-1', {
+      hostId: 'host-1',
+      venueId: 'venue-1',
+      status: 'active',
+    });
+    // Create an event owned by another host
+    db.seed('events/event-other-host', {
+      creatorId: 'host-other',
+      hostId: 'host-other',
+      venueId: 'venue-1',
+      title: 'Secret Host Event',
+      lifecycle: 'submitted',
+      startDate: '2026-08-15',
+      startTime: '19:00',
+      endTime: '23:00',
+    });
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/partners/hosts/venue-calendar?venueId=venue-1&startDate=2026-08-01&endDate=2026-08-31',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const day = response.json().calendar.find((day: any) => day.date === '2026-08-15');
+    expect(day).toMatchObject({
+      state: 'CONFIRMED',
+      events: [
+        {
+          id: 'event-other-host',
+          startDate: '2026-08-15',
+          startTime: '19:00',
+          endTime: '23:00',
+          isExternal: true,
+          title: 'Reserved Event',
+        },
+      ],
+    });
+    expect(JSON.stringify(response.json())).not.toContain('Secret Host Event');
+    await server.close();
+  });
+
   it('atomically submits a venue event and creates its deterministic slot request', async () => {
     const { server, db } = await buildServer();
     db.seed('events/event-1', {

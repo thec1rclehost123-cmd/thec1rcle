@@ -850,14 +850,24 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       const newStatus = statusMap[action];
       if (!newStatus) return reply.status(400).send({ error: 'Invalid action' });
 
-      await fastify.db
-        .collection('events')
-        .doc(eventId)
-        .update({
-          lifecycle: newStatus,
-          updatedAt: now,
-          ...(action === 'approve' ? { approvedAt: now } : {}),
-        });
+      const eventUpdatePayload: Record<string, any> = {
+        lifecycle: newStatus,
+        updatedAt: now,
+      };
+
+      if (action === 'approve') {
+        eventUpdatePayload.approvedAt = now;
+        eventUpdatePayload.visibility = 'public';
+      }
+
+      await fastify.db.collection('events').doc(eventId).update(eventUpdatePayload);
+
+      // Keep public discovery search and index in sync, invalidate caching, and trigger guest revalidation
+      await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
+      await fastify.invalidatePublicDiscovery('all').catch(() => {});
+      await fastify
+        .revalidateGuestEvent(eventId, action === 'approve' ? 'approved' : action)
+        .catch(() => {});
 
       return { success: true, status: newStatus };
     },

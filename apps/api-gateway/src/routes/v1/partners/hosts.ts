@@ -743,6 +743,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       tiersSnap,
       eventDoc,
       commerce,
+      eventViewsSnap,
     ] = await Promise.all([
       ordersQuery.orderBy('createdAt', 'desc').limit(200).get(),
       ordersQuery.count().get(),
@@ -751,6 +752,11 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       fastify.db.collection('events').doc(eventId).collection('ticket_tiers').get(),
       fastify.db.collection('events').doc(eventId).get(),
       getEventCommerceMetrics(fastify.db, eventId),
+      fastify.db
+        .collection('event_views')
+        .doc(eventId)
+        .get()
+        .catch(() => null),
     ]);
 
     const orders = ordersSnap.docs.map((d) => ({
@@ -760,6 +766,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     const checkins = checkinsSnap.docs.map((d) => d.data());
     const tiers = tiersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const eventData = eventDoc.data() || {};
+    const eventViewsData = (eventViewsSnap as any)?.exists ? (eventViewsSnap as any).data() : {};
 
     // Revenue & tickets
     const grossRevenue = commerce.grossRevenue;
@@ -770,26 +777,41 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             entry.toPartnerId === ctx.partnerId && ['host_payout', 'refund'].includes(entry.type),
         )
         .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
-    const ticketsSold = commerce.ticketsSold;
-    const totalCheckedIn = checkinsCountSnap.data().count;
     const totalOrders = ordersCountSnap.data().count;
+    const confirmedOrdersTicketCount = orders.reduce(
+      (sum: number, d: any) =>
+        sum + toNumber(d.ticketCount || d.ticketsCount || d.quantity || d.count || 1),
+      0,
+    );
+    const ticketsSold = Math.max(commerce.ticketsSold, totalOrders, confirmedOrdersTicketCount);
+    const totalCheckedIn = checkinsCountSnap.data().count;
     const capacity = tiers.reduce(
       (sum: number, t: any) => sum + toNumber(t.capacity || t.quantity || 0),
       0,
     );
-    const inventory = capacity - ticketsSold;
+    const inventory = Math.max(0, capacity - ticketsSold);
     const sellThrough = capacity > 0 ? Math.round((ticketsSold / capacity) * 100) : 0;
 
     // Guest list size = unique attendee orders
     const uniqueBuyers = new Set(
       commerce.soldTickets.map((ticket) => ticket.userId).filter(Boolean),
     ).size;
-    const guestListSize = uniqueBuyers;
+    const guestListSize = Math.max(uniqueBuyers, totalOrders);
 
-    // Conversion: views → purchases (views from event doc)
-    const views = toNumber(eventData.stats?.views || eventData.views || 0);
+    // Conversion: views → purchases (views from event doc & event_views collection)
+    const views = Math.max(
+      toNumber(
+        eventData.stats?.views ||
+          eventData.views ||
+          eventData.stats?.pageVisits ||
+          eventData.pageVisits ||
+          0,
+      ),
+      toNumber(eventViewsData?.count || eventViewsData?.views || eventViewsData?.uniqueCount || 0),
+    );
     const saves = toNumber(eventData.stats?.saves || eventData.saves || 0);
-    const conversionRate = views > 0 ? Math.round((ticketsSold / views) * 1000) / 10 : 0; // % with 1 decimal
+    const conversionRate =
+      views > 0 ? Math.round((ticketsSold / views) * 1000) / 10 : ticketsSold > 0 ? 100 : 0;
 
     // Repeat vs new guests (buyers who appear in past orders for this host)
     const uniqueAttendees = uniqueBuyers;
@@ -1417,6 +1439,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         return {
           id: ev.id,
           startDate: ev.startDate,
+          startTime: ev.startTime || null,
+          endTime: ev.endTime || null,
           status: ev.status,
           isExternal: true,
           title: 'Reserved Event', // Mask title for privacy
