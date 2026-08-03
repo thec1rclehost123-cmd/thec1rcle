@@ -211,6 +211,21 @@ export function useLoginFlow() {
   const nextStep = async () => {
     setStatus({ message: '', type: '' });
 
+    if (step === 3) {
+      const cleanPhone = (form.phone || '').replace(/\D/g, '');
+      if (form.country === 'IN') {
+        if (cleanPhone.length !== 10) {
+          setStatus({ message: 'Phone number must contain exactly 10 digits.', type: 'error' });
+          return;
+        }
+      } else {
+        if (cleanPhone.length < 8 || cleanPhone.length > 15) {
+          setStatus({ message: 'Phone number must be between 8 and 15 digits.', type: 'error' });
+          return;
+        }
+      }
+    }
+
     const nextAction = getNextLoginAction({ form, isLoginMode, isNewUser, step });
 
     if (nextAction.type === 'begin_registration') {
