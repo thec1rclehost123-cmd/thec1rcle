@@ -55,6 +55,8 @@
         "./waitlist-engine": "./waitlist-engine.js",
         "./calendar-engine": "./calendar-engine.js",
         "./cms-engine": "./cms-engine.js",
+        "./slot-engine": "./slot-engine.js",
+        "./security-logger": "./security-logger.js",
         "./auth-domain": "./dist/domain/auth/interfaces.js",
         "./auth-infra": "./dist/infrastructure/auth/firebase-auth-service.js",
         "./profile-repo": "./dist/infrastructure/repositories/firebase/profile-repository.js",

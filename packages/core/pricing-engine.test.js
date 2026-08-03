@@ -27,6 +27,7 @@ describe('Pricing Engine', () => {
       expect(result.price).toBe(500);
       expect(result.isScheduled).toBe(true);
       expect(result.label).toBe('Early Bird');
+      expect(result.scheduleSource).toBe('custom');
     });
 
     it('should fall back to base price if schedule expired', () => {
@@ -45,6 +46,101 @@ describe('Pricing Engine', () => {
       const result = getEffectivePrice(tier, now);
       expect(result.price).toBe(1000);
       expect(result.isScheduled).toBe(false);
+    });
+
+    // ── defaultScheduledPrices fallback tests ───────────────────────────────
+    it('should apply event-level discount schedule when tier has no scheduledPrices', () => {
+      const now = new Date('2024-01-01T12:00:00Z');
+      const tier = { basePrice: 500 };
+      const defaultScheduledPrices = [
+        {
+          id: 'eb-1',
+          name: 'Early Bird',
+          type: 'discount',
+          value: 5, // 5% off → ₹475
+          startsAt: '2024-01-01T00:00:00Z',
+          endsAt: '2024-01-01T23:59:59Z',
+        },
+      ];
+      const result = getEffectivePrice(tier, now, defaultScheduledPrices);
+      expect(result.price).toBe(475);
+      expect(result.isScheduled).toBe(true);
+      expect(result.label).toBe('Early Bird');
+      expect(result.scheduleSource).toBe('default');
+    });
+
+    it('should apply event-level markup schedule when tier has no scheduledPrices', () => {
+      const now = new Date('2024-01-03T12:00:00Z');
+      const tier = { basePrice: 500 };
+      const defaultScheduledPrices = [
+        {
+          id: 'lc-1',
+          name: 'Last Call',
+          type: 'markup',
+          value: 5, // 5% extra → ₹525
+          startsAt: '2024-01-03T00:00:00Z',
+          endsAt: '2024-01-04T00:00:00Z',
+        },
+      ];
+      const result = getEffectivePrice(tier, now, defaultScheduledPrices);
+      expect(result.price).toBe(525);
+      expect(result.isScheduled).toBe(true);
+      expect(result.label).toBe('Last Call');
+      expect(result.scheduleSource).toBe('default');
+    });
+
+    it('should fall back to base price when outside all default schedule windows', () => {
+      const now = new Date('2024-01-02T12:00:00Z'); // gap between schedules
+      const tier = { basePrice: 500 };
+      const defaultScheduledPrices = [
+        {
+          id: 'eb-1',
+          name: 'Early Bird',
+          type: 'discount',
+          value: 5,
+          startsAt: '2024-01-01T00:00:00Z',
+          endsAt: '2024-01-01T23:59:59Z',
+        },
+        {
+          id: 'lc-1',
+          name: 'Last Call',
+          type: 'markup',
+          value: 5,
+          startsAt: '2024-01-03T00:00:00Z',
+          endsAt: '2024-01-04T00:00:00Z',
+        },
+      ];
+      const result = getEffectivePrice(tier, now, defaultScheduledPrices);
+      expect(result.price).toBe(500);
+      expect(result.isScheduled).toBe(false);
+    });
+
+    it('tier-specific scheduledPrices take priority over defaultScheduledPrices', () => {
+      const now = new Date('2024-01-01T12:00:00Z');
+      const tier = {
+        basePrice: 500,
+        scheduledPrices: [
+          {
+            startsAt: '2024-01-01T00:00:00Z',
+            endsAt: '2024-01-01T23:59:59Z',
+            price: 400,
+            name: 'Custom Early Bird',
+          },
+        ],
+      };
+      const defaultScheduledPrices = [
+        {
+          id: 'eb-1',
+          name: 'Early Bird',
+          type: 'discount',
+          value: 5,
+          startsAt: '2024-01-01T00:00:00Z',
+          endsAt: '2024-01-01T23:59:59Z',
+        },
+      ];
+      const result = getEffectivePrice(tier, now, defaultScheduledPrices);
+      expect(result.price).toBe(400); // tier-specific wins
+      expect(result.scheduleSource).toBe('custom');
     });
   });
 

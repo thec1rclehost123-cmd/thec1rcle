@@ -256,6 +256,8 @@ export function buildOrderPayload(params) {
       name: item.tierName,
       quantity: item.quantity,
       price: item.unitPrice,
+      priceLabel: item.priceLabel || null,
+      scheduleSource: item.scheduleSource || null,
       total: item.subtotal,
       entryType: item.entryType || 'general',
       genderRequirement: item.genderRequirement || null,

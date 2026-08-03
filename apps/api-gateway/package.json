@@ -11,7 +11,11 @@
     "build": "npx tsc && npx fix-esm-import-path dist",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
-    "backfill:public-discovery": "tsx --env-file=.env.development src/scripts/backfill-public-discovery.ts"
+    "backfill:public-discovery": "tsx --env-file=.env.development src/scripts/backfill-public-discovery.ts",
+    "debug:venues": "node --env-file=.env.development debug_venues_list.js",
+    "debug:discovery": "node --env-file=.env.development debug_discovery_execution.js",
+    "debug:redis": "node --env-file=.env.development debug_redis.js",
+    "debug:venues-all": "node --env-file=.env.development debug_venues_all_fields.js"
   },
   "dependencies": {
     "@c1rcle/core": "*",

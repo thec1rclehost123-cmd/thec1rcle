@@ -207,7 +207,10 @@ function formatInr(amount = 0) {
 }
 
 function normalizeTicketTier(tier, event, remaining, timestamp) {
-  const priceInfo = getEffectivePrice(tier, timestamp);
+  const eventDefaultScheduledPrices = Array.isArray(event?.defaultScheduledPrices)
+    ? event.defaultScheduledPrices
+    : [];
+  const priceInfo = getEffectivePrice(tier, timestamp, eventDefaultScheduledPrices);
   const price = Number(priceInfo.price || 0);
   const saleStatus = getSaleStatus(tier, timestamp);
   const status = getTierStatus(tier) || null;

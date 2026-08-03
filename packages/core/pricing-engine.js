@@ -36,34 +36,81 @@ export function validateCoverWalletFundingAtUnitPrice(tierConfig, unitPriceRupee
 }
 
 /**
- * Get effective price for a single tier at a given timestamp
- * Handles scheduled price changes
+ * Convert a defaultScheduledPrice (%-based) to an absolute ₹ schedule entry
+ * for a given base price.
+ * @param {object} dp - DefaultScheduledPrice with { type, value, startsAt, endsAt, name }
+ * @param {number} basePrice - The ticket tier's base price in ₹
  */
-export function getEffectivePrice(tier, timestamp = new Date()) {
-  const now = timestamp instanceof Date ? timestamp : new Date(timestamp);
+function convertDefaultScheduleToAbsolute(dp, basePrice) {
+  const price =
+    dp.type === 'discount'
+      ? Math.round(basePrice * (1 - dp.value / 100))
+      : Math.round(basePrice * (1 + dp.value / 100));
+  return {
+    startsAt: dp.startsAt,
+    endsAt: dp.endsAt,
+    name: dp.name,
+    price,
+  };
+}
 
-  // 1. Check scheduled prices (if any)
-  const schedules = tier.scheduledPrices || tier.pricing?.scheduledChanges || [];
-  if (Array.isArray(schedules)) {
-    for (const schedule of schedules) {
+/**
+ * Get effective price for a single tier at a given timestamp.
+ * Handles scheduled price changes.
+ *
+ * Priority:
+ *   1. tier.scheduledPrices  — explicit absolute ₹ schedules on this tier (CUSTOM)
+ *   2. defaultScheduledPrices — event-level %-based schedules converted to ₹ (DEFAULT)
+ *   3. tier.basePrice / tier.price — flat base price
+ *
+ * @param {object} tier - Ticket tier object
+ * @param {Date|string} [timestamp=new Date()] - Purchase timestamp
+ * @param {Array} [defaultScheduledPrices=[]] - Event-level default schedules (%-based)
+ */
+export function getEffectivePrice(tier, timestamp = new Date(), defaultScheduledPrices = []) {
+  const now = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  const basePrice = Number(tier.basePrice ?? tier.price ?? 0);
+
+  // 1. Use tier-specific absolute ₹ schedules if present (CUSTOM override)
+  const tierSchedules = tier.scheduledPrices || tier.pricing?.scheduledChanges || [];
+  if (Array.isArray(tierSchedules) && tierSchedules.length > 0) {
+    for (const schedule of tierSchedules) {
       const startsAt = new Date(schedule.startsAt);
       const endsAt = new Date(schedule.endsAt);
-
       if (now >= startsAt && now <= endsAt) {
         return {
           price: Number(schedule.price),
           label: schedule.name,
           isScheduled: true,
+          scheduleSource: 'custom',
         };
       }
     }
   }
 
-  // 2. Fall back to base price
+  // 2. Fall back to event-level default schedules (%-based → converted to ₹)
+  if (Array.isArray(defaultScheduledPrices) && defaultScheduledPrices.length > 0 && basePrice > 0) {
+    for (const dp of defaultScheduledPrices) {
+      const startsAt = new Date(dp.startsAt);
+      const endsAt = new Date(dp.endsAt);
+      if (now >= startsAt && now <= endsAt) {
+        const absolute = convertDefaultScheduleToAbsolute(dp, basePrice);
+        return {
+          price: absolute.price,
+          label: absolute.name,
+          isScheduled: true,
+          scheduleSource: 'default',
+        };
+      }
+    }
+  }
+
+  // 3. Fall back to flat base price
   return {
-    price: Number(tier.basePrice ?? tier.price ?? 0),
+    price: basePrice,
     label: null,
     isScheduled: false,
+    scheduleSource: null,
   };
 }
 
@@ -125,11 +172,15 @@ export async function calculatePricing(input) {
   };
 
   // 1. Calculate Item Base Prices
+  const eventDefaultScheduledPrices = Array.isArray(event.defaultScheduledPrices)
+    ? event.defaultScheduledPrices
+    : [];
+
   for (const item of items) {
     const tier = tiers.find((t) => t.id === item.tierId);
     if (!tier) continue;
 
-    const priceInfo = getEffectivePrice(tier, timestamp);
+    const priceInfo = getEffectivePrice(tier, timestamp, eventDefaultScheduledPrices);
     const quantity = Number(item.quantity) || 1;
     const subtotal = priceInfo.price * quantity;
     const coverChargeConfig = tier.coverChargeConfig || tier.coverWallet || null;

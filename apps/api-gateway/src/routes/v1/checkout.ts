@@ -146,6 +146,9 @@ function extractQueueId(admissionToken?: string | null): string | null {
 
 async function buildCheckoutQuote(event: any, items: any[], pricing: any, db: any, redis: any) {
   const tiers = event.ticketCatalog?.tiers || event.tickets || [];
+  const eventDefaultScheduledPrices: any[] = Array.isArray(event?.defaultScheduledPrices)
+    ? event.defaultScheduledPrices
+    : [];
   const selectedByTier = new Map(
     (items || []).map((item: any) => [item.tierId, Number(item.quantity) || 0]),
   );
@@ -168,7 +171,7 @@ async function buildCheckoutQuote(event: any, items: any[], pricing: any, db: an
       maxPerOrder: Math.max(0, Math.min(available || perOrderLimit, perOrderLimit)),
       isFree,
       soldOut: available <= 0,
-      unitPrice: getEffectivePrice(tier).price,
+      unitPrice: getEffectivePrice(tier, new Date(), eventDefaultScheduledPrices).price,
     };
   });
 
