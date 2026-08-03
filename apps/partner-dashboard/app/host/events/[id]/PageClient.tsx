@@ -166,6 +166,7 @@ interface EventDetail {
   tags: string[];
   ticketsSold: number;
   ticketTiers: any[];
+  views?: number;
   createdAt: string | null;
   updatedAt: string | null;
   settings: EventSettings;
