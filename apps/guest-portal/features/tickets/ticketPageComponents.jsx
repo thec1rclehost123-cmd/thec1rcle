@@ -120,7 +120,7 @@ const IdentityQR = ({ entitlementId, slotTicketId }) => {
     );
 
   return (
-    <div className="flex flex-col items-center w-full h-full p-6 md:p-8">
+    <div className="flex flex-col items-center w-full h-full p-4">
       <QRCodeSVG
         value={qrValue}
         size={220}
@@ -514,13 +514,13 @@ const QRModal = ({ isOpen, ticket, onClose, onPartner, onTransfer }) => {
   );
 
   const currentTicket = detailTicket || currentTicketBase;
+  const { color, rgb } = useDominantColor(ticket?.posterUrl);
 
   if (!mounted) return null;
   if (!ticket) return null;
 
-  const isUsed = currentTicket.status === 'used';
-  const isCancelled = currentTicket.status === 'cancelled';
-  const { color, rgb } = useDominantColor(ticket.posterUrl);
+  const isUsed = currentTicket?.status === 'used';
+  const isCancelled = currentTicket?.status === 'cancelled';
 
   const handleNext = (e) => {
     e.stopPropagation();
@@ -580,7 +580,7 @@ const QRModal = ({ isOpen, ticket, onClose, onPartner, onTransfer }) => {
               style={{ background: `linear-gradient(135deg, ${color}, transparent, ${color})` }}
             />
 
-            <div className="rounded-none md:rounded-[44px] h-full w-full p-6 md:p-8 pt-12 sm:pt-20 md:pt-8 flex flex-col items-center bg-white/40 dark:bg-black/40 backdrop-blur-3xl border-none md:border md:border-white/60 dark:md:border-white/20">
+            <div className="rounded-none md:rounded-[44px] h-full w-full p-4 md:p-6 pt-8 sm:pt-10 md:pt-6 flex flex-col items-center bg-white/40 dark:bg-black/40 backdrop-blur-3xl border-none md:border md:border-white/60 dark:md:border-white/20 overflow-y-auto">
               {/* Header */}
               <div className="mb-4 w-full text-center">
                 <motion.h2 className="font-heading text-2xl md:text-3xl font-black uppercase text-black dark:text-white max-w-[320px] leading-tight mx-auto tracking-tighter">
@@ -613,7 +613,7 @@ const QRModal = ({ isOpen, ticket, onClose, onPartner, onTransfer }) => {
                     exit={{ x: -50, opacity: 0 }}
                     className="w-full flex flex-col items-center"
                   >
-                    <div className="relative w-full aspect-square max-w-[240px] flex flex-col justify-center items-center bg-white rounded-[32px] shadow-2xl border border-white/40 overflow-hidden">
+                    <div className="relative w-full aspect-square max-w-[280px] flex flex-col justify-center items-center bg-white rounded-[32px] shadow-2xl border border-white/40 overflow-hidden">
                       {currentTicket.isTransferPending ? (
                         <div className="text-center space-y-4">
                           <div className="w-16 h-16 rounded-3xl bg-amber-500/10 flex items-center justify-center mx-auto">
@@ -732,7 +732,7 @@ const QRModal = ({ isOpen, ticket, onClose, onPartner, onTransfer }) => {
                     </div>
 
                     {/* Ticket Specific Details */}
-                    <div className="mt-8 flex flex-col items-center gap-4 w-full">
+                    <div className="mt-4 flex flex-col items-center gap-2 w-full">
                       <div className="flex items-center gap-3">
                         <span className="px-3 py-1 rounded-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 text-[10px] font-black uppercase tracking-widest text-black dark:text-white">
                           {currentTicket.ticketType}
@@ -782,7 +782,7 @@ const QRModal = ({ isOpen, ticket, onClose, onPartner, onTransfer }) => {
                         </span>
                       </div>
 
-                      <div className="flex flex-wrap justify-center gap-4 mt-8">
+                      <div className="flex flex-wrap justify-center gap-4 mt-4">
                         <button
                           onClick={async (e) => {
                             e.stopPropagation();
@@ -873,7 +873,7 @@ const QRModal = ({ isOpen, ticket, onClose, onPartner, onTransfer }) => {
 
               <div className="flex-1" />
 
-              <div className="mt-4 flex flex-col items-center gap-4">
+              <div className="mt-2 flex flex-col items-center gap-2">
                 {/* Assignment Details Badge */}
                 <div className="flex flex-col items-center gap-2">
                   {currentTicket.isClaimedByOther ? (

@@ -506,8 +506,40 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
         const views = Number(eventData.stats?.views ?? overview.views ?? 0);
         const guestlistSignups = Number(overview.guestListSize ?? 0);
         const refundAmount = commerce.refundAmount;
-        const uniqueAttendees = Number(overview.uniqueAttendees ?? 0);
-        const repeatGuests = Number(overview.repeatGuests ?? 0);
+        const buyerIds = new Set<string>();
+        for (const doc of orderDocs) {
+          const d = doc.data() as any;
+          if (d.userId) buyerIds.add(d.userId);
+        }
+
+        let repeatGuestsVal = Number(overview.repeatGuests ?? 0);
+        const uniqueAttendeesVal = Number(overview.uniqueAttendees ?? 0) || buyerIds.size;
+
+        if (buyerIds.size > 0 && (!overview.repeatGuests || overview.repeatGuests === 0)) {
+          const partnerField = hostId ? 'hostId' : 'venueId';
+          const partnerId = hostId || venueId;
+          const otherOrders = await fastify.db
+            .collection('orders')
+            .where(partnerField, '==', partnerId)
+            .limit(1000)
+            .get()
+            .catch(() => ({ docs: [] }));
+
+          const repeatIds = new Set<string>();
+          for (const doc of otherOrders.docs) {
+            const data = doc.data() || {};
+            if (data.eventId === eventId) continue;
+            if (!['confirmed', 'paid'].includes(String(data.status || ''))) continue;
+            const uid = data.userId;
+            if (uid && buyerIds.has(uid)) {
+              repeatIds.add(uid);
+            }
+          }
+          repeatGuestsVal = repeatIds.size;
+        }
+
+        const firstTimeGuestsVal =
+          uniqueAttendeesVal > repeatGuestsVal ? uniqueAttendeesVal - repeatGuestsVal : 0;
 
         const result = {
           totalRevenue: netRevenue,
@@ -526,11 +558,12 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
               ? (Math.max(ticketsSold - Math.min(totalCheckedIn, ticketsSold), 0) / ticketsSold) *
                 100
               : 0,
-          repeatGuests,
-          repeatGuestRate: uniqueAttendees > 0 ? (repeatGuests / uniqueAttendees) * 100 : 0,
+          repeatGuests: repeatGuestsVal,
+          repeatGuestRate:
+            uniqueAttendeesVal > 0 ? (repeatGuestsVal / uniqueAttendeesVal) * 100 : 0,
           firstTimeGuestRate:
-            uniqueAttendees > 0
-              ? (Number(overview.firstTimeGuests ?? 0) / uniqueAttendees) * 100
+            uniqueAttendeesVal > 0
+              ? (Number(overview.firstTimeGuests ?? firstTimeGuestsVal) / uniqueAttendeesVal) * 100
               : 0,
           viewToPurchase: views > 0 ? (ticketsSold / views) * 100 : 0,
           viewToGuestlist: views > 0 ? (guestlistSignups / views) * 100 : 0,
