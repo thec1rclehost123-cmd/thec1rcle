@@ -133,20 +133,31 @@ export default function EventsManagementPage() {
   const [filter, setFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState<'host' | 'venue'>('venue');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearchQuery(searchQuery.trim()), 350);
+    return () => window.clearTimeout(timeout);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (!user) return;
     // activeMembership may be null for direct venue owners — gateway resolves identity from auth token
     const venueId = profile?.activeMembership?.partnerId ?? null;
 
+    const controller = new AbortController();
     (async () => {
       try {
+        setLoading(true);
         const token = await user.getIdToken();
-        const res = await fetch(`/api/partners/venues/events`, {
+        const params = new URLSearchParams({ limit: '100' });
+        if (debouncedSearchQuery) params.set('q', debouncedSearchQuery);
+        const res = await fetch(`/api/partners/venues/events?${params.toString()}`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
         if (!res.ok) throw new Error('API Route failed');
         const { events: raw } = await res.json();
@@ -202,13 +213,15 @@ export default function EventsManagementPage() {
           });
         setEvents(mapped);
         setFetchError(null);
-      } catch {
+      } catch (error) {
+        if (controller.signal.aborted) return;
         setFetchError('Failed to load events. Please try again.');
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     })();
-  }, [profile, user]);
+    return () => controller.abort();
+  }, [debouncedSearchQuery, profile, user]);
 
   const handleEventUpdate = useCallback(
     async (action: string, data?: any, overrideEventId?: string) => {
@@ -330,7 +343,19 @@ export default function EventsManagementPage() {
         return (
           match &&
           (e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            e.hostName.toLowerCase().includes(searchQuery.toLowerCase()))
+            e.hostName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            String((e as any).venueName || '')
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase()) ||
+            String((e as any).category || '')
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase()) ||
+            String(e.status || '')
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase()) ||
+            String(e.startDate || '')
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase()))
         );
       }),
     [typeFilteredEventsForCounts, filter, searchQuery],

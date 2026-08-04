@@ -13,6 +13,7 @@ import {
   updateProfile as updateFirebaseProfile,
 } from 'firebase/auth';
 import { getFirebaseAuth } from '@/lib/firebase/client';
+import { getCachedFirebaseIdToken } from '@/lib/auth/getCachedFirebaseIdToken';
 import { DashboardProfile, PartnerMembership, PartnerType, StaffRole } from '@/lib/rbac/types';
 
 // ── Atomic permissions object — always set together to avoid race conditions ──
@@ -45,6 +46,7 @@ interface MeApiResponse {
     displayName?: string;
     username?: string;
     isApproved?: boolean;
+    isBanned?: boolean;
     kycStatus?: string;
     onboardingEntityType?: string;
     subscriptionPlan?: string;
@@ -72,6 +74,8 @@ interface AuthContextValue {
   profile: DashboardProfile | null;
   loading: boolean;
   isApproved: boolean;
+  isBanned: boolean;
+  isPartnerSuspended: boolean;
   onboardingStatus: string | null;
   kycStatus: string | null;
   entityType: string | null;
@@ -106,6 +110,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isApproved, setIsApproved] = useState(false);
+  const [isBanned, setIsBanned] = useState(false);
+  const [isPartnerSuspended, setIsPartnerSuspended] = useState(false);
   const [onboardingStatus, setOnboardingStatus] = useState<string | null>(null);
   const [kycStatus, setKycStatus] = useState<string | null>(null);
   const [entityType, setEntityType] = useState<string | null>(null);
@@ -142,6 +148,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
       if (!firebaseUser) {
         setProfile(null);
         setIsApproved(false);
+        setIsBanned(false);
+        setIsPartnerSuspended(false);
         setOnboardingStatus(null);
         setKycStatus(null);
         setEntityType(null);
@@ -158,6 +166,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         // /api/auth/me fetch is in-flight — causing the wrong account to render.
         setProfile(null);
         setIsApproved(false);
+        setIsBanned(false);
+        setIsPartnerSuspended(false);
         setPermissions(EMPTY_PERMISSIONS);
         setLoading(true);
       }
@@ -220,6 +230,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         const approvedState = approvedByDoc || approvedByClaims;
 
         setIsApproved(approvedState);
+        setIsBanned(userData.isBanned || false);
 
         if (!approvedState) {
           if (onboardingRequest) {
@@ -279,6 +290,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 const payload = ctx.data || ctx;
                 setGrantedPermissions(payload.permissions ?? []);
                 setServerDefaultTabVisibility(payload.tabVisibility ?? null);
+                setIsPartnerSuspended(payload.isSuspended ?? false);
               }
             })
             .catch(() => {});
@@ -364,12 +376,29 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         const data: MeApiResponse | null = await res.json().catch(() => null);
         if (cancelled || !data?.user) return;
         const userData = data.user;
-        setPermissions({
-          tabVisibility: userData._staffTabVisibility ?? null,
-          actionPermissions: userData._staffActionPermissions ?? null,
-          piiPolicy: userData._staffPiiPolicy ?? null,
+        const newTabVisibility = userData._staffTabVisibility ?? null;
+        const newActionPermissions = userData._staffActionPermissions ?? null;
+        const newPiiPolicy = userData._staffPiiPolicy ?? null;
+        // Only update state if something actually changed — avoids context re-renders
+        // on every 30s poll when permissions haven't changed (new object === re-render).
+        setPermissions((prev) => {
+          if (
+            JSON.stringify(prev.tabVisibility) === JSON.stringify(newTabVisibility) &&
+            JSON.stringify(prev.actionPermissions) === JSON.stringify(newActionPermissions) &&
+            JSON.stringify(prev.piiPolicy) === JSON.stringify(newPiiPolicy)
+          ) {
+            return prev; // same reference → no re-render
+          }
+          return {
+            tabVisibility: newTabVisibility,
+            actionPermissions: newActionPermissions,
+            piiPolicy: newPiiPolicy,
+          };
         });
-        setMembershipId(userData.activeMembership?.membershipId ?? membershipId);
+        const newMembershipId = userData.activeMembership?.membershipId ?? membershipId;
+        if (newMembershipId !== membershipId) {
+          setMembershipId(newMembershipId);
+        }
         lastProfileFetchRef.current = Date.now();
       } catch (err) {
         console.error('Error refreshing staff permissions:', err);
@@ -480,8 +509,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     !permissions.actionPermissions || permissions.actionPermissions[action] === true;
 
   const getIdToken = async () => {
-    if (!user) return '';
-    return user.getIdToken(true);
+    return getCachedFirebaseIdToken(user);
   };
 
   const isDashboardPath = pathname
@@ -520,6 +548,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         profile,
         loading,
         isApproved,
+        isBanned,
+        isPartnerSuspended,
         onboardingStatus,
         kycStatus,
         entityType,

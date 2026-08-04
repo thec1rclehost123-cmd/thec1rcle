@@ -17,7 +17,8 @@ interface StatsData {
 }
 
 export default function StatsScreen() {
-  const { eventData, sessionToken } = useScannerStore();
+  const eventData = useScannerStore((state) => state.eventData);
+  const sessionToken = useScannerStore((state) => state.sessionToken);
 
   const [stats, setStats] = useState<StatsData>({
     totalEntered: eventData?.stats?.totalEntered || 0,

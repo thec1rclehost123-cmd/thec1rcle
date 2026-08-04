@@ -8,6 +8,7 @@ import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { useGuestOpsShellData } from '@/lib/hooks/useGuestOpsShellData';
 import { useWebSocket } from '@/lib/hooks/useWebSocket';
 import { GuestSyncEngine, type SyncState } from '@/lib/client/offlineGuestSync';
+import { getScannerRefreshPlan } from '@/lib/venue/scannerRefreshPlan';
 import { cn } from '@/lib/utils';
 import {
   Radio,
@@ -84,7 +85,7 @@ export default function ScannerOversightPageClient() {
     try {
       const res = await fetch(
         `/api/partners/venues/guest-ops/${eventId}/scanner/devices?venueId=${venueId}`,
-        { headers: authHeaders() },
+        { headers: await authHeaders() },
       );
       if (res.ok) {
         const d = await res.json();
@@ -101,7 +102,7 @@ export default function ScannerOversightPageClient() {
     try {
       const res = await fetch(
         `/api/partners/venues/guest-ops/${eventId}/scanner/stream?venueId=${venueId}&limit=50`,
-        { headers: authHeaders() },
+        { headers: await authHeaders() },
       );
       if (res.ok) {
         const d = await res.json();
@@ -121,16 +122,15 @@ export default function ScannerOversightPageClient() {
   }, [eventId, fetchDevices, fetchStream]);
 
   // WebSocket: push-based updates replace the 8s poll.
-  // TICKET_CHECKED_IN triggers an immediate stream + device refetch.
+  // TICKET_CHECKED_IN refreshes the bounded stream. Device health is refreshed
+  // by the 30-second fallback poll instead of re-querying every device per scan.
   const { connected: wsConnected } = useWebSocket({
     topics: eventId ? [`event:${eventId}`] : [],
     getToken: getIdToken,
     enabled: Boolean(eventId) && isLive,
     onMessage: (msg) => {
-      if (msg.type === 'TICKET_CHECKED_IN') {
-        fetchStream();
-        fetchDevices();
-      }
+      const refreshPlan = getScannerRefreshPlan(msg.type);
+      if (refreshPlan.refreshStream) fetchStream();
     },
   });
 

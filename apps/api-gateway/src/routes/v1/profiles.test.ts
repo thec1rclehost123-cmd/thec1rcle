@@ -67,6 +67,10 @@ describe('profile routes GP-1 contracts', () => {
         uid: 'user_1',
         email: 'guest@example.com',
         displayName: 'Guest',
+        phone: '9999999999',
+        age: 24,
+        gender: 'man',
+        city: 'Mumbai',
         onboardingComplete: true,
       },
     });
@@ -77,6 +81,10 @@ describe('profile routes GP-1 contracts', () => {
         uid: 'user_1',
         email: 'guest@example.com',
         displayName: 'Guest',
+        phone: '+919999999999',
+        age: 24,
+        gender: 'man',
+        city: 'Mumbai',
         onboardingComplete: true,
       }),
     );
@@ -87,6 +95,11 @@ describe('profile routes GP-1 contracts', () => {
         uid: 'user_1',
         email: 'guest@example.com',
         displayName: 'Guest',
+        phone: '+919999999999',
+        age: 24,
+        gender: 'man',
+        city: 'Mumbai',
+        onboardingComplete: true,
       },
     });
 

@@ -329,69 +329,59 @@ function TicketsContent() {
         </div>
       )}
 
-      <AnimatePresence key="modal-presence">
-        {!!selectedTicket && typeof selectedTicket === 'object' ? (
-          <QRModal
-            key={`modal-qr-${selectedTicket.ticketId || selectedTicket.id || 'current'}`}
-            ticket={selectedTicket}
-            onClose={() => setSelectedTicket(null)}
-            onPartner={(ticket) => {
-              setSelectedTicket(null);
-              setPartnerTicket(ticket);
-            }}
-            onTransfer={(ticket) => {
-              setSelectedTicket(null);
-              setTransferTicket(ticket);
-            }}
-            onShare={(ticket) => {
-              setSelectedTicket(null);
-              setSharingTicket(ticket);
-            }}
-          />
-        ) : null}
+      <QRModal
+        isOpen={!!selectedTicket}
+        ticket={selectedTicket}
+        onClose={() => setSelectedTicket(null)}
+        onPartner={(ticket) => {
+          setSelectedTicket(null);
+          setPartnerTicket(ticket);
+        }}
+        onTransfer={(ticket) => {
+          setSelectedTicket(null);
+          setTransferTicket(ticket);
+        }}
+        onShare={(ticket) => {
+          setSelectedTicket(null);
+          setSharingTicket(ticket);
+        }}
+      />
 
-        {!!partnerTicket && typeof partnerTicket === 'object' ? (
-          <PartnerModal
-            key={`modal-partner-${partnerTicket.ticketId || partnerTicket.id || 'current'}`}
-            ticket={partnerTicket}
-            onClose={() => setPartnerTicket(null)}
-            onSuccess={() => {
-              setPartnerTicket(null);
-              refreshGuestServerState();
-            }}
-            onChanged={() => {
-              refreshGuestServerState();
-            }}
-          />
-        ) : null}
+      <PartnerModal
+        isOpen={!!partnerTicket}
+        ticket={partnerTicket}
+        onClose={() => setPartnerTicket(null)}
+        onSuccess={() => {
+          setPartnerTicket(null);
+          refreshGuestServerState();
+        }}
+        onChanged={() => {
+          refreshGuestServerState();
+        }}
+      />
 
-        {!!sharingTicket && typeof sharingTicket === 'object' ? (
-          <ShareModal
-            key={`modal-share-${sharingTicket.ticketId || sharingTicket.id || 'current'}`}
-            ticket={sharingTicket}
-            onClose={() => setSharingTicket(null)}
-            onSuccess={() => {
-              setSharingTicket(null);
-              refreshGuestServerState();
-            }}
-            onChanged={() => {
-              refreshGuestServerState();
-            }}
-          />
-        ) : null}
+      <ShareModal
+        isOpen={!!sharingTicket}
+        ticket={sharingTicket}
+        onClose={() => setSharingTicket(null)}
+        onSuccess={() => {
+          setSharingTicket(null);
+          refreshGuestServerState();
+        }}
+        onChanged={() => {
+          refreshGuestServerState();
+        }}
+      />
 
-        {!!transferTicket && typeof transferTicket === 'object' ? (
-          <TransferModal
-            key={`modal-transfer-${transferTicket.ticketId || transferTicket.id || 'current'}`}
-            ticket={transferTicket}
-            onClose={() => setTransferTicket(null)}
-            onSuccess={() => {
-              setTransferTicket(null);
-              refreshGuestServerState();
-            }}
-          />
-        ) : null}
-      </AnimatePresence>
+      <TransferModal
+        isOpen={!!transferTicket}
+        ticket={transferTicket}
+        onClose={() => setTransferTicket(null)}
+        onSuccess={() => {
+          setTransferTicket(null);
+          refreshGuestServerState();
+        }}
+      />
 
       {!!cancellingOrder ? (
         <CancelOrderModal

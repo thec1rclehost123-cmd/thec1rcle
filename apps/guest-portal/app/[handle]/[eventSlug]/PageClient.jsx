@@ -80,7 +80,7 @@ export default function VanityEventPageClient() {
     return () => {
       cancelled = true;
     };
-  }, [handle, redirectQuery, router, slug]);
+  }, [handle, redirectQuery, router, searchParams, slug]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#050508] px-6 text-center text-white">

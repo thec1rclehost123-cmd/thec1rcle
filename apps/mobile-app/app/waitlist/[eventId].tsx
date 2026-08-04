@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -6,28 +6,14 @@ import { useLocalSearchParams, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { apiFetch } from '@/lib/api';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  getDocs,
-  addDoc,
-  serverTimestamp,
-} from 'firebase/firestore';
 import { useAuthStore } from '@/store/authStore';
 import { Event, useEventsStore } from '@/store/eventsStore';
 import { colors, radii, gradients } from '@/lib/design/theme';
 
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
-
 export default function WaitlistScreen() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
-  const { user } = useAuthStore();
-  const { getEventById } = useEventsStore();
+  const user = useAuthStore((state) => state.user);
+  const getEventById = useEventsStore((state) => state.getEventById);
   const insets = useSafeAreaInsets();
 
   const [joining, setJoining] = useState(false);
@@ -36,24 +22,16 @@ export default function WaitlistScreen() {
   const [checking, setChecking] = useState(true);
   const [totalWaiting, setTotalWaiting] = useState(0);
   const [event, setEvent] = useState<Event | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!eventId) return;
     getEventById(eventId).then(setEvent);
   }, [eventId]);
 
-  useEffect(() => {
-    if (!eventId || !user?.email) {
-      setChecking(false);
-      return;
-    }
-    checkWaitlistStatus();
-  }, [eventId, user?.email]);
-
-  const checkWaitlistStatus = async () => {
+  const checkWaitlistStatus = useCallback(async () => {
     if (!eventId || !user?.email) return;
     try {
-      // Priority 1: API Gateway (Centralized logic)
       const data = await apiFetch(
         `/api/v1/waitlist/status?eventId=${eventId}&email=${user.email}`,
         {
@@ -70,85 +48,43 @@ export default function WaitlistScreen() {
       }
       setTotalWaiting(data.totalWaiting || 0);
     } catch (e: any) {
-      // Priority 2: Fallback to direct Firestore if API is unreachable (Network request failed)
-      if (e.message?.includes('Network request failed')) {
-        console.warn('[Waitlist] API Gateway unreachable, falling back to direct Firestore.');
-        try {
-          const db = getDb();
-          const col = collection(db, 'waitlist');
-
-          // Fetch all docs for this eventId (simple query, no composite index needed)
-          const snap = await getDocs(query(col, where('eventId', '==', eventId)));
-          const allEntries = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as any);
-
-          // Filter for "waiting" status in JS
-          const waitingEntries = allEntries
-            .filter((entry: any) => entry.status === 'waiting')
-            .sort((a: any, b: any) => {
-              const timeA = a.createdAt?.toMillis?.() || 0;
-              const timeB = b.createdAt?.toMillis?.() || 0;
-              return timeA - timeB;
-            });
-
-          setTotalWaiting(waitingEntries.length);
-
-          const userEntry = waitingEntries.find((entry: any) => entry.email === user.email);
-
-          if (userEntry) {
-            setAlreadyJoined(true);
-            // Position is the index in the sorted array + 1
-            const userIndex = waitingEntries.findIndex((entry: any) => entry.id === userEntry.id);
-            setPosition(userIndex + 1);
-          } else {
-            setAlreadyJoined(false);
-            setPosition(null);
-          }
-        } catch (fsErr: any) {
-          console.error('[Waitlist] Firestore fallback failed:', fsErr);
-        }
-      } else {
-        console.error('Error checking waitlist status:', e);
-      }
+      setError(e.message || 'Unable to check waitlist status');
     } finally {
       setChecking(false);
     }
-  };
+  }, [eventId, user?.email]);
+
+  useEffect(() => {
+    if (!eventId || !user?.email) {
+      setChecking(false);
+      return;
+    }
+    setChecking(true);
+    checkWaitlistStatus();
+  }, [checkWaitlistStatus, eventId, user?.email]);
 
   const handleJoin = async () => {
     if (!user?.email || !user?.uid || !eventId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setJoining(true);
+    setError(null);
     try {
-      // Try API first
+      const phone = (user as any).phoneNumber;
+      const payload: { eventId: string; email: string; phone?: string } = {
+        eventId,
+        email: user.email,
+      };
+      if (typeof phone === 'string' && phone.trim()) {
+        payload.phone = phone.trim();
+      }
+
       await apiFetch(`/api/v1/waitlist/join`, {
         method: 'POST',
-        body: JSON.stringify({
-          eventId,
-          userId: user.uid,
-          email: user.email,
-          phone: (user as any).phoneNumber ?? null,
-        }),
+        body: JSON.stringify(payload),
       });
       await checkWaitlistStatus();
     } catch (err: any) {
-      if (err.message?.includes('Network request failed')) {
-        // Fallback to direct Firestore join
-        try {
-          await addDoc(collection(getDb(), 'waitlist'), {
-            eventId,
-            userId: user.uid,
-            email: user.email,
-            phone: (user as any).phoneNumber ?? null,
-            status: 'waiting',
-            createdAt: serverTimestamp(),
-          });
-          await checkWaitlistStatus();
-        } catch (fsErr) {
-          console.error('Error joining waitlist via Firestore:', fsErr);
-        }
-      } else {
-        console.error('Error joining waitlist:', err);
-      }
+      setError(err.message || 'Failed to join waitlist');
     } finally {
       setJoining(false);
     }
@@ -171,8 +107,26 @@ export default function WaitlistScreen() {
       <View style={styles.content}>
         {checking ? (
           <ActivityIndicator color={colors.iris} size="large" />
+        ) : error ? (
+          <Animated.View entering={FadeInDown}>
+            <View style={styles.card}>
+              <Text style={styles.errorEmoji}>⚠️</Text>
+              <Text style={styles.cardTitle}>Something went wrong</Text>
+              <Text style={styles.cardSubtitle}>{error}</Text>
+              <Pressable
+                onPress={() => {
+                  setError(null);
+                  setChecking(true);
+                  checkWaitlistStatus();
+                }}
+                style={styles.retryBtn}
+              >
+                <Text style={styles.retryText}>Try Again</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
         ) : alreadyJoined ? (
-          <Animated.View entering={FadeInDown.springify()}>
+          <Animated.View entering={FadeInDown}>
             <View style={styles.card}>
               <View style={styles.positionCircle}>
                 <Text style={styles.positionNumber}>#{position ?? '—'}</Text>
@@ -187,7 +141,7 @@ export default function WaitlistScreen() {
             </View>
           </Animated.View>
         ) : (
-          <Animated.View entering={FadeInDown.springify()}>
+          <Animated.View entering={FadeInDown}>
             <View style={styles.card}>
               <Text style={styles.soldOutBadge}>SOLD OUT</Text>
               <Text style={styles.cardTitle}>{event?.title ?? 'Event'}</Text>
@@ -207,7 +161,7 @@ export default function WaitlistScreen() {
         )}
       </View>
 
-      {!checking && !alreadyJoined && (
+      {!checking && !alreadyJoined && !error && (
         <View style={styles.footer}>
           <Pressable
             onPress={handleJoin}
@@ -309,6 +263,14 @@ const styles = StyleSheet.create({
     borderRadius: radii.xl,
   },
   infoText: { color: colors.goldMetallic, fontSize: 13 },
+  errorEmoji: { fontSize: 40, marginBottom: 16 },
+  retryBtn: {
+    backgroundColor: colors.iris,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: radii.pill,
+  },
+  retryText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   howItWorks: { width: '100%', gap: 12, marginTop: 4 },
   howTitle: {
     color: colors.gold,

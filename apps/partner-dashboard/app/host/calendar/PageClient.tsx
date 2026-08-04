@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback, useRef, type ComponentType } from 'react';
+import { useEffect, useState, useMemo, useRef, type ComponentType } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeft,
   ChevronRight,
@@ -25,6 +26,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { parseAsIST, toISODateIST } from '@c1rcle/core/time';
 import { VenuePageShell } from '@/components/venue-layout/VenuePageShell';
+import { buildHostVenueCalendarUrl, getHostVenueCalendarDays } from '@/lib/host/venueCalendar';
 
 // ── Color system ──
 const C = {
@@ -68,12 +70,7 @@ const MONTHS = [
 ];
 
 type SlotState =
-  | 'open'
-  | 'pending_mine'
-  | 'approved_mine'
-  | 'occupied_other'
-  | 'blocked'
-  | 'unavailable';
+  'open' | 'pending_mine' | 'approved_mine' | 'occupied_other' | 'blocked' | 'unavailable';
 
 interface CalendarSlot {
   date: string;
@@ -141,9 +138,6 @@ export default function HostCalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(() => parseAsIST(null));
   const [selectedVenueId, setSelectedVenueId] = useState<string>(HOST_SCOPE_ID);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [venues, setVenues] = useState<VenueOption[]>([]);
-  const [slotsMap, setSlotsMap] = useState<Record<string, CalendarSlot[]>>({});
-  const [loading, setLoading] = useState(true);
 
   const year = parseInt(
     currentMonth.toLocaleString('en-US', { year: 'numeric', timeZone: 'Asia/Kolkata' }),
@@ -152,19 +146,19 @@ export default function HostCalendarPage() {
     parseInt(currentMonth.toLocaleString('en-US', { month: 'numeric', timeZone: 'Asia/Kolkata' })) -
     1;
 
-  // ── Fetching logic ──
-  const fetchVenues = useCallback(async () => {
-    if (!hostId) return;
-    try {
+  const venuesQuery = useQuery({
+    queryKey: ['host-calendar-venues', hostId],
+    queryFn: async ({ signal }) => {
       const token = typeof getIdToken === 'function' ? await getIdToken() : null;
-      if (!token) return;
+      if (!token) throw new Error('Authentication is required to load venues.');
       const res = await fetch(`/api/partners/hosts/partnerships?hostId=${hostId}&status=active`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal,
       });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error('Failed to load venues');
       const data = await res.json();
       const all = data.partnerships || data.partners || [];
-      const active = all
+      return all
         .filter((p: any) => (p.status || p.partnershipStatus) === 'active')
         .map((p: any) => ({
           id: p.venueId || p.id,
@@ -172,23 +166,16 @@ export default function HostCalendarPage() {
           city: p.city || '',
           partnershipStatus: 'active' as const,
         }));
-      setVenues(active);
-    } catch {
-      /* silent */
-    }
-  }, [hostId, getIdToken]);
+    },
+    enabled: Boolean(hostId),
+  });
 
-  const fetchCalendar = useCallback(async () => {
-    if (!hostId) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
+  const calendarQuery = useQuery({
+    queryKey: ['host-calendar', hostId, selectedVenueId, year, month],
+    queryFn: async ({ signal }) => {
       const token = typeof getIdToken === 'function' ? await getIdToken() : null;
       if (!token) {
-        setLoading(false);
-        return;
+        throw new Error('Authentication is required to verify calendar availability.');
       }
 
       const start = `${year}-${String(month + 1).padStart(2, '0')}-01`;
@@ -198,8 +185,9 @@ export default function HostCalendarPage() {
       if (selectedVenueId === HOST_SCOPE_ID) {
         const res = await fetch(`/api/partners/hosts/events?limit=100`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal,
         });
-        if (!res.ok) throw new Error('Failed');
+        if (!res.ok) throw new Error('Failed to load host events');
         const data = await res.json();
         const events: any[] = data.events || [];
         const map: Record<string, CalendarSlot[]> = {};
@@ -226,56 +214,67 @@ export default function HostCalendarPage() {
               venueName: e.venueName,
             });
           });
-        setSlotsMap(map);
+        return map;
       } else {
         const res = await fetch(
-          `/api/venues/${selectedVenueId}/calendar?hostId=${hostId}&view=operating&startDate=${start}&endDate=${end}`,
-          { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+          buildHostVenueCalendarUrl({
+            venueId: selectedVenueId,
+            startDate: start,
+            endDate: end,
+          }),
+          { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal },
         );
         const data = await res.json();
-        const map: Record<string, CalendarSlot[]> = {};
-        if (Array.isArray(data)) {
-          data.forEach((d: any) => {
-            const visible = filterVisible(d.events);
-            map[d.date] = visible.map((e: any) => ({
-              date: d.date,
-              startTime: e.startTime,
-              endTime: e.endTime,
-              state:
-                e.hostId === hostId
-                  ? ['submitted', 'pending'].includes((e.lifecycle || e.status).toLowerCase())
-                    ? 'pending_mine'
-                    : 'approved_mine'
-                  : 'occupied_other',
-              eventTitle: e.title || 'Occupied',
-              eventId: e.id,
-            }));
-            if (d.state === 'BLOCKED') {
-              map[d.date].push({
-                date: d.date,
-                state: 'blocked',
-                startTime: d.block?.startTime,
-                endTime: d.block?.endTime,
-                eventTitle: d.block?.reason || 'Blocked',
-              });
-            }
-          });
+        if (!res.ok) {
+          const message =
+            typeof data.error === 'object' ? data.error?.message : data.error || data.message;
+          throw new Error(message || 'Failed to load venue availability');
         }
-        setSlotsMap(map);
+        const map: Record<string, CalendarSlot[]> = {};
+        getHostVenueCalendarDays(data).forEach((d: any) => {
+          const visible = filterVisible(d.events);
+          map[d.date] = visible.map((e: any) => ({
+            date: d.date,
+            startTime: e.startTime,
+            endTime: e.endTime,
+            state:
+              e.hostId === hostId
+                ? ['submitted', 'pending'].includes((e.lifecycle || e.status).toLowerCase())
+                  ? 'pending_mine'
+                  : 'approved_mine'
+                : 'occupied_other',
+            eventTitle: e.title || 'Occupied',
+            eventId: e.id,
+          }));
+          if (d.state === 'BLOCKED') {
+            map[d.date].push({
+              date: d.date,
+              state: 'blocked',
+              startTime: d.block?.startTime,
+              endTime: d.block?.endTime,
+              eventTitle: d.block?.reason || 'Blocked',
+            });
+          }
+        });
+        return map;
       }
-    } catch {
-      setSlotsMap({});
-    } finally {
-      setLoading(false);
-    }
-  }, [hostId, selectedVenueId, getIdToken, year, month]);
+    },
+    enabled: Boolean(hostId),
+  });
+
+  const venues = (venuesQuery.data ?? []) as VenueOption[];
+  const slotsMap = (calendarQuery.data ?? {}) as Record<string, CalendarSlot[]>;
+  const loading = calendarQuery.isLoading;
+  const calendarError =
+    calendarQuery.error instanceof Error
+      ? calendarQuery.error.message
+      : calendarQuery.isError
+        ? 'Calendar data is temporarily unavailable.'
+        : '';
 
   useEffect(() => {
-    fetchVenues();
-  }, [fetchVenues]);
-  useEffect(() => {
-    fetchCalendar();
-  }, [fetchCalendar]);
+    if (calendarQuery.isError) setSelectedDate(null);
+  }, [calendarQuery.isError]);
 
   const firstDayIdx = useMemo(() => {
     const d = parseAsIST(`${year}-${String(month + 1).padStart(2, '0')}-01`);
@@ -389,6 +388,18 @@ export default function HostCalendarPage() {
           </div>
         </div>
 
+        {calendarError && (
+          <div
+            role="alert"
+            className="flex items-center gap-2 rounded-2xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-300"
+          >
+            <Info className="h-4 w-4 flex-shrink-0" />
+            <span>
+              {calendarError} Calendar selection is locked until the next successful load.
+            </span>
+          </div>
+        )}
+
         <div className="flex-1 flex flex-col lg:flex-row gap-5 min-h-0">
           <div className="lg:flex-[2.5] bg-[#16161b] rounded-[28px] border border-white/5 flex flex-col overflow-hidden shadow-2xl">
             <div className="grid grid-cols-7 px-4 pt-5 pb-3">
@@ -441,9 +452,17 @@ export default function HostCalendarPage() {
                     return (
                       <button
                         key={cell.dateStr}
-                        onClick={() => setSelectedDate(cell.dateStr)}
+                        onClick={() => {
+                          if (!cell.isPast && !calendarError) setSelectedDate(cell.dateStr);
+                        }}
+                        disabled={cell.isPast || Boolean(calendarError)}
                         className="relative rounded-2xl flex flex-col items-center justify-center gap-1 transition-all"
-                        style={{ background: bg, border, opacity: cell.isPast ? 0.4 : 1 }}
+                        style={{
+                          background: bg,
+                          border,
+                          opacity: cell.isPast || calendarError ? 0.4 : 1,
+                          cursor: cell.isPast || calendarError ? 'not-allowed' : 'pointer',
+                        }}
                       >
                         <span
                           className={`text-[15px] font-black tabular-nums ${isToday ? 'text-orange-500' : 'text-white/80'}`}

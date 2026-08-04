@@ -3,6 +3,7 @@
 import Image from 'next/image';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Calendar,
@@ -19,6 +20,8 @@ import {
   Tag,
   Ticket,
   Users,
+  Coins,
+  ArrowRight,
 } from 'lucide-react';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { VenuePageShell } from '@/components/venue-layout/VenuePageShell';
@@ -26,6 +29,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { CITY_MAP } from '@c1rcle/core/events';
 import GenerateLinkModal from '@/components/promoter/links/GenerateLinkModal';
 import AnalyticsDrawer from '@/components/promoter/links/AnalyticsDrawer';
+import CommissionDetailsModal from '@/components/promoter/events/CommissionDetailsModal';
 
 const GUEST_PORTAL_URL =
   process.env.NEXT_PUBLIC_GUEST_PORTAL_URL || process.env.NEXT_PUBLIC_SITE_URL || '';
@@ -50,8 +54,17 @@ interface PromoterEvent {
   creatorRole?: string;
   priceRange: { min: number; max: number };
   commissionRate: number;
-  tickets: { id: string; name: string; price: number; promoterEnabled: boolean }[];
+  commissionType?: 'percentage' | 'fixed' | 'flat';
+  tickets: {
+    id: string;
+    name: string;
+    price: number;
+    promoterEnabled: boolean;
+    commissionRate?: number;
+    commissionType?: 'percentage' | 'fixed';
+  }[];
   stats: { interested: number };
+  compensationModel?: string;
 }
 
 interface PromoterLink {
@@ -168,79 +181,88 @@ export default function PromoterEventsPage() {
   const { profile, user } = useDashboardAuth();
   const promoterId = profile?.activeMembership?.partnerId;
   const promoterName = profile?.displayName;
+  const queryClient = useQueryClient();
 
   const [events, setEvents] = useState<PromoterEvent[]>([]);
   const [myLinks, setMyLinks] = useState<PromoterLink[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [assignmentRequests, setAssignmentRequests] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [activeTab, setActiveTab] = useState<PromoterTab>('available');
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
   const [selectedEventIdForModal, setSelectedEventIdForModal] = useState<string | null>(null);
   const [editingLink, setEditingLink] = useState<PromoterLink | null>(null);
-  const [authToken, setAuthToken] = useState('');
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [openCommissionEventId, setOpenCommissionEventId] = useState<string | null>(null);
+  const [requestingEventId, setRequestingEventId] = useState<string | null>(null);
+  const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
 
-  const fetchPageData = useCallback(
-    async (manualRefresh = false) => {
-      if (!promoterId) return;
-      if (manualRefresh) setRefreshing(true);
-      else setLoading(true);
+  const eventsQuery = useQuery({
+    queryKey: ['promoter-events-page', promoterId, selectedCity],
+    queryFn: async ({ signal }) => {
+      const token = await user?.getIdToken();
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const params = new URLSearchParams();
+      if (selectedCity) params.set('city', selectedCity);
 
-      try {
-        const authToken = await user?.getIdToken();
-        if (authToken) setAuthToken(authToken);
-        const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
-        const params = new URLSearchParams();
-        if (selectedCity) params.set('city', selectedCity);
+      const [eventsRes, linksRes] = await Promise.all([
+        fetch(`/api/partners/promoters/events?${params.toString()}`, { headers, signal }),
+        fetch('/api/partners/promoters/links?limit=100', { headers, signal }),
+      ]);
 
-        const [eventsRes, linksRes] = await Promise.all([
-          fetch(`/api/partners/promoters/events?${params.toString()}`, { headers }),
-          fetch('/api/partners/promoters/links?limit=100', { headers }),
-        ]);
-
-        if (!eventsRes.ok || !linksRes.ok) {
-          throw new Error('Failed to load promoter events');
-        }
-
-        const eventsData = await eventsRes.json();
-        const linksData = await linksRes.json();
-        setEvents(Array.isArray(eventsData.events) ? eventsData.events : []);
-        setAssignments(Array.isArray(eventsData.assignments) ? eventsData.assignments : []);
-        setNextCursor(eventsData.discoverCursor || null);
-        setMyLinks(Array.isArray(linksData.links) ? linksData.links : []);
-        setFetchError(null);
-        setRefreshedAt(new Date());
-      } catch (error) {
-        console.error('Failed to fetch promoter events:', error);
-        setFetchError('Failed to load events. Please try again.');
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
+      if (!eventsRes.ok || !linksRes.ok) {
+        throw new Error('Failed to load promoter events');
       }
+
+      const [eventsData, linksData] = await Promise.all([eventsRes.json(), linksRes.json()]);
+      return { eventsData, linksData, token: token || '' };
     },
-    [promoterId, selectedCity, user],
-  );
+    enabled: Boolean(promoterId && user),
+  });
+
+  useEffect(() => {
+    if (!eventsQuery.data) return;
+    const { eventsData, linksData } = eventsQuery.data;
+    setEvents(Array.isArray(eventsData.events) ? eventsData.events : []);
+    setAssignments(Array.isArray(eventsData.assignments) ? eventsData.assignments : []);
+    setAssignmentRequests(
+      Array.isArray(eventsData.assignmentRequests) ? eventsData.assignmentRequests : [],
+    );
+    setNextCursor(eventsData.discoverCursor || null);
+    setMyLinks(Array.isArray(linksData.links) ? linksData.links : []);
+  }, [eventsQuery.data]);
+
+  const loading = eventsQuery.isLoading;
+  const refreshing = eventsQuery.isFetching && !eventsQuery.isLoading;
+  const fetchError = eventsQuery.isError ? 'Failed to load events. Please try again.' : null;
+  const refreshedAt = eventsQuery.dataUpdatedAt ? new Date(eventsQuery.dataUpdatedAt) : null;
+  const authToken = eventsQuery.data?.token || '';
 
   const loadMore = useCallback(async () => {
     if (!promoterId || !nextCursor || loadingMore) return;
     setLoadingMore(true);
 
     try {
-      const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
       const params = new URLSearchParams();
       if (selectedCity) params.set('city', selectedCity);
       params.set('cursor', nextCursor);
 
-      const res = await fetch(`/api/partners/promoters/events?${params.toString()}`, { headers });
-      if (!res.ok) throw new Error('Failed to load more events');
-
-      const data = await res.json();
+      const data = await queryClient.fetchQuery({
+        queryKey: ['promoter-events-page', promoterId, selectedCity, nextCursor],
+        queryFn: async ({ signal }) => {
+          const token = authToken || (await user?.getIdToken()) || '';
+          const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+          const res = await fetch(`/api/partners/promoters/events?${params.toString()}`, {
+            headers,
+            signal,
+          });
+          if (!res.ok) throw new Error('Failed to load more events');
+          return res.json();
+        },
+        staleTime: 0,
+      });
       if (Array.isArray(data.events)) {
         setEvents((prev) => {
           const existingIds = new Set(prev.map((e) => e.id));
@@ -254,11 +276,14 @@ export default function PromoterEventsPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [promoterId, nextCursor, loadingMore, authToken, selectedCity]);
+  }, [promoterId, nextCursor, loadingMore, authToken, selectedCity, queryClient, user]);
 
-  useEffect(() => {
-    fetchPageData();
-  }, [fetchPageData]);
+  // NOTE: A previous window-level "click closes the commission modal" listener was
+  // removed. It fired on *every* click in the document, including clicks inside the
+  // modal itself, so the modal closed the instant you interacted with it (even its
+  // own controls). CommissionDetailsModal already handles dismissal correctly via
+  // its full-screen backdrop onClick and its explicit close (X) button, so no
+  // document-level listener is needed.
 
   const getActiveLink = useCallback(
     (eventId: string) => {
@@ -268,8 +293,59 @@ export default function PromoterEventsPage() {
   );
 
   const assignedEventIds = useMemo(() => {
-    return new Set((assignments || []).map((a) => String(a.eventId || '')));
+    return new Set(
+      (assignments || [])
+        .filter((assignment) => String(assignment.status || '').toLowerCase() === 'active')
+        .map((assignment) => String(assignment.eventId || '')),
+    );
   }, [assignments]);
+
+  const pendingRequestEventIds = useMemo(() => {
+    return new Set(
+      assignmentRequests
+        .filter((request) => String(request.status || '').toLowerCase() === 'pending')
+        .map((request) => String(request.eventId || '')),
+    );
+  }, [assignmentRequests]);
+
+  const requestPromotionAccess = useCallback(
+    async (eventId: string) => {
+      if (!eventId || requestingEventId) return;
+      setRequestingEventId(eventId);
+      setRequestErrors((current) => ({ ...current, [eventId]: '' }));
+      try {
+        const token = authToken || (await user?.getIdToken()) || '';
+        const response = await fetch(`/api/partners/promoters/events/${eventId}/request`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ promoterName: promoterName || undefined }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(payload?.error?.message || 'Unable to request promotion access');
+        }
+        if (payload?.request?.status === 'assigned') {
+          await eventsQuery.refetch();
+          return;
+        }
+        setAssignmentRequests((current) => [
+          ...current.filter((request) => String(request.eventId || '') !== eventId),
+          { id: payload?.request?.requestId || eventId, eventId, status: 'pending' },
+        ]);
+      } catch (error) {
+        setRequestErrors((current) => ({
+          ...current,
+          [eventId]: error instanceof Error ? error.message : 'Unable to request promotion access',
+        }));
+      } finally {
+        setRequestingEventId(null);
+      }
+    },
+    [authToken, eventsQuery, promoterName, requestingEventId, user],
+  );
 
   const filteredEvents = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -316,8 +392,8 @@ export default function PromoterEventsPage() {
 
   const copyLink = async (link: PromoterLink) => {
     await navigator.clipboard.writeText(buildLinkUrl(link));
-    setCopiedCode(link.code);
-    window.setTimeout(() => setCopiedCode(null), 1500);
+    setCopiedLinkId(link.id);
+    window.setTimeout(() => setCopiedLinkId(null), 1500);
   };
 
   return (
@@ -325,7 +401,7 @@ export default function PromoterEventsPage() {
       title="Events"
       actions={
         <button
-          onClick={() => fetchPageData(true)}
+          onClick={() => eventsQuery.refetch()}
           disabled={refreshing || loading}
           className="flex items-center gap-2 px-5 py-3 bg-surface-elevated border border-border-default hover:border-border-strong text-text-secondary text-sm font-semibold rounded-xl transition-all disabled:opacity-60"
         >
@@ -399,7 +475,7 @@ export default function PromoterEventsPage() {
         <ErrorState
           title="Failed to load events"
           message={fetchError}
-          onRetry={() => fetchPageData()}
+          onRetry={() => eventsQuery.refetch()}
         />
       ) : filteredEvents.length === 0 ? (
         <div className="relative overflow-hidden rounded-[34px] border border-white/5 bg-[linear-gradient(180deg,rgba(34,34,38,0.98),rgba(21,21,25,0.98))] p-12 text-center shadow-[0_24px_80px_rgba(0,0,0,0.16)]">
@@ -424,6 +500,8 @@ export default function PromoterEventsPage() {
           {filteredEvents.map((event) => {
             const link = getActiveLink(event.id);
             const hasLink = Boolean(link);
+            const isAssigned = assignedEventIds.has(String(event.id));
+            const requestPending = pendingRequestEventIds.has(String(event.id));
             const dateParts = formatEventDate(event.startDate);
             const partnerLabel = event.creatorRole === 'host' ? 'Host' : 'Venue';
             const partnerValue =
@@ -462,14 +540,15 @@ export default function PromoterEventsPage() {
                   <div className="absolute top-4 left-4 right-4 flex justify-between">
                     <span className="inline-flex items-center gap-2 rounded-full bg-black/60 border border-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-md">
                       <span
-                        className={`h-1.5 w-1.5 rounded-full ${hasLink ? 'bg-violet-400' : 'bg-emerald-400'}`}
+                        className={`h-1.5 w-1.5 rounded-full ${hasLink ? 'bg-violet-400' : requestPending ? 'bg-amber-400' : 'bg-emerald-400'}`}
                       />
-                      {hasLink ? 'Link Active' : 'Ready to Promote'}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-black/60 px-3 py-1.5 text-xs font-bold text-emerald-400 backdrop-blur-md">
-                      {event.commissionRate
-                        ? `Earn ${event.commissionRate}%/ticket`
-                        : `0% commission`}
+                      {hasLink
+                        ? 'Link Active'
+                        : isAssigned
+                          ? 'Ready to Generate'
+                          : requestPending
+                            ? 'Request Pending'
+                            : 'Access Required'}
                     </span>
                   </div>
                 </div>
@@ -502,20 +581,43 @@ export default function PromoterEventsPage() {
 
                   {hasLink && link ? (
                     <div className="flex flex-col gap-3">
-                      <button
-                        onClick={() => setEditingLink(link)}
-                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 text-black font-bold text-[15px] flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(16,185,129,0.2)]"
-                      >
-                        View Stats
-                      </button>
-                      <button
-                        onClick={() => copyLink(link)}
-                        className="text-text-tertiary text-sm font-medium hover:text-white transition-colors text-center w-full"
-                      >
-                        {copiedCode === link.code ? 'Copied!' : 'Copy Link'}
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setEditingLink(link)}
+                          className="flex-grow py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 text-black font-bold text-[15px] flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                        >
+                          View Stats
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyLink(link);
+                          }}
+                          className="px-4 py-3.5 rounded-xl bg-surface-secondary border border-white/10 hover:border-emerald-500/30 text-white text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                          title="Copy Link"
+                        >
+                          {copiedLinkId === link.id ? (
+                            <span className="text-xs font-bold text-emerald-400">Copied!</span>
+                          ) : (
+                            <Copy className="w-5 h-5 text-emerald-400" />
+                          )}
+                        </button>
+                      </div>
+
+                      <div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenCommissionEventId(event.id);
+                          }}
+                          className="text-text-tertiary text-sm font-semibold hover:text-white transition-colors text-center w-full flex items-center justify-center gap-1.5 py-1"
+                        >
+                          <Tag className="w-4 h-4 text-emerald-400" />
+                          View Earnings Info
+                        </button>
+                      </div>
                     </div>
-                  ) : (
+                  ) : isAssigned ? (
                     <button
                       onClick={() => setSelectedEventIdForModal(event.id)}
                       className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 text-black font-bold text-[15px] flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(16,185,129,0.2)]"
@@ -523,6 +625,32 @@ export default function PromoterEventsPage() {
                       <LinkIcon className="w-5 h-5" />
                       Get Promoter Link
                     </button>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => requestPromotionAccess(event.id)}
+                        disabled={requestPending || requestingEventId === event.id}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 py-3.5 text-[15px] font-bold text-black shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {requestingEventId === event.id ? (
+                          <RefreshCw className="h-5 w-5 animate-spin" />
+                        ) : requestPending ? (
+                          <Clock className="h-5 w-5" />
+                        ) : (
+                          <ArrowRight className="h-5 w-5" />
+                        )}
+                        {requestingEventId === event.id
+                          ? 'Requesting...'
+                          : requestPending
+                            ? 'Request Pending'
+                            : 'Request Promotion Access'}
+                      </button>
+                      {requestErrors[event.id] ? (
+                        <p className="text-center text-xs font-semibold text-red-400">
+                          {requestErrors[event.id]}
+                        </p>
+                      ) : null}
+                    </div>
                   )}
                 </div>
               </motion.div>
@@ -579,6 +707,17 @@ export default function PromoterEventsPage() {
           onReactivated={() => {}}
         />
       </AnimatePresence>
+
+      <CommissionDetailsModal
+        isOpen={Boolean(openCommissionEventId)}
+        onClose={() => setOpenCommissionEventId(null)}
+        eventId={openCommissionEventId || ''}
+        eventTitle={events.find((e) => e.id === openCommissionEventId)?.title || ''}
+        commissionRate={events.find((e) => e.id === openCommissionEventId)?.commissionRate || 0}
+        commissionType={events.find((e) => e.id === openCommissionEventId)?.commissionType}
+        preloadedTickets={events.find((e) => e.id === openCommissionEventId)?.tickets}
+        token={authToken}
+      />
     </VenuePageShell>
   );
 }

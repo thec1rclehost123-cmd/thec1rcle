@@ -47,6 +47,7 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/request',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: RequestBody })],
     },
     async (request: any, reply) => {
@@ -131,6 +132,7 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: PartnershipsQuery })],
     },
     async (request: any, reply) => {
@@ -180,6 +182,7 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: PartnershipIdParam, body: UpdateActionBody }),
@@ -247,6 +250,7 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/check',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: CheckQuery })],
     },
     async (request: any, reply) => {

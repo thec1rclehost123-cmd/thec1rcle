@@ -1,4 +1,5 @@
-import { FieldValue, type Firestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+import { AggregateField } from 'firebase-admin/firestore';
 import type {
   PartnerContext,
   LedgerEntry,
@@ -11,6 +12,7 @@ import type {
   FinanceOverview,
   BankAccount,
   Dispute,
+  DisputeFilters,
   PaginatedResult,
   DataPoint,
 } from './types.js';
@@ -19,12 +21,28 @@ import type { ServiceContext, ServiceLogger } from './service-context.js';
 import { consoleLogger } from './service-context.js';
 
 const LEDGER_AGGREGATES_COLLECTION = 'partner_finance_aggregates';
-const LEDGER_IDEMPOTENCY_COLLECTION = 'partner_ledger_idempotency';
+const BALANCE_CACHE_VERSION = 2;
 const REVENUE_FIELDS_BY_TYPE = {
   host_payout: 'hostPayout',
   venue_share: 'venueShare',
   promoter_commission: 'promoterCommission',
 } as const;
+
+function financeUnavailable(message: string, cause?: unknown) {
+  const error: any = new Error(message);
+  if (cause !== undefined) error.cause = cause;
+  error.code = 'FINANCE_DATA_UNAVAILABLE';
+  error.statusCode = 503;
+  return error;
+}
+
+function requirePaise(value: unknown, recordLabel: string) {
+  const amountPaise = Number(value);
+  if (!Number.isSafeInteger(amountPaise)) {
+    throw financeUnavailable(`${recordLabel} is missing canonical integer amountPaise`);
+  }
+  return amountPaise;
+}
 
 type RevenueFieldName = (typeof REVENUE_FIELDS_BY_TYPE)[keyof typeof REVENUE_FIELDS_BY_TYPE];
 type AggregateBalances = Record<LedgerEntryStatus, number>;
@@ -76,71 +94,179 @@ export class FinanceService {
     }
 
     return {
-      totalRevenue: balances.settled + balances.pending,
-      pendingPayouts: balances.pending,
-      settledPayouts: balances.settled,
+      totalRevenue: (balances.settled + balances.pending) / 100,
+      pendingPayouts: balances.pending / 100,
+      settledPayouts: balances.settled / 100,
+      totalRevenuePaise: balances.settled + balances.pending,
+      pendingPayoutsPaise: balances.pending,
+      settledPayoutsPaise: balances.settled,
       currency: 'INR',
       revenueByPeriod,
     };
   }
 
+  async getVenueFinancialBreakdown(venueId: string): Promise<{
+    grossSalesPaise: number;
+    refundsPaise: number;
+    platformFeesPaise: number;
+    paymentGatewayFeesPaise: null;
+    taxesPaise: null;
+    netVenueEarningsPaise: number;
+    eventBreakdown: Array<{
+      eventId: string;
+      grossSalesPaise: number;
+      refundsPaise: number;
+      netVenueEarningsPaise: number;
+    }>;
+  }> {
+    const [venueSnapshot, venuePartnerSnapshot] = await Promise.all([
+      this.db.collection('partner_ledger').where('venueId', '==', venueId).get(),
+      this.db.collection('partner_ledger').where('toPartnerId', '==', venueId).get(),
+    ]).catch((err: any) => {
+      this.log.error(
+        {
+          service: 'FinanceService',
+          method: 'getVenueFinancialBreakdown',
+          venueId,
+          error: err?.message ?? String(err),
+        },
+        'Venue finance ledger query failed',
+      );
+      throw financeUnavailable('Canonical venue finance data is unavailable', err);
+    });
+    const entriesById = new Map<
+      string,
+      FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>
+    >();
+    for (const document of [...venueSnapshot.docs, ...venuePartnerSnapshot.docs]) {
+      entriesById.set(document.id, document);
+    }
+
+    let grossSalesPaise = 0;
+    let refundsPaise = 0;
+    let platformFeesPaise = 0;
+    let netVenueEarningsPaise = 0;
+    const byEvent = new Map<
+      string,
+      { grossSalesPaise: number; refundsPaise: number; netVenueEarningsPaise: number }
+    >();
+
+    const countedRefunds = new Set<string>();
+    for (const document of entriesById.values()) {
+      const entry = document.data() as Record<string, any>;
+      if (entry.status === 'reversed') continue;
+      const amountPaise = requirePaise(entry.amountPaise, `Ledger entry ${document.id}`);
+      const eventId = safeStr(entry.eventId || 'unattributed');
+      const row = byEvent.get(eventId) || {
+        grossSalesPaise: 0,
+        refundsPaise: 0,
+        netVenueEarningsPaise: 0,
+      };
+      if (entry.type === 'ticket_revenue') {
+        grossSalesPaise += amountPaise;
+        row.grossSalesPaise += amountPaise;
+      } else if (entry.type === 'refund') {
+        const refundId = safeStr(entry.refundId || document.id);
+        const refund = Math.abs(toNum(entry.refundGrossPaise || amountPaise));
+        if (!countedRefunds.has(refundId)) {
+          refundsPaise += refund;
+          row.refundsPaise += refund;
+          countedRefunds.add(refundId);
+        }
+        if (entry.allocationType === 'venue_share' && entry.toPartnerId === venueId) {
+          netVenueEarningsPaise += amountPaise;
+          row.netVenueEarningsPaise += amountPaise;
+        }
+      } else if (entry.type === 'platform_fee') {
+        platformFeesPaise += amountPaise;
+      } else if (entry.type === 'venue_share' && entry.toPartnerId === venueId) {
+        netVenueEarningsPaise += amountPaise;
+        row.netVenueEarningsPaise += amountPaise;
+      }
+      byEvent.set(eventId, row);
+    }
+
+    return {
+      grossSalesPaise,
+      refundsPaise,
+      platformFeesPaise,
+      paymentGatewayFeesPaise: null,
+      taxesPaise: null,
+      netVenueEarningsPaise,
+      eventBreakdown: [...byEvent.entries()]
+        .filter(([eventId]) => eventId !== 'unattributed')
+        .map(([eventId, values]) => ({ eventId, ...values }))
+        .sort((left, right) => right.grossSalesPaise - left.grossSalesPaise),
+    };
+  }
+
   async getFinanceSummary(ctx: PartnerContext): Promise<any> {
     const partnerId = ctx.partnerId;
-    const [balances, doc, payoutsSnap] = await Promise.all([
-      this.readBalanceAggregate(partnerId),
-      this.db.collection(LEDGER_AGGREGATES_COLLECTION).doc(partnerId).get(),
-      this.db
-        .collection('payouts')
-        .where('partnerId', '==', partnerId)
-        .where('status', 'in', ['completed', 'paid', 'cleared'])
-        .get(),
-    ]);
+
+    // ⚡ Performance: serve from Redis cache to avoid 4 parallel Firestore queries
+    const summaryCacheKey = `finance:summary:v${BALANCE_CACHE_VERSION}:${partnerId}`;
+    if (this.redis && this.redis.status === 'ready') {
+      try {
+        const cached = await this.redis.get(summaryCacheKey);
+        if (cached) return JSON.parse(cached);
+      } catch {
+        // Redis failure is non-critical — fall through to computation
+      }
+    }
+
+    const [balances, doc, payoutsAggregate, pendingRefundsAggregate, ticketsCount] =
+      await Promise.all([
+        this.readBalanceAggregate(partnerId),
+        this.db.collection(LEDGER_AGGREGATES_COLLECTION).doc(partnerId).get(),
+        this.db
+          .collection('payouts')
+          .where('partnerId', '==', partnerId)
+          .where('status', 'in', ['completed', 'paid', 'cleared'])
+          .aggregate({ totalPaise: AggregateField.sum('amountPaise') })
+          .get(),
+        this.db
+          .collection('partner_ledger')
+          .where('toPartnerId', '==', partnerId)
+          .where('type', '==', 'refund')
+          .where('status', '==', 'pending')
+          .aggregate({ totalPaise: AggregateField.sum('amountPaise') })
+          .get(),
+        this.db
+          .collection('tickets')
+          .where('hostId', '==', partnerId)
+          .where('status', 'in', ['active', 'used', 'transferred'])
+          .count()
+          .get(),
+      ]);
 
     const aggregate = doc.exists ? doc.data() : {};
     const totalsByType = aggregate?.totalsByType || {};
 
-    // Sum all successful payouts
-    const paidOut = payoutsSnap.docs.reduce((sum, d) => sum + Math.abs(toNum(d.data().amount)), 0);
+    const paidOutPaise = Math.abs(toNum(payoutsAggregate.data().totalPaise));
+    const refundPendingPaise = Math.abs(toNum(pendingRefundsAggregate.data().totalPaise));
+    const totalTicketsSold = toNum(ticketsCount.data().count);
 
-    // Get pending refunds from ledger (this might be slow if many, but aggregate doesn't split pending by type)
-    // Actually, let's just use 0 if not easily available from aggregate for now,
-    // OR query the ledger for the last few days of pending refunds.
-    // Given it's a P0, let's try to get it right.
-    const pendingRefundsSnap = await this.db
-      .collection('partner_ledger')
-      .where('toPartnerId', '==', partnerId)
-      .where('type', '==', 'refund')
-      .where('status', '==', 'pending')
-      .limit(50)
-      .get();
-
-    const refundPending = pendingRefundsSnap.docs.reduce(
-      (sum, d) => sum + Math.abs(toNum(d.data().amount)),
-      0,
-    );
-
-    // Get total tickets sold from orders collection
-    const ticketsSnap = await this.db
-      .collection('orders')
-      .where('hostId', '==', partnerId)
-      .where('status', 'in', ['paid', 'checked_in'])
-      .get()
-      .catch(() => ({ size: 0, docs: [] }));
-
-    const totalTicketsSold = (ticketsSnap as any).docs.reduce(
-      (sum: number, doc: any) => sum + toNum(doc.data().ticketCount || 1),
-      0,
-    );
-
-    return {
-      netRevenue: balances.settled + balances.pending,
-      availableBalance: balances.settled,
-      pendingBalance: balances.pending,
+    const result = {
+      netRevenue: (balances.settled + balances.pending) / 100,
+      netRevenuePaise: balances.settled + balances.pending,
+      availableBalance: balances.settled / 100,
+      availableBalancePaise: balances.settled,
+      pendingBalance: balances.pending / 100,
+      pendingBalancePaise: balances.pending,
       totalTicketsSold,
-      paidOut,
-      refundPending,
+      paidOut: paidOutPaise / 100,
+      paidOutPaise,
+      refundPending: refundPendingPaise / 100,
+      refundPendingPaise,
       currency: aggregate?.currency || 'INR',
     };
+
+    // ⚡ Write-through: cache finance summary for 5min (invalidated on purchase)
+    if (this.redis && this.redis.status === 'ready') {
+      this.redis.set(summaryCacheKey, JSON.stringify(result), 'EX', 300).catch(() => {});
+    }
+
+    return result;
   }
 
   // ── Ledger ────────────────────────────────────────────────────────────────
@@ -149,7 +275,7 @@ export class FinanceService {
     ctx: PartnerContext,
     filters: LedgerFilters,
   ): Promise<PaginatedResult<LedgerEntry>> {
-    const { from, to, type, cursor, limit = 20 } = filters;
+    const { from, to, type, status, cursor, limit = 20 } = filters;
     const cap = Math.min(limit, 200);
     const partnerId = ctx.partnerId;
     const startedAt = Date.now();
@@ -161,6 +287,7 @@ export class FinanceService {
       .limit(cap + 1);
 
     if (type) q = q.where('type', '==', type);
+    if (status) q = q.where('status', '==', status);
     if (from) q = q.where('createdAt', '>=', new Date(from));
     if (to) q = q.where('createdAt', '<=', new Date(to));
     if (cursor) {
@@ -172,72 +299,16 @@ export class FinanceService {
     try {
       snap = await q.get();
     } catch (err: any) {
-      this.log.warn(
+      this.log.error(
         {
           service: 'FinanceService',
           method: 'getLedger',
           partnerId,
           error: err?.message ?? String(err),
         },
-        'Ledger query failed, attempting in-memory fallback',
+        'Canonical paginated ledger query failed',
       );
-
-      try {
-        const fallbackSnap = await this.db
-          .collection('partner_ledger')
-          .where('toPartnerId', '==', partnerId)
-          .get();
-
-        let allItems = fallbackSnap.docs.map((doc: any) => this.docToLedgerEntry(doc));
-
-        if (type) {
-          allItems = allItems.filter((item) => item.type === type);
-        }
-        if (from) {
-          const fromTime = new Date(from).getTime();
-          allItems = allItems.filter(
-            (item) => item.createdAt && new Date(item.createdAt).getTime() >= fromTime,
-          );
-        }
-        if (to) {
-          const toTime = new Date(to).getTime();
-          allItems = allItems.filter(
-            (item) => item.createdAt && new Date(item.createdAt).getTime() <= toTime,
-          );
-        }
-
-        allItems.sort((a, b) => {
-          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return bTime - aTime;
-        });
-
-        let startIndex = 0;
-        if (cursor) {
-          const cursorIndex = allItems.findIndex((item) => item.entryId === cursor);
-          if (cursorIndex !== -1) {
-            startIndex = cursorIndex + 1;
-          }
-        }
-
-        const slicedItems = allItems.slice(startIndex, startIndex + cap + 1);
-        const hasMore = slicedItems.length > cap;
-        const items = slicedItems.slice(0, cap);
-        const nextCursor = hasMore ? (items[items.length - 1]?.entryId ?? null) : null;
-
-        return { data: items, hasMore, nextCursor };
-      } catch (fallbackErr: any) {
-        this.log.error(
-          {
-            service: 'FinanceService',
-            method: 'getLedger',
-            partnerId,
-            error: fallbackErr?.message ?? String(fallbackErr),
-          },
-          'Ledger fallback query failed',
-        );
-        return { data: [], hasMore: false, nextCursor: null };
-      }
+      throw financeUnavailable('Canonical ledger data is unavailable', err);
     }
 
     const durationMs = Date.now() - startedAt;
@@ -267,80 +338,41 @@ export class FinanceService {
   async getPayouts(ctx: PartnerContext, filters: PayoutFilters): Promise<PaginatedResult<Payout>> {
     const { status, cursor, limit = 20 } = filters;
     const cap = Math.min(limit, 100);
-
-    let q: any = this.db
+    let query: FirebaseFirestore.Query = this.db
       .collection('payouts')
-      .where('partnerId', '==', ctx.partnerId)
-      .orderBy('requestedAt', 'desc')
-      .limit(cap + 1);
-
-    if (status) q = q.where('status', '==', status);
+      .where('partnerId', '==', ctx.partnerId);
+    if (status) query = query.where('status', '==', status);
+    query = query.orderBy('requestedAt', 'desc');
     if (cursor) {
       const cursorDoc = await this.db.collection('payouts').doc(cursor).get();
-      if (cursorDoc.exists) q = q.startAfter(cursorDoc);
+      const cursorData = cursorDoc.data();
+      if (
+        !cursorDoc.exists ||
+        String(cursorData?.partnerId || '') !== ctx.partnerId ||
+        (status && String(cursorData?.status || '') !== status)
+      ) {
+        throw financeUnavailable('Payout cursor is invalid for this query');
+      }
+      query = query.startAfter(cursorDoc);
     }
 
-    let snap;
+    let snap: FirebaseFirestore.QuerySnapshot;
     try {
-      snap = await q.get();
+      snap = await query.limit(cap + 1).get();
     } catch (err: any) {
-      this.log.warn(
+      this.log.error(
         {
           service: 'FinanceService',
           method: 'getPayouts',
           partnerId: ctx.partnerId,
           error: err?.message ?? String(err),
         },
-        'Payouts query failed, attempting in-memory fallback',
+        'Canonical bounded payouts query failed',
       );
-
-      try {
-        const fallbackSnap = await this.db
-          .collection('payouts')
-          .where('partnerId', '==', ctx.partnerId)
-          .get();
-
-        let allItems = fallbackSnap.docs.map((doc: any) => this.docToPayout(doc));
-
-        if (status) {
-          allItems = allItems.filter((item) => item.status === status);
-        }
-
-        allItems.sort((a, b) => {
-          const aTime = a.requestedAt ? new Date(a.requestedAt).getTime() : 0;
-          const bTime = b.requestedAt ? new Date(b.requestedAt).getTime() : 0;
-          return bTime - aTime;
-        });
-
-        let startIndex = 0;
-        if (cursor) {
-          const cursorIndex = allItems.findIndex((item) => item.payoutId === cursor);
-          if (cursorIndex !== -1) {
-            startIndex = cursorIndex + 1;
-          }
-        }
-
-        const slicedItems = allItems.slice(startIndex, startIndex + cap + 1);
-        const hasMore = slicedItems.length > cap;
-        const items = slicedItems.slice(0, cap);
-        const nextCursor = hasMore ? (items[items.length - 1]?.payoutId ?? null) : null;
-
-        return { data: items, hasMore, nextCursor };
-      } catch (fallbackErr: any) {
-        this.log.error(
-          {
-            service: 'FinanceService',
-            method: 'getPayouts',
-            partnerId: ctx.partnerId,
-            error: fallbackErr?.message ?? String(fallbackErr),
-          },
-          'Payouts fallback query failed',
-        );
-        return { data: [], hasMore: false, nextCursor: null };
-      }
+      throw financeUnavailable('Canonical payout data is unavailable', err);
     }
 
-    const docs: any[] = (snap as any).docs;
+    const docs = snap.docs ?? [];
     const hasMore = docs.length > cap;
     const items = docs.slice(0, cap).map((doc: any) => this.docToPayout(doc));
     const nextCursor = hasMore ? (items[items.length - 1]?.payoutId ?? null) : null;
@@ -352,11 +384,11 @@ export class FinanceService {
 
   // P1: Always compute from partner_ledger — eliminates cache/ledger drift.
   // The payout_balances cache doc is NO LONGER used as a source of truth.
-  // Redis is used as a short-lived performance cache (60s TTL) only.
+  // Redis is used as a short-lived performance cache (15s TTL) only.
   async getBalances(ctx: PartnerContext): Promise<BalanceSummary> {
-    const cacheKey = `finance:balance:${ctx.partnerId}`;
+    const cacheKey = `finance:balance:v${BALANCE_CACHE_VERSION}:${ctx.partnerId}`;
 
-    // Try Redis cache first (60s TTL — acceptable for dashboard display)
+    // Try Redis cache first. The 15-second TTL is the Host/Venue launch SLA.
     if (this.redis && this.redis.status === 'ready') {
       try {
         const cached = await this.redis.get(cacheKey);
@@ -383,8 +415,10 @@ export class FinanceService {
     const balances = await this.readBalanceAggregate(ctx.partnerId);
 
     const result: BalanceSummary = {
-      available: balances.settled,
-      pending: balances.pending,
+      available: balances.settled / 100,
+      pending: balances.pending / 100,
+      availablePaise: balances.settled,
+      pendingPaise: balances.pending,
       currency: 'INR',
     };
 
@@ -396,9 +430,9 @@ export class FinanceService {
       );
     }
 
-    // Write-through to Redis cache (best-effort, non-blocking)
+    // Write-through to Redis cache (best-effort, non-blocking).
     if (this.redis && this.redis.status === 'ready') {
-      this.redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
+      this.redis.set(cacheKey, JSON.stringify(result), 'EX', 15).catch(() => {});
     }
 
     return result;
@@ -439,16 +473,35 @@ export class FinanceService {
 
   // ── Disputes ──────────────────────────────────────────────────────────────
 
-  async getDisputes(ctx: PartnerContext, status?: string): Promise<PaginatedResult<Dispute>> {
-    let q: any = this.db
+  async getDisputes(
+    ctx: PartnerContext,
+    filters: DisputeFilters | string = {},
+  ): Promise<PaginatedResult<Dispute>> {
+    const normalizedFilters = typeof filters === 'string' ? { status: filters } : filters;
+    const { status, cursor, limit = 50 } = normalizedFilters;
+    const cap = Math.min(limit, 100);
+    let query: FirebaseFirestore.Query = this.db
       .collection('disputes')
-      .where('partnerId', '==', ctx.partnerId)
-      .orderBy('createdAt', 'desc')
-      .limit(50);
+      .where('partnerId', '==', ctx.partnerId);
+    if (status) query = query.where('status', '==', status);
+    query = query.orderBy('createdAt', 'desc');
+    if (cursor) {
+      const cursorDocument = await this.db.collection('disputes').doc(cursor).get();
+      const cursorData = cursorDocument.data();
+      if (
+        !cursorDocument.exists ||
+        String(cursorData?.partnerId || '') !== ctx.partnerId ||
+        (status && String(cursorData?.status || '') !== status)
+      ) {
+        throw financeUnavailable('Dispute cursor is invalid for this query');
+      }
+      query = query.startAfter(cursorDocument);
+    }
 
-    if (status) q = q.where('status', '==', status);
-
-    const snap = await q.get().catch((err: any) => {
+    let snap: FirebaseFirestore.QuerySnapshot;
+    try {
+      snap = await query.limit(cap + 1).get();
+    } catch (err: any) {
       this.log.error(
         {
           service: 'FinanceService',
@@ -456,32 +509,38 @@ export class FinanceService {
           partnerId: ctx.partnerId,
           error: err?.message ?? String(err),
         },
-        'Disputes query failed',
+        'Canonical bounded disputes query failed',
       );
-      return { docs: [] };
-    });
-    const items = (snap as any).docs.map((doc: any) => {
+      throw financeUnavailable('Canonical dispute data is unavailable', err);
+    }
+    const documents = snap.docs || [];
+    const hasMore = documents.length > cap;
+    const items = documents.slice(0, cap).map((doc: any) => {
       const d = doc.data() as Record<string, any>;
       return {
         disputeId: doc.id,
         orderId: safeStr(d.orderId),
-        amount: toNum(d.amount),
+        amount: requirePaise(d.amountPaise, `Dispute ${doc.id}`) / 100,
         status: safeStr(d.status || 'open'),
         reason: d.reason ?? null,
         createdAt: toIso(d.createdAt),
       } satisfies Dispute;
     });
 
-    return { data: items, hasMore: false, nextCursor: null };
+    return {
+      data: items,
+      hasMore,
+      nextCursor: hasMore ? (items[items.length - 1]?.disputeId ?? null) : null,
+    };
   }
 
   // ── Internal write methods (called only by checkout flow, not API routes) ─
 
   async recordTicketSale(
-    eventId: string,
-    orderId: string,
-    grossAmount: number,
-    participants: {
+    _eventId: string,
+    _orderId: string,
+    _grossAmount: number,
+    _participants: {
       venueId: string;
       hostId: string;
       promoterId?: string;
@@ -491,248 +550,20 @@ export class FinanceService {
       promoterCommissionRate?: number;
     },
   ): Promise<void> {
-    const now = new Date();
-    const createdAt = toIso(now) || now.toISOString();
-    const platformFee = Math.round(grossAmount * participants.platformFeeRate);
-    const venueShare = Math.round(grossAmount * participants.venueShareRate);
-    const promoterCommission = participants.promoterId
-      ? Math.round(grossAmount * (participants.promoterCommissionRate ?? 0))
-      : 0;
-    const hostPayout = grossAmount - platformFee - venueShare - promoterCommission;
-
-    const base = { eventId, currency: 'INR' as const, referenceId: orderId, createdAt };
-
-    const entries: Omit<LedgerEntry, 'entryId'>[] = [
-      {
-        ...base,
-        type: 'ticket_revenue',
-        amount: grossAmount,
-        fromPartnerId: null,
-        toPartnerId: 'platform',
-        status: 'settled',
-        settledAt: toIso(now),
-      },
-      {
-        ...base,
-        type: 'platform_fee',
-        amount: platformFee,
-        fromPartnerId: participants.hostId,
-        toPartnerId: 'platform',
-        status: 'settled',
-        settledAt: toIso(now),
-      },
-      {
-        ...base,
-        type: 'venue_share',
-        amount: venueShare,
-        fromPartnerId: participants.hostId,
-        toPartnerId: participants.venueId,
-        status: 'pending',
-        settledAt: null,
-      },
-      {
-        ...base,
-        type: 'host_payout',
-        amount: hostPayout,
-        fromPartnerId: null,
-        toPartnerId: participants.hostId,
-        status: 'pending',
-        settledAt: null,
-      },
-    ];
-
-    if (participants.promoterId && promoterCommission > 0) {
-      entries.push({
-        ...base,
-        type: 'promoter_commission',
-        amount: promoterCommission,
-        fromPartnerId: participants.hostId,
-        toPartnerId: participants.promoterId,
-        status: 'pending',
-        settledAt: null,
-      });
-    }
-
-    let created = false;
-    const idempotencyRef = this.db.collection(LEDGER_IDEMPOTENCY_COLLECTION).doc(orderId);
-
-    await this.db.runTransaction(async (txn) => {
-      const markerDoc = await txn.get(idempotencyRef);
-      if (markerDoc.exists) return;
-
-      const eventDoc = await txn.get(this.db.collection('events').doc(eventId));
-      const eventData = eventDoc.exists ? eventDoc.data() : {};
-      const eventCity = eventData?.city || eventData?.cityName || 'Unknown';
-      const normalizedCity = String(eventCity).trim().toLowerCase() || 'unknown';
-
-      created = true;
-      for (const entry of entries) {
-        const ref = this.db.collection('partner_ledger').doc();
-        txn.set(ref, entry);
-      }
-
-      txn.set(idempotencyRef, {
-        orderId,
-        eventId,
-        partnerIds: Array.from(
-          new Set(
-            [participants.hostId, participants.venueId, participants.promoterId].filter(Boolean),
-          ),
-        ),
-        entryCount: entries.length,
-        createdAt,
-      });
-
-      if (participants.promoterId && promoterCommission > 0) {
-        const statsRef = this.db.collection('promoter_stats').doc(participants.promoterId);
-        // Using FieldValue.increment inside a transaction via set merge
-        txn.set(
-          statsRef,
-          {
-            totalCommissionEarned: FieldValue.increment(promoterCommission),
-            updatedAt: new Date(),
-          },
-          { merge: true },
-        );
-
-        // Update city-based stats for Option 2
-        const cityStatsId = `${participants.promoterId}_${normalizedCity}`;
-        const cityStatsRef = this.db.collection('promoter_city_stats').doc(cityStatsId);
-        txn.set(
-          cityStatsRef,
-          {
-            promoterId: participants.promoterId,
-            city: normalizedCity,
-            totalCommissionEarned: FieldValue.increment(promoterCommission),
-            updatedAt: new Date(),
-          },
-          { merge: true },
-        );
-
-        // --- NEW TIME & LOCATION MATRIX (Option 3) ---
-        const d = new Date();
-        const monthStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-
-        const d2 = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-        const dayNum = d2.getUTCDay() || 7;
-        d2.setUTCDate(d2.getUTCDate() + 4 - dayNum);
-        const yearStart = new Date(Date.UTC(d2.getUTCFullYear(), 0, 1));
-        const weekNo = Math.ceil(((d2.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-        const weekStr = `${d2.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
-
-        const buckets = [
-          { type: 'all_time', value: 'all', city: 'global' },
-          { type: 'all_time', value: 'all', city: normalizedCity },
-          { type: 'month', value: monthStr, city: 'global' },
-          { type: 'month', value: monthStr, city: normalizedCity },
-          { type: 'week', value: weekStr, city: 'global' },
-          { type: 'week', value: weekStr, city: normalizedCity },
-        ];
-
-        for (const bucket of buckets) {
-          const docId = `${participants.promoterId}_${bucket.type}_${bucket.value}_${bucket.city}`;
-          const ref = this.db.collection('leaderboard_stats').doc(docId);
-          txn.set(
-            ref,
-            {
-              promoterId: participants.promoterId,
-              periodType: bucket.type,
-              periodValue: bucket.value,
-              city: bucket.city,
-              totalCommissionEarned: FieldValue.increment(promoterCommission),
-              updatedAt: new Date(),
-            },
-            { merge: true },
-          );
-        }
-        // ---------------------------------------------
-      }
-
-      this.applyAggregateWrites(txn, entries, createdAt);
-    });
-
-    if (!created) {
-      this.log.warn(
-        { service: 'FinanceService', method: 'recordTicketSale', eventId, orderId },
-        'Skipped duplicate ledger write for ticket sale',
-      );
-      return;
-    }
-
-    this.log.info(
-      {
-        service: 'FinanceService',
-        method: 'recordTicketSale',
-        eventId,
-        orderId,
-        gross: grossAmount,
-        entryCount: entries.length,
-      },
-      'Ledger entries created for ticket sale',
+    throw new Error(
+      'DIRECT_TICKET_LEDGER_WRITE_DISABLED: finalizeTicketPayment is the sole ticket-sale writer',
     );
-
-    // Invalidate Redis balance cache for all affected partners
-    if (this.redis && this.redis.status === 'ready') {
-      const partnerIds = new Set(
-        [participants.hostId, participants.venueId, participants.promoterId].filter(Boolean),
-      );
-      for (const pid of partnerIds) {
-        this.redis.del(`finance:balance:${pid}`).catch(() => {});
-      }
-    }
   }
 
   async recordRefund(
-    eventId: string,
-    orderId: string,
-    amount: number,
-    partnerId: string,
+    _eventId: string,
+    _orderId: string,
+    _amount: number,
+    _partnerId: string,
   ): Promise<void> {
-    const createdAt = toIso(new Date()) || new Date().toISOString();
-    const entry: Omit<LedgerEntry, 'entryId'> = {
-      eventId,
-      type: 'refund' as LedgerEntryType,
-      amount: -Math.abs(amount),
-      currency: 'INR',
-      fromPartnerId: null,
-      toPartnerId: partnerId,
-      status: 'settled' as LedgerEntryStatus,
-      referenceId: orderId,
-      settledAt: createdAt,
-      createdAt,
-    };
-
-    const idempotencyRef = this.db
-      .collection(LEDGER_IDEMPOTENCY_COLLECTION)
-      .doc(`refund_${orderId}`);
-
-    await this.db.runTransaction(async (txn) => {
-      const markerDoc = await txn.get(idempotencyRef);
-      if (markerDoc.exists) return;
-
-      const ref = this.db.collection('partner_ledger').doc();
-      txn.set(ref, entry);
-      this.applyAggregateWrites(txn, [entry], entry.createdAt || createdAt);
-
-      txn.set(idempotencyRef, {
-        orderId,
-        eventId,
-        partnerId,
-        type: 'refund',
-        amount: entry.amount,
-        createdAt,
-      });
-    });
-
-    this.log.info(
-      { service: 'FinanceService', method: 'recordRefund', eventId, orderId, amount, partnerId },
-      'Refund ledger entry created',
+    throw new Error(
+      'DIRECT_REFUND_LEDGER_WRITE_DISABLED: finalizeProcessedRefund is the sole refund writer',
     );
-
-    // Invalidate Redis balance cache
-    if (this.redis && this.redis.status === 'ready') {
-      this.redis.del(`finance:balance:${partnerId}`).catch(() => {});
-    }
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────
@@ -741,11 +572,13 @@ export class FinanceService {
     doc: FirebaseFirestore.DocumentSnapshot | FirebaseFirestore.QueryDocumentSnapshot,
   ): LedgerEntry {
     const d = (doc.data() ?? {}) as Record<string, any>;
+    const amountPaise = requirePaise(d.amountPaise, `Ledger entry ${doc.id}`);
     return {
       entryId: doc.id,
       eventId: safeStr(d.eventId),
       type: (d.type ?? 'ticket_revenue') as LedgerEntryType,
-      amount: toNum(d.amount),
+      amount: amountPaise / 100,
+      amountPaise,
       currency: 'INR',
       fromPartnerId: d.fromPartnerId ?? null,
       toPartnerId: safeStr(d.toPartnerId),
@@ -758,9 +591,11 @@ export class FinanceService {
 
   private docToPayout(doc: FirebaseFirestore.QueryDocumentSnapshot): Payout {
     const d = doc.data() as Record<string, any>;
+    const amountPaise = requirePaise(d.amountPaise, `Payout ${doc.id}`);
     return {
       payoutId: doc.id,
-      amount: toNum(d.amount),
+      amountPaise,
+      amount: amountPaise / 100,
       status: safeStr(d.status || 'pending'),
       paymentMethod: d.paymentMethod ?? null,
       requestedAt: toIso(d.requestedAt ?? d.createdAt),
@@ -820,7 +655,7 @@ export class FinanceService {
       .map((doc) => {
         const d = doc.data() as Record<string, any>;
         const date = safeStr(d.date || doc.id);
-        return { date, value: toNum(d[revenueField]) };
+        return { date, value: toNum(d[revenueField]) / 100 };
       })
       .filter((point) => point.date);
   }
@@ -845,7 +680,19 @@ export class FinanceService {
 
     if (!doc.exists) return this.rebuildPartnerLedgerAggregate(partnerId);
 
-    const balances = (doc.data()?.balances || {}) as Record<string, any>;
+    const data = (doc.data() || {}) as Record<string, any>;
+    const hasMalformedDottedProjection = Object.keys(data).some(
+      (key) => key.startsWith('balances.') || key.startsWith('totalsByType.'),
+    );
+    if (hasMalformedDottedProjection) {
+      this.log.warn(
+        { service: 'FinanceService', method: 'readBalanceAggregate', partnerId },
+        'Rebuilding malformed dotted-field finance projection from canonical ledger',
+      );
+      return this.rebuildPartnerLedgerAggregate(partnerId);
+    }
+
+    const balances = (data.balances || {}) as Record<string, any>;
     return {
       pending: toNum(balances.pending),
       settled: toNum(balances.settled),
@@ -858,91 +705,6 @@ export class FinanceService {
     if (type === 'venue') return 'venueShare';
     if (type === 'promoter') return 'promoterCommission';
     return 'hostPayout';
-  }
-
-  private applyAggregateWrites(
-    txn: any,
-    entries: Omit<LedgerEntry, 'entryId'>[],
-    createdAt: string,
-  ) {
-    const aggregateMap = new Map<
-      string,
-      {
-        balances: Partial<Record<LedgerEntryStatus, number>>;
-        totalsByType: Partial<Record<LedgerEntryType, number>>;
-        daily: Map<string, Partial<Record<RevenueFieldName, number>>>;
-      }
-    >();
-
-    for (const entry of entries) {
-      const partnerId = entry.toPartnerId;
-      if (!partnerId) continue;
-
-      const next = aggregateMap.get(partnerId) || {
-        balances: {} as Partial<Record<LedgerEntryStatus, number>>,
-        totalsByType: {} as Partial<Record<LedgerEntryType, number>>,
-        daily: new Map<string, Partial<Record<RevenueFieldName, number>>>(),
-      };
-      next.balances[entry.status] = (next.balances[entry.status] ?? 0) + entry.amount;
-      next.totalsByType[entry.type] = (next.totalsByType[entry.type] ?? 0) + entry.amount;
-
-      const revenueField =
-        REVENUE_FIELDS_BY_TYPE[entry.type as keyof typeof REVENUE_FIELDS_BY_TYPE];
-      const dateKey = String(entry.createdAt || createdAt).slice(0, 10);
-      if (revenueField && dateKey) {
-        const daily = next.daily.get(dateKey) || ({} as Partial<Record<RevenueFieldName, number>>);
-        daily[revenueField] = (daily[revenueField] ?? 0) + entry.amount;
-        next.daily.set(dateKey, daily);
-      }
-
-      aggregateMap.set(partnerId, next);
-    }
-
-    for (const [partnerId, aggregate] of aggregateMap.entries()) {
-      const aggregateRef = this.db.collection(LEDGER_AGGREGATES_COLLECTION).doc(partnerId);
-      const balancePayload = Object.fromEntries(
-        Object.entries(aggregate.balances).map(([status, amount]) => [
-          status,
-          FieldValue.increment(amount as number),
-        ]),
-      );
-      const totalsPayload = Object.fromEntries(
-        Object.entries(aggregate.totalsByType).map(([type, amount]) => [
-          type,
-          FieldValue.increment(amount as number),
-        ]),
-      );
-      txn.set(
-        aggregateRef,
-        {
-          partnerId,
-          currency: 'INR',
-          balances: balancePayload,
-          totalsByType: totalsPayload,
-          updatedAt: createdAt,
-        },
-        { merge: true },
-      );
-
-      for (const [dateKey, daily] of aggregate.daily.entries()) {
-        const dailyPayload = Object.fromEntries(
-          Object.entries(daily).map(([field, amount]) => [
-            field,
-            FieldValue.increment(amount as number),
-          ]),
-        );
-        txn.set(
-          aggregateRef.collection('daily').doc(dateKey),
-          {
-            date: dateKey,
-            createdAt: dateKey,
-            updatedAt: createdAt,
-            ...dailyPayload,
-          },
-          { merge: true },
-        );
-      }
-    }
   }
 
   private async rebuildPartnerLedgerAggregate(partnerId: string): Promise<AggregateBalances> {
@@ -977,7 +739,7 @@ export class FinanceService {
       const data = doc.data() as Record<string, any>;
       const status = (data.status || 'pending') as LedgerEntryStatus;
       const type = (data.type || 'ticket_revenue') as LedgerEntryType;
-      const amount = toNum(data.amount);
+      const amount = requirePaise(data.amountPaise, `Ledger entry ${doc.id}`);
       balances[status] = (balances[status] ?? 0) + amount;
       totalsByType[type] = (totalsByType[type] ?? 0) + amount;
 

@@ -1,3 +1,4 @@
+/* eslint-disable no-misleading-character-class */
 import { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -18,7 +19,8 @@ import { createWalkIn, fetchWalkIns, WalkInEntry } from '@/lib/scanner';
 import { colors } from '@/lib/design/theme';
 
 export default function WalkInsScreen() {
-  const { eventData, sessionToken } = useScannerStore();
+  const eventData = useScannerStore((state) => state.eventData);
+  const sessionToken = useScannerStore((state) => state.sessionToken);
 
   const [guestName, setGuestName] = useState('');
   const [guestAge, setGuestAge] = useState('');

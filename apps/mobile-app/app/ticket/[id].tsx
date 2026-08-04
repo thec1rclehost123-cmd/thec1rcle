@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +19,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+let Brightness: any = null;
+try {
+  Brightness = require('expo-brightness');
+} catch (e) {
+  // Gracefully degrade if missing
+}
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import {
   ActionSheet,
@@ -26,21 +32,23 @@ import {
   TransferSheetContent,
 } from '@/components/tickets/TicketActionSheets';
 import { colors, gradients, radii } from '@/lib/design/theme';
+import { resolveEventAccentColor } from '@/hooks/useEventAccent';
 import {
   API_BASE,
-  cancelFormalTransfer,
   cancelShareBundle,
   createShareBundle,
   getPendingFormalTransfers,
   getTicketShares,
-  initiateFormalTransfer,
   reclaimSharedTicket,
+  revokeSharedTicket,
 } from '@/lib/api';
+import { initiateTransfer, cancelTransfer } from '@/lib/transfers';
 import { track, trackScreen, AnalyticsEvents } from '@/lib/analytics';
 import { shareEventLink } from '@/lib/deeplinks';
 import { addToWallet, isWalletAvailable, type PassData } from '@/lib/wallet';
 import { safeDate, formatEventTime } from '@/lib/utils/date';
 import { type Order, type OrderTicket, useTicketsStore } from '@/store/ticketsStore';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
 import { buildCalendarEventUrl } from '@/lib/calendar';
 
 type ActiveSheet = 'share' | 'transfer' | null;
@@ -68,7 +76,9 @@ function flattenTickets(tickets: OrderTicket[]) {
 export default function TicketDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
-  const { getOrderById, fetchUserOrders } = useTicketsStore();
+  const getOrderById = useTicketsStore((state) => state.getOrderById);
+  const fetchUserOrders = useTicketsStore((state) => state.fetchUserOrders);
+  const openPaywall = useSubscriptionStore((state) => state.openPaywall);
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,6 +88,8 @@ export default function TicketDetailScreen() {
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
   const [pendingTransfers, setPendingTransfers] = useState<any[]>([]);
   const [ticketShares, setTicketShares] = useState<any[]>([]);
+
+  const loadCountRef = useRef(0);
 
   useEffect(() => {
     trackScreen('Ticket Detail');
@@ -90,17 +102,49 @@ export default function TicketDetailScreen() {
   }, [id]);
 
   useEffect(() => {
-    if (!showQr || !order?.userId || !id) return;
-    const refreshTimer = setInterval(() => {
-      void refreshWallet();
-    }, 45_000);
-    return () => clearInterval(refreshTimer);
-  }, [id, order?.userId, showQr]);
+    let originalBrightness: number | null = null;
+    let isActive = true;
+
+    const setMaxBrightness = async () => {
+      try {
+        if (!Brightness) return;
+        const { status } = await Brightness.requestPermissionsAsync();
+        if (status === 'granted' && isActive) {
+          originalBrightness = await Brightness.getBrightnessAsync();
+          await Brightness.setBrightnessAsync(1);
+        }
+      } catch (err) {
+        if (__DEV__) console.warn('Brightness error:', err);
+      }
+    };
+
+    const restoreBrightness = async () => {
+      try {
+        if (!Brightness) return;
+        if (originalBrightness !== null) {
+          await Brightness.setBrightnessAsync(originalBrightness);
+        }
+      } catch (err) {}
+    };
+
+    if (showQr) {
+      setMaxBrightness();
+    } else {
+      restoreBrightness();
+    }
+
+    return () => {
+      isActive = false;
+      restoreBrightness();
+    };
+  }, [showQr]);
 
   const loadAll = async (orderId: string) => {
+    const loadId = ++loadCountRef.current;
     setLoading(true);
     try {
       const loadedOrder = await getOrderById(orderId);
+      if (loadId !== loadCountRef.current) return;
       setOrder(loadedOrder);
 
       const [transfersRes, sharesRes] = await Promise.all([
@@ -108,9 +152,11 @@ export default function TicketDetailScreen() {
         getTicketShares(orderId).catch(() => null),
       ]);
 
+      if (loadId !== loadCountRef.current) return;
+
       const relevantTransfers = (transfersRes?.transfers || []).filter((transfer: any) => {
         if (!loadedOrder) return false;
-        return transfer.ticketId?.startsWith?.(orderId) || transfer.eventId === loadedOrder.eventId;
+        return transfer.orderId === orderId || transfer.eventId === loadedOrder.eventId;
       });
 
       setPendingTransfers(relevantTransfers);
@@ -123,14 +169,17 @@ export default function TicketDetailScreen() {
         });
       }
     } finally {
-      setLoading(false);
+      if (loadId === loadCountRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const refreshWallet = async () => {
-    if (!order?.userId) return;
-    await fetchUserOrders(order.userId);
-    if (id) await loadAll(id);
+    if (!order?.userId || !id) return;
+    const loadId = ++loadCountRef.current;
+    await fetchUserOrders();
+    if (loadId === loadCountRef.current) await loadAll(id);
   };
 
   const qrCodes = order?.qrCodes?.length
@@ -155,14 +204,7 @@ export default function TicketDetailScreen() {
       .join(', '),
   });
 
-  const accentColor =
-    (order as any)?.posterAccentColor ||
-    (order as any)?.dominantColor ||
-    (order as any)?.eventAccentColor ||
-    (order?.accentColor && order.accentColor.toUpperCase() !== colors.iris.toUpperCase()
-      ? order.accentColor
-      : undefined) ||
-    '#D915A8';
+  const accentColor = resolveEventAccentColor(order as any, 'ticket');
 
   const handleAddToWallet = async () => {
     if (!order) return;
@@ -184,14 +226,19 @@ export default function TicketDetailScreen() {
     track(AnalyticsEvents.TICKET_ADD_TO_WALLET, { orderId: order.id });
   };
 
-  const handleShareChannel = async (channel: string, tierId?: string, expiresAt?: string) => {
+  const handleShareChannel = async (
+    channel: string,
+    tierId?: string,
+    expiresAt?: string,
+    quantity = 1,
+  ) => {
     if (!order || !tierId) return;
 
     try {
       const response = await createShareBundle({
         orderId: order.id,
         eventId: order.eventId,
-        quantity: 1,
+        quantity,
         tierId,
         expiresAt,
       });
@@ -201,8 +248,14 @@ export default function TicketDetailScreen() {
         return;
       }
 
-      const claimUrl = `${API_BASE}/tickets/claim/${response.bundle.token}`;
-      const message = `Ticket for ${order.eventTitle || 'The C1RCLE'}\n\nClaim it here: ${claimUrl}`;
+      const claimUrl = `https://thec1rcle.com/tickets/claim/${encodeURIComponent(response.bundle.token)}`;
+      const remainingSlots =
+        typeof response.bundle.remainingSlots === 'number' ? response.bundle.remainingSlots : null;
+      const slotCopy =
+        remainingSlots && remainingSlots > 1
+          ? `${remainingSlots} spots can be claimed from this link.`
+          : 'Claim your ticket from this link.';
+      const message = `Ticket for ${order.eventTitle || 'The C1RCLE'}\n${slotCopy}\n\n${claimUrl}`;
 
       if (channel === 'copy') {
         await Clipboard.setStringAsync(claimUrl);
@@ -238,19 +291,34 @@ export default function TicketDetailScreen() {
     if (!order) return;
     const claimedTicket = order.tickets.find((ticket) => ticket.isClaimed && ticket.ticketId);
     if (!claimedTicket?.ticketId) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('No transferable ticket', 'Only claimed tickets can be transferred.');
       return;
     }
 
-    const response = await initiateFormalTransfer({
-      ticketId: claimedTicket.ticketId,
-      recipientEmail: email,
-    });
-    if (!response?.success) {
-      Alert.alert('Transfer failed', response?.error || 'Unable to start the transfer.');
+    try {
+      const result = await initiateTransfer(
+        claimedTicket.ticketId,
+        order.userId,
+        { tierName: claimedTicket.tierName, quantity: claimedTicket.quantity },
+        email,
+      );
+      if (!result.success) {
+        if (result.premiumRequired) {
+          openPaywall('ticketTransfers', result.error);
+          return;
+        }
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert('Transfer failed', result.error || 'Unable to start the transfer.');
+        return;
+      }
+    } catch (error: any) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Transfer failed', error.message || 'Unable to start the transfer.');
       return;
     }
 
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     track(AnalyticsEvents.TICKET_TRANSFER_INITIATED, { orderId: order.id, recipientEmail: email });
     Alert.alert('Transfer sent', `An invitation has been sent to ${email}.`);
     setActiveSheet(null);
@@ -261,17 +329,34 @@ export default function TicketDetailScreen() {
     if (!order) return;
     const claimedTicket = order.tickets.find((ticket) => ticket.isClaimed && ticket.ticketId);
     if (!claimedTicket?.ticketId) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('No transferable ticket', 'Only claimed tickets can be transferred.');
       return;
     }
 
-    const response = await initiateFormalTransfer({ ticketId: claimedTicket.ticketId });
-    const token = response?.transfer?.token || response?.transferCode || response?.code;
-    if (!response?.success || !token) {
-      Alert.alert('Transfer failed', response?.error || 'Unable to generate a transfer link.');
+    let result: any;
+    try {
+      result = await initiateTransfer(claimedTicket.ticketId, order.userId, {
+        tierName: claimedTicket.tierName,
+        quantity: claimedTicket.quantity,
+      });
+      if (!result.success) {
+        if (result.premiumRequired) {
+          openPaywall('ticketTransfers', result.error);
+          return;
+        }
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert('Transfer failed', result.error || 'Unable to generate a transfer link.');
+        return;
+      }
+    } catch (error: any) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Transfer failed', error.message || 'Unable to generate a transfer link.');
       return;
     }
+    const token = result.transferCode;
 
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const transferUrl = `${API_BASE}/transfer/${token}`;
     await Clipboard.setStringAsync(transferUrl);
     Alert.alert('Copied', 'Transfer link copied to your clipboard.');
@@ -289,7 +374,7 @@ export default function TicketDetailScreen() {
           text: 'Cancel transfer',
           style: 'destructive',
           onPress: async () => {
-            const response = await cancelFormalTransfer({ transferId });
+            const response = await cancelTransfer(transferId, order?.userId || '');
             if (!response?.success) {
               Alert.alert('Unable to cancel', response?.error || 'Transfer cancellation failed.');
               return;
@@ -339,6 +424,28 @@ export default function TicketDetailScreen() {
         },
       },
     ]);
+  };
+
+  const confirmRevokeSlot = (bundleId: string, slotIndex: number) => {
+    Alert.alert(
+      'Revoke claimed ticket',
+      'This instantly voids the ticket for that guest. They will lose access at the door.',
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Revoke',
+          style: 'destructive',
+          onPress: async () => {
+            const response = await revokeSharedTicket({ bundleId, slotIndex });
+            if (!response?.success) {
+              Alert.alert('Unable to revoke', response?.error || 'Revoke failed.');
+              return;
+            }
+            await refreshWallet();
+          },
+        },
+      ],
+    );
   };
 
   if (loading) {
@@ -594,6 +701,23 @@ export default function TicketDetailScreen() {
                         >
                           <Text style={styles.slotButtonText}>Reclaim</Text>
                         </Pressable>
+                      </View>
+                    ))}
+                  {(bundle.slots || [])
+                    .filter((slot: any) => slot.claimStatus === 'claimed')
+                    .map((slot: any) => (
+                      <View key={`${bundle.id}-${slot.slotIndex}-claimed`} style={styles.slotRow}>
+                        <View style={styles.slotClaimedInfo}>
+                          <Text style={styles.slotLabel}>Slot {slot.slotIndex} - Claimed</Text>
+                        </View>
+                        <View style={styles.slotRevokeWrap}>
+                          <Pressable
+                            onPress={() => confirmRevokeSlot(bundle.id, slot.slotIndex)}
+                            style={styles.revokeButton}
+                          >
+                            <Text style={styles.revokeButtonText}>Revoke</Text>
+                          </Pressable>
+                        </View>
                       </View>
                     ))}
                 </View>
@@ -942,6 +1066,26 @@ const styles = StyleSheet.create({
   },
   slotButtonText: {
     color: colors.iris,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  slotClaimedInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  slotRevokeWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  revokeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: 'rgba(244,74,34,0.25)',
+  },
+  revokeButtonText: {
+    color: '#F44A22',
     fontSize: 12,
     fontWeight: '700',
   },

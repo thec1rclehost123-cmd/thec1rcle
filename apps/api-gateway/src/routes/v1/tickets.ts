@@ -7,7 +7,10 @@ import {
   getGuestWalletTicket,
 } from '@c1rcle/core/guest-wallet-profile-notification-service';
 // @ts-ignore
-import { getUserTicketWallet } from '@c1rcle/core/ticket-checkout-wallet-service';
+import {
+  createTicketQrForEntitlement,
+  getUserTicketWallet,
+} from '@c1rcle/core/ticket-checkout-wallet-service';
 import {
   acceptGuestTransfer,
   assignGuestPartner,
@@ -269,6 +272,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/:id/transfer',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: GroupTransferParam })],
     },
     async (request: any, reply) => {
@@ -303,6 +307,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/claim',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: GroupClaimBody })],
     },
     async (request: any, reply) => {
@@ -337,6 +342,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/transfer',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: TransferBody })],
     },
     async (request: any, reply) => {
@@ -379,6 +385,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/tickets/transfer',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: AcceptTransferBody })],
     },
     async (request: any, reply) => {
@@ -386,21 +393,29 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       if (!userId) return;
 
       try {
-        const result = await acceptGuestTransfer(userId, request.body.transferCode);
+        const result = await acceptGuestTransfer(userId, request.body.transferCode, {
+          email: request.user?.email || null,
+          emailVerified: request.user?.email_verified === true,
+        });
         fastify.log.info(
           { requestId: request.id, userId, transferCode: request.body.transferCode },
           'Guest transfer accepted',
         );
         return buildSuccessResponse(result as Record<string, unknown>);
       } catch (error: any) {
-        const status = error.message?.includes('already') ? 409 : 400;
+        const status =
+          error.code === 'TRANSFER_ALREADY_CLAIMED'
+            ? 409
+            : error.code === 'TRANSFER_RECIPIENT_MISMATCH'
+              ? 403
+              : 400;
         fastify.log.warn(
           { requestId: request.id, userId, error: error.message },
           'PATCH /tickets/transfer rejected',
         );
         return reply.status(status).send(
           buildErrorResponse({
-            code: status === 409 ? 'CONFLICT' : 'BAD_REQUEST',
+            code: error.code || (status === 409 ? 'TRANSFER_ALREADY_CLAIMED' : 'BAD_REQUEST'),
             message: error.message || 'Transfer failed',
             requestId: request.id,
           }),
@@ -464,6 +479,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/share',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ShareBundleBody })],
     },
     async (request: any, reply) => {
@@ -493,6 +509,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/share',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: ShareBundleQuery })],
     },
     async (request: any, reply) => {
@@ -537,6 +554,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/tickets/share',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ShareBundleDeleteBody })],
     },
     async (request: any, reply) => {
@@ -570,6 +588,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/claim',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: ClaimPreviewQuery })],
     },
     async (request: any, reply) => {
@@ -606,6 +625,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/claim/share',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ClaimShareBody })],
     },
     async (request: any, reply) => {
@@ -635,6 +655,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/pair',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: PairPreviewQuery })],
     },
     async (request: any, reply) => {
@@ -691,6 +712,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PairClaimBody })],
     },
     async (request: any, reply) => {
@@ -720,6 +742,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/tickets/pair',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PairCancelBody })],
     },
     async (request: any, reply) => {
@@ -749,6 +772,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair/link',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PairLinkBody })],
     },
     async (request: any, reply) => {
@@ -777,6 +801,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair/assign',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PairAssignBody })],
     },
     async (request: any, reply) => {
@@ -807,6 +832,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/pair/transfer',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PairTransferBody })],
     },
     async (request: any, reply) => {
@@ -836,6 +862,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/cover-wallet',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: CoverWalletQuery })],
     },
     async (request: any, reply) => {
@@ -872,6 +899,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/tickets/cover-wallets',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CoverWalletBatchBody })],
     },
     async (request: any, reply) => {
@@ -904,6 +932,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/download',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: DownloadQuery })],
     },
     async (request: any, reply) => {
@@ -946,6 +975,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/transfer',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: TransferQuery })],
     },
     async (request: any, reply) => {
@@ -1011,6 +1041,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/tickets/:ticketId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: TicketIdParam })],
     },
     async (request: any, reply) => {
@@ -1048,4 +1079,154 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  // Public ticket view / share endpoint.
+  //
+  // The `:entitlementId` path segment carries one of two very different things:
+  //
+  //   1. A public share TOKEN (`stk_…`) — an unguessable, per-ticket capability.
+  //      Possession of the token is the authorisation, so this path is reachable
+  //      anonymously: that is exactly the "share my ticket" link.
+  //
+  //   2. A raw entitlement ID (`ENT-…`) — deterministic and therefore ENUMERABLE
+  //      (`ENT-{orderId}-{tierId}-{index}`). Anyone who can guess an order ID can
+  //      derive every ticket ID under it, so a raw ID grants NO anonymous access:
+  //      it is honoured only for the authenticated owner of that entitlement.
+  //      Everyone else gets an indistinguishable 404, which is what closes the
+  //      IDOR — enumeration by ID can no longer confirm a ticket exists, read its
+  //      state, or harvest attendance.
+  //
+  // Holder-specific data (live door state + a scannable QR) is additionally gated
+  // to the authenticated owner regardless of how the ticket was located, so a
+  // valid share token lets a friend see the ticket but never a working credential.
+  fastify.get('/tickets/public/:entitlementId', async (request: any, reply) => {
+    const { entitlementId: idOrToken } = request.params;
+    const requesterId = request.user?.uid || null;
+
+    // Uniform 404 for "not found" and "found but you may not see it" — never leak
+    // which one it was.
+    const notFound = () =>
+      reply.status(404).send(
+        buildErrorResponse({
+          code: 'NOT_FOUND',
+          message: 'Ticket not found',
+          requestId: request.id,
+        }),
+      );
+
+    try {
+      const { PUBLIC_TOKEN_PREFIX } = await import('@c1rcle/core/entitlement-engine');
+
+      let entRef: any = null;
+      let entitlement: any = null;
+
+      if (typeof idOrToken === 'string' && idOrToken.startsWith(PUBLIC_TOKEN_PREFIX)) {
+        // Token path: the token itself authorises the read. Anonymous is fine.
+        const snap = await fastify.db
+          .collection('entitlements')
+          .where('publicToken', '==', idOrToken)
+          .limit(1)
+          .get();
+        if (!snap.empty) {
+          entRef = snap.docs[0].ref;
+          entitlement = snap.docs[0].data();
+        }
+      } else {
+        // Raw entitlement ID path: enumerable, so owner-only. We fetch first, then
+        // require ownership — a non-owner (or anonymous) request 404s exactly like
+        // a miss, so probing an ID reveals nothing about whether it exists.
+        const doc = await fastify.db.collection('entitlements').doc(idOrToken).get();
+        if (doc.exists) {
+          const data = doc.data();
+          if (requesterId && data?.ownerUserId === requesterId) {
+            entRef = doc.ref;
+            entitlement = data;
+          }
+        }
+      }
+
+      if (!entitlement) return notFound();
+
+      const eventDoc = await fastify.db.collection('events').doc(entitlement.eventId).get();
+      const event = eventDoc.exists ? eventDoc.data() : null;
+
+      const isOwner = Boolean(requesterId) && requesterId === entitlement.ownerUserId;
+
+      let qrPayload: string | null = null;
+      let qrExpiresAt: string | null = null;
+      if (isOwner) {
+        try {
+          const qr = await createTicketQrForEntitlement({
+            db: fastify.db,
+            userId: requesterId,
+            entitlementId: entitlement.id,
+          });
+          qrPayload = qr.qrPayload;
+          qrExpiresAt = qr.qrExpiresAt;
+        } catch (error: any) {
+          if (error?.code !== 'TICKET_MIGRATION_REQUIRED' && error?.code !== 'NOT_FOUND') {
+            throw error;
+          }
+        }
+      }
+
+      // Give the owner a share token to build the shareable link from. Tickets
+      // issued before this field existed are lazily backfilled on first owner
+      // view (best-effort — a failed write just means we retry next time).
+      let shareToken: string | null = isOwner ? (entitlement.publicToken ?? null) : null;
+      if (isOwner && !shareToken && entRef) {
+        const { generatePublicToken } = await import('@c1rcle/core/entitlement-engine');
+        shareToken = generatePublicToken();
+        entRef.update({ publicToken: shareToken }).catch(() => {});
+      }
+
+      // Never let a shared cache serve one guest's ticket state to another.
+      reply.header('Cache-Control', 'private, no-store');
+
+      return {
+        success: true,
+        ticket: {
+          entitlementId: entitlement.id,
+          // Live door status is owner-only — a share-token viewer must not be able
+          // to see whether the holder has already checked in.
+          checkedIn: isOwner
+            ? entitlement.checkedIn === true ||
+              entitlement.state === 'CONSUMED' ||
+              (typeof entitlement.scanCountUsed === 'number' && entitlement.scanCountUsed > 0)
+            : false,
+          state: isOwner ? entitlement.state : null,
+          ticketType: entitlement.metadata?.tierName || entitlement.ticketType || 'Entry',
+          entryType: entitlement.metadata?.entryType || 'general',
+          quantity: entitlement.scanCountAllowed || 1,
+          qrPayload,
+          qrExpiresAt,
+          // Only the owner receives the share capability.
+          shareToken,
+          eventTitle: event?.title || entitlement.eventSummary?.title || 'Event',
+          eventStartAt:
+            event?.startDate || event?.startAt || entitlement.eventSummary?.startAt || null,
+          venueName:
+            event?.venue ||
+            event?.venueName ||
+            event?.location ||
+            entitlement.eventSummary?.venue ||
+            'TBD',
+          city: event?.city || entitlement.eventSummary?.city || '',
+          posterUrl: event?.image || entitlement.eventSummary?.posterUrl || null,
+        },
+      };
+    } catch (error: any) {
+      fastify.log.error(
+        { requestId: request.id, idOrToken, error: error.message },
+        'GET /tickets/public/:entitlementId failed',
+      );
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
 }

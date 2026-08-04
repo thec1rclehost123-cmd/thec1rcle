@@ -12,7 +12,8 @@ import { colors } from '@/lib/design/theme';
 type FilterType = 'all' | 'entered' | 'not_entered' | 'door';
 
 export default function GuestListScreen() {
-  const { eventData, sessionToken } = useScannerStore();
+  const eventData = useScannerStore((state) => state.eventData);
+  const sessionToken = useScannerStore((state) => state.sessionToken);
   const [guests, setGuests] = useState<Guest[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
@@ -35,7 +36,9 @@ export default function GuestListScreen() {
         sessionToken || eventData?.sessionToken,
       );
       setGuests(data);
-    } catch {}
+    } catch {
+      console.warn('[guestlist] failed to fetch guests');
+    }
     setLoading(false);
   }, [eventData, sessionToken]);
 
@@ -209,7 +212,6 @@ export default function GuestListScreen() {
         </View>
       </View>
 
-      {/* M9: FlashList replaces FlatList — O(viewport) vs O(n) layout */}
       <FlashList
         bounces={false}
         overScrollMode="never"

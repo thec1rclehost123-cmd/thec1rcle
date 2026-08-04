@@ -137,18 +137,26 @@ export async function getGuestWallet(dbOrUserId, authOrOptions, maybeUserId) {
 }
 
 export async function getGuestWalletTicket(dbOrUserId, authOrTicketId, maybeUserId, maybeTicketId) {
+  const db = typeof dbOrUserId === 'string' ? null : dbOrUserId;
   const userId = typeof dbOrUserId === 'string' ? dbOrUserId : maybeUserId;
   const ticketId = typeof dbOrUserId === 'string' ? authOrTicketId : maybeTicketId;
   const tickets = await getUserTickets(userId);
   const ticket = findGuestWalletTicket(tickets, ticketId);
 
   if (ticket && ticket.status === 'active' && !ticket.genderMismatch && !ticket.isTransferPending) {
-    if (ticket.entitlementId) {
-      ticket.qrPayload = ticket.entitlementId;
+    if (ticket.entitlementId && hasDb(db)) {
+      const { createTicketQrForEntitlement } = await import('./ticket-checkout-wallet-service.js');
+      const qr = await createTicketQrForEntitlement({
+        db,
+        userId,
+        entitlementId: ticket.entitlementId,
+      });
+      ticket.qrPayload = qr.qrPayload;
+      ticket.qrExpiresAt = qr.qrExpiresAt;
     } else {
-      // Import here to avoid circular dependency or heavy boot
-      const { signTicketId } = await import('./ticket-engine.js');
-      ticket.qrPayload = signTicketId(ticket.ticketId);
+      // Legacy ticket shapes must be migrated before they can become a door credential.
+      ticket.qrPayload = null;
+      ticket.qrMigrationRequired = true;
     }
   }
 

@@ -13,147 +13,23 @@ env:
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
 
 jobs:
-    # ── 1. Shared setup ──────────────────────────────────────────
-  install:
-    name: Install
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-
-    # ── 2. Lint & format (per-workspace, sequential) ──────────────
-  lint:
-    name: Lint & Format
-    needs: install
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
-        id: nm-cache
-        with:
-          path: |
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-        if: steps.nm-cache.outputs.cache-hit != 'true'
-      - name: Lint guest-portal
-        run: npm run lint --workspace=apps/guest-portal
-      - name: Lint partner-dashboard
-        run: npm run lint --workspace=apps/partner-dashboard
-      - name: Lint admin-console
-        run: npm run lint --workspace=apps/admin-console
-      - name: Lint mobile-app
-        run: npm run lint --workspace=apps/mobile-app
-      - name: Lint scanner-app
-        run: npm run lint --workspace=apps/scanner-app
-      - name: Format check
-        run: npx --no-install prettier --check "apps/*/{app,components,lib,hooks}/**/*.{ts,tsx,js,jsx,css}"
-
-    # ── 3. TypeScript across all packages ────────────────────────
-  typecheck:
-    name: Type Check
-    needs: install
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
-        id: nm-cache
-        with:
-          path: |
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-        if: steps.nm-cache.outputs.cache-hit != 'true'
-      - run: npx turbo type-check
-
-    # ── 4. Tests ─────────────────────────────────────────────────
-  test:
-    name: Tests
-    needs: install
-    runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.allow-failure == true }}
-    env:
-      DEV_TOY_MODE: 'true'
-      QUEUE_SECRET_KEY: ci-test-key
-      TICKET_SECRET: ci-test-key
-      QR_SECRET_KEY: ci-test-key
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - workspace: apps/guest-portal
-            test-command: npm test
-          - workspace: apps/partner-dashboard
-            test-command: npx vitest run
-          - workspace: apps/admin-console
-            test-command: npx vitest run --passWithNoTests
-            allow-failure: true
-          - workspace: apps/api-gateway
-            test-command: npx vitest run
-          - workspace: packages/core
-            test-command: npx vitest run
-          - workspace: apps/mobile-app
-            test-command: npx jest --testPathPattern=scanner --verbose
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
-        id: nm-cache
-        with:
-          path: |
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-        if: steps.nm-cache.outputs.cache-hit != 'true'
-      - name: Build core (api-gateway tests need the compiled dist exports)
-        if: matrix.workspace == 'apps/api-gateway'
-        run: cd packages/core && npm run build
-      - name: Run tests
-        run: |
-          cd ${{ matrix.workspace }}
-          ${{ matrix.test-command }}
-      - uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: ${{ matrix.workspace }}
-          fail_ci_if_error: false
-
-    # ── 5. Build all affected packages ───────────────────────────
-  build:
-    name: Build
-    needs: [lint, typecheck, test]
+  # ── 1a. Verify: Prettier + Stylelint (no build dependency) ────
+  verify-format:
+    name: Verify / Format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - run: git fetch --no-tags --depth=500 origin main
+
+      - name: Fetch base branch
+        run: git fetch --no-tags --depth=500 origin ${{ github.base_ref }}
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+        with:
+          node-version: 20
+          cache: npm
+
       - uses: actions/cache@v4
         id: nm-cache
         with:
@@ -162,35 +38,137 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
+
+      - name: Install dependencies
         if: steps.nm-cache.outputs.cache-hit != 'true'
-      - run: npx turbo build --filter='...[origin/main]'
+        run: npm ci
+
+      - name: Prettier check (changed files vs base branch)
+        shell: bash
+        run: |
+          set -eo pipefail
+          git diff -z --name-only --diff-filter=ACMR "origin/${{ github.base_ref }}...HEAD" -- \
+            '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json' '*.css' '*.scss' '*.md' \
+            ':(exclude)**/node_modules/**' \
+            ':(exclude)**/.next/**' \
+            ':(exclude)**/dist/**' \
+            ':(exclude)**/coverage/**' \
+            ':(exclude)**/build/**' \
+            ':(exclude)**/.turbo/**' \
+            ':(exclude)package-lock.json' \
+            > /tmp/prettier-changed.txt
+
+          if [ ! -s /tmp/prettier-changed.txt ]; then
+            echo "No prettier-relevant files changed vs origin/${{ github.base_ref }} — skipping."
+            exit 0
+          fi
+
+          echo "Checking formatting on:"
+          tr '\0' '\n' < /tmp/prettier-changed.txt
+          xargs -0 npx prettier --check < /tmp/prettier-changed.txt
+
+      - name: Stylelint check
+        run: npm run stylelint:check
+
+  # ── 1b. Verify: Build shared packages, Lint, Type-Check, Test ─
+  verify-test:
+    name: Verify / Test
+    runs-on: ubuntu-latest
+    env:
+      DEV_TOY_MODE: 'true'
+      QUEUE_SECRET_KEY: ci-test-key
+      TICKET_SECRET: ci-test-key
+      QR_SECRET_KEY: ci-test-key
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/cache@v4
+        id: nm-cache
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.nm-cache.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Build shared packages
+        run: npx turbo build --filter=@c1rcle/types --filter=@c1rcle/core
+
+      - name: Run lint, typecheck, test
+        run: npx turbo run lint type-check test --output-logs=new-only
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  # ── 2. Build affected ─────────────────────────────────────────
+  build:
+    name: Build Affected
+    needs: [verify-format, verify-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch
+        run: git fetch --no-tags --depth=500 origin ${{ github.base_ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/cache@v4
+        id: nm-cache
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.nm-cache.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Build affected packages
+        run: npx turbo build --filter='...[origin/${{ github.base_ref }}]'
         env:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
           SKIP_ENV_VALIDATION: '1'
 
-    # ── 6. Security ───────────────────────────────────────────────
+  # ── 3. Security ───────────────────────────────────────────────
   security:
     name: Security
-    needs: install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
-      - uses: actions/cache@v4
-        id: nm-cache
         with:
-          path: |
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-        if: steps.nm-cache.outputs.cache-hit != 'true'
-      - run: npm audit --audit-level=critical
-      - uses: trufflesecurity/trufflehog@main
-        with: { extra_args: --only-verified }
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=critical --omit=optional --package-lock-only
+
+      - name: Secret scanning (Trufflehog)
+        uses: trufflesecurity/trufflehog@v3.82.6
+        with:
+          extra_args: --only-verified

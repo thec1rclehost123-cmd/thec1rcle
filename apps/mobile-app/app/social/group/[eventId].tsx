@@ -2,17 +2,31 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
+  ActionSheetIOS,
+  Dimensions,
+  Image,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { ChatKeyboardAvoidingView } from '@/components/ui/ChatKeyboardAvoidingView';
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
-import { ImagePlus, Images, LockKeyhole, Users } from 'lucide-react-native';
+import {
+  CalendarDays,
+  Flag,
+  Ban,
+  ImagePlus,
+  Images,
+  LockKeyhole,
+  Users,
+  X,
+} from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import {
   BrightCenterState,
@@ -24,6 +38,7 @@ import {
   BrightTextInput,
   BrightToolButton,
   BrightTypingIndicator,
+  SwipeableMessage,
   formatChatTime,
   type ChatSurfaceTheme,
 } from '@/components/chat/BrightChatSurface';
@@ -46,11 +61,13 @@ import {
   createTypingHandler,
   type TypingStatus,
   initiateDMRequest,
+  reportMessage,
 } from '@/lib/social';
-import { DEMO_EVENT_CHATS } from '@/lib/demo';
+import { DEMO_EVENT_CHATS, DEMO_MODE } from '@/lib/demo';
 import { colors, radii, spacing, typography } from '@/lib/design/theme';
 import { useAuthStore } from '@/store/authStore';
 import { trackScreen } from '@/lib/analytics';
+import { apiFetch } from '@/lib/api';
 
 const fonts = typography.fontFamily;
 
@@ -64,49 +81,18 @@ function PhaseBadge({ phase }: { phase: EventPhase }) {
   const info = getPhaseInfo(phase);
 
   return (
-    <View style={[styles.phaseBadge, { backgroundColor: `${info.color}24` }]}>
+    <View
+      style={[
+        styles.phaseBadge,
+        {
+          backgroundColor: 'rgba(255,255,255,0.12)',
+          borderColor: 'rgba(255,255,255,0.2)',
+          borderWidth: 1,
+        },
+      ]}
+    >
       <Text style={styles.phaseIcon}>{info.icon}</Text>
-      <Text style={[styles.phaseText, { color: info.color }]}>{info.label}</Text>
-    </View>
-  );
-}
-
-function AttendeesPreview({
-  attendees,
-  total,
-  mediaCount,
-  onPress,
-  onGalleryPress,
-}: {
-  attendees: EventAttendee[];
-  total: number;
-  mediaCount: number;
-  onPress: () => void;
-  onGalleryPress: () => void;
-}) {
-  return (
-    <View style={styles.previewRow}>
-      <Pressable onPress={onPress} style={styles.previewPill}>
-        <View style={styles.previewAvatars}>
-          {attendees.slice(0, 3).map((attendee, index) => (
-            <View
-              key={attendee.userId}
-              style={[styles.previewAvatar, { marginLeft: index === 0 ? 0 : -8 }]}
-            >
-              <Text style={styles.previewAvatarText}>
-                {attendee.name.slice(0, 1).toUpperCase()}
-              </Text>
-            </View>
-          ))}
-        </View>
-        <Users size={15} color="#FFFFFF" />
-        <Text style={styles.previewText}>{total}</Text>
-      </Pressable>
-
-      <Pressable onPress={onGalleryPress} style={styles.previewPill}>
-        <Images size={15} color="#FFFFFF" />
-        <Text style={styles.previewText}>{mediaCount}</Text>
-      </Pressable>
+      <Text style={[styles.phaseText, { color: '#FFFFFF' }]}>{info.label}</Text>
     </View>
   );
 }
@@ -116,10 +102,11 @@ export default function EventGroupChatScreen() {
     eventId: string;
     eventTitle: string;
   }>();
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
   const messagesListRef = useRef<FlashListRef<GroupMessage>>(null);
 
   const [messages, setMessages] = useState<GroupMessage[]>([]);
+  const [tempMessages, setTempMessages] = useState<GroupMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -130,6 +117,13 @@ export default function EventGroupChatScreen() {
   const [attendeeCount, setAttendeeCount] = useState(0);
   const [mediaCount, setMediaCount] = useState(0);
   const [typingStatus, setTypingStatus] = useState<TypingStatus>({ isTyping: false, users: [] });
+  const [replyMessageId, setReplyMessageId] = useState<string | null>(null);
+  const [hiddenMessageIds, setHiddenMessageIds] = useState<Set<string>>(() => new Set());
+  const [likedMessageIds, setLikedMessageIds] = useState<Set<string>>(() => new Set());
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+  const [eventHostId, setEventHostId] = useState<string | null>(null);
+  const [eventTitleSafe, setEventTitleSafe] = useState(eventTitle || '');
+  const [eventPoster, setEventPoster] = useState<string | null>(null);
 
   const { canSend, cooldownSeconds, checkRateLimit } = useChatRateLimit();
   const { uploading: imageUploading, pickAndUpload } = useChatImagePicker(
@@ -137,26 +131,66 @@ export default function EventGroupChatScreen() {
     `group/${eventId || 'unknown'}`,
   );
 
-  const demoEventChat = DEMO_EVENT_CHATS.find((chat) => chat.eventId === eventId);
+  const demoEventChat = DEMO_MODE
+    ? DEMO_EVENT_CHATS.find((chat) => chat.eventId === eventId)
+    : undefined;
   const phaseInfo = getPhaseInfo(phase);
+  const isArchived = phase === 'expired';
+  const canCompose = hasAccess && !isArchived;
+  const archivedNotice = 'This event chat has ended. You can still read the history.';
+  const visibleMessages = useMemo(() => {
+    const filtered = messages.filter((message) => !hiddenMessageIds.has(message.id));
+    for (const tm of tempMessages) {
+      if (!filtered.find((m) => m.id === tm.id)) {
+        filtered.push(tm);
+      }
+    }
+    filtered.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    return filtered;
+  }, [hiddenMessageIds, messages, tempMessages]);
+  const reversedMessages = useMemo(() => [...visibleMessages].reverse(), [visibleMessages]);
+
+  const replyMessage = useMemo(() => {
+    if (!replyMessageId) return null;
+    return messages.find((m) => m.id === replyMessageId) || null;
+  }, [replyMessageId, messages]);
+
+  const phaseColors: Record<string, string> = {
+    'pre-event': '#8B5CF6',
+    during: '#F59E0B',
+    'post-event': '#3B82F6',
+    expired: '',
+  };
+  const moodColor = phaseColors[phase] || '';
+  const phasePlaceholders: Record<string, string> = {
+    'pre-event': 'Get the hype started…',
+    during: 'Share the moment…',
+    'post-event': 'Relive the night…',
+    expired: 'Chat history is read-only',
+  };
+  const placeholder = isArchived
+    ? 'Chat history is read-only'
+    : phasePlaceholders[phase] || 'Type a message';
+
   const theme: ChatSurfaceTheme = {
     mode: 'event',
-    title: eventTitle || demoEventChat?.eventTitle || 'Event group',
+    title: eventTitleSafe || eventTitle || demoEventChat?.eventTitle || 'Event group',
     subtitle: `${attendeeCount || demoEventChat?.participantCount || 0} people going`,
-    backgroundImage: demoEventChat?.eventCover,
-    heroImage: demoEventChat?.eventCover,
+    backgroundImage: eventPoster || demoEventChat?.eventCover,
+    heroImage: eventPoster || demoEventChat?.eventCover,
     avatarUrls: demoEventChat?.activeAvatars || [],
     accentColor: colors.iris,
   };
 
   const typingHandler = useMemo(() => {
-    if (eventId && user?.uid) {
+    if (eventId && user?.uid && !isArchived) {
       return createTypingHandler(async (isTyping) => {
         await setGroupTypingStatus(eventId, user.uid, user.displayName || 'Guest', isTyping);
       });
     }
     return { onChangeText: () => {}, onBlur: () => {} };
-  }, [eventId, user?.uid, user?.displayName]);
+  }, [eventId, isArchived, user?.uid, user?.displayName]);
 
   useEffect(() => {
     trackScreen('GroupChat');
@@ -176,41 +210,111 @@ export default function EventGroupChatScreen() {
       async function initializeChat() {
         setLoading(true);
 
-        const entitlement = await checkEventEntitlement(user!.uid, eventId!);
-        const chatInfo = await getEventGroupChat(eventId!);
-        if (!active) return;
-
-        setPhase(chatInfo.phase);
-        setAttendeeCount(chatInfo.participantCount);
-
-        const access = canAccessEventChat(entitlement, chatInfo.phase);
-        setHasAccess(access.allowed);
-        setAccessError(access.reason || null);
-
-        if (!access.allowed) {
-          setLoading(false);
-          return;
-        }
-
-        const [eventAttendees, count] = await Promise.all([
-          getEventAttendees(eventId!, 10),
-          getEventMediaCount(eventId!),
-        ]);
-        if (!active) return;
-        setAttendees(eventAttendees);
-        setMediaCount(count);
-
-        unsubscribeMessages = subscribeToGroupChat(eventId!, (newMessages) => {
+        try {
+          const [entitlement, chatInfo, eventDetail, initialChatResponse] = await Promise.all([
+            checkEventEntitlement(user!.uid, eventId!),
+            getEventGroupChat(eventId!),
+            apiFetch<any>(`/api/v1/events/${eventId}`, { requireAuth: false }).catch(() => null),
+            apiFetch<any>(`/api/v1/chats/${encodeURIComponent(eventId!)}/messages?limit=50`, {
+              requireAuth: true,
+            }).catch(() => null),
+          ]);
           if (!active) return;
-          setMessages(newMessages);
-          setLoading(false);
-          setTimeout(() => {
-            messagesListRef.current?.scrollToEnd({ animated: true });
-          }, 100);
-        });
-        unsubscribeTyping = subscribeToGroupTyping(eventId!, user!.uid, (status) => {
-          if (active) setTypingStatus(status);
-        });
+
+          const eventData =
+            eventDetail?.event || eventDetail?.data?.event || eventDetail?.data || eventDetail;
+          if (eventData) {
+            if (!eventTitleSafe) {
+              setEventTitleSafe(eventData.title || eventData.name || eventTitle || '');
+            }
+            setEventHostId(eventData.createdBy || eventData.hostId || null);
+            setEventPoster(
+              eventData.posterUrl || eventData.coverImage || eventData.imageUrl || null,
+            );
+          }
+
+          setPhase(chatInfo.phase);
+          setAttendeeCount(chatInfo.participantCount);
+
+          const access = canAccessEventChat(entitlement, chatInfo.phase);
+          setHasAccess(access.allowed);
+          setAccessError(access.reason || null);
+
+          if (!access.allowed) {
+            return;
+          }
+
+          // Pre-populate messages if the parallel fetch succeeded
+          let initialMessages: GroupMessage[] = [];
+          const initialResponseMessages =
+            initialChatResponse?.data?.messages || initialChatResponse?.messages;
+          if (initialResponseMessages) {
+            const normalized = initialResponseMessages
+              .map((m: any) => ({
+                id: String(m.id || m.messageId),
+                eventId: String(m.eventId || eventId),
+                senderId: String(m.senderId || m.userId || ''),
+                senderName: String(m.senderName || m.userName || 'Attendee'),
+                senderAvatar: m.senderAvatar || m.senderPhoto || m.metadata?.senderAvatar,
+                senderBadge: m.senderBadge || m.metadata?.senderBadge,
+                content: String(m.content || m.text || m.imageUrl || m.videoUrl || ''),
+                type: m.type || (m.imageUrl ? 'image' : m.videoUrl ? 'image' : 'text'),
+                createdAt: m.createdAt || new Date().toISOString(),
+                isDeleted: m.isDeleted === true,
+                deletedBy: m.deletedBy,
+                replyTo: m.replyTo || m.replyToId,
+              }))
+              .filter((m: any) => Boolean(m.id));
+
+            // Sort and limit
+            const sorted = normalized.sort(
+              (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+            );
+            initialMessages = sorted.slice(-50);
+            setMessages(initialMessages);
+          }
+
+          // Fetch side data asynchronously without blocking the UI
+          Promise.all([getEventAttendees(eventId!, 10), getEventMediaCount(eventId!)])
+            .then(([eventAttendees, count]) => {
+              if (!active) return;
+              setAttendees(eventAttendees);
+              setMediaCount(count);
+            })
+            .catch((err) => console.warn('Failed to load side data:', err));
+
+          let lastSeenMessageId =
+            initialMessages.length > 0 ? initialMessages[initialMessages.length - 1].id : null;
+          unsubscribeMessages = subscribeToGroupChat(
+            eventId!,
+            (newMessages) => {
+              if (!active) return;
+              if (newMessages.length > 0) {
+                const latestMsg = newMessages[newMessages.length - 1];
+                if (
+                  lastSeenMessageId &&
+                  latestMsg.id !== lastSeenMessageId &&
+                  latestMsg.senderId !== user!.uid
+                ) {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                }
+                lastSeenMessageId = latestMsg.id;
+              }
+              setMessages(newMessages);
+            },
+            50,
+            initialMessages,
+          );
+          if (chatInfo.phase !== 'expired') {
+            unsubscribeTyping = subscribeToGroupTyping(eventId!, user!.uid, (status) => {
+              if (active) setTypingStatus(status);
+            });
+          }
+        } catch (error) {
+          console.error('Failed to initialize chat:', error);
+        } finally {
+          if (active) setLoading(false);
+        }
       }
 
       initializeChat();
@@ -223,43 +327,114 @@ export default function EventGroupChatScreen() {
   );
 
   const handleTextChange = (text: string) => {
+    if (!canCompose) return;
     setInputText(text);
     typingHandler.onChangeText();
   };
 
   const handleSend = async () => {
-    if (!inputText.trim() || !user?.uid || !eventId) return;
+    if (!canCompose || !inputText.trim() || !user?.uid || !eventId) return;
     if (!checkRateLimit()) return;
 
     const messageContent = inputText.trim();
     setInputText('');
     setSending(true);
     typingHandler.onBlur();
-    await setGroupTypingStatus(eventId, user.uid, user.displayName || 'Guest', false);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setGroupTypingStatus(eventId, user.uid, user.displayName || 'Guest', false).catch(
+      console.error,
+    );
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempMsg: GroupMessage = {
+      id: tempId,
+      eventId,
+      senderId: user.uid,
+      senderName: user.displayName || 'Guest',
+      senderAvatar: user.photoURL || undefined,
+      content: messageContent,
+      type: 'text',
+      createdAt: new Date().toISOString(),
+      isDeleted: false,
+      replyTo: replyMessageId || undefined,
+    };
+    setTempMessages((current) => [...current, tempMsg]);
+    setReplyMessageId(null);
 
     const result = await sendGroupMessage(
       eventId,
       user.uid,
       user.displayName || 'Guest',
       messageContent,
+      user.photoURL || undefined,
+      undefined, // badge
+      replyMessageId || undefined,
     );
+    setTempMessages((current) => current.filter((m) => m.id !== tempId));
 
     if (!result.success) {
       Alert.alert('Error', result.error || 'Failed to send message');
       setInputText(messageContent);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
 
     setSending(false);
   };
 
-  const handleMessageOptions = (message: GroupMessage) => {
-    Alert.alert(
-      'Message',
-      undefined,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
+  const hideMessageLocally = useCallback((messageId: string) => {
+    setHiddenMessageIds((current) => {
+      const next = new Set(current);
+      next.add(messageId);
+      return next;
+    });
+  }, []);
+
+  const restoreMessageLocally = useCallback((messageId: string) => {
+    setHiddenMessageIds((current) => {
+      const next = new Set(current);
+      next.delete(messageId);
+      return next;
+    });
+  }, []);
+
+  const toggleMessageLikeLocally = useCallback((messageId: string) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setLikedMessageIds((current) => {
+      const next = new Set(current);
+      if (next.has(messageId)) next.delete(messageId);
+      else next.add(messageId);
+      return next;
+    });
+  }, []);
+
+  const handleReportMessage = useCallback(
+    async (message: GroupMessage) => {
+      if (!eventId || !message.id || !message.senderId) return;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      hideMessageLocally(message.id);
+
+      const result = await reportMessage({
+        messageId: message.id,
+        eventId,
+        senderId: message.senderId,
+      });
+
+      if (!result.success) {
+        restoreMessageLocally(message.id);
+        Alert.alert('Unable to report', result.error || 'Please try again.');
+      }
+    },
+    [eventId, hideMessageLocally, restoreMessageLocally],
+  );
+
+  const handleMessageOptions = useCallback(
+    (message: GroupMessage) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const isOwnMessage = message.senderId === user?.uid;
+
+      const actions = [
+        !isOwnMessage && {
           text: 'View Profile',
           onPress: () =>
             router.push({
@@ -267,7 +442,7 @@ export default function EventGroupChatScreen() {
               params: { id: message.senderId, eventId },
             }),
         },
-        message.senderId !== user?.uid && {
+        !isOwnMessage && {
           text: 'Send DM',
           onPress: async () => {
             if (!user?.uid || !eventId) return;
@@ -285,44 +460,114 @@ export default function EventGroupChatScreen() {
             }
           },
         },
-        message.senderId !== user?.uid && {
-          text: 'Report',
-          style: 'destructive',
-          onPress: () =>
-            router.push({
-              pathname: '/social/report',
-              params: { userId: message.senderId, eventId, messageId: message.id },
-            }),
+        !isOwnMessage && {
+          text: 'Report Message',
+          style: 'destructive' as const,
+          onPress: () => handleReportMessage(message),
         },
-      ].filter(Boolean) as any,
-    );
-  };
+        isOwnMessage && {
+          text: 'Delete Message',
+          style: 'destructive' as const,
+          onPress: () => hideMessageLocally(message.id),
+        },
+      ].filter(Boolean) as Array<{
+        text: string;
+        style?: 'default' | 'destructive';
+        onPress: () => void;
+      }>;
 
-  const activeTyper = typingStatus.isTyping ? typingStatus.users[0] : null;
+      if (Platform.OS === 'ios') {
+        const cancelIndex = actions.length;
+        const destructiveIndex = actions.findIndex((action) => action.style === 'destructive');
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options: [...actions.map((action) => action.text), 'Cancel'],
+            cancelButtonIndex: cancelIndex,
+            destructiveButtonIndex: destructiveIndex >= 0 ? destructiveIndex : undefined,
+          },
+          (buttonIndex) => {
+            if (buttonIndex < actions.length) actions[buttonIndex].onPress();
+          },
+        );
+        return;
+      }
+
+      Alert.alert('Message', undefined, [{ text: 'Cancel', style: 'cancel' }, ...actions]);
+    },
+    [eventId, handleReportMessage, hideMessageLocally, user?.uid],
+  );
+
+  const activeTyper = canCompose && typingStatus.isTyping ? typingStatus.users[0] : null;
+
+  const flashListExtraData = useMemo(
+    () => ({
+      activeTyper,
+      userId: user?.uid,
+      likedMessageIds,
+      messageCount: visibleMessages.length,
+    }),
+    [activeTyper, user?.uid, likedMessageIds, visibleMessages.length],
+  );
 
   const renderMessage = useCallback(
-    ({ item, index }: { item: GroupMessage; index: number }) => (
-      <BrightMessage
-        content={item.content}
-        time={formatChatTime(item.createdAt, 'en-IN')}
-        senderName={item.senderName}
-        senderAvatar={item.senderAvatar}
-        type={
-          item.type === 'announcement'
-            ? 'announcement'
-            : item.type === 'system'
-              ? 'system'
-              : item.type === 'image'
-                ? 'image'
-                : 'text'
-        }
-        isOwnMessage={item.senderId === user?.uid}
-        index={index}
-        animate={index >= messages.length - 1}
-        onLongPress={() => handleMessageOptions(item)}
-      />
-    ),
-    [eventId, messages.length, user?.uid],
+    ({ item, index }: { item: any; index: number }) => {
+      if (item.type === 'divider') {
+        return (
+          <View style={[styles.flip, { alignItems: 'center', marginVertical: 16 }]}>
+            <View
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                paddingHorizontal: 12,
+                paddingVertical: 4,
+                borderRadius: 12,
+              }}
+            >
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600' }}>
+                {item.text}
+              </Text>
+            </View>
+          </View>
+        );
+      }
+
+      const isOwnMessage = item.senderId === user?.uid;
+      const isHost = eventHostId !== null && item.senderId === eventHostId;
+
+      const message = (
+        <BrightMessage
+          content={item.content}
+          time={formatChatTime(item.createdAt, 'en-IN')}
+          senderName={item.senderName}
+          senderAvatar={item.senderAvatar}
+          type={
+            item.type === 'announcement'
+              ? 'announcement'
+              : item.type === 'system'
+                ? 'system'
+                : item.type === 'image'
+                  ? 'image'
+                  : 'text'
+          }
+          isOwnMessage={isOwnMessage}
+          index={index}
+          animate={index < 5}
+          isLiked={item.isLiked || likedMessageIds.has(item.id)}
+          onLongPress={() => handleMessageOptions(item)}
+          onDoubleTap={() => toggleMessageLikeLocally(item.id)}
+          badgeLabel={isHost ? 'HOST' : undefined}
+        />
+      );
+
+      return <View style={styles.flip}>{message}</View>;
+    },
+    [
+      handleMessageOptions,
+      toggleMessageLikeLocally,
+      likedMessageIds,
+      hideMessageLocally,
+      handleReportMessage,
+      user?.uid,
+    ],
   );
 
   const messageListEmpty = useMemo(() => {
@@ -349,19 +594,17 @@ export default function EventGroupChatScreen() {
           <BrightChatHeader
             theme={theme}
             onBack={() => router.back()}
-            rightAccessory={<PhaseBadge phase={phase} />}
+            onDetails={() => setDetailsModalVisible(true)}
           />
           <View style={styles.lockedBody}>
             <View style={styles.lockedIcon}>
               <LockKeyhole size={34} color="#FFFFFF" />
             </View>
-            <Text style={styles.lockedTitle}>
-              {phase === 'expired' ? 'Chat Archived' : 'Access Required'}
-            </Text>
+            <Text style={styles.lockedTitle}>Access Required</Text>
             <Text style={styles.lockedCopy}>
               {accessError || 'You need a ticket to join this chat'}
             </Text>
-            {phase !== 'expired' ? (
+            {accessError === 'You need a ticket to join this chat' ? (
               <Pressable
                 onPress={() => router.push({ pathname: '/event/[id]', params: { id: eventId } })}
                 style={styles.lockedButton}
@@ -377,96 +620,134 @@ export default function EventGroupChatScreen() {
 
   return (
     <BrightChatSurface theme={theme}>
-      <SafeAreaView style={styles.conversation} edges={['top']}>
-        <BrightChatHeader
-          theme={theme}
-          onBack={() => router.back()}
-          rightAccessory={<PhaseBadge phase={phase} />}
-        />
-        <View style={styles.previewWrap}>
-          <AttendeesPreview
-            attendees={attendees}
-            total={attendeeCount}
-            mediaCount={mediaCount}
-            onPress={() =>
-              router.push({
-                pathname: '/social/attendees',
-                params: { eventId },
-              })
-            }
-            onGalleryPress={() =>
-              router.push({
-                pathname: '/social/gallery/[eventId]',
-                params: { eventId, eventTitle },
-              })
-            }
+      <ChatKeyboardAvoidingView style={{ flex: 1 }}>
+        <SafeAreaView style={styles.conversation} edges={['top']}>
+          <BrightChatHeader
+            theme={theme}
+            onBack={() => router.back()}
+            onDetails={() => setDetailsModalVisible(true)}
           />
-          <Text style={styles.phaseDescription}>{phaseInfo.description}</Text>
-        </View>
 
-        <FlashList
-          ref={messagesListRef}
-          data={loading ? [] : messages}
-          renderItem={renderMessage}
-          keyExtractor={(message) => message.id}
-          drawDistance={500}
-          style={styles.messages}
-          contentContainerStyle={styles.messagesContent}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={messageListEmpty}
-          ListFooterComponent={
-            activeTyper ? <BrightTypingIndicator name={activeTyper.userName} /> : null
-          }
-          extraData={{ activeTyper, userId: user?.uid, messageCount: messages.length }}
-        />
-      </SafeAreaView>
+          <FlashList
+            ref={messagesListRef}
+            data={loading ? [] : reversedMessages}
+            renderItem={renderMessage}
+            drawDistance={500}
+            style={styles.messagesFlipped}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={<View style={styles.flip}>{messageListEmpty}</View>}
+            ListHeaderComponent={
+              activeTyper ? (
+                <View style={styles.flip}>
+                  <BrightTypingIndicator
+                    name={activeTyper.userName}
+                    energy={phase === 'during' ? 0.8 : phase === 'pre-event' ? 0.4 : 0.3}
+                  />
+                </View>
+              ) : null
+            }
+            extraData={flashListExtraData}
+          />
+        </SafeAreaView>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <SafeAreaView edges={['bottom']}>
-          <BrightComposerDock>
-            <BrightToolButton
-              onPress={async () => {
-                if (!user?.uid || !eventId) return;
-                if (!checkRateLimit()) return;
-                const url = await pickAndUpload();
-                if (url) {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  const result = await sendGroupImageMessage(
-                    eventId,
-                    user.uid,
-                    user.displayName || 'Guest',
-                    url,
-                  );
-                  if (!result.success) {
-                    Alert.alert('Error', result.error || 'Failed to send image');
-                  }
-                }
-              }}
-              disabled={imageUploading || !canSend}
-            >
-              {imageUploading ? (
-                <ActivityIndicator size="small" color={colors.iris} />
-              ) : (
-                <ImagePlus size={19} color={colors.iris} />
-              )}
-            </BrightToolButton>
+          <BrightComposerDock error={isArchived ? archivedNotice : null}>
             <BrightTextInput
               value={inputText}
               onChangeText={handleTextChange}
               onBlur={typingHandler.onBlur}
-              placeholder="Message the group..."
+              placeholder={placeholder}
+              editable={canCompose}
+              style={isArchived ? styles.readOnlyComposerInput : undefined}
               multiline
               maxLength={500}
             />
             <BrightSendButton
               onPress={handleSend}
-              disabled={!inputText.trim() || sending || !canSend}
+              disabled={!canCompose || !inputText.trim() || sending || !canSend}
               loading={sending}
-              cooldownSeconds={!canSend ? cooldownSeconds : undefined}
+              cooldownSeconds={canCompose && !canSend ? cooldownSeconds : undefined}
             />
           </BrightComposerDock>
         </SafeAreaView>
-      </KeyboardAvoidingView>
+      </ChatKeyboardAvoidingView>
+
+      <Modal
+        visible={detailsModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setDetailsModalVisible(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setDetailsModalVisible(false)} />
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHandle} />
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Event Details</Text>
+            <Pressable onPress={() => setDetailsModalVisible(false)} style={styles.modalClose}>
+              <X size={18} color="#fff" strokeWidth={2.5} />
+            </Pressable>
+          </View>
+
+          <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+            {demoEventChat?.eventCover && (
+              <Image
+                source={{ uri: demoEventChat.eventCover }}
+                style={styles.modalCover}
+                resizeMode="cover"
+              />
+            )}
+
+            <Text style={styles.modalEventTitle}>
+              {eventTitleSafe || eventTitle || demoEventChat?.eventTitle}
+            </Text>
+
+            <PhaseBadge phase={phase} />
+
+            <View style={styles.modalInfoRow}>
+              <Users size={16} color="rgba(255,255,255,0.5)" />
+              <Text style={styles.modalInfoText}>
+                {attendeeCount || demoEventChat?.participantCount || 0} attendees
+              </Text>
+            </View>
+
+            <View style={styles.sectionTitle}>
+              <Text style={styles.sectionLabel}>Attendees</Text>
+            </View>
+
+            {attendees.length > 0 ? (
+              attendees.map((a) => (
+                <Pressable
+                  key={a.userId}
+                  style={styles.attendeeRow}
+                  onPress={() => {
+                    setDetailsModalVisible(false);
+                    router.push({
+                      pathname: '/social/profile/[id]',
+                      params: { id: a.userId, eventId },
+                    });
+                  }}
+                >
+                  <View style={styles.attendeeAvatar}>
+                    {a.avatar ? (
+                      <Image
+                        source={{ uri: a.avatar }}
+                        style={{ width: '100%', height: '100%' }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text style={styles.attendeeInitial}>{a.name.slice(0, 1).toUpperCase()}</Text>
+                    )}
+                  </View>
+                  <Text style={styles.attendeeName}>{a.name}</Text>
+                </Pressable>
+              ))
+            ) : (
+              <Text style={styles.modalEmptyText}>No attendees loaded</Text>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </BrightChatSurface>
   );
 }
@@ -584,6 +865,9 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xs,
     paddingHorizontal: spacing.xs,
   },
+  readOnlyComposerInput: {
+    color: 'rgba(255,255,255,0.52)',
+  },
   messages: {
     flex: 1,
   },
@@ -599,10 +883,141 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  messagesFlipped: {
+    flex: 1,
+    transform: [{ scaleY: -1 }],
+  },
+  flip: {
+    transform: [{ scaleY: -1 }],
+  },
   loaderText: {
     color: '#FFFFFF',
     fontFamily: fonts.heading,
     fontSize: typography.fontSize.sm,
     marginTop: spacing.md,
+  },
+
+  // ── Details Modal ──
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    maxHeight: Dimensions.get('window').height * 0.75,
+    backgroundColor: '#1A1A1A',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontFamily: fonts.display,
+    fontSize: typography.fontSize.lg,
+    fontWeight: '600',
+  },
+  modalClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBody: {
+    padding: 20,
+  },
+  modalCover: {
+    width: '100%',
+    height: 160,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  modalEventTitle: {
+    color: '#FFFFFF',
+    fontFamily: fonts.display,
+    fontSize: typography.fontSize['2xl'],
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  modalInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  modalInfoText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontFamily: fonts.body,
+    fontSize: typography.fontSize.sm,
+  },
+  sectionLabel: {
+    color: 'rgba(255,255,255,0.4)',
+    fontFamily: fonts.heading,
+    fontSize: typography.fontSize.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  attendeeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+  attendeeAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2C2C2E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  attendeeInitial: {
+    color: '#FFFFFF',
+    fontFamily: fonts.display,
+    fontSize: typography.fontSize.md,
+    fontWeight: '700',
+  },
+  attendeeName: {
+    color: '#FFFFFF',
+    fontFamily: fonts.body,
+    fontSize: typography.fontSize.md,
+    fontWeight: '500',
+  },
+  modalEmptyText: {
+    color: 'rgba(255,255,255,0.3)',
+    fontFamily: fonts.body,
+    fontSize: typography.fontSize.sm,
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  sectionTitle: {
+    marginTop: 4,
   },
 });

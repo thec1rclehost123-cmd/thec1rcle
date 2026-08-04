@@ -1,0 +1,2099 @@
+{
+  "generatedAt": "2026-07-27T09:15:29.297Z",
+  "gitSha": "aea059421d4808c5b070524d02216493da555cbe",
+  "rows": [
+    {
+      "consumerFile": "apps/guest-portal/app/robots.js",
+      "endpointLiteral": "/api/",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/robots.js",
+      "endpointLiteral": "/api/",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/guest-portal/proxy.js",
+      "endpointLiteral": "/api/:path*",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/proxy.ts",
+      "endpointLiteral": "/api/:path*",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/guest-portal/lib/bff/client.js",
+      "endpointLiteral": "/api/app",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/assistant/AssistantPanel.tsx",
+      "endpointLiteral": "/api/assistant/chat",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/auth/change-password/page.tsx",
+      "endpointLiteral": "/api/auth/change-password",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/onboard/PageClient.tsx",
+      "endpointLiteral": "/api/auth/check-availability",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/onboard/PageClient.tsx",
+      "endpointLiteral": "/api/auth/check-email",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/onboard/PageClient.tsx",
+      "endpointLiteral": "/api/auth/create-account",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/HostVerificationForm.jsx",
+      "endpointLiteral": "/api/auth/host-verification",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/login/PageClient.tsx",
+      "endpointLiteral": "/api/auth/me",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/onboard/PageClient.tsx",
+      "endpointLiteral": "/api/auth/me",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/providers/AuthProvider.jsx",
+      "endpointLiteral": "/api/auth/me",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/providers/DashboardAuthProvider.tsx",
+      "endpointLiteral": "/api/auth/me",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/onboard/PageClient.tsx",
+      "endpointLiteral": "/api/auth/onboard",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/onboard/PageClient.tsx",
+      "endpointLiteral": "/api/auth/onboarding-progress",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/onboard/PageClient.tsx",
+      "endpointLiteral": "/api/auth/otp/send",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/onboard/PageClient.tsx",
+      "endpointLiteral": "/api/auth/otp/verify",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/providers/DashboardAuthProvider.tsx",
+      "endpointLiteral": "/api/auth/partner-context",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/providers/AuthProvider.jsx",
+      "endpointLiteral": "/api/auth/profile",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/providers/DashboardAuthProvider.tsx",
+      "endpointLiteral": "/api/auth/profile",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/partners/PageClient.tsx",
+      "endpointLiteral": "/api/discovery",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/partnerships/PageClient.tsx",
+      "endpointLiteral": "/api/discovery",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/promoters/PageClient.tsx",
+      "endpointLiteral": "/api/discovery",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/connections/requests/PageClient.tsx",
+      "endpointLiteral": "/api/discovery",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/partners/[id]/ProfilePageClient.tsx",
+      "endpointLiteral": "/api/discovery",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/partners/PageClient.tsx",
+      "endpointLiteral": "/api/discovery",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/partnerships/PageClient.tsx",
+      "endpointLiteral": "/api/discovery",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/discovery/DiscoveryView.tsx",
+      "endpointLiteral": "/api/discovery",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/partnerships/DiscoverDirectory.tsx",
+      "endpointLiteral": "/api/discovery",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/guest-ops/door/PageClient.tsx",
+      "endpointLiteral": "/api/event-codes",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/events/ScannerAccess.tsx",
+      "endpointLiteral": "/api/event-codes",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/CreateEventForm.jsx",
+      "endpointLiteral": "/api/events",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/wizard/CreateEventWizardV2.tsx",
+      "endpointLiteral": "/api/events/${draftId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/wizard/CreateEventWizardV2.tsx",
+      "endpointLiteral": "/api/events/${effectiveDraftId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/events/requests/PageClient.tsx",
+      "endpointLiteral": "/api/events/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/wizard/CreateEventWizard.tsx",
+      "endpointLiteral": "/api/events/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/wizard/CreateEventWizardV2.tsx",
+      "endpointLiteral": "/api/events/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/lib/hooks/useCancelEvent.ts",
+      "endpointLiteral": "/api/events/${eventId}/cancel",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/security/PageClient.tsx",
+      "endpointLiteral": "/api/events/${eventId}/guestlist",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/events/SurgeMonitor.jsx",
+      "endpointLiteral": "/api/events/${eventId}/surge",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/wizard/CreateEventWizard.tsx",
+      "endpointLiteral": "/api/events/${id}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/wizard/CreateEventWizard.tsx",
+      "endpointLiteral": "/api/events/${savedDraftId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/wizard/CreateEventWizardV2.tsx",
+      "endpointLiteral": "/api/events/${savedDraftId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/events/requests/PageClient.tsx",
+      "endpointLiteral": "/api/events/${slot.eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/wizard/CreateEventWizard.tsx",
+      "endpointLiteral": "/api/events/create",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/wizard/CreateEventWizardV2.tsx",
+      "endpointLiteral": "/api/events/create",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/wizard/components/DetailedBreakdown.tsx",
+      "endpointLiteral": "/api/events/wizard",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/wizard/PromoterStep.tsx",
+      "endpointLiteral": "/api/events/wizard",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/finance/payouts/PageClient.tsx",
+      "endpointLiteral": "/api/host/finance/bank-accounts",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/notifications/PageClient.tsx",
+      "endpointLiteral": "/api/host/notifications",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/shared/NotificationCenter.tsx",
+      "endpointLiteral": "/api/host/notifications",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/presence/HostPresencePageClient.tsx",
+      "endpointLiteral": "/api/host/profile",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/settings/PageClient.tsx",
+      "endpointLiteral": "/api/host/settings",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/settings/PageClient.tsx",
+      "endpointLiteral": "/api/host/settings/session/revoke",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/verify/PageClient.tsx",
+      "endpointLiteral": "/api/kyc",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/onboard/PageClient.tsx",
+      "endpointLiteral": "/api/kyc/upload",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/finance/BankSetupForm.tsx",
+      "endpointLiteral": "/api/kyc/upload",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/onboard/PageClient.tsx",
+      "endpointLiteral": "/api/kyc/verify-aadhaar",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/guest-portal/components/CheckoutForm.jsx",
+      "endpointLiteral": "/api/orders",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/CheckoutForm.jsx",
+      "endpointLiteral": "/api/orders",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/audience/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/audience",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/page-management/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/broadcast",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/presence/HostPresencePageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/broadcast",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/events/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/events/${eventId}/attendees/${selectedAttendeeId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/events/${eventId}/finance",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/events/${eventId}/overview",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/events/${eventId}/promoters",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/events/${eventId}/tickets",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/finance/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/finance/bank-accounts",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/promoters/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/invite",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/orders/${orderId}/resend-receipt",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/partners/[id]/ProfilePageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/partners",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/partnerships/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/partnerships",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/partnerships/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/partnerships/request",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/events/requests/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/slot-requests",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/team/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/team",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/team/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/team/${editTarget.membershipId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/team/PageClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/team/${membershipId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/auth/staff-invite/page.tsx",
+      "endpointLiteral": "/api/partners/hosts/team/accept",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/settings/HostProfileClient.tsx",
+      "endpointLiteral": "/api/partners/hosts/upload",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/finance/PromoterFinanceClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/commissions${cursorQuery}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/connections/page.tsx",
+      "endpointLiteral": "/api/partners/promoters/connections",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/lib/hooks/usePromoterQueries.ts",
+      "endpointLiteral": "/api/partners/promoters/connections",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/partnerships/PageClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/connections/${connectionId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/partners/[id]/ProfilePageClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/connections/request",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/partnerships/PageClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/connections/request",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/events/PromoterAssignmentDetailClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/events/${assignmentId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/finance/PageClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/finance",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/finance/PromoterFinanceClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/finance",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/finance/PageClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/finance/bank-accounts",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/payouts/PageClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/finance/bank-accounts",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/guests/PromoterGuestsPageClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/guests${cursorQuery}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/links/GenerateLinkModal.tsx",
+      "endpointLiteral": "/api/partners/promoters/links",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/links/EditLinkModal.tsx",
+      "endpointLiteral": "/api/partners/promoters/links/${link.id}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/links/AnalyticsDrawer.tsx",
+      "endpointLiteral": "/api/partners/promoters/links/${linkId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/links/AnalyticsDrawer.tsx",
+      "endpointLiteral": "/api/partners/promoters/links/${linkId}/analytics",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/PageClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/overview",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/overview/PromoterOverviewClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/overview",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/partners/[id]/ProfilePageClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/partners",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/finance/payouts/page.tsx",
+      "endpointLiteral": "/api/partners/promoters/payouts",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/profile/page.tsx",
+      "endpointLiteral": "/api/partners/promoters/profile",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/profile/PromoterProfileClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/profile",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/settings/PageClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/settings/identity",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/settings/IdentityPanel.tsx",
+      "endpointLiteral": "/api/partners/promoters/settings/identity",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/settings/PageClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/settings/notifications",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/settings/SecurityHub.tsx",
+      "endpointLiteral": "/api/partners/promoters/settings/notifications",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/settings/PayoutConfig.tsx",
+      "endpointLiteral": "/api/partners/promoters/settings/payout",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/settings/PageClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/settings/security/logout-all",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/settings/SecurityHub.tsx",
+      "endpointLiteral": "/api/partners/promoters/settings/security/logout-all",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/settings/VerificationStepper.tsx",
+      "endpointLiteral": "/api/partners/promoters/settings/verification",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/links/PageClient.tsx",
+      "endpointLiteral": "/api/partners/promoters/stats",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/settings/IdentityPanel.tsx",
+      "endpointLiteral": "/api/partners/promoters/upload",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/promoter/settings/VerificationStepper.tsx",
+      "endpointLiteral": "/api/partners/promoters/upload",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/venue-overview/AlertsPanel.tsx",
+      "endpointLiteral": "/api/partners/venues/alerts/${id}/dismiss",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/presence/VenuePresencePageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/broadcast",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/events/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/events",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/events/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/events/${eventId}/attendees/${selectedAttendeeId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/analytics/EventAnalyticsClient.tsx",
+      "endpointLiteral": "/api/partners/venues/events/${eventId}/computed-analytics",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/events/${eventId}/finance",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/events/${eventId}/overview",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/events/${eventId}/promoters",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/event-detail/EventTeamClient.tsx",
+      "endpointLiteral": "/api/partners/venues/events/${eventId}/promoters",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/events/${eventId}/tickets",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/venue-management/FacilitiesManager.tsx",
+      "endpointLiteral": "/api/partners/venues/facilities",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/finance/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/finance/bank-accounts",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/venue-management/EnhancedVenueEditor.tsx",
+      "endpointLiteral": "/api/partners/venues/gallery",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/venue-management/GalleryManager.tsx",
+      "endpointLiteral": "/api/partners/venues/gallery",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/venue-management/HighlightsManager.tsx",
+      "endpointLiteral": "/api/partners/venues/highlights",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/venue-management/MenuManager.tsx",
+      "endpointLiteral": "/api/partners/venues/menu",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/events/[id]/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/orders/${orderId}/resend-receipt",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/page-management/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/page",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/presence/VenuePresencePageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/page",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/partners/[id]/ProfilePageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/partners",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/lib/hooks/useVenueQueries.ts",
+      "endpointLiteral": "/api/partners/venues/partnerships",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/venue-management/PresenceConfigEditor.tsx",
+      "endpointLiteral": "/api/partners/venues/presence",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/settings/VenueProfileClient.tsx",
+      "endpointLiteral": "/api/partners/venues/profile",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/registers/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/registers",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/reservations/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/reservations/${id}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/security/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/security/sync",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/staff/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/staff",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/staff/VenueTeamPageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/staff",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/event-detail/EventTeamClient.tsx",
+      "endpointLiteral": "/api/partners/venues/staff",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/tables/PageClient.tsx",
+      "endpointLiteral": "/api/partners/venues/tables",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/settings/VenueProfileClient.tsx",
+      "endpointLiteral": "/api/partners/venues/upload",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/venue-management/EnhancedVenueEditor.tsx",
+      "endpointLiteral": "/api/partners/venues/upload",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/venue-management/LivePreviewEditor.tsx",
+      "endpointLiteral": "/api/partners/venues/upload",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/venue-management/PresenceConfigEditor.tsx",
+      "endpointLiteral": "/api/partners/venues/upload",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/lib/hooks/useEventAttendees.ts",
+      "endpointLiteral": "/api/partners/venues/walk-ins/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/lib/services/posterGeneration.ts",
+      "endpointLiteral": "/api/poster/generate",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/page-management/PageClient.tsx",
+      "endpointLiteral": "/api/profile",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/presence/HostPresencePageClient.tsx",
+      "endpointLiteral": "/api/profile",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/host/profile/PageClient.tsx",
+      "endpointLiteral": "/api/profile",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/persona/PageClient.tsx",
+      "endpointLiteral": "/api/profile",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/presence/VenuePresencePageClient.tsx",
+      "endpointLiteral": "/api/profile",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/guests/PageClient.tsx",
+      "endpointLiteral": "/api/promoter/guests/assign",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/notifications/PageClient.tsx",
+      "endpointLiteral": "/api/promoter/notifications",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/shared/NotificationCenter.tsx",
+      "endpointLiteral": "/api/promoter/notifications",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/events/requests/PageClient.tsx",
+      "endpointLiteral": "/api/slots/${slotId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/calendar/OperatingCalendar.tsx",
+      "endpointLiteral": "/api/slots/${slotId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/support/SupportClient.tsx",
+      "endpointLiteral": "/api/support/upload",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/guest-portal/lib/api/generated/guest-v1.js",
+      "endpointLiteral": "/api/v1",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/guest-portal/lib/api/server.js",
+      "endpointLiteral": "/api/v1",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/api.ts",
+      "endpointLiteral": "/api/v1",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/lib/server/apiClient.js",
+      "endpointLiteral": "/api/v1",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/guest-portal/lib/api/server.js",
+      "endpointLiteral": "/api/v1/",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useUsers.ts",
+      "endpointLiteral": "/api/v1/auth/sync",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/privateDM.ts",
+      "endpointLiteral": "/api/v1/chats/${encodeURIComponent(conversationId)}/messages",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/groupChat.ts",
+      "endpointLiteral": "/api/v1/chats/${encodeURIComponent(eventId)}/messages",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/(tabs)/tickets.tsx",
+      "endpointLiteral": "/api/v1/cover-charge/me",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/(tabs)/tickets.tsx",
+      "endpointLiteral": "/api/v1/cover-charge/wallet/${walletId}/qr-jwt",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/eventInterestStore.ts",
+      "endpointLiteral": "/api/v1/events/${encodeURIComponent(eventId)}/rsvp",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/eventsStore.ts",
+      "endpointLiteral": "/api/v1/events/${encodeURIComponent(eventId)}/tickets",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/eventInterestStore.ts",
+      "endpointLiteral": "/api/v1/events/${encodeURIComponent(eventId)}/viewer-state",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/eventsStore.ts",
+      "endpointLiteral": "/api/v1/events/${encodeURIComponent(id)}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/social/group/[eventId].tsx",
+      "endpointLiteral": "/api/v1/events/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/inventory.ts",
+      "endpointLiteral": "/api/v1/events/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/entitlements.ts",
+      "endpointLiteral": "/api/v1/events/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/groupChat.ts",
+      "endpointLiteral": "/api/v1/events/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/social/requests.tsx",
+      "endpointLiteral": "/api/v1/events/${request.eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/components/ui/HostSheet.tsx",
+      "endpointLiteral": "/api/v1/follow",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/notificationsStore.ts",
+      "endpointLiteral": "/api/v1/guest-notifications",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/notificationsStore.ts",
+      "endpointLiteral": "/api/v1/guest-notifications/${encodeURIComponent(notificationId)}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/socialProfileStore.ts",
+      "endpointLiteral": "/api/v1/guest-profiles/avatar",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/followStore.ts",
+      "endpointLiteral": "/api/v1/hosts/${encodeURIComponent(hostId)}/follow",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/promoter/leaderboard/PageClient.tsx",
+      "endpointLiteral": "/api/v1/partners/promoters/leaderboard${queryString}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/social/profile/[id].tsx",
+      "endpointLiteral": "/api/v1/profiles/${id}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/social/dm/[id].tsx",
+      "endpointLiteral": "/api/v1/profiles/${otherUserId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/social/requests.tsx",
+      "endpointLiteral": "/api/v1/profiles/${senderId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/publicDetailRequests.ts",
+      "endpointLiteral": "/api/v1/public/hosts/${encodedHostId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/publicDetailRequests.ts",
+      "endpointLiteral": "/api/v1/public/venues/${encodedVenueId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/moderation.ts",
+      "endpointLiteral": "/api/v1/social/block",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/privateDM.ts",
+      "endpointLiteral": "/api/v1/social/block",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/settings/blocked-accounts.tsx",
+      "endpointLiteral": "/api/v1/social/blocks",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/moderation.ts",
+      "endpointLiteral": "/api/v1/social/blocks",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/entitlements.ts",
+      "endpointLiteral": "/api/v1/social/can-dm",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/chat.ts",
+      "endpointLiteral": "/api/v1/social/chat",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/groupChat.ts",
+      "endpointLiteral": "/api/v1/social/chat/${messageId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/eventInterestStore.ts",
+      "endpointLiteral": "/api/v1/social/chat/join",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/privateDM.ts",
+      "endpointLiteral": "/api/v1/social/contacts",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useDiscoverProfiles.ts",
+      "endpointLiteral": "/api/v1/social/discover",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/datingStore.ts",
+      "endpointLiteral": "/api/v1/social/discover${query}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/social/dm/[id].tsx",
+      "endpointLiteral": "/api/v1/social/dm/${conversationId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/privateDM.ts",
+      "endpointLiteral": "/api/v1/social/dm/${conversationId}/accept",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/privateDM.ts",
+      "endpointLiteral": "/api/v1/social/dm/${conversationId}/decline",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/privateDM.ts",
+      "endpointLiteral": "/api/v1/social/dm/conversations/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/chat.ts",
+      "endpointLiteral": "/api/v1/social/dm/request",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/privateDM.ts",
+      "endpointLiteral": "/api/v1/social/dm/request",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/privateDM.ts",
+      "endpointLiteral": "/api/v1/social/dm/requests",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/safety.ts",
+      "endpointLiteral": "/api/v1/social/emergency-contacts",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/chat.ts",
+      "endpointLiteral": "/api/v1/social/entitlement/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/entitlements.ts",
+      "endpointLiteral": "/api/v1/social/entitlement/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/chat.ts",
+      "endpointLiteral": "/api/v1/social/group-chat/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/moderation.ts",
+      "endpointLiteral": "/api/v1/social/is-muted/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/moderation.ts",
+      "endpointLiteral": "/api/v1/social/is-removed/${eventId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/social/matches.tsx",
+      "endpointLiteral": "/api/v1/social/likes/${encodeURIComponent(like.id)}/respond",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/social/matches.tsx",
+      "endpointLiteral": "/api/v1/social/likes/received",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/safety.ts",
+      "endpointLiteral": "/api/v1/social/location/${encodeURIComponent(sessionId)}/grants/${encodeURIComponent(targetUserId)}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/safety.ts",
+      "endpointLiteral": "/api/v1/social/location/${sessionId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/safety.ts",
+      "endpointLiteral": "/api/v1/social/location/${sessionId}/invites",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/safety.ts",
+      "endpointLiteral": "/api/v1/social/location/${sessionId}/stop",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/safety.ts",
+      "endpointLiteral": "/api/v1/social/location/invites/${grantId}/accept",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/safety.ts",
+      "endpointLiteral": "/api/v1/social/location/start",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useMatches.ts",
+      "endpointLiteral": "/api/v1/social/matches",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/chatStore.ts",
+      "endpointLiteral": "/api/v1/social/matches",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/datingStore.ts",
+      "endpointLiteral": "/api/v1/social/matches",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/media.ts",
+      "endpointLiteral": "/api/v1/social/media",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/media.ts",
+      "endpointLiteral": "/api/v1/social/media/${eventId}/count",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/media.ts",
+      "endpointLiteral": "/api/v1/social/media/${mediaId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/media.ts",
+      "endpointLiteral": "/api/v1/social/media/${mediaId}/like",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/moderation.ts",
+      "endpointLiteral": "/api/v1/social/mute",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/chat.ts",
+      "endpointLiteral": "/api/v1/social/my-chats",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/moderation.ts",
+      "endpointLiteral": "/api/v1/social/remove-from-chat",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/media.ts",
+      "endpointLiteral": "/api/v1/social/report",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/moderation.ts",
+      "endpointLiteral": "/api/v1/social/report",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/safety.ts",
+      "endpointLiteral": "/api/v1/social/sos",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useSwipeAction.ts",
+      "endpointLiteral": "/api/v1/social/swipe",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/datingStore.ts",
+      "endpointLiteral": "/api/v1/social/swipe",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/typing.ts",
+      "endpointLiteral": "/api/v1/social/typing",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/moderation.ts",
+      "endpointLiteral": "/api/v1/social/unblock",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useChatImagePicker.ts",
+      "endpointLiteral": "/api/v1/social/upload",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/firebase/userProfile.ts",
+      "endpointLiteral": "/api/v1/social/upload",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/social/media.ts",
+      "endpointLiteral": "/api/v1/social/upload",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/spotify-auth.ts",
+      "endpointLiteral": "/api/v1/spotify/disconnect",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/spotify-auth.ts",
+      "endpointLiteral": "/api/v1/spotify/exchange",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/support/SupportClient.tsx",
+      "endpointLiteral": "/api/v1/support/announcements",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/support/SupportClient.tsx",
+      "endpointLiteral": "/api/v1/support/bugs",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/support/SupportClient.tsx",
+      "endpointLiteral": "/api/v1/support/feature-requests",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/support/SupportClient.tsx",
+      "endpointLiteral": "/api/v1/support/feature-requests/${requestId}/vote",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/support/SupportClient.tsx",
+      "endpointLiteral": "/api/v1/support/stats",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/support/SupportClient.tsx",
+      "endpointLiteral": "/api/v1/support/tickets",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/support/SupportClient.tsx",
+      "endpointLiteral": "/api/v1/support/tickets/${selectedTicket.id}/feedback",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/support/SupportClient.tsx",
+      "endpointLiteral": "/api/v1/support/tickets/${selectedTicket.id}/reopen",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/support/SupportClient.tsx",
+      "endpointLiteral": "/api/v1/support/tickets/${selectedTicket.id}/reply",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useGroupTransfer.ts",
+      "endpointLiteral": "/api/v1/tickets/${ticketId}/transfer",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useGroupTransfer.ts",
+      "endpointLiteral": "/api/v1/tickets/claim",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useTickets.ts",
+      "endpointLiteral": "/api/v1/tickets/me",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/ticketsStore.ts",
+      "endpointLiteral": "/api/v1/tickets/my-wallet",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/usePublicProfile.ts",
+      "endpointLiteral": "/api/v1/users/${userId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/settings/account.tsx",
+      "endpointLiteral": "/api/v1/users/me",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useUsers.ts",
+      "endpointLiteral": "/api/v1/users/me",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/firebase/userProfile.ts",
+      "endpointLiteral": "/api/v1/users/me",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/eventInterestStore.ts",
+      "endpointLiteral": "/api/v1/users/me",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/profileStore.ts",
+      "endpointLiteral": "/api/v1/users/me",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/socialProfileStore.ts",
+      "endpointLiteral": "/api/v1/users/me",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/profileStore.ts",
+      "endpointLiteral": "/api/v1/users/me:GET:${userId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useUsers.ts",
+      "endpointLiteral": "/api/v1/users/me/block/${targetUserId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/notifications.ts",
+      "endpointLiteral": "/api/v1/users/me/device-token",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/followStore.ts",
+      "endpointLiteral": "/api/v1/users/me/follows",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/firstRunStore.ts",
+      "endpointLiteral": "/api/v1/users/me/onboarding",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/firstRunStore.ts",
+      "endpointLiteral": "/api/v1/users/me/onboarding/city",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/firstRunStore.ts",
+      "endpointLiteral": "/api/v1/users/me/onboarding/complete",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/firstRunStore.ts",
+      "endpointLiteral": "/api/v1/users/me/onboarding/email-prompt",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/firstRunStore.ts",
+      "endpointLiteral": "/api/v1/users/me/onboarding/identity",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/firstRunStore.ts",
+      "endpointLiteral": "/api/v1/users/me/onboarding/preferences",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/recommendationsStore.ts",
+      "endpointLiteral": "/api/v1/users/me/recommendation-signals",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/firstRunStore.ts",
+      "endpointLiteral": "/api/v1/users/me/settings",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/profileStore.ts",
+      "endpointLiteral": "/api/v1/users/me/settings",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/settingsStore.ts",
+      "endpointLiteral": "/api/v1/users/me/settings",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/subscriptionStore.ts",
+      "endpointLiteral": "/api/v1/users/me/subscription",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/verification/index.tsx",
+      "endpointLiteral": "/api/v1/users/me/verification",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/socialProfileStore.ts",
+      "endpointLiteral": "/api/v1/users/me/verification",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/followStore.ts",
+      "endpointLiteral": "/api/v1/venues/${encodeURIComponent(venueId)}/follow",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/store/venuesStore.ts",
+      "endpointLiteral": "/api/v1/venues/${encodeURIComponent(venueId)}/follow",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/components/ui/VenueSheet.tsx",
+      "endpointLiteral": "/api/v1/venues/${venueId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useVenues.ts",
+      "endpointLiteral": "/api/v1/venues/${venueId}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useVenues.ts",
+      "endpointLiteral": "/api/v1/venues/${venueId}/events",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useVenues.ts",
+      "endpointLiteral": "/api/v1/venues/${venueId}/follow",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/hooks/useVenues.ts",
+      "endpointLiteral": "/api/v1/venues${qs}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/app/waitlist/[eventId].tsx",
+      "endpointLiteral": "/api/v1/waitlist/join",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/components/subscription/PremiumPaywallModal.tsx",
+      "endpointLiteral": "/api/v1/webhooks/revenuecat/sync",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/mobile-app/lib/api-mock.ts",
+      "endpointLiteral": "/api/v1${path}",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/finance/payouts/PageClient.tsx",
+      "endpointLiteral": "/api/venue/finance/bank-accounts",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/venue/payouts/PageClient.tsx",
+      "endpointLiteral": "/api/venue/finance/payouts",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/components/shared/NotificationCenter.tsx",
+      "endpointLiteral": "/api/venue/notifications",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    },
+    {
+      "consumerFile": "apps/partner-dashboard/app/auth/staff-invite/page.tsx",
+      "endpointLiteral": "/api/venue/staff/accept",
+      "method": "REVIEW",
+      "gatewayMatch": "REVIEW",
+      "status": "PENDING"
+    }
+  ]
+}

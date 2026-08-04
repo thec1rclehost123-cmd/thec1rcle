@@ -5,7 +5,7 @@ const { baseEvents, metadataById } = require('./apps/guest-portal/data/events');
 process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080';
 
 admin.initializeApp({
-    projectId: 'thec1rcle-india'
+    projectId: 'c1rcle-staging'
 });
 
 const db = admin.firestore();

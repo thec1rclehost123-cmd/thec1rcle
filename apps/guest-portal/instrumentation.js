@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/nextjs';
-import { getGuestApiBaseConfig } from './lib/api/base-url.js';
+import { getGuestApiBaseConfig } from './lib/api/base-url.mjs';
 
 export function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {

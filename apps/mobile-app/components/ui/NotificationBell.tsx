@@ -9,7 +9,6 @@ import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withRepeat,
   withSequence,
   withTiming,
@@ -56,11 +55,11 @@ export function NotificationBell({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.9, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.9, { duration: 250 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(1, { duration: 250 });
   };
 
   const handlePress = () => {
@@ -80,7 +79,7 @@ export function NotificationBell({
       <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
       {showBadge && (
         <Animated.View
-          entering={FadeIn.springify()}
+          entering={FadeIn}
           style={[
             styles.badge,
             count > 0 ? styles.badgeCount : styles.badgeDot,
@@ -101,7 +100,12 @@ export function NotificationBell({
         onPress={handlePress}
         style={[animatedStyle, styles.container]}
       >
-        <BlurView intensity={40} tint="dark" style={styles.blurContainer}>
+        <BlurView
+          blurMethod="dimezisBlurView"
+          intensity={40}
+          tint="dark"
+          style={styles.blurContainer}
+        >
           {renderContent()}
         </BlurView>
       </AnimatedPressable>
@@ -154,8 +158,10 @@ const styles = StyleSheet.create({
   solidContainer: {
     width: 44,
     height: 44,
-    backgroundColor: colors.base[50],
+    backgroundColor: 'rgba(7,7,9,0.94)',
     borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center',
     justifyContent: 'center',
   },

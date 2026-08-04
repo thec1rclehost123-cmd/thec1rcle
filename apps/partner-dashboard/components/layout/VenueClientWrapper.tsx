@@ -43,6 +43,7 @@ const MENU_SECTIONS = [
         href: '/venue/finance',
         children: [
           { label: 'Overview', href: '/venue/finance' },
+          { label: 'Cover Charge', href: '/venue/finance/cover' },
           { label: 'Payout Settings', href: '/venue/finance/payouts' },
         ],
       },

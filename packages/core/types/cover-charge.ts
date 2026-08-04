@@ -75,6 +75,7 @@ export interface CoverWallet {
   userId: string;
 
   state: CoverWalletState;
+  terminationAtMs: number;
 
   openingBalancePaise: number; // immutable after creation
   currentBalancePaise: number; // updated atomically with each txn
@@ -113,6 +114,7 @@ export type WalletTxnType =
   | 'REVERSAL'
   | 'EXPIRY_FORFEIT'
   | 'EXPIRY_REFUND'
+  | 'REFUND_TERMINATION'
   | 'TOP_UP';
 
 export type WalletTxnStatus = 'COMMITTED' | 'REVERSED';
@@ -200,7 +202,7 @@ export interface ReverseTransactionRequest {
   walletId: string;
   transactionId: string;
   reason: string;
-  supervisorPinHash: string; // bcrypt hash of the PIN the client sent
+  supervisorPin: string; // raw PIN over authenticated TLS; server verifies its salted hash
   operatorId: string;
   operatorRole: string;
   deviceId: string;
@@ -212,6 +214,7 @@ export interface TopUpWalletRequest {
   amountPaise: number;
   reason: string;
   idempotencyKey: string;
+  supervisorPin: string;
   operatorId: string;
   operatorRole: string;
 }
@@ -221,7 +224,14 @@ export interface TopUpWalletRequest {
 // =============================================================================
 
 export interface ReconciliationException {
-  type: 'BALANCE_MISMATCH' | 'MISSING_LEDGER' | 'DUPLICATE_IDEMPOTENCY' | 'UNMATCHED_REVERSAL';
+  type:
+    | 'BALANCE_MISMATCH'
+    | 'COUNTER_MISMATCH'
+    | 'MISSING_LEDGER'
+    | 'DUPLICATE_IDEMPOTENCY'
+    | 'UNMATCHED_REVERSAL'
+    | 'INVALID_AMOUNT'
+    | 'UNKNOWN_TRANSACTION_TYPE';
   walletId: string;
   description: string;
 }
@@ -234,8 +244,11 @@ export interface WalletReconciliationRow {
   debitedPaise: number;
   creditedPaise: number;
   reversedPaise: number;
+  expiredRefundPaise: number;
+  expiredForfeitPaise: number;
   closingPaise: number;
-  terminationReason: 'EXPIRED' | 'MANUAL' | 'VOID';
+  reconciliationDifferencePaise: number;
+  terminationReason: string;
   txnCount: number;
   state: CoverWalletState;
 }
@@ -258,7 +271,11 @@ export interface CoverWalletReconciliation {
     totalReversedPaise: number;
 
     expiredBalancePaise: number; // uncollected at termination
+    expiredRefundPaise: number;
+    expiredForfeitPaise: number;
     consumedBalancePaise: number; // net debit - reversed
+    closingBalancePaise: number;
+    reconciliationDifferencePaise: number;
 
     netVenueConsumedValuePaise: number;
     netVenueForfeitedValuePaise: number;
@@ -281,6 +298,7 @@ export interface CoverWalletTierConfig {
   maxChargeAmountPaise: number;
   topUpAllowed: boolean;
   maxTopUpAmountPaise: number;
+  maxTotalBalancePaise?: number;
   topUpBy: 'host' | 'admin' | 'none';
   terminationHour: number; // local hour, default 5
   terminationPolicy: 'forfeit' | 'partial_refund';

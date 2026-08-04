@@ -11,35 +11,106 @@ const DEFAULT_FEES = {
   gstRate: 0.18, // 18% on fees
 };
 
-/**
- * Get effective price for a single tier at a given timestamp
- * Handles scheduled price changes
- */
-export function getEffectivePrice(tier, timestamp = new Date()) {
-  const now = timestamp instanceof Date ? timestamp : new Date(timestamp);
+function pricingError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
 
-  // 1. Check scheduled prices (if any)
-  const schedules = tier.scheduledPrices || tier.pricing?.scheduledChanges || [];
-  if (Array.isArray(schedules)) {
-    for (const schedule of schedules) {
+export function validateCoverWalletFundingAtUnitPrice(tierConfig, unitPriceRupees) {
+  if (!tierConfig?.enabled) return 0;
+  const walletAmountPaise = Number(tierConfig.walletAmountPaise);
+  const unitPricePaise = Math.round(Number(unitPriceRupees) * 100);
+  if (
+    !Number.isSafeInteger(walletAmountPaise) ||
+    walletAmountPaise <= 0 ||
+    !Number.isSafeInteger(unitPricePaise) ||
+    unitPricePaise < walletAmountPaise
+  ) {
+    throw pricingError(
+      'Cover Wallet credit must be a positive integer paise amount fully funded by the ticket price',
+      'COVER_WALLET_UNFUNDED',
+    );
+  }
+  return walletAmountPaise;
+}
+
+/**
+ * Convert a defaultScheduledPrice (%-based) to an absolute ₹ schedule entry
+ * for a given base price.
+ * @param {object} dp - DefaultScheduledPrice with { type, value, startsAt, endsAt, name }
+ * @param {number} basePrice - The ticket tier's base price in ₹
+ */
+function convertDefaultScheduleToAbsolute(dp, basePrice) {
+  const price =
+    dp.type === 'discount'
+      ? Math.round(basePrice * (1 - dp.value / 100))
+      : Math.round(basePrice * (1 + dp.value / 100));
+  return {
+    startsAt: dp.startsAt,
+    endsAt: dp.endsAt,
+    name: dp.name,
+    price,
+  };
+}
+
+/**
+ * Get effective price for a single tier at a given timestamp.
+ * Handles scheduled price changes.
+ *
+ * Priority:
+ *   1. tier.scheduledPrices  — explicit absolute ₹ schedules on this tier (CUSTOM)
+ *   2. defaultScheduledPrices — event-level %-based schedules converted to ₹ (DEFAULT)
+ *   3. tier.basePrice / tier.price — flat base price
+ *
+ * @param {object} tier - Ticket tier object
+ * @param {Date|string} [timestamp=new Date()] - Purchase timestamp
+ * @param {Array} [defaultScheduledPrices=[]] - Event-level default schedules (%-based)
+ */
+export function getEffectivePrice(tier, timestamp = new Date(), defaultScheduledPrices = []) {
+  const now = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  const basePrice = Number(tier.basePrice ?? tier.price ?? 0);
+
+  // 1. Use tier-specific absolute ₹ schedules if present (CUSTOM override)
+  const tierSchedules = tier.scheduledPrices || tier.pricing?.scheduledChanges || [];
+  if (Array.isArray(tierSchedules) && tierSchedules.length > 0) {
+    for (const schedule of tierSchedules) {
       const startsAt = new Date(schedule.startsAt);
       const endsAt = new Date(schedule.endsAt);
-
       if (now >= startsAt && now <= endsAt) {
         return {
           price: Number(schedule.price),
           label: schedule.name,
           isScheduled: true,
+          scheduleSource: 'custom',
         };
       }
     }
   }
 
-  // 2. Fall back to base price
+  // 2. Fall back to event-level default schedules (%-based → converted to ₹)
+  if (Array.isArray(defaultScheduledPrices) && defaultScheduledPrices.length > 0 && basePrice > 0) {
+    for (const dp of defaultScheduledPrices) {
+      const startsAt = new Date(dp.startsAt);
+      const endsAt = new Date(dp.endsAt);
+      if (now >= startsAt && now <= endsAt) {
+        const absolute = convertDefaultScheduleToAbsolute(dp, basePrice);
+        return {
+          price: absolute.price,
+          label: absolute.name,
+          isScheduled: true,
+          scheduleSource: 'default',
+        };
+      }
+    }
+  }
+
+  // 3. Fall back to flat base price
   return {
-    price: Number(tier.basePrice ?? tier.price ?? 0),
+    price: basePrice,
     label: null,
     isScheduled: false,
+    scheduleSource: null,
   };
 }
 
@@ -89,6 +160,7 @@ export async function calculatePricing(input) {
     fees: { platform: 0, payment: 0, gst: 0, total: 0 },
     grandTotal: 0,
     isFree: false,
+    coverCreditLiabilityPaise: 0,
     ledger: {
       subtotal_raw: 0,
       discount_total_raw: 0,
@@ -100,19 +172,39 @@ export async function calculatePricing(input) {
   };
 
   // 1. Calculate Item Base Prices
+  const eventDefaultScheduledPrices = Array.isArray(event.defaultScheduledPrices)
+    ? event.defaultScheduledPrices
+    : [];
+
   for (const item of items) {
     const tier = tiers.find((t) => t.id === item.tierId);
     if (!tier) continue;
 
-    const priceInfo = getEffectivePrice(tier, timestamp);
+    const priceInfo = getEffectivePrice(tier, timestamp, eventDefaultScheduledPrices);
     const quantity = Number(item.quantity) || 1;
     const subtotal = priceInfo.price * quantity;
+    const coverChargeConfig = tier.coverChargeConfig || tier.coverWallet || null;
+    const coverCreditPaise = validateCoverWalletFundingAtUnitPrice(
+      coverChargeConfig,
+      priceInfo.price,
+    );
+    const coverCreditLinePaise = coverCreditPaise * quantity;
+    if (!Number.isSafeInteger(coverCreditLinePaise)) {
+      throw pricingError('Cover Wallet credit overflowed integer paise', 'COVER_WALLET_UNFUNDED');
+    }
 
     result.items.push({
       tierId: tier.id,
       tierName: tier.name,
       quantity,
       unitPrice: priceInfo.price,
+      entryType: tier.entryType || 'general',
+      genderRequirement: tier.genderRequirement || tier.requiredGender || null,
+      // This is an immutable snapshot from the authoritative event tier, not
+      // buyer input. Payment finalization uses it to issue deterministic cover
+      // wallets in the same transaction as tickets and entitlements.
+      coverChargeConfig,
+      coverCreditPaise,
       priceLabel: priceInfo.label,
       subtotal,
       formatted: {
@@ -122,6 +214,7 @@ export async function calculatePricing(input) {
     });
 
     result.subtotal += subtotal;
+    result.coverCreditLiabilityPaise += coverCreditLinePaise;
   }
 
   // 2. Apply Promoter Discounts (Buyer side)
@@ -181,6 +274,13 @@ export async function calculatePricing(input) {
 
   // 4. Final Reconciliation
   const discountedSubtotal = Math.max(0, result.subtotal - result.discountTotal);
+  const discountedSubtotalPaise = Math.round(discountedSubtotal * 100);
+  if (result.coverCreditLiabilityPaise > discountedSubtotalPaise) {
+    throw pricingError(
+      'Discounts cannot reduce the paid ticket subtotal below its Cover Wallet credit',
+      'COVER_WALLET_UNFUNDED',
+    );
+  }
   result.fees = calculateFees(discountedSubtotal);
   result.grandTotal = Math.round((discountedSubtotal + result.fees.total) * 100) / 100;
   result.isFree = result.grandTotal === 0;

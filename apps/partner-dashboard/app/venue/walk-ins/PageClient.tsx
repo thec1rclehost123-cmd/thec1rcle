@@ -92,6 +92,7 @@ function QuickEntryRow({
   venueId: string;
   onSuccess: () => void;
 }) {
+  const { getIdToken } = useDashboardAuth();
   const [form, setForm] = useState<EntryFormState>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -111,9 +112,13 @@ function QuickEntryRow({
         idempotencyKey: randomUUID(),
       };
       console.log('[POST Venue Walk-Ins] Request payload:', payload);
+      const token = await getIdToken();
       const res = await fetch(`/api/partners/venues/walk-ins?venueId=${venueId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -304,7 +309,7 @@ function TotalsBar({
 // ── Main page ──────────────────────────────────────────────────────────────────
 export function WalkInsClient() {
   const sp = useSearchParams();
-  const { profile } = useDashboardAuth();
+  const { profile, getIdToken } = useDashboardAuth();
   const venueId = profile?.activeMembership?.partnerId ?? '';
   const qc = useQueryClient();
 
@@ -319,7 +324,10 @@ export function WalkInsClient() {
   const { data: eventsData } = useQuery({
     queryKey: ['venue-events-list', venueId],
     queryFn: async () => {
-      const res = await fetch(`/api/partners/venues/events?venueId=${venueId}&limit=30`);
+      const token = await getIdToken();
+      const res = await fetch(`/api/partners/venues/events?venueId=${venueId}&limit=30`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) return { events: [] };
       return res.json();
     },
@@ -342,7 +350,10 @@ export function WalkInsClient() {
         ? `/api/partners/venues/walk-ins/${selectedEventId}?${params}`
         : `/api/partners/venues/walk-ins?${params}`;
       console.log(`[GET Venue Walk-Ins] Fetching from endpoint: ${endpoint}`);
-      const res = await fetch(endpoint);
+      const token = await getIdToken();
+      const res = await fetch(endpoint, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) {
         console.error(`[GET Venue Walk-Ins] Fetch failed: Status ${res.status}`);
         throw new Error('Failed');
@@ -358,9 +369,13 @@ export function WalkInsClient() {
 
   const voidMut = useMutation({
     mutationFn: async (entry: WalkInEntry) => {
+      const token = await getIdToken();
       const res = await fetch(
         `/api/partners/venues/walk-ins/${entry.eventId}?venueId=${venueId}&logId=${entry.id}`,
-        { method: 'DELETE' },
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
       if (!res.ok) throw new Error('Failed');
     },

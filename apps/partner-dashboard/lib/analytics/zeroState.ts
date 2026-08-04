@@ -297,6 +297,14 @@ export function normalizeAnalyticsV2(raw: Record<string, unknown> | null | undef
   const ticketsSold = n((r as any).ticketsSold ?? (r as any).totalTicketsSold);
   const checkins = n((r as any).totalCheckIns ?? (r as any).checkins);
 
+  const ticketsSoldPaid = n((r as any).ticketsSoldPaid ?? (r as any).tickets?.paid);
+  const ticketsSoldRsvp = n((r as any).ticketsSoldRsvp ?? (r as any).tickets?.rsvp);
+  const hasTicketsSplit = ticketsSoldPaid > 0 || ticketsSoldRsvp > 0;
+  const ticketsTooltip =
+    ticketsSold > 0 && hasTicketsSplit
+      ? `Number of tickets issued to guests · ${ticketsSoldRsvp.toLocaleString('en-IN')} RSVP · ${ticketsSoldPaid.toLocaleString('en-IN')} paid`
+      : 'Number of tickets issued to guests';
+
   const hasData = !!(r.dataReady || totalRevenue > 0 || checkins > 0 || ticketsSold > 0);
 
   // ── Sparklines from timeseries ──────────────────────────────────────────
@@ -331,7 +339,7 @@ export function normalizeAnalyticsV2(raw: Record<string, unknown> | null | undef
       n(prior.ticketsSold),
       fmtNum(ticketsSold),
       true,
-      'Number of tickets issued to guests',
+      ticketsTooltip,
       tixSparkline,
     ),
     guestlistSignups: buildMetric(
@@ -493,6 +501,11 @@ export function normalizeAnalyticsV2(raw: Record<string, unknown> | null | undef
         { type: 'General', revenue: 0, pct: 0 },
         { type: 'VIP', revenue: 0, pct: 0 },
         { type: 'Table', revenue: 0, pct: 0 },
+      ]),
+      revenueByPhase: arr(r.revenueByPhase, [
+        { phase: 'Early Bird', revenue: 0, ticketsSold: 0, pct: 0 },
+        { phase: 'Regular', revenue: 0, ticketsSold: 0, pct: 0 },
+        { phase: 'Last Call', revenue: 0, ticketsSold: 0, pct: 0 },
       ]),
       revenueBySource: arr(r.sources, [
         { source: 'Direct', revenue: 0, pct: 0 },

@@ -18,13 +18,16 @@ const PLAN_COLORS: Record<string, string> = {
 };
 
 export function PaymentsClient() {
-  const { profile } = useDashboardAuth();
+  const { profile, getIdToken } = useDashboardAuth();
   const venueId = profile?.activeMembership?.partnerId;
 
   const { data, isLoading } = useQuery<PaymentsPageData>({
     queryKey: ['finance-payments', venueId],
     queryFn: async () => {
-      const res = await fetch(`/api/partners/venues/finance/payments?venueId=${venueId}`);
+      const token = await getIdToken();
+      const res = await fetch(`/api/partners/venues/finance/payments?venueId=${venueId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error('Failed');
       return res.json();
     },

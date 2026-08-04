@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { memo, Suspense } from 'react';
 import DesktopNavLinks from './DesktopNavLinks';
 import NavControls from './NavControls';
@@ -17,7 +18,14 @@ function Navbar() {
         <Link href="/" className="group flex items-center gap-2 sm:gap-4">
           <div className="relative flex h-10 w-10 sm:h-14 sm:w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-orange/20 dark:border-white/10 transition-all duration-500 group-hover:rotate-180 group-hover:border-orange/40 dark:group-hover:border-white/20">
             <span className="absolute inset-0 bg-gradient-to-tr from-orange dark:from-gold via-transparent to-transparent opacity-10" />
-            <img src="/logo-circle.jpg" alt="The C1rcle" className="h-full w-full object-cover" />
+            <Image
+              src="/logo-circle.jpg"
+              alt="The C1rcle"
+              fill
+              sizes="(max-width: 640px) 40px, 56px"
+              className="object-cover"
+              priority
+            />
           </div>
           <span className="font-heading text-lg sm:text-xl font-black tracking-tighter uppercase text-black dark:text-white group-hover:text-orange dark:group-hover:text-white transition-colors">
             The C1rcle

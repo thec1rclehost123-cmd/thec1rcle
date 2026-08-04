@@ -78,6 +78,13 @@ describe('MatchingService', () => {
       const score = service.calculateProximityScore(10, 10, target);
       expect(score).toBe(0);
     });
+
+    it('should return 1.0 for equator coordinates (0, 0)', () => {
+      const target = { coordinates: { latitude: 0, longitude: 0 } };
+      // @ts-ignore
+      const score = service.calculateProximityScore(0, 0, target);
+      expect(score).toBe(1.0);
+    });
   });
 
   describe('getMatchFeed', () => {

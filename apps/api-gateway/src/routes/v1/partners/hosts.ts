@@ -1,15 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import { sendHostInvitationEmail, generateTemporaryPassword } from '../../../lib/email.js';
-import { getHostAnalytics } from '@c1rcle/core/analytics-engine';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
-import {
-  getPartnerProfileSummary,
-  getConnectionForViewer,
-} from '../../../utils/partner-profiles.js';
+import { getPartnerProfileWithPii } from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { HostService } from '../../../services/unified/host-service.js';
 import { SchedulingService } from '../../../services/unified/scheduling-service.js';
+import {
+  buildHostEventUpdatePatch,
+  buildHostTicketTierUpdate,
+  EventUpdateValidationError,
+} from '@c1rcle/core/event-update-policy';
+import type { PartnerContext } from '../../../services/unified/types.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
 import {
   buildPayoutAccountRecord,
@@ -30,6 +32,12 @@ import {
   resolveEffectiveCommission,
   normalizeCompensationForRead,
 } from '../events.js';
+import {
+  getEventCommerceMetrics,
+  getOrderCommerceAmounts,
+  getPartnerCommerceRows,
+} from '../../../lib/canonicalCommerceMetrics.js';
+import { aggregateAudience } from '../../../lib/analyticsAudience.js';
 
 const OverviewQuerySchema = z
   .object({
@@ -97,6 +105,38 @@ function asArray<T = PlainRecord>(value: unknown): T[] {
 function toNumber(value: any): number {
   const amount = Number(value ?? 0);
   return Number.isFinite(amount) ? amount : 0;
+}
+
+function toEventDateKey(value: unknown): string | null {
+  let normalized: string | null = null;
+  if (typeof value === 'string') {
+    normalized = value.slice(0, 10);
+  } else if (value instanceof Date) {
+    normalized = value.toISOString().slice(0, 10);
+  } else if (value && typeof value === 'object') {
+    const timestamp = value as { toDate?: () => Date; _seconds?: number; seconds?: number };
+    if (typeof timestamp.toDate === 'function') {
+      normalized = timestamp.toDate().toISOString().slice(0, 10);
+    } else {
+      const seconds = timestamp._seconds ?? timestamp.seconds;
+      if (typeof seconds === 'number') {
+        normalized = new Date(seconds * 1000).toISOString().slice(0, 10);
+      }
+    }
+  }
+  return normalized && /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
+}
+
+function requireEventTime(value: unknown, field: 'startTime' | 'endTime'): string {
+  const normalized = String(value || '');
+  const match = /^(\d{2}):(\d{2})$/.exec(normalized);
+  if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) {
+    const err: any = new Error(`Venue-bound event is missing a valid ${field}`);
+    err.statusCode = 409;
+    err.code = 'EVENT_SCHEDULE_INCOMPLETE';
+    throw err;
+  }
+  return normalized;
 }
 
 function buildHostKpis(stats: PlainRecord) {
@@ -267,7 +307,33 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       err.code = 'NOT_FOUND';
       throw err;
     }
-    const data = { id: doc.id, ...(doc.data() || {}) };
+    const raw = { id: doc.id, ...(doc.data() || {}) };
+    const fallback = await getPartnerProfileWithPii(fastify.db, {
+      viewerRole: 'host',
+      viewerId: hostId,
+      partnerId: hostId,
+    });
+    const data = {
+      ...fallback?.profile,
+      ...raw,
+      displayName: (raw as any).displayName || fallback?.profile?.name || '',
+      bio: (raw as any).bio || fallback?.profile?.bio || '',
+      contactEmail:
+        (raw as any).contactEmail ||
+        (raw as any).supportEmail ||
+        (fallback?.profile as any)?.email ||
+        '',
+      contactPhone:
+        (raw as any).contactPhone ||
+        (raw as any).legalPhone ||
+        (fallback?.profile as any)?.phone ||
+        '',
+      website: (raw as any).website || fallback?.profile?.website || '',
+      socialLinks: {
+        ...(fallback?.profile?.socialLinks || {}),
+        ...((raw as any).socialLinks || {}),
+      },
+    };
     const enriched = await enrichHostProfileWithSignedUrls(data);
     return { host: enriched, profile: enriched };
   };
@@ -331,10 +397,34 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       .collection('partnerships')
       .where('hostId', '==', hostId)
       .orderBy('createdAt', 'desc')
-      .get()
-      .catch(() => ({ docs: [] as any[] }));
+      .limit(100)
+      .get();
+    const partnerships = (snap as any).docs.map((doc: any) => ({
+      id: doc.id,
+      ...(doc.data() || {}),
+    }));
+    const venueIds = [
+      ...new Set(partnerships.map((item: any) => String(item.venueId || '')).filter(Boolean)),
+    ];
+    const venues = new Map<string, Record<string, any>>();
+    for (let index = 0; index < venueIds.length; index += 30) {
+      const venueSnap = await fastify.db
+        .collection('venues')
+        .where('__name__', 'in', venueIds.slice(index, index + 30))
+        .get();
+      venueSnap.docs.forEach((doc: any) => venues.set(doc.id, doc.data() || {}));
+    }
     return {
-      partnerships: (snap as any).docs.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) })),
+      partnerships: partnerships.map((partnership: any) => {
+        const venue = venues.get(String(partnership.venueId || '')) || {};
+        return {
+          ...partnership,
+          venueName: partnership.venueName || venue.displayName || venue.name || 'Partner Venue',
+          venueCity: partnership.venueCity || venue.city || '',
+          venueLogo:
+            partnership.venueLogo || venue.logoUrl || venue.profileImage || venue.photoURL || null,
+        };
+      }),
     };
   };
 
@@ -369,51 +459,23 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
   const getHostNotifications = async (hostId: string) => {
     let snap;
-    const fallbackUsed = process.env.NODE_ENV === 'development';
-    if (fallbackUsed) {
-      const fallbackQ = fastify.db
+    try {
+      snap = await fastify.db
         .collection('notifications')
         .where('recipientId', '==', hostId)
-        .limit(100);
-      const tempSnap = await fallbackQ.get().catch(() => ({ docs: [] as any[] }));
-      const sortedDocs = [...(tempSnap.docs || [])].sort((a: any, b: any) => {
-        const aTime = new Date(a.data()?.createdAt || a.data()?.timestamp || 0).getTime();
-        const bTime = new Date(b.data()?.createdAt || b.data()?.timestamp || 0).getTime();
-        return bTime - aTime;
-      });
-      snap = { docs: sortedDocs.slice(0, 50) };
-    } else {
-      try {
-        snap = await fastify.db
-          .collection('notifications')
-          .where('recipientId', '==', hostId)
-          .orderBy('createdAt', 'desc')
-          .limit(50)
-          .get();
-      } catch (err: any) {
-        if (
-          err.code === 9 ||
-          String(err).includes('requires an index') ||
-          String(err).includes('FAILED_PRECONDITION')
-        ) {
-          fastify.log.warn(
-            'Firestore index missing for host notifications query. Falling back to in-memory sort.',
-          );
-          const fallbackQ = fastify.db
-            .collection('notifications')
-            .where('recipientId', '==', hostId)
-            .limit(100);
-          const tempSnap = await fallbackQ.get().catch(() => ({ docs: [] as any[] }));
-          const sortedDocs = [...(tempSnap.docs || [])].sort((a: any, b: any) => {
-            const aTime = new Date(a.data()?.createdAt || a.data()?.timestamp || 0).getTime();
-            const bTime = new Date(b.data()?.createdAt || b.data()?.timestamp || 0).getTime();
-            return bTime - aTime;
-          });
-          snap = { docs: sortedDocs.slice(0, 50) };
-        } else {
-          snap = { docs: [] as any[] };
-        }
-      }
+        .orderBy('createdAt', 'desc')
+        .limit(50)
+        .get();
+    } catch (cause: any) {
+      fastify.log.error(
+        { hostId, error: cause?.message ?? String(cause) },
+        'Canonical host notifications query failed',
+      );
+      const error: any = new Error('Host notifications are temporarily unavailable');
+      error.code = 'HOST_DATA_UNAVAILABLE';
+      error.statusCode = 503;
+      error.cause = cause;
+      throw error;
     }
 
     return {
@@ -571,6 +633,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   };
 
   const getHostFinanceOverview = async (ctx: any) => {
+    const cacheKey = `host-finance-overview:v1:${ctx.partnerId}`;
+    const cached = await fastify.cache.get('partner-finance-ledger', cacheKey);
+    if (cached) {
+      return { ...cached, fromCache: true };
+    }
+
     const [overview, payoutsResult, disputesResult, balances] = await Promise.all([
       financeService.getOverview(ctx),
       financeService.getPayouts(ctx, { limit: 10 }),
@@ -592,7 +660,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       )
       .reduce((sum, payout) => sum + toNumber(payout.amount), 0);
 
-    return {
+    const result = {
       metrics: {
         availableBalance: toNumber(balances.available),
         pendingPayouts: toNumber(balances.pending),
@@ -608,6 +676,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       recentPayouts: payouts,
       revenueByPeriod: asArray(overview.revenueByPeriod),
     };
+    await fastify.cache.set('partner-finance-ledger', cacheKey, result, 15);
+    return result;
   };
 
   const getHostOverviewSummary = async (ctx: any) => {
@@ -628,22 +698,16 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         .collection('events')
         .where('creatorId', '==', hostId)
         .where('lifecycle', 'in', ['submitted', 'scheduled', 'live', 'approved'])
-        // No orderBy here — avoids composite index requirement (FAILED_PRECONDITION).
-        // Sorted in-memory below instead.
-        .limit(50)
-        .get()
-        .catch(() => ({ docs: [] as any[] })),
+        .orderBy('startDate', 'asc')
+        .limit(5)
+        .get(),
       financeService.getFinanceSummary(ctx),
     ]);
     const partnerships = (partnerSnap as any).docs || [];
-    const upcomingEvents = ((eventsSnap as any).docs || [])
-      .map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }))
-      .sort((a: any, b: any) => {
-        const aTime = a.startDate ? new Date(a.startDate).getTime() : 0;
-        const bTime = b.startDate ? new Date(b.startDate).getTime() : 0;
-        return aTime - bTime; // ascending
-      })
-      .slice(0, 5);
+    const upcomingEvents = ((eventsSnap as any).docs || []).map((doc: any) => ({
+      id: doc.id,
+      ...(doc.data() || {}),
+    }));
     return {
       pendingPartnerships: partnerships.filter(
         (doc: any) => (doc.data() || {}).status === 'pending',
@@ -667,15 +731,35 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       throw err;
     }
 
-    const [ordersSnap, checkinsSnap, tiersSnap, eventDoc] = await Promise.all([
-      fastify.db
-        .collection('orders')
-        .where('eventId', '==', eventId)
-        .where('status', 'in', ['confirmed', 'paid'])
-        .get(),
-      fastify.db.collection('ticket_scans').where('eventId', '==', eventId).get(),
+    const ordersQuery = fastify.db
+      .collection('orders')
+      .where('eventId', '==', eventId)
+      .where('status', 'in', ['confirmed', 'paid']);
+    const checkinsQuery = fastify.db.collection('ticket_scans').where('eventId', '==', eventId);
+    const [
+      ordersSnap,
+      ordersCountSnap,
+      checkinsSnap,
+      checkinsCountSnap,
+      tiersSnap,
+      eventDoc,
+      commerce,
+      eventViewsSnap,
+      audience,
+    ] = await Promise.all([
+      ordersQuery.orderBy('createdAt', 'desc').limit(200).get(),
+      ordersQuery.count().get(),
+      checkinsQuery.orderBy('scannedAt', 'desc').limit(500).get(),
+      checkinsQuery.count().get(),
       fastify.db.collection('events').doc(eventId).collection('ticket_tiers').get(),
       fastify.db.collection('events').doc(eventId).get(),
+      getEventCommerceMetrics(fastify.db, eventId),
+      fastify.db
+        .collection('event_views')
+        .doc(eventId)
+        .get()
+        .catch(() => null),
+      aggregateAudience(fastify.db, { eventId }, '1970-01-01T00:00:00.000Z'),
     ]);
 
     const orders = ordersSnap.docs.map((d) => ({
@@ -685,35 +769,52 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     const checkins = checkinsSnap.docs.map((d) => d.data());
     const tiers = tiersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const eventData = eventDoc.data() || {};
+    const eventViewsData = (eventViewsSnap as any)?.exists ? (eventViewsSnap as any).data() : {};
 
     // Revenue & tickets
-    const grossRevenuePaise = orders.reduce(
-      (sum: number, o: any) => sum + toNumber(o.totalPaise || 0),
+    const grossRevenue = commerce.grossRevenue;
+    const estimatedEarnings =
+      commerce.ledgerEntries
+        .filter(
+          (entry) =>
+            entry.toPartnerId === ctx.partnerId && ['host_payout', 'refund'].includes(entry.type),
+        )
+        .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
+    const totalOrders = ordersCountSnap.data().count;
+    const confirmedOrdersTicketCount = orders.reduce(
+      (sum: number, d: any) =>
+        sum + toNumber(d.ticketCount || d.ticketsCount || d.quantity || d.count || 1),
       0,
     );
-    const grossRevenue = grossRevenuePaise / 100;
-    const platformFeePct = 0.05; // 5% estimated platform fee
-    const estimatedEarnings = grossRevenue * (1 - platformFeePct);
-    const ticketsSold = orders.reduce(
-      (sum: number, o: any) => sum + toNumber(o.ticketCount || 1),
-      0,
-    );
-    const totalCheckedIn = checkins.length;
+    const ticketsSold = Math.max(commerce.ticketsSold, totalOrders, confirmedOrdersTicketCount);
+    const totalCheckedIn = checkinsCountSnap.data().count;
     const capacity = tiers.reduce(
       (sum: number, t: any) => sum + toNumber(t.capacity || t.quantity || 0),
       0,
     );
-    const inventory = capacity - ticketsSold;
+    const inventory = Math.max(0, capacity - ticketsSold);
     const sellThrough = capacity > 0 ? Math.round((ticketsSold / capacity) * 100) : 0;
 
     // Guest list size = unique attendee orders
-    const uniqueBuyers = new Set(orders.map((o: any) => o.userId || o.buyerEmail)).size;
-    const guestListSize = uniqueBuyers;
+    const uniqueBuyers = new Set(
+      commerce.soldTickets.map((ticket) => ticket.userId).filter(Boolean),
+    ).size;
+    const guestListSize = Math.max(uniqueBuyers, totalOrders);
 
-    // Conversion: views → purchases (views from event doc)
-    const views = toNumber(eventData.stats?.views || eventData.views || 0);
+    // Conversion: views → purchases (views from event doc & event_views collection)
+    const views = Math.max(
+      toNumber(
+        eventData.stats?.views ||
+          eventData.views ||
+          eventData.stats?.pageVisits ||
+          eventData.pageVisits ||
+          0,
+      ),
+      toNumber(eventViewsData?.count || eventViewsData?.views || eventViewsData?.uniqueCount || 0),
+    );
     const saves = toNumber(eventData.stats?.saves || eventData.saves || 0);
-    const conversionRate = views > 0 ? Math.round((ticketsSold / views) * 1000) / 10 : 0; // % with 1 decimal
+    const conversionRate =
+      views > 0 ? Math.round((ticketsSold / views) * 1000) / 10 : ticketsSold > 0 ? 100 : 0;
 
     // Repeat vs new guests (buyers who appear in past orders for this host)
     const uniqueAttendees = uniqueBuyers;
@@ -725,17 +826,22 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       string,
       { tierId: string; tierName: string; sold: number; revenue: number }
     > = {};
-    for (const o of orders as any[]) {
-      const items: any[] = o.items || o.tickets || [];
-      for (const item of items) {
-        const tierId = item.tierId || item.tierName || 'unknown';
-        const tierName = item.tierName || tierId;
-        const qty = toNumber(item.quantity || 1);
-        const rev = toNumber(item.priceAtPurchase || item.price || 0) * qty;
-        if (!tierMap[tierId]) tierMap[tierId] = { tierId, tierName, sold: 0, revenue: 0 };
-        tierMap[tierId].sold += qty;
-        tierMap[tierId].revenue += rev;
-      }
+    const orderTicketCounts = commerce.soldTickets.reduce(
+      (counts, ticket) => {
+        counts[ticket.orderId] = (counts[ticket.orderId] || 0) + 1;
+        return counts;
+      },
+      {} as Record<string, number>,
+    );
+    for (const ticket of commerce.soldTickets) {
+      const tierId = ticket.tierId || 'unknown';
+      const tierName = ticket.tierName || tierId;
+      if (!tierMap[tierId]) tierMap[tierId] = { tierId, tierName, sold: 0, revenue: 0 };
+      tierMap[tierId].sold += 1;
+      tierMap[tierId].revenue +=
+        Number(commerce.orderRevenuePaise[ticket.orderId]?.netPaise || 0) /
+        Math.max(orderTicketCounts[ticket.orderId] || 1, 1) /
+        100;
     }
     // Fallback if no order items — use tier docs with sold counts
     if (Object.keys(tierMap).length === 0) {
@@ -753,12 +859,17 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
     // Top promoter
     const promoterSales: Record<string, { name: string; sales: number; revenue: number }> = {};
-    for (const o of orders as any[]) {
-      const code = o.promoterCode || o.promoter;
-      if (code) {
-        if (!promoterSales[code]) promoterSales[code] = { name: code, sales: 0, revenue: 0 };
-        promoterSales[code].sales += toNumber(o.ticketCount || 1);
-        promoterSales[code].revenue += toNumber(o.totalPaise || 0) / 100;
+    for (const ticket of commerce.soldTickets) {
+      const promoterId = ticket.promoterId;
+      if (promoterId) {
+        if (!promoterSales[promoterId]) {
+          promoterSales[promoterId] = { name: promoterId, sales: 0, revenue: 0 };
+        }
+        promoterSales[promoterId].sales += 1;
+        promoterSales[promoterId].revenue +=
+          Number(commerce.orderRevenuePaise[ticket.orderId]?.netPaise || 0) /
+          Math.max(orderTicketCounts[ticket.orderId] || 1, 1) /
+          100;
       }
     }
     const topPromoterEntries = Object.values(promoterSales);
@@ -783,12 +894,17 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
     // Sales timeline (daily buckets)
     const salesBuckets: Record<string, { tickets: number; revenue: number; checkIns: number }> = {};
-    for (const o of orders as any[]) {
-      const date = (o.createdAt || '').slice(0, 10);
+    for (const ticket of commerce.soldTickets) {
+      const date = String(ticket.issuedAt || ticket.createdAt || '').slice(0, 10);
       if (!date) continue;
       if (!salesBuckets[date]) salesBuckets[date] = { tickets: 0, revenue: 0, checkIns: 0 };
-      salesBuckets[date].tickets += toNumber(o.ticketCount || 1);
-      salesBuckets[date].revenue += toNumber(o.totalPaise || 0) / 100;
+      salesBuckets[date].tickets += 1;
+    }
+    for (const ledgerEntry of [...commerce.revenueEntries, ...commerce.refundEntries]) {
+      const date = String(ledgerEntry.createdAt || '').slice(0, 10);
+      if (!date) continue;
+      if (!salesBuckets[date]) salesBuckets[date] = { tickets: 0, revenue: 0, checkIns: 0 };
+      salesBuckets[date].revenue += Number(ledgerEntry.amountPaise || 0) / 100;
     }
     for (const c of checkins) {
       const date = ((c as any).scannedAt || '').slice(0, 10);
@@ -818,12 +934,18 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         hourlyBuckets[hour].checkIns++;
       }
     }
-    for (const o of orders as any[]) {
-      const ts = o.createdAt || '';
+    for (const ticket of commerce.soldTickets) {
+      const ts = ticket.issuedAt || ticket.createdAt || '';
       if (ts) {
         const hour = new Date(ts).getHours();
-        hourlyBuckets[hour].tickets += toNumber(o.ticketCount || 1);
-        hourlyBuckets[hour].revenue += toNumber(o.totalPaise || 0) / 100;
+        hourlyBuckets[hour].tickets += 1;
+      }
+    }
+    for (const ledgerEntry of [...commerce.revenueEntries, ...commerce.refundEntries]) {
+      const ts = ledgerEntry.createdAt || '';
+      if (ts) {
+        const hour = new Date(ts).getHours();
+        hourlyBuckets[hour].revenue += Number(ledgerEntry.amountPaise || 0) / 100;
       }
     }
     const hourlyTimeline = Array.from({ length: 24 }, (_, h) => {
@@ -845,6 +967,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       // Core stats (matches OverviewData interface)
       ticketsSold,
       grossRevenue,
+      netRevenue: commerce.netRevenue,
       estimatedEarnings,
       guestListSize,
       totalCheckedIn,
@@ -868,6 +991,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       peakSalesHour,
       peakCheckInHour,
       timeZone: eventData.timeZone || 'Asia/Kolkata',
+      genderRatio: audience.genderRatio,
+      ageBands: audience.ageBands,
       // Keep legacy shape for backwards compat
       event: {
         id: event.eventId,
@@ -877,15 +1002,16 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         venueName: event.venueName,
       },
       stats: {
-        revenue: grossRevenue,
+        revenue: commerce.netRevenue,
         ticketsSold,
         checkedIn: totalCheckedIn,
+        orders: totalOrders,
         capacity,
       },
       recentOrders: orders.slice(0, 10).map((o: any) => ({
         id: o.orderId || o.id,
         userName: o.userName,
-        amount: toNumber(o.totalPaise || 0) / 100,
+        amount: Number(commerce.orderRevenuePaise[o.id]?.netPaise || 0) / 100,
         createdAt: o.createdAt,
       })),
     };
@@ -941,14 +1067,17 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   };
 
   const getHostPromoters = async (hostId: string) => {
-    const snap = await fastify.db
-      .collection('promoter_connections')
-      .where('hostId', '==', hostId)
-      .orderBy('createdAt', 'desc')
-      .get()
-      .catch(() => ({ docs: [] as any[] }));
+    const connections = fastify.db.collection('promoter_connections').where('hostId', '==', hostId);
+    const [snap, totalCountSnap, activeCountSnap] = await Promise.all([
+      connections.orderBy('createdAt', 'desc').limit(100).get(),
+      connections.count().get(),
+      connections.where('status', '==', 'active').count().get(),
+    ]);
     return {
       promoters: (snap as any).docs.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) })),
+      total: totalCountSnap.data().count,
+      active: activeCountSnap.data().count,
+      truncated: totalCountSnap.data().count > (snap as any).docs.length,
     };
   };
 
@@ -1014,17 +1143,29 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   };
 
   const updateHostEventTickets = async (hostId: string, eventId: string, body: PlainRecord) => {
-    if (!Array.isArray(body.tiers)) {
-      const err: any = new Error('tiers array required');
-      err.statusCode = 400;
-      err.code = 'BAD_REQUEST';
-      throw err;
+    const event = await getHostEventAndVerify(hostId, eventId);
+    const tiers = buildHostTicketTierUpdate(event, body);
+    const activeTiers = tiers.filter((t: any) => t.status !== 'hidden' && t.status !== 'inactive');
+    const prices = activeTiers.length ? activeTiers.map((t: any) => Number(t.price) || 0) : [0];
+    const priceMin = Math.min(...prices);
+    const priceMax = Math.max(...prices);
+
+    const updatePayload: any = {
+      ticketTiers: tiers,
+      priceMin,
+      priceMax,
+      priceRange: { min: priceMin, max: priceMax, currency: event.currency || 'INR' },
+      startingPrice: priceMin,
+      isFree: priceMin === 0,
+      updatedAt: new Date().toISOString(),
+    };
+    if (event.ticketCatalog) {
+      updatePayload['ticketCatalog.tiers'] = tiers;
+    } else {
+      updatePayload.tickets = tiers;
     }
-    await getHostEventAndVerify(hostId, eventId);
-    await fastify.db
-      .collection('events')
-      .doc(eventId)
-      .update({ ticketTiers: body.tiers, updatedAt: new Date().toISOString() });
+    await fastify.db.collection('events').doc(eventId).update(updatePayload);
+    await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
     await fastify.cache.delete('events:detail', eventId).catch(() => {});
     await fastify
       .writeAuditLog({
@@ -1037,186 +1178,215 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     return { success: true };
   };
 
-  const submitHostEvent = async (request: any, hostId: string, eventId: string) => {
-    const event = await getHostEventAndVerify(hostId, eventId);
-    const lifecycle = String(event.lifecycle || event.status || '');
-    if (!['draft', 'changes_requested'].includes(lifecycle)) {
-      const err: any = new Error(`Cannot submit event in ${lifecycle} state`);
-      err.statusCode = 409;
-      err.code = 'CONFLICT';
-      throw err;
-    }
+  const transitionHostEventForReview = async (
+    ctx: PartnerContext,
+    eventId: string,
+    options: { resubmission: boolean; body?: PlainRecord },
+  ) => {
     const now = new Date().toISOString();
+    const eventRef = fastify.db.collection('events').doc(eventId);
+    const historyRef = fastify.db.collection('submission_history').doc();
+    const notificationRef = fastify.db.collection('notifications').doc();
+    let result:
+      | {
+          lifecycle: string;
+          standalone: boolean;
+          venueId: string | null;
+          slotRequestId: string | null;
+        }
+      | undefined;
 
-    // Standalone host events (no venue) self-publish immediately to 'scheduled'.
-    // Events tied to a venue go to 'submitted' and wait for slot approval.
-    const isStandalone = !event.venueId;
-    const toState = isStandalone ? 'scheduled' : 'submitted';
-    const extraUpdates: PlainRecord = isStandalone
-      ? { visibility: 'public', publishedAt: now }
-      : {};
+    await fastify.db.runTransaction(async (tx: any) => {
+      const eventDoc = await tx.get(eventRef);
+      if (!eventDoc.exists) {
+        const err: any = new Error('Event not found');
+        err.statusCode = 404;
+        err.code = 'NOT_FOUND';
+        throw err;
+      }
 
-    await fastify.db
-      .collection('events')
-      .doc(eventId)
-      .update({
+      const persistedEvent = eventDoc.data() as PlainRecord;
+      const ownerId = String(persistedEvent.creatorId || persistedEvent.hostId || '');
+      if (!ownerId || ownerId !== ctx.partnerId) {
+        const err: any = new Error('Event not found');
+        err.statusCode = 404;
+        err.code = 'NOT_FOUND';
+        throw err;
+      }
+
+      const lifecycle = String(
+        persistedEvent.lifecycle || persistedEvent.status || '',
+      ).toLowerCase();
+      const allowedStates = options.resubmission
+        ? ['changes_requested', 'rejected', 'needs_changes', 'denied']
+        : ['draft', 'changes_requested'];
+      if (!allowedStates.includes(lifecycle)) {
+        const err: any = new Error(
+          `Cannot ${options.resubmission ? 'resubmit' : 'submit'} event in ${lifecycle} state`,
+        );
+        err.statusCode = 409;
+        err.code = 'EVENT_LIFECYCLE_CONFLICT';
+        throw err;
+      }
+
+      const resubmissionPatch = options.resubmission
+        ? sanitizeEventResubmissionPatch(options.body?.patch)
+        : {};
+      const event = { ...persistedEvent, ...resubmissionPatch };
+      const venueId = String(event.venueId || '');
+      const isStandalone = !venueId;
+      const toState = isStandalone ? 'scheduled' : 'submitted';
+      let slotRequestId: string | null = null;
+
+      if (!isStandalone) {
+        const date = toEventDateKey(event.startDate);
+        if (!date) {
+          const err: any = new Error('Venue-bound event is missing a valid startDate');
+          err.statusCode = 409;
+          err.code = 'EVENT_SCHEDULE_INCOMPLETE';
+          throw err;
+        }
+        const startTime = requireEventTime(event.startTime, 'startTime');
+        const endTime = requireEventTime(event.endTime, 'endTime');
+        const partnershipSnap = await tx.get(
+          fastify.db
+            .collection('partnerships')
+            .where('hostId', '==', ctx.partnerId)
+            .where('venueId', '==', venueId)
+            .where('status', '==', 'active')
+            .limit(1),
+        );
+        if (partnershipSnap.empty) {
+          const err: any = new Error('An active venue partnership is required');
+          err.statusCode = 403;
+          err.code = 'ACTIVE_PARTNERSHIP_REQUIRED';
+          throw err;
+        }
+
+        slotRequestId = await schedulingService.requestSlotInTransaction(tx, ctx, {
+          eventId,
+          venueId,
+          venueName: String(event.venueData?.name || event.venueName || event.venue || ''),
+          hostName: String(event.hostName || event.host || ctx.displayName || ''),
+          timezone: String(event.timezone || ''),
+          date,
+          startTime,
+          endTime,
+          notes: String(options.body?.hostNote || options.body?.note || event.hostNote || ''),
+          source: 'host_event_request',
+        });
+      }
+
+      tx.update(eventRef, {
+        ...resubmissionPatch,
         lifecycle: toState,
         status: toState,
+        submissionStatus: isStandalone
+          ? 'approved'
+          : options.resubmission
+            ? 'resubmitted'
+            : 'submitted',
+        approvalState: isStandalone ? 'approved' : 'pending',
         updatedAt: now,
         submittedAt: now,
-        ...extraUpdates,
+        ...(options.resubmission ? { resubmittedAt: now } : {}),
+        ...(isStandalone ? { visibility: 'public', publishedAt: now } : {}),
       });
-    await fastify.db.collection('submission_history').add({
-      eventId,
-      fromState: lifecycle,
-      toState,
-      actorUid: request.user?.uid || hostId,
-      actorRole: 'host',
-      timestamp: now,
-    });
-    if (event.venueId) {
-      await fastify.db.collection('notifications').add({
-        recipientId: event.venueId,
-        recipientType: 'venue',
-        type: 'event_submitted',
+      tx.create(historyRef, {
         eventId,
-        hostId,
-        title: 'New Event Submission',
-        message: `${event.title} has been submitted for your approval.`,
-        read: false,
-        createdAt: now,
+        fromState: lifecycle,
+        toState,
+        actorUid: ctx.uid,
+        actorRole: 'host',
+        note: options.body?.note || options.body?.hostNote || null,
+        timestamp: now,
       });
-    }
-    await fastify.cache.delete('events:detail', eventId).catch(() => {});
-    await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
-    await fastify
-      .writeAuditLog({
-        action: isStandalone ? 'EVENT_PUBLISHED' : 'EVENT_SUBMITTED',
-        actorUid: request.user?.uid || hostId,
-        entityId: eventId,
-        payload: { hostId, standalone: isStandalone },
-      })
-      .catch(() => {});
-    return { success: true, lifecycle: toState };
-  };
+      if (!isStandalone) {
+        tx.create(notificationRef, {
+          recipientId: venueId,
+          recipientType: 'venue',
+          type: options.resubmission ? 'event_resubmitted' : 'event_submitted',
+          eventId,
+          hostId: ctx.partnerId,
+          title: options.resubmission ? 'Event Resubmitted' : 'New Event Submission',
+          message: `${event.title || 'An event'} has been ${options.resubmission ? 'resubmitted' : 'submitted'} for your approval.`,
+          read: false,
+          createdAt: now,
+        });
+      }
 
-  const resubmitHostEvent = async (
-    request: any,
-    hostId: string,
-    eventId: string,
-    body: PlainRecord,
-  ) => {
-    const event = await getHostEventAndVerify(hostId, eventId);
-    const lifecycle = String(event.lifecycle || event.status || '');
-    if (!['changes_requested', 'rejected'].includes(lifecycle)) {
-      const err: any = new Error(`Cannot resubmit event in ${lifecycle} state`);
-      err.statusCode = 409;
-      err.code = 'CONFLICT';
+      result = {
+        lifecycle: toState,
+        standalone: isStandalone,
+        venueId: venueId || null,
+        slotRequestId,
+      };
+    });
+
+    if (!result) {
+      const err: any = new Error('Event submission transaction did not produce a result');
+      err.statusCode = 500;
+      err.code = 'EVENT_SUBMISSION_FAILED';
       throw err;
     }
-    const now = new Date().toISOString();
-    const isStandalone = !event.venueId;
-    const toState = isStandalone ? 'scheduled' : 'submitted';
-    const updates: PlainRecord = {
-      lifecycle: toState,
-      status: toState,
-      updatedAt: now,
-      resubmittedAt: now,
-      ...(isStandalone ? { visibility: 'public', publishedAt: now } : {}),
-    };
-    Object.assign(updates, sanitizeEventResubmissionPatch(body.patch));
-    await fastify.db.collection('events').doc(eventId).update(updates);
-    await fastify.db.collection('submission_history').add({
-      eventId,
-      fromState: lifecycle,
-      toState,
-      actorUid: request.user?.uid || hostId,
-      actorRole: 'host',
-      note: body.note,
-      timestamp: now,
-    });
-    if (event.venueId) {
-      await fastify.db.collection('notifications').add({
-        recipientId: event.venueId,
-        recipientType: 'venue',
-        type: 'event_resubmitted',
-        eventId,
-        hostId,
-        title: 'Event Resubmitted',
-        message: `${event.title} has been resubmitted for your approval.`,
-        read: false,
-        createdAt: now,
-      });
-    }
+
     await fastify.cache.delete('events:detail', eventId).catch(() => {});
-    await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
+    await fastify.publicDiscoveryService.syncEventReadModels(eventId);
     await fastify
       .writeAuditLog({
-        action: isStandalone ? 'EVENT_PUBLISHED' : 'EVENT_RESUBMITTED',
-        actorUid: request.user?.uid || hostId,
+        action: result.standalone
+          ? 'EVENT_PUBLISHED'
+          : options.resubmission
+            ? 'EVENT_RESUBMITTED'
+            : 'EVENT_SUBMITTED',
+        actorUid: ctx.uid,
         entityId: eventId,
-        payload: { hostId, note: body.note, standalone: isStandalone },
+        payload: {
+          hostId: ctx.partnerId,
+          venueId: result.venueId,
+          slotRequestId: result.slotRequestId,
+          standalone: result.standalone,
+        },
       })
       .catch(() => {});
-    return { success: true, lifecycle: toState };
+
+    return {
+      success: true,
+      lifecycle: result.lifecycle,
+      slotRequestId: result.slotRequestId,
+    };
   };
 
-  const getHostAnalyticsTimeSeries = async (hostId: string, query: PlainRecord) => {
-    const range = String(query.range || '1w');
-    const metric = String(query.metric || 'revenue');
-    const cacheKey = `${hostId}:${range}:${metric}:v2`;
+  const submitHostEvent = async (request: any, ctx: PartnerContext, eventId: string) =>
+    transitionHostEventForReview(ctx, eventId, {
+      resubmission: false,
+      body: asRecord(request.body),
+    });
+
+  const resubmitHostEvent = async (
+    _request: any,
+    ctx: PartnerContext,
+    eventId: string,
+    body: PlainRecord,
+  ) => transitionHostEventForReview(ctx, eventId, { resubmission: true, body });
+
+  const getHostAnalyticsTimeSeries = async (ctx: PartnerContext, query: PlainRecord) => {
+    const requestedRange = String(query.range || '1w');
+    const requestedMetric = String(query.metric || 'revenue');
+    const range = ['1d', '1w', '1m', 'all'].includes(requestedRange)
+      ? (requestedRange as '1d' | '1w' | '1m' | 'all')
+      : '1w';
+    const metric = ['tickets', 'revenue'].includes(requestedMetric)
+      ? (requestedMetric as 'tickets' | 'revenue')
+      : 'revenue';
+    const cacheKey = `${ctx.partnerId}:${range}:${metric}:ledger-projection-v1`;
     const cached = await fastify.cache.get('analytics:host:ts', cacheKey);
     if (cached) return { ...cached, fromCache: true };
 
-    const days =
-      range === '1d' ? 1 : range === '1w' ? 7 : range === '1m' ? 30 : range === '3m' ? 90 : 7;
-    const nowMs = Date.now();
-    const fromMs = nowMs - days * 86400000;
-    const fromIso = new Date(fromMs).toISOString();
-
-    const ordersSnap = await fastify.db
-      .collection('orders')
-      .where('hostId', '==', hostId)
-      .where('status', 'in', ['confirmed', 'paid'])
-      .where('createdAt', '>=', fromIso)
-      .limit(1000)
-      .get()
-      .catch(() => ({ docs: [] as any[] }));
-
-    const buckets = new Map<string, { revenue: number; ticketsSold: number }>();
-    for (let d = 0; d < days; d++) {
-      const label = new Date(fromMs + d * 86400000).toISOString().slice(0, 10);
-      buckets.set(label, { revenue: 0, ticketsSold: 0 });
-    }
-    for (const doc of (ordersSnap as any).docs) {
-      const od = doc.data() || {};
-      const label = String(od.createdAt || '').slice(0, 10);
-      if (buckets.has(label)) {
-        const b = buckets.get(label)!;
-        b.revenue += toNumber(od.amount || od.total || 0);
-        b.ticketsSold += toNumber(od.ticketsCount || od.quantity || 1);
-      }
-    }
-
-    const series = Array.from(buckets.entries()).map(([date, b]) => ({
-      label: date,
-      date,
-      revenue: b.revenue,
-      ticketsSold: b.ticketsSold,
-      value: metric === 'revenue' ? b.revenue : b.ticketsSold,
-    }));
-    const totals = series.reduce(
-      (acc, pt) => ({
-        revenue: acc.revenue + pt.revenue,
-        ticketsSold: acc.ticketsSold + pt.ticketsSold,
-      }),
-      { revenue: 0, ticketsSold: 0 },
-    );
-    const legacyStats = await getHostAnalytics(hostId, range as any).catch(() => ({}));
+    const performance = await hostService.getPerformance(ctx, range, metric);
     const result = {
-      ...asRecord(legacyStats),
-      series,
-      total: metric === 'revenue' ? totals.revenue : totals.ticketsSold,
+      hostId: ctx.partnerId,
+      ...performance,
     };
     await fastify.cache.set('analytics:host:ts', cacheKey, result, 120);
     return result;
@@ -1224,6 +1394,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
   const getHostVenueCalendar = async (hostId: string, query: PlainRecord) => {
     const venueId = String(query.venueId || '');
+    const startDate = String(query.startDate || '');
+    const endDate = String(query.endDate || '');
     const partnerSnap = await fastify.db
       .collection('partnerships')
       .where('hostId', '==', hostId)
@@ -1241,11 +1413,14 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       fastify.db
         .collection('events')
         .where('venueId', '==', venueId)
-        .get()
-        .catch(() => ({ docs: [] as any[] })),
+        .where('startDate', '>=', startDate)
+        .where('startDate', '<=', `${endDate}T23:59:59.999Z`)
+        .orderBy('startDate', 'desc')
+        .limit(200)
+        .get(),
       schedulingService.getCalendar(venueId, {
-        startDate: String(query.startDate || '1970-01-01'),
-        endDate: String(query.endDate || '2999-12-31'),
+        startDate,
+        endDate,
       }),
     ]);
     const events = ((eventsSnap as any).docs || []).map((doc: any) => ({
@@ -1269,6 +1444,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         return {
           id: ev.id,
           startDate: ev.startDate,
+          startTime: ev.startTime || null,
+          endTime: ev.endTime || null,
           status: ev.status,
           isExternal: true,
           title: 'Reserved Event', // Mask title for privacy
@@ -1318,6 +1495,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           startTime: slot.startTime,
           endTime: slot.endTime,
           status: slot.status,
+          requestedBy: slot.requestedBy,
+          eventId: slot.eventId,
           notes: slot.notes ?? null,
         })),
         block,
@@ -1332,7 +1511,14 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
 
-    return { calendar: dates, days: dates };
+    return {
+      calendar: dates,
+      days: dates,
+      pagination: {
+        limit: 200,
+        truncated: ((eventsSnap as any).docs || []).length === 200,
+      },
+    };
   };
 
   // ── Overview ───────────────────────────────────────────────────────────────
@@ -1340,6 +1526,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/hosts/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: OverviewQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1357,13 +1544,21 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         requireType(ctx, 'host');
         const range = request.query.range ?? '1m';
         const metric = request.query.metric ?? 'tickets';
-        const cacheKey = `partners:host:overview:${ctx.partnerId}:${range}:${metric}:contract-v1`;
+        const cacheKey = `partners:host:overview:${ctx.partnerId}:${range}:${metric}:contract-v2`;
         const cached = await fastify.cache.get('partners', cacheKey);
-        if (cached)
-          return reply
-            .header('Cache-Control', 'private, max-age=120')
-            .send({ ...cached, fromCache: true });
+        if (cached) {
+          return reply.header('Cache-Control', 'private, max-age=120').send({
+            ...cached,
+            fromCache: true,
+          });
+        }
 
+        const hostDoc = await fastify.db
+          .collection('hosts')
+          .doc(ctx.partnerId)
+          .get()
+          .catch(() => null);
+        const warnings = hostDoc && hostDoc.exists ? hostDoc.data()?.warnings || [] : [];
         const result = await hostService.getOverview(ctx, { range, metric });
 
         const stats = {
@@ -1398,7 +1593,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           })),
           recentActivity: asArray(result.recentActivity),
           latestOrders: asArray(result.latestOrders),
-          performance: asArray(result.performance),
+          performance: result.performance,
+          warnings,
         };
 
         await fastify.cache.set('partners', cacheKey, normalized, 120);
@@ -1427,11 +1623,74 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     },
   );
 
+  fastify.patch(
+    '/partners/hosts/events/:eventId',
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      const ctx = await resolvePartnerContext(fastify.db, request);
+      if (!ctx) {
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'FORBIDDEN',
+            message: 'No partner identity found',
+            requestId: request.id,
+          }),
+        );
+      }
+
+      try {
+        requireType(ctx, 'host');
+        const event = await getHostEventAndVerify(ctx.partnerId, request.params.eventId);
+        const patch = buildHostEventUpdatePatch(event, asRecord(request.body));
+        await fastify.db.collection('events').doc(request.params.eventId).update(patch);
+        await fastify.publicDiscoveryService
+          .syncEventReadModels(request.params.eventId)
+          .catch(() => {});
+        await fastify.cache.delete('events:detail', request.params.eventId).catch(() => {});
+        await fastify
+          .writeAuditLog({
+            action: 'EVENT_UPDATED',
+            actorUid: request.user?.uid || ctx.partnerId,
+            entityId: request.params.eventId,
+            payload: { hostId: ctx.partnerId, fields: Object.keys(patch) },
+          })
+          .catch(() => {});
+        return reply.send({ success: true, eventId: request.params.eventId });
+      } catch (err: any) {
+        if (err instanceof EventUpdateValidationError || err.statusCode) {
+          return reply.status(err.statusCode || 400).send(
+            buildErrorResponse({
+              code: err.code || 'EVENT_UPDATE_INVALID',
+              message: err.message,
+              details: err.issues?.map((issue: any) => ({
+                path: issue.path || issue.field || '',
+                message: issue.message,
+              })),
+              requestId: request.id,
+            }),
+          );
+        }
+        fastify.log.error({ err, eventId: request.params.eventId }, 'Host event update failed');
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
   // ── Events list ────────────────────────────────────────────────────────────
 
   fastify.get(
     '/partners/hosts/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: EventFiltersSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1500,6 +1759,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/hosts/events/:eventId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1546,8 +1806,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   // ── Calendar ───────────────────────────────────────────────────────────────
 
   fastify.get(
-    '/partners/hosts/calendar',
+    '/partners/hosts/venue-calendar',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: CalendarQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1583,6 +1844,22 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     },
   );
 
+  fastify.get(
+    '/partners/hosts/calendar',
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) =>
+      reply.status(410).send(
+        buildErrorResponse({
+          code: 'LEGACY_ROUTE_GONE',
+          message: 'Use /api/v1/partners/hosts/venue-calendar',
+          requestId: request.id,
+        }),
+      ),
+  );
+
   // ── List slot requests (host) ──────────────────────────────────────────────
   // The page shows events submitted to venues for review.
   // Tabs filter by event lifecycle: submitted=pending, approved=approved,
@@ -1591,6 +1868,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/hosts/slot-requests',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1610,7 +1888,14 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
         // Fetch events in review-relevant lifecycle states, by both owner fields.
         // No orderBy — avoids composite index requirement (FAILED_PRECONDITION).
-        const reviewLifecycles = ['submitted', 'approved', 'needs_changes', 'denied'];
+        const reviewLifecycles = [
+          'submitted',
+          'approved',
+          'scheduled',
+          'published',
+          'needs_changes',
+          'denied',
+        ];
 
         const [creatorSnap, hostSnap] = await Promise.all([
           fastify.db
@@ -1664,6 +1949,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
                       ?.slice(0, 5) ?? '')
                   : ''),
               status: String(d.lifecycle || d.status || 'pending'),
+              event: {
+                id: doc.id,
+                title: String(d.title || d.name || 'Untitled Event'),
+                poster: d.poster || d.coverImage || d.image || null,
+                lifecycle: String(d.lifecycle || d.status || 'pending'),
+              },
               notes: d.notes ?? d.description ?? null,
               clubResponse: d.clubResponse ?? d.venueNote ?? d.adminNote ?? null,
               alternativeDate: d.alternativeDate ?? null,
@@ -1707,6 +1998,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partners/hosts/slot-requests',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: SlotRequestSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1747,6 +2039,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/hosts/settings',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1898,10 +2191,20 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       }
 
       if (invData.status === 'accepted' || invData.status === 'active') {
+        let customToken = '';
+        try {
+          const userRecord = await fastify.auth.getUserByEmail(invData.email);
+          customToken = await fastify.auth.createCustomToken(userRecord.uid);
+        } catch (tokenErr) {
+          fastify.log.error(
+            { err: tokenErr },
+            'Failed to generate custom token for already accepted invite',
+          );
+        }
         return reply.send({
           success: true,
           email: invData.email,
-          tempPassword: invData.tempPassword,
+          customToken,
           alreadyAccepted: true,
         });
       }
@@ -1912,7 +2215,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           ? `${invData.firstName} ${invData.lastName}`
           : 'Team Member';
       const role = invData.role;
-      const tempPassword = invData.tempPassword;
+      const tempPassword = decrypt(invData.tempPassword);
 
       // 1. Create/update the Firebase user
       let userRecord;
@@ -1987,7 +2290,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         updatedAt: new Date().toISOString(),
       });
 
-      return reply.send({ success: true, email, tempPassword });
+      const customToken = await fastify.auth.createCustomToken(uid);
+      return reply.send({ success: true, email, customToken });
     } catch (err: any) {
       fastify.log.error({ err }, 'POST /partners/hosts/team/accept failed');
       return reply.status(500).send(
@@ -2003,6 +2307,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/hosts/team',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -2124,6 +2429,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/partners/hosts/team/:memberId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: TeamMemberPatch }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -2163,6 +2469,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/partners/hosts/team/:memberId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -2200,13 +2507,14 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partners/hosts/upload',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
       try {
         const ctx = await resolvePartnerContext(fastify.db, request);
         // Debug: log partner context resolution
-        // eslint-disable-next-line no-console
+
         console.debug('[hosts.upload] resolvePartnerContext', {
           requestId: request.id,
           hasCtx: !!ctx,
@@ -2278,8 +2586,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
         if (rest.startsWith('partners/') && request.method === 'GET') {
           const partnerId = rest.slice('partners/'.length);
-          const profile = await getPartnerProfileSummary(fastify.db, partnerId);
-          if (!profile) {
+          const result = await getPartnerProfileWithPii(fastify.db, {
+            viewerRole: ctx.type,
+            viewerId: ctx.partnerId,
+            partnerId,
+          });
+          if (!result) {
             return reply.status(404).send(
               buildErrorResponse({
                 code: 'NOT_FOUND',
@@ -2288,20 +2600,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               }),
             );
           }
-          const connection = await getConnectionForViewer(fastify.db, {
-            viewerRole: ctx.type,
-            viewerId: ctx.partnerId,
-            partnerId,
-            partnerType: profile.type,
-          });
-          if (connection && (connection.status === 'active' || connection.status === 'approved')) {
-            if ((profile as any)._pii) {
-              (profile as any).email = (profile as any)._pii.email;
-              (profile as any).phone = (profile as any)._pii.phone;
-            }
-          }
-          delete (profile as any)._pii;
-          return reply.send({ profile, connection });
+          return reply.send(result);
         }
 
         if (rest === 'profile' && request.method === 'GET')
@@ -2393,7 +2692,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         if (rest === 'promoters' && request.method === 'GET')
           return reply.send(await getHostPromoters(ctx.partnerId));
         if (rest === 'analytics/time-series' && request.method === 'GET')
-          return reply.send(await getHostAnalyticsTimeSeries(ctx.partnerId, query));
+          return reply.send(await getHostAnalyticsTimeSeries(ctx, query));
         if (rest === 'venue-calendar' && request.method === 'GET')
           return reply.send(await getHostVenueCalendar(ctx.partnerId, query));
 
@@ -2405,13 +2704,11 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
         const submitMatch = rest.match(/^events\/([^/]+)\/submit$/);
         if (submitMatch && request.method === 'POST')
-          return reply.send(await submitHostEvent(request, ctx.partnerId, submitMatch[1]));
+          return reply.send(await submitHostEvent(request, ctx, submitMatch[1]));
 
         const resubmitMatch = rest.match(/^events\/([^/]+)\/resubmit$/);
         if (resubmitMatch && request.method === 'PATCH')
-          return reply.send(
-            await resubmitHostEvent(request, ctx.partnerId, resubmitMatch[1], body),
-          );
+          return reply.send(await resubmitHostEvent(request, ctx, resubmitMatch[1], body));
 
         const eventOverviewMatch = rest.match(/^events\/([^/]+)\/overview$/);
         if (eventOverviewMatch && request.method === 'GET')
@@ -2421,7 +2718,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         if (hostEventFinanceMatch && request.method === 'GET') {
           const evtId = hostEventFinanceMatch[1];
           const event = await getHostEventAndVerify(ctx.partnerId, evtId);
-          const [ordersSnap, walkInsSnap] = await Promise.all([
+          const [ordersSnap, walkInsSnap, commerce] = await Promise.all([
             fastify.db
               .collection('orders')
               .where('eventId', '==', evtId)
@@ -2434,24 +2731,33 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               .collection('logs')
               .get()
               .catch(() => ({ docs: [] as any[] })),
+            getEventCommerceMetrics(fastify.db, evtId),
           ]);
           const orderDocs = (ordersSnap as any).docs || [];
           const walkInDocs = (walkInsSnap as any).docs || [];
-          const gross =
-            orderDocs.reduce((s: number, d: any) => s + toNumber(d.data().totalPaise || 0), 0) /
-            100;
-          const refundAmount =
-            orderDocs
-              .filter((d: any) => d.data().refundedAt)
-              .reduce((s: number, d: any) => s + toNumber(d.data().refundPaise || 0), 0) / 100;
-          const platformFee = Math.round(gross * 0.05 * 100) / 100;
-          const venueCommissionRate = toNumber((event as PlainRecord).venueCommissionRate || 15);
-          const venueCommission = Math.round(gross * (venueCommissionRate / 100) * 100) / 100;
+          const gross = commerce.grossRevenue;
+          const refundAmount = commerce.refundAmount;
+          const platformFee =
+            commerce.ledgerEntries
+              .filter((entry) => entry.type === 'platform_fee')
+              .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
+          const venueCommission =
+            commerce.ledgerEntries
+              .filter((entry) => entry.type === 'venue_share')
+              .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
+          const venueCommissionRate = gross > 0 ? (venueCommission / gross) * 100 : 0;
           const walkInRevenue = walkInDocs.reduce(
             (s: number, d: any) => s + toNumber(d.data().amount || 0),
             0,
           );
-          const net = Math.max(0, gross - platformFee - refundAmount);
+          const net =
+            commerce.ledgerEntries
+              .filter(
+                (entry) =>
+                  entry.toPartnerId === ctx.partnerId &&
+                  ['host_payout', 'refund'].includes(entry.type),
+              )
+              .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
           const tierMap = new Map<string, { tierName: string; sold: number; revenue: number }>();
           for (const d of orderDocs) {
             const o = d.data();
@@ -2460,7 +2766,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             if (!tierMap.has(tierId)) tierMap.set(tierId, { tierName, sold: 0, revenue: 0 });
             const entry = tierMap.get(tierId)!;
             entry.sold += toNumber(o.ticketCount || 1);
-            entry.revenue += toNumber(o.totalPaise || 0) / 100;
+            entry.revenue += Number(commerce.orderRevenuePaise[d.id]?.netPaise || 0) / 100;
           }
           const ticketMix = Array.from(tierMap.entries()).map(([tierId, v]) => ({
             tierId,
@@ -2479,12 +2785,16 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             net,
             walkInRevenue,
             walkInOrders: walkInDocs.length,
-            onlineRevenue: gross,
-            onlineOrders: orderDocs.length,
+            onlineRevenue: commerce.netRevenue,
+            onlineOrders: commerce.orderCount,
             settlementStatus: ev.settlementStatus || 'pending',
             paidAt: ev.settledAt || null,
-            paymentSources: [{ label: 'Online', amount: gross, orders: orderDocs.length }],
-            intakeChannels: [{ label: 'App', amount: gross, orders: orderDocs.length }],
+            paymentSources: [
+              { label: 'Online', amount: commerce.netRevenue, orders: commerce.orderCount },
+            ],
+            intakeChannels: [
+              { label: 'App', amount: commerce.netRevenue, orders: commerce.orderCount },
+            ],
             ticketMix,
             hostPayout: null,
             promoterPayouts: [],
@@ -2522,7 +2832,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             .limit(50)
             .get()
             .catch(() => ({ docs: [] as any[] }));
-          const lifetimeOrders = ((lifetimeSnap as any).docs || []).map((d: any) => {
+          const lifetimeDocs = (lifetimeSnap as any).docs || [];
+          const orderAmounts = await getOrderCommerceAmounts(fastify.db, [
+            attendeeId,
+            ...lifetimeDocs.map((document: any) => document.id),
+          ]);
+          const lifetimeOrders = lifetimeDocs.map((d: any) => {
             const od = d.data() || {};
             return {
               id: d.id,
@@ -2534,7 +2849,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               customerName: od.buyerName || 'Guest',
               email: od.buyerEmail || '',
               phone: od.buyerPhone || '',
-              amount: toNumber(od.totalPaise || 0) / 100,
+              amount: Number(orderAmounts[d.id]?.netPaise || 0) / 100,
               ticketsCount: toNumber(od.ticketCount || 1),
               createdAt: od.createdAt || null,
               confirmedAt: od.confirmedAt || null,
@@ -2564,7 +2879,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             ticketTier: o.tierName || '',
             tierId: o.tierId || '',
             quantity: toNumber(o.ticketCount || 1),
-            totalSpend: toNumber(o.totalPaise || 0) / 100,
+            totalSpend: Number(orderAmounts[attendeeId]?.netPaise || 0) / 100,
             source: o.source || 'online',
             status: o.checkedInAt ? 'checked_in' : 'paid',
             purchasedAt: o.createdAt || null,
@@ -2578,7 +2893,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             orderNumber: attendeeId.slice(0, 8).toUpperCase(),
             stats: {
               eventsAttended: buyerOrders.length,
-              lifetimeSpend: toNumber(o.totalPaise || 0) / 100,
+              lifetimeSpend:
+                lifetimeDocs.reduce(
+                  (sum: number, document: any) =>
+                    sum + Number(orderAmounts[document.id]?.netPaise || 0),
+                  0,
+                ) / 100,
             },
             joinedAt: o.createdAt || null,
           };
@@ -2608,60 +2928,127 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           const ev = event as PlainRecord;
           const page = parseInt(String(query.page || '1'), 10) || 1;
           const limit = Math.min(parseInt(String(query.limit || '50'), 10) || 50, 100);
-          let q: any = fastify.db
+
+          let qOrders: any = fastify.db
             .collection('orders')
             .where('eventId', '==', evtId)
             .where('status', 'in', ['confirmed', 'paid']);
-          if (query.tierId) q = q.where('tierId', '==', query.tierId);
-          const snap = await q
-            .limit(500)
-            .get()
-            .catch(() => ({ docs: [] as any[] }));
-          let orderDocs = (snap as any).docs || [];
-          if (query.status && query.status !== 'all') {
-            if (query.status === 'checked_in')
-              orderDocs = orderDocs.filter((d: any) => !!d.data().checkedInAt);
-            else if (query.status === 'not_arrived')
-              orderDocs = orderDocs.filter((d: any) => !d.data().checkedInAt);
-          }
-          if (query.q) {
-            const term = String(query.q).toLowerCase();
-            orderDocs = orderDocs.filter((d: any) => {
-              const o = d.data();
-              return (
-                (o.buyerName || '').toLowerCase().includes(term) ||
-                (o.buyerPhone || '').includes(term)
-              );
-            });
-          }
-          const total = orderDocs.length;
-          const totalPages = Math.ceil(total / limit);
-          const paged = orderDocs.slice((page - 1) * limit, page * limit);
-          const attendees = paged.map((doc: any) => {
+          if (query.tierId) qOrders = qOrders.where('tierId', '==', query.tierId);
+
+          let qRsvps: any = fastify.db
+            .collection('rsvp_orders')
+            .where('eventId', '==', evtId)
+            .where('status', '==', 'confirmed');
+
+          const [ordersSnap, rsvpsSnap, entitlementsSnap] = await Promise.all([
+            qOrders
+              .limit(500)
+              .get()
+              .catch(() => ({ docs: [] })),
+            qRsvps
+              .limit(500)
+              .get()
+              .catch(() => ({ docs: [] })),
+            fastify.db
+              .collection('entitlements')
+              .where('eventId', '==', evtId)
+              .get()
+              .catch(() => ({ docs: [] })),
+          ]);
+
+          const orderCheckedInTimes = new Map<string, string>();
+          entitlementsSnap.docs.forEach((doc: any) => {
+            const data = doc.data();
+            if (
+              data.orderId &&
+              (data.state === 'CONSUMED' || (data.scanCountUsed && data.scanCountUsed > 0))
+            ) {
+              if (data.consumedAt) {
+                orderCheckedInTimes.set(data.orderId, data.consumedAt);
+              } else {
+                orderCheckedInTimes.set(data.orderId, new Date().toISOString());
+              }
+            }
+          });
+
+          let orderDocs = [
+            ...ordersSnap.docs.map((d: any) => ({ doc: d, isRSVP: false })),
+            ...rsvpsSnap.docs.map((d: any) => ({ doc: d, isRSVP: true })),
+          ];
+          const orderAmounts = await getOrderCommerceAmounts(
+            fastify.db,
+            orderDocs.filter((item: any) => !item.isRSVP).map((item: any) => item.doc.id),
+          );
+
+          let attendeesList = orderDocs.map((item: any) => {
+            const doc = item.doc;
             const o = doc.data() || {};
+            const isRSVP = item.isRSVP;
+            const rawName = o.buyerName || o.customerName || o.name || 'Guest';
+            const checkedInAt = o.checkedInAt || orderCheckedInTimes.get(doc.id) || null;
+            const source = isRSVP ? 'online' : o.source || 'online';
+
             return {
               id: doc.id,
               attendeeId: doc.id,
-              fullName: o.buyerName || 'Guest',
-              email: o.buyerEmail || '',
-              phone: o.buyerPhone || '',
+              fullName: rawName,
+              email: o.buyerEmail || o.email || '',
+              phone: o.buyerPhone || o.phone || '',
               instagram: o.instagram || '',
-              ticketTier: o.tierName || '',
+              ticketTier: o.tierName || (isRSVP ? 'RSVP' : ''),
               tierId: o.tierId || '',
-              quantity: toNumber(o.ticketCount || 1),
-              totalSpend: toNumber(o.totalPaise || 0) / 100,
-              source: o.source || 'online',
-              status: o.checkedInAt ? 'checked_in' : 'paid',
+              quantity: toNumber(o.ticketCount || o.quantity || 1),
+              totalSpend: isRSVP ? 0 : Number(orderAmounts[doc.id]?.netPaise || 0) / 100,
+              source,
+              status: checkedInAt ? 'checked_in' : 'paid',
               purchasedAt: o.createdAt || null,
-              checkedInAt: o.checkedInAt || null,
+              checkedInAt,
               city: o.city || '',
               area: o.area || '',
               isVip: !!o.isVip,
               tags: o.tags || [],
               orderId: doc.id,
-              orderSummary: `${o.ticketCount || 1} ticket(s)`,
+              orderSummary: `${o.ticketCount || o.quantity || 1} ticket(s)`,
             };
           });
+
+          // Apply filters
+          if (query.source && query.source !== 'all') {
+            if (query.source === 'walkin') {
+              attendeesList = attendeesList.filter(
+                (a: any) => a.source === 'door' || a.source === 'manual',
+              );
+            } else {
+              attendeesList = attendeesList.filter((a: any) => a.source === query.source);
+            }
+          }
+          if (query.status && query.status !== 'all') {
+            if (query.status === 'checked_in') {
+              attendeesList = attendeesList.filter((a: any) => !!a.checkedInAt);
+            } else if (query.status === 'not_arrived') {
+              attendeesList = attendeesList.filter((a: any) => !a.checkedInAt);
+            }
+          }
+          if (query.q) {
+            const term = String(query.q).toLowerCase();
+            attendeesList = attendeesList.filter(
+              (a: any) =>
+                (a.fullName || '').toLowerCase().includes(term) ||
+                (a.phone || '').includes(term) ||
+                (a.email || '').toLowerCase().includes(term),
+            );
+          }
+
+          // Sort by purchasedAt descending
+          attendeesList.sort((a: any, b: any) => {
+            const ad = a.purchasedAt ? new Date(a.purchasedAt).getTime() : 0;
+            const bd = b.purchasedAt ? new Date(b.purchasedAt).getTime() : 0;
+            return bd - ad;
+          });
+
+          const total = attendeesList.length;
+          const totalPages = Math.ceil(total / limit);
+          const attendees = attendeesList.slice((page - 1) * limit, page * limit);
           const rawTiers = asArray(ev.ticketTiers || ev.tiers || []);
           const tierOptions = rawTiers.map((t: any, i: number) => ({
             id: t.id || String(i),
@@ -2682,7 +3069,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         if (hostEventPromotersMatch && request.method === 'GET') {
           const evtId = hostEventPromotersMatch[1];
           await getHostEventAndVerify(ctx.partnerId, evtId);
-          const [assignmentsSnap, settingsDoc, connectionsSnap] = await Promise.all([
+          const [assignmentsSnap, settingsDoc, connectionsSnap, commerce] = await Promise.all([
             fastify.db
               .collection('promoter_assignments')
               .where('eventId', '==', evtId)
@@ -2699,6 +3086,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               .where('status', 'in', ['approved', 'active'])
               .get()
               .catch(() => ({ docs: [] as any[] })),
+            getEventCommerceMetrics(fastify.db, evtId),
           ]);
           const settingsData =
             settingsDoc && (settingsDoc as any).exists ? (settingsDoc as any).data() || {} : {};
@@ -2709,11 +3097,31 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           };
           const assignedPromoters = ((assignmentsSnap as any).docs || []).map((doc: any) => {
             const data = doc.data() || {};
+            const promoterId = data.promoterId || '';
+            const promoterTickets = commerce.soldTickets.filter(
+              (ticket) => ticket.promoterId === promoterId,
+            );
+            const attributedOrderIds = new Set(
+              promoterTickets.map((ticket) => ticket.orderId).filter(Boolean),
+            );
             return {
               assignmentId: doc.id,
               ...data,
               id: doc.id,
-              promoterId: data.promoterId || '',
+              promoterId,
+              ticketsSold: promoterTickets.length,
+              sales: promoterTickets.length,
+              revenue: [...attributedOrderIds].reduce(
+                (sum, orderId) =>
+                  sum + Number(commerce.orderRevenuePaise[orderId]?.netPaise || 0) / 100,
+                0,
+              ),
+              commissionPaise: commerce.ledgerEntries
+                .filter(
+                  (entry) =>
+                    entry.type === 'promoter_commission' && entry.toPartnerId === promoterId,
+                )
+                .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0),
             };
           });
           const assignedIds = new Set(
@@ -2786,8 +3194,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
           await updateEventPromoterCompensation(fastify.db, evtId, body);
 
-          // Create / update promoter_assignments for all enabled promoters (fire-and-forget)
-          (async () => {
+          // Assignment terms authorize checkout commission, so this work is
+          // part of the command's success boundary and must be awaited.
+          await (async () => {
             try {
               const eventDoc = await fastify.db
                 .collection('events')
@@ -2865,6 +3274,10 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
                         commissionRate: effective.rate,
                         commissionType: effective.type,
                         tierCommissions: effective.tierCommissions,
+                        assignmentVersion: 2,
+                        termsVersion: 2,
+                        approvedByPartnerId: ctx.partnerId,
+                        approvedByPartnerType: 'host',
                         linkCode: trackingCode || null,
                         totalSales: 0,
                         totalRevenue: 0,
@@ -2937,6 +3350,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               }
             } catch (err: any) {
               fastify.log.error(`[Promoter] Assignment sync error: ${err.message}`);
+              throw err;
             }
           })();
 
@@ -2987,27 +3401,14 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           }));
           if (!events.length) return reply.send({ hasEvent: false, event: null, ops: null });
           const event = events[0];
-          const [ordersSnap, checkinsSnap] = await Promise.all([
-            fastify.db
-              .collection('orders')
-              .where('eventId', '==', event.id)
-              .where('status', 'in', ['confirmed', 'paid'])
-              .get()
-              .catch(() => ({ docs: [] as any[], size: 0 })),
+          const [commerce, checkinsSnap] = await Promise.all([
+            getEventCommerceMetrics(fastify.db, event.id),
             fastify.db
               .collection('check_ins')
               .where('eventId', '==', event.id)
               .get()
               .catch(() => ({ docs: [] as any[], size: 0 })),
           ]);
-          const revenue = ((ordersSnap as any).docs || []).reduce(
-            (s: number, d: any) => s + toNumber(d.data().totalPaise),
-            0,
-          );
-          const ticketsSold = ((ordersSnap as any).docs || []).reduce(
-            (s: number, d: any) => s + toNumber(d.data().ticketCount),
-            0,
-          );
           return reply.send({
             hasEvent: true,
             event: {
@@ -3018,12 +3419,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               venueName: event.venueName,
             },
             ops: {
-              revenue: revenue / 100,
+              revenue: commerce.netRevenue,
               checkedIn: (checkinsSnap as any).size || 0,
-              ticketsSold,
+              ticketsSold: commerce.ticketsSold,
               entryRate:
-                ticketsSold > 0
-                  ? Math.round((((checkinsSnap as any).size || 0) / ticketsSold) * 100)
+                commerce.ticketsSold > 0
+                  ? Math.round((((checkinsSnap as any).size || 0) / commerce.ticketsSold) * 100)
                   : 0,
             },
           });
@@ -3055,6 +3456,17 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
+          const venueDoc = await fastify.db.collection('venues').doc(venueId).get();
+          if (!venueDoc.exists) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Venue not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          const venue = venueDoc.data() || {};
           const existing = await fastify.db
             .collection('partnerships')
             .where('hostId', '==', ctx.partnerId)
@@ -3073,6 +3485,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           const ref = await fastify.db.collection('partnerships').add({
             hostId: ctx.partnerId,
             venueId,
+            venueName: String(venue.displayName || venue.name || 'Partner Venue'),
+            venueCity: String(venue.city || ''),
+            venueLogo: venue.logoUrl || venue.profileImage || venue.photoURL || null,
             status: 'pending',
             message: String(body.message || ''),
             createdAt: now,
@@ -3107,7 +3522,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             granularPermissions: granularPermissions || {},
             partnerName: partnerName || null,
             status: 'pending',
-            tempPassword,
+            tempPassword: encrypt(tempPassword),
             inviteToken,
             inviteExpires,
             createdAt: now,
@@ -3140,6 +3555,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               name: firstName && lastName ? `${firstName} ${lastName}` : 'Team Member',
               roleLabel,
               partnerName: pName,
+              tempPassword,
               acceptLink,
             }).catch((err: any) => {
               fastify.log.error({ err }, 'Failed to send host invitation email');
@@ -3443,19 +3859,69 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         }
 
         if (rest === 'page' && request.method === 'GET') {
-          const doc = await fastify.db
-            .collection('host_pages')
-            .doc(ctx.partnerId)
-            .get()
-            .catch(() => null);
-          if (!doc || !doc.exists)
-            return reply.send({
-              hostId: ctx.partnerId,
-              sections: [],
-              isActive: false,
-              theme: { primary: '#F44A22' },
-            });
-          return reply.send({ id: doc.id, ...(doc.data() || {}) });
+          const [pageDoc, hostProfileResult] = await Promise.all([
+            fastify.db
+              .collection('host_pages')
+              .doc(ctx.partnerId)
+              .get()
+              .catch(() => null),
+            getHostProfile(ctx.partnerId).catch(() => null),
+          ]);
+          const profile = (hostProfileResult?.profile || {}) as PlainRecord;
+          const page = pageDoc?.exists ? ((pageDoc.data() || {}) as PlainRecord) : {};
+          const pickPopulated = (...values: unknown[]) =>
+            values.find((value) => typeof value === 'string' && value.trim()) || '';
+
+          return reply.send({
+            hostId: ctx.partnerId,
+            sections: [],
+            isActive: false,
+            theme: { primary: '#F44A22' },
+            ...profile,
+            ...page,
+            id: pageDoc?.exists ? pageDoc.id : ctx.partnerId,
+            displayName: pickPopulated(
+              page.displayName,
+              page.name,
+              profile.displayName,
+              profile.name,
+            ),
+            bio: pickPopulated(page.bio, page.description, profile.bio, profile.description),
+            city: pickPopulated(page.city, profile.city),
+            website: pickPopulated(page.website, profile.website),
+            email: pickPopulated(
+              page.email,
+              page.contactEmail,
+              profile.email,
+              profile.contactEmail,
+            ),
+            phone: pickPopulated(
+              page.phone,
+              page.contactPhone,
+              profile.phone,
+              profile.contactPhone,
+            ),
+            photoURL: pickPopulated(
+              page.photoURL,
+              page.profileImage,
+              page.avatar,
+              profile.photoURL,
+              profile.profileImage,
+              profile.avatar,
+              profile.avatarUrl,
+            ),
+            coverImage: pickPopulated(
+              page.coverImage,
+              page.coverURL,
+              profile.coverImage,
+              profile.coverURL,
+              profile.coverImageUrl,
+            ),
+            socialLinks: {
+              ...((profile.socialLinks as PlainRecord) || {}),
+              ...((page.socialLinks as PlainRecord) || {}),
+            },
+          });
         }
 
         if (rest === 'page' && (request.method === 'POST' || request.method === 'PATCH')) {
@@ -3490,39 +3956,27 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               }),
             );
           if (action === 'cancel') {
-            await ref.update({
-              status: 'cancelled',
-              cancelledAt: new Date().toISOString(),
-              cancelledBy: ctx.uid,
-            });
-            await fastify
-              .writeAuditLog({
-                action: 'ORDER_CANCELLED',
-                actorUid: ctx.uid,
-                entityId: orderId,
-                payload: { hostId: ctx.partnerId },
-              })
-              .catch(() => {});
-            return reply.send({ success: true });
+            return reply.status(503).send(
+              buildErrorResponse({
+                code: 'PARTNER_ORDER_CANCELLATION_NOT_LAUNCH_ENABLED',
+                message:
+                  'Partner-initiated cancellation is unavailable until canonical refund orchestration is enabled',
+                requestId: request.id,
+              }),
+            );
           }
           return reply.send({ success: true });
         }
 
         if (rest === 'analytics/overview' && request.method === 'GET') {
           const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-          const [eventsSnap, ordersSnap, checkinsSnap] = await Promise.all([
+          const [eventsSnap, commerceRows, checkinsSnap] = await Promise.all([
             fastify.db
               .collection('events')
               .where('creatorId', '==', ctx.partnerId)
               .get()
               .catch(() => ({ docs: [] as any[], size: 0 })),
-            fastify.db
-              .collection('orders')
-              .where('hostId', '==', ctx.partnerId)
-              .where('status', 'in', ['confirmed', 'paid'])
-              .where('createdAt', '>=', thirtyDaysAgo)
-              .get()
-              .catch(() => ({ docs: [] as any[] })),
+            getPartnerCommerceRows(fastify.db, ctx.partnerId, 'hostId'),
             fastify.db
               .collection('check_ins')
               .where('hostId', '==', ctx.partnerId)
@@ -3530,15 +3984,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               .get()
               .catch(() => ({ size: 0 })),
           ]);
-          const totalRevenuePaise = ((ordersSnap as any).docs || []).reduce(
-            (sum: number, doc: any) =>
-              sum + (doc.data().totalPaise || Math.round((doc.data().amount || 0) * 100)),
-            0,
-          );
-          const totalTickets = ((ordersSnap as any).docs || []).reduce(
-            (sum: number, doc: any) => sum + (doc.data().ticketCount || 0),
-            0,
-          );
+          const totalRevenuePaise = commerceRows.ledger
+            .filter((row) => !row.createdAtIso || row.createdAtIso >= thirtyDaysAgo)
+            .reduce((sum, row) => sum + Number(row.amountPaise || 0), 0);
+          const totalTickets = commerceRows.tickets.filter(
+            (ticket) => !ticket.createdAtIso || ticket.createdAtIso >= thirtyDaysAgo,
+          ).length;
           const eventCount = (eventsSnap as any).size || ((eventsSnap as any).docs || []).length;
           return reply.send({
             period: '30d',
@@ -3562,6 +4013,10 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             buildErrorResponse({
               code: err.code || 'FORBIDDEN',
               message: err.message,
+              details: err.issues?.map((issue: any) => ({
+                path: issue.path || issue.field || '',
+                message: issue.message,
+              })),
               requestId: request.id,
             }),
           );

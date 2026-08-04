@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getEvent = void 0;
 const firebase_1 = require("./firebase");
-const EVENT_COLLECTION = "events";
+const EVENT_COLLECTION = 'events';
 async function getEvent(identifier) {
     if (!identifier)
         return null;
@@ -12,7 +12,7 @@ async function getEvent(identifier) {
     }
     const slugSnapshot = await firebase_1.db
         .collection(EVENT_COLLECTION)
-        .where("slug", "==", identifier)
+        .where('slug', '==', identifier)
         .limit(1)
         .get();
     if (!slugSnapshot.empty) {
@@ -34,7 +34,7 @@ async function aggregateLiveInventory(event) {
     const shardsSnap = await shardsRef.get();
     // Sum all stats from shards
     const statsMap = {};
-    shardsSnap.forEach(doc => {
+    shardsSnap.forEach((doc) => {
         const data = doc.data();
         const tid = data.tierId;
         if (!statsMap[tid])
@@ -43,11 +43,10 @@ async function aggregateLiveInventory(event) {
         statsMap[tid].sold += data.soldQuantity || 0;
     });
     // Update tickets array with live math
-    event.tickets = tickets.map(t => {
+    event.tickets = tickets.map((t) => {
         const stats = statsMap[t.id] || { locked: 0, sold: 0 };
         const totalCapacity = Number(t.quantity || 0);
-        return Object.assign(Object.assign({}, t), { lockedQuantity: stats.locked, soldQuantity: stats.sold, remaining: Math.max(0, totalCapacity - stats.sold) // 'remaining' for display is capacity - sold
-         });
+        return Object.assign(Object.assign({}, t), { lockedQuantity: stats.locked, soldQuantity: stats.sold, remaining: Math.max(0, totalCapacity - stats.sold) });
     });
     return event;
 }

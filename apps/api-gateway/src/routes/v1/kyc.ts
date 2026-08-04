@@ -11,6 +11,7 @@ export default async function kycRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/upload',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -121,6 +122,7 @@ export default async function kycRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/verify-aadhaar',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {

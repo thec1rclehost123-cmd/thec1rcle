@@ -77,9 +77,9 @@ export default function HostSlotRequestsPage() {
       });
       const data = await res.json();
 
-      // Enrich with event details — deduplicate by eventId to avoid N+1 fetches
       const rawRequests: SlotRequest[] = data.requests || [];
-      const uniqueEventIds = [...new Set(rawRequests.map((r) => r.eventId))];
+      const requestsMissingEvent = rawRequests.filter((request) => !request.event);
+      const uniqueEventIds = [...new Set(requestsMissingEvent.map((request) => request.eventId))];
       const eventMap: Record<string, SlotRequest['event']> = {};
       await Promise.all(
         uniqueEventIds.map(async (eventId) => {
@@ -96,7 +96,7 @@ export default function HostSlotRequestsPage() {
       );
       const enrichedRequests = rawRequests.map((req) => ({
         ...req,
-        event: eventMap[req.eventId],
+        event: req.event || eventMap[req.eventId],
       }));
 
       setRequests(enrichedRequests);
@@ -182,7 +182,11 @@ export default function HostSlotRequestsPage() {
     (r) => r.event?.lifecycle === EVENT_LIFECYCLE.SUBMITTED,
   ).length;
   const approvedCount = requests.filter(
-    (r) => r.event?.lifecycle === EVENT_LIFECYCLE.APPROVED,
+    (r) =>
+      r.event?.lifecycle === EVENT_LIFECYCLE.APPROVED ||
+      r.event?.lifecycle === EVENT_LIFECYCLE.SCHEDULED ||
+      r.event?.lifecycle === 'published' ||
+      (!r.event && ['approved', 'scheduled', 'published'].includes(r.status)),
   ).length;
   const needsActionCount = requests.filter(
     (r) => r.event?.lifecycle === EVENT_LIFECYCLE.NEEDS_CHANGES,
@@ -195,7 +199,12 @@ export default function HostSlotRequestsPage() {
       if (activeTab === 'pending')
         return lc === EVENT_LIFECYCLE.SUBMITTED || (!lc && r.status === 'pending');
       if (activeTab === 'approved')
-        return lc === EVENT_LIFECYCLE.APPROVED || (!lc && r.status === 'approved');
+        return (
+          lc === EVENT_LIFECYCLE.APPROVED ||
+          lc === EVENT_LIFECYCLE.SCHEDULED ||
+          lc === 'published' ||
+          (!lc && ['approved', 'scheduled', 'published'].includes(r.status))
+        );
       if (activeTab === 'needs_action')
         return lc === EVENT_LIFECYCLE.NEEDS_CHANGES || (!lc && r.status === 'needs_changes');
       if (activeTab === 'denied')

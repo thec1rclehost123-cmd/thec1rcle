@@ -127,6 +127,8 @@ describe('guest core surface', () => {
       id: 'event_1',
       cityKey: 'pune-in',
       statusKey: 'upcoming',
+      priceMin: 2000,
+      priceMax: 2000,
       searchText: expect.stringContaining('after dark'),
     });
 
@@ -175,6 +177,50 @@ describe('guest core surface', () => {
     expect(ranked.events.map((event: any) => event.id)).toEqual(['event_1']);
     expect(ranked.hosts).toEqual([]);
     expect(ranked.venues.map((venue: any) => venue.id)).toEqual(['venue_1']);
+  });
+
+  it('uses ticket tiers when a legacy event has a stale zero price summary', () => {
+    const card = buildEventCardReadModel({
+      id: 'event_pricing',
+      title: 'Launch Night',
+      visibility: 'public',
+      lifecycle: 'scheduled',
+      startDate: '2099-04-21T20:00:00.000Z',
+      priceMin: 0,
+      priceMax: 0,
+      priceRange: { min: 0, max: 0, currency: 'INR' },
+      tickets: [
+        { id: 'early-bird', name: 'Early Bird', price: 499 },
+        { id: 'vip', name: 'VIP', price: 999 },
+      ],
+    });
+
+    expect(card).toMatchObject({
+      priceMin: 499,
+      priceMax: 999,
+      price: 499,
+      startingPrice: 499,
+      priceRange: { min: 499, max: 999, currency: 'INR' },
+      isFree: false,
+    });
+  });
+
+  it('projects legacy date and time fields as canonical event instants', () => {
+    const card = buildEventCardReadModel({
+      id: 'event_time',
+      title: 'Launch Night',
+      visibility: 'public',
+      lifecycle: 'scheduled',
+      startAt: '2026-08-29',
+      endAt: '2026-08-29',
+      startTime: '21:00',
+      endTime: '04:00',
+      timezone: 'Asia/Kolkata',
+    });
+
+    expect(card.startAt).toBe('2026-08-29T15:30:00.000Z');
+    expect(card.startDate).toBe('2026-08-29T15:30:00.000Z');
+    expect(card.endAt).toBe('2026-08-29T22:30:00.000Z');
   });
 
   it('parses scan payloads and builds the legacy scan decision shape', () => {

@@ -7,6 +7,7 @@ import {
   resolvePoster,
 } from './events.js';
 import { randomUUID } from 'node:crypto';
+import { getEventTimestamps } from './time.js';
 
 export async function getEvent(eventId, { client = false } = {}) {
   if (!eventId) return null;
@@ -68,6 +69,50 @@ export function determineStatus(start, end) {
 }
 
 /**
+ * Derives the public event price summary from the authoritative ticket tiers.
+ * Event prices are currently represented in rupees at this boundary.
+ */
+export function deriveEventPricing(payload = {}) {
+  const tickets = Array.isArray(payload.tickets) ? payload.tickets : [];
+  const ticketPrices = tickets
+    .map((ticket) => Number(ticket?.price))
+    .filter((price) => Number.isFinite(price) && price >= 0);
+  const fallbackMin = Number(
+    payload.priceMin ?? payload.startingPrice ?? payload.price ?? payload.priceRange?.min ?? 0,
+  );
+  const fallbackMax = Number(payload.priceMax ?? payload.priceRange?.max ?? fallbackMin);
+  const priceMin = ticketPrices.length
+    ? Math.min(...ticketPrices)
+    : Number.isFinite(fallbackMin) && fallbackMin >= 0
+      ? fallbackMin
+      : 0;
+  const priceMax = ticketPrices.length
+    ? Math.max(...ticketPrices)
+    : Number.isFinite(fallbackMax) && fallbackMax >= priceMin
+      ? fallbackMax
+      : priceMin;
+  const currency =
+    tickets.find((ticket) => typeof ticket?.currency === 'string')?.currency ||
+    payload.currency ||
+    payload.priceRange?.currency ||
+    'INR';
+
+  return {
+    priceMin,
+    priceMax,
+    price: priceMin,
+    startingPrice: priceMin,
+    priceRange: {
+      ...(payload.priceRange && typeof payload.priceRange === 'object' ? payload.priceRange : {}),
+      min: priceMin,
+      max: priceMax,
+      currency,
+    },
+    isFree: priceMax === 0,
+  };
+}
+
+/**
  * Pure transformation logic for building a complete Event object.
  * Moved from eventStore.js for universal use.
  */
@@ -97,6 +142,7 @@ export function buildEvent(payload = {}) {
   const poster = resolvePoster(payload);
   const cityKey = normalizeCity(payload.city, payload.location);
   const cityLabel = getCityLabel(cityKey);
+  const pricing = deriveEventPricing(payload);
 
   const event = {
     id: payload.id || randomUUID(),
@@ -132,7 +178,7 @@ export function buildEvent(payload = {}) {
     gallery: gallery.length ? gallery : [poster],
     tickets: payload.tickets || [],
     tables: payload.tables || [],
-    priceRange: payload.priceRange || { min: 0, max: 0, currency: 'INR' },
+    ...pricing,
     isRSVP: !!payload.isRSVP,
     promoterSettings: payload.promoterSettings || { enabled: true },
     // Top-level visibility field for public discovery filtering.
@@ -150,7 +196,10 @@ export function buildEvent(payload = {}) {
     auditTrail: payload.auditTrail || [],
   };
 
-  event.status = determineStatus(event.startDate, event.endDate);
+  const { startAt, endAt } = getEventTimestamps(event);
+  event.startAt = startAt ? new Date(startAt).toISOString() : null;
+  event.endAt = endAt ? new Date(endAt).toISOString() : null;
+  event.status = determineStatus(event.startAt, event.endAt);
   event.heatScore = calculateHeatScore(event);
 
   return event;
@@ -207,6 +256,7 @@ export default {
   calculateHeatScore,
   resolveStartingPrice,
   determineStatus,
+  deriveEventPricing,
   buildEvent,
   filterAndSortEvents,
   EVENT_SORTERS,

@@ -17,8 +17,6 @@
  * the native calendar card preview in Gmail inbox.
  */
 
-import React from 'react';
-
 // ─── Helpers ──────────────────────────────────────────────────
 
 const formatCurrency = (amount) => {
@@ -317,7 +315,7 @@ export const TicketEmail = ({
 
   return (
     <html lang="en">
-      {/* eslint-disable-next-line @next/next/no-head-element */}
+      {/* eslint-disable-next-line -- email template needs raw <head> for email client compat */}
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />

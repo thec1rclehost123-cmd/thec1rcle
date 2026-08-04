@@ -1,6 +1,6 @@
 import { withSentryConfig } from '@sentry/nextjs';
-import './lib/env.js';
-import { resolveGuestApiOrigin } from './lib/api/base-url.js';
+import './lib/env.mjs';
+import { resolveGuestApiOrigin } from './lib/api/base-url.mjs';
 
 const gatewayOrigin = resolveGuestApiOrigin(process.env);
 
@@ -30,6 +30,7 @@ const nextConfig = {
       { protocol: 'https', hostname: 'images.unsplash.com', pathname: '/**' },
       { protocol: 'https', hostname: 'i.pravatar.cc', pathname: '/**' },
       { protocol: 'https', hostname: 'res.cloudinary.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'cloudinary.com', pathname: '/**' },
       { protocol: 'https', hostname: 'images.pexels.com', pathname: '/**' },
     ],
   },

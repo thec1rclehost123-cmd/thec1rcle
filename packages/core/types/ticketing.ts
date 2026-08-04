@@ -438,9 +438,7 @@ export interface SalaryCompensationDefaults {
 }
 
 export type PromoterCompensationDefaults =
-  | StandardCompensationDefaults
-  | CustomCompensationDefaults
-  | SalaryCompensationDefaults;
+  StandardCompensationDefaults | CustomCompensationDefaults | SalaryCompensationDefaults;
 
 /** Per-promoter override for standard model (one ticket commission override). */
 export interface StandardPromoterOverride {

@@ -64,6 +64,24 @@ function LivePulse() {
   );
 }
 
+function PollCountdownBadge({ prefix }: { prefix: string }) {
+  const [countdown, setCountdown] = useState(POLL_INTERVAL_MS / 1000);
+
+  useEffect(() => {
+    const interval = setInterval(
+      () => setCountdown((current) => (current <= 1 ? POLL_INTERVAL_MS / 1000 : current - 1)),
+      1000,
+    );
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <span className="text-[11px] font-medium" style={{ color: 'var(--v-text-muted)' }}>
+      {prefix} {countdown}s
+    </span>
+  );
+}
+
 function BigStat({
   label,
   value,
@@ -216,15 +234,7 @@ function CapacityBar({ sold, scanned, total }: { sold: number; scanned: number; 
 
 // ── Idle state ─────────────────────────────────────────────────────────────────
 
-function IdleState({
-  countdown,
-  onRefresh,
-  isRefreshing,
-}: {
-  countdown: number;
-  onRefresh: () => void;
-  isRefreshing: boolean;
-}) {
+function IdleState({ onRefresh, isRefreshing }: { onRefresh: () => void; isRefreshing: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
       <div className="relative mb-8">
@@ -263,9 +273,7 @@ function IdleState({
           )}
           Refresh
         </button>
-        <span className="text-[12px] font-medium" style={{ color: 'var(--v-text-muted)' }}>
-          Auto-refresh in {countdown}s
-        </span>
+        <PollCountdownBadge prefix="Auto-refresh in" />
       </div>
     </div>
   );
@@ -276,13 +284,11 @@ function IdleState({
 function LiveState({
   data,
   eventName,
-  countdown,
   onRefresh,
   isRefreshing,
 }: {
   data: AnalyticsV2;
   eventName: string;
-  countdown: number;
   onRefresh: () => void;
   isRefreshing: boolean;
 }) {
@@ -319,9 +325,7 @@ function LiveState({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-[11px] font-medium" style={{ color: 'var(--v-text-muted)' }}>
-            Refreshes in {countdown}s
-          </span>
+          <PollCountdownBadge prefix="Refreshes in" />
           <button
             onClick={onRefresh}
             disabled={isRefreshing}
@@ -512,9 +516,7 @@ export default function LiveClient() {
   const [data, setData] = useState<AnalyticsV2 | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [countdown, setCountdown] = useState(POLL_INTERVAL_MS / 1000);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const countRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchData = useCallback(
     async (silent = false) => {
@@ -537,7 +539,6 @@ export default function LiveClient() {
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
-        setCountdown(POLL_INTERVAL_MS / 1000);
       }
     },
     [profile, user],
@@ -545,7 +546,7 @@ export default function LiveClient() {
 
   // WebSocket: push-based updates when check-ins happen on the live event
   const liveEventId = data?.eventScorecards.find((e) => e.status === 'live')?.id ?? null;
-  useWebSocket({
+  const { connected: isWsConnected } = useWebSocket({
     topics: liveEventId ? [`event:${liveEventId}`] : [],
     getToken: async () => (user ? user.getIdToken() : null),
     enabled: Boolean(liveEventId),
@@ -559,23 +560,12 @@ export default function LiveClient() {
   // Initial fetch + polling loop (30s fallback when WS is down)
   useEffect(() => {
     fetchData();
+    if (isWsConnected) return;
     timerRef.current = setInterval(() => fetchData(true), POLL_INTERVAL_MS);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      if (countRef.current) clearInterval(countRef.current);
     };
-  }, [fetchData]);
-
-  // Countdown display
-  useEffect(() => {
-    countRef.current = setInterval(
-      () => setCountdown((c) => (c <= 1 ? POLL_INTERVAL_MS / 1000 : c - 1)),
-      1000,
-    );
-    return () => {
-      if (countRef.current) clearInterval(countRef.current);
-    };
-  }, []);
+  }, [fetchData, isWsConnected]);
 
   // Detect live event
   const liveEvent = data?.eventScorecards.find((e) => e.status === 'live');
@@ -612,7 +602,6 @@ export default function LiveClient() {
                 <LiveState
                   data={data}
                   eventName={liveEvent!.title}
-                  countdown={countdown}
                   onRefresh={() => fetchData(true)}
                   isRefreshing={isRefreshing}
                 />
@@ -625,11 +614,7 @@ export default function LiveClient() {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.22 }}
               >
-                <IdleState
-                  countdown={countdown}
-                  onRefresh={() => fetchData(true)}
-                  isRefreshing={isRefreshing}
-                />
+                <IdleState onRefresh={() => fetchData(true)} isRefreshing={isRefreshing} />
               </motion.div>
             )}
           </AnimatePresence>

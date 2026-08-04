@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { memo, useState, useEffect, useCallback, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { GuestOpsShell } from '@/components/guest-ops/GuestOpsShell';
 import { GuestSourceChip } from '@/components/guest-ops/chips/GuestSourceChip';
 import { GuestStatusChip } from '@/components/guest-ops/chips/GuestStatusChip';
@@ -64,6 +65,13 @@ export default function GuestListPageClient() {
   const [selectedGuest, setSelectedGuest] = useState<GuestRecord | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: guests.length,
+    getScrollElement: () => tableScrollRef.current,
+    estimateSize: () => 45,
+    overscan: 8,
+  });
 
   const canManage = hasPermission('MANAGE_GUEST_OPS');
   const canExport = hasPermission('EXPORT_GUESTS');
@@ -84,7 +92,7 @@ export default function GuestListPageClient() {
         if (cursor) params.set('cursor', cursor);
 
         const res = await fetch(`/api/partners/venues/guest-ops/${eventId}/guests?${params}`, {
-          headers: authHeaders(),
+          headers: await authHeaders(),
         });
         if (!res.ok) throw new Error('Failed');
         const data = await res.json();
@@ -120,7 +128,7 @@ export default function GuestListPageClient() {
         try {
           const res = await fetch(
             `/api/partners/venues/guest-ops/${eventId}/guests/search?venueId=${venueId}&q=${encodeURIComponent(q)}&field=name`,
-            { headers: authHeaders() },
+            { headers: await authHeaders() },
           );
           if (res.ok) {
             const d = await res.json();
@@ -144,7 +152,7 @@ export default function GuestListPageClient() {
         `/api/partners/venues/guest-ops/${eventId}/guests/${guestId}/${action}?venueId=${venueId}`,
         {
           method: 'POST',
-          headers: authHeaders(),
+          headers: await authHeaders(),
           body: JSON.stringify(body),
         },
       );
@@ -152,6 +160,14 @@ export default function GuestListPageClient() {
       setSelectedGuest(null);
     },
     [eventId, venueId, authHeaders, fetchGuests],
+  );
+  const handleSelectGuest = useCallback((guest: GuestRecord) => setSelectedGuest(guest), []);
+  const handleCheckIn = useCallback(
+    (guestId: string) =>
+      handleGuestAction('check-in', guestId, {
+        reason: 'Manual check-in from guest list',
+      }),
+    [handleGuestAction],
   );
 
   const isLocked = summary?.isLocked ?? false;
@@ -249,22 +265,35 @@ export default function GuestListPageClient() {
           ) : guests.length === 0 ? (
             <EmptyGuestList filter={filter} />
           ) : (
-            <div className="divide-y" style={{ borderColor: 'var(--v-border)' }}>
-              {guests.map((guest) => (
-                <GuestRow
-                  key={guest.guestId}
-                  guest={guest}
-                  isLocked={isLocked}
-                  canManage={canManage}
-                  onSelect={() => setSelectedGuest(guest)}
-                  onCheckIn={() =>
-                    handleGuestAction('check-in', guest.guestId, {
-                      reason: 'Manual check-in from guest list',
-                    })
-                  }
-                  onDeny={() => setSelectedGuest(guest)}
-                />
-              ))}
+            <div ref={tableScrollRef} className="h-[600px] overflow-auto">
+              <div
+                className="relative w-full"
+                style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const guest = guests[virtualRow.index];
+                  return (
+                    <div
+                      key={guest.guestId}
+                      ref={rowVirtualizer.measureElement}
+                      data-index={virtualRow.index}
+                      className="absolute left-0 top-0 w-full border-b"
+                      style={{
+                        transform: `translateY(${virtualRow.start}px)`,
+                        borderColor: 'var(--v-border)',
+                      }}
+                    >
+                      <AttendeeRow
+                        guest={guest}
+                        isLocked={isLocked}
+                        canManage={canManage}
+                        onSelect={handleSelectGuest}
+                        onCheckIn={handleCheckIn}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -322,26 +351,24 @@ export default function GuestListPageClient() {
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
-function GuestRow({
+const AttendeeRow = memo(function AttendeeRow({
   guest,
   isLocked,
   canManage,
   onSelect,
   onCheckIn,
-  onDeny,
 }: {
   guest: GuestRecord;
   isLocked: boolean;
   canManage: boolean;
-  onSelect: () => void;
-  onCheckIn: () => void;
-  onDeny: () => void;
+  onSelect: (guest: GuestRecord) => void;
+  onCheckIn: (guestId: string) => void;
 }) {
   return (
     <div
       className="grid items-center px-4 py-2.5 hover:bg-[var(--v-card-hover)] cursor-pointer text-[13px] transition-colors"
       style={{ gridTemplateColumns: '1fr 100px 100px 100px 100px 140px 120px 80px' }}
-      onClick={onSelect}
+      onClick={() => onSelect(guest)}
     >
       <div className="font-medium text-[var(--v-text-primary)] truncate pr-2">
         {guest.displayName}
@@ -372,7 +399,7 @@ function GuestRow({
       <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
         {!isLocked && !guest.checkedIn && guest.status === 'expected' && canManage && (
           <button
-            onClick={onCheckIn}
+            onClick={() => onCheckIn(guest.guestId)}
             className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600"
             title="Check In"
           >
@@ -382,7 +409,7 @@ function GuestRow({
       </div>
     </div>
   );
-}
+});
 
 function GuestTableSkeleton() {
   return (

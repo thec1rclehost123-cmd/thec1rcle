@@ -18,13 +18,21 @@ export function PromoterSalesPanel({
   stats: any;
   commissionRate: number;
 }) {
+  const rateType = stats.commissionType || 'percentage';
+  const isFixed = rateType === 'fixed' || rateType === 'flat';
+  const isCustom = stats.compensationModel === 'custom';
+
   const kpis = [
     { title: 'Total Revenue', amount: formatINR(stats.totalRevenue), icon: DollarSign, trend: '' },
     {
       title: 'Your Commission',
       amount: formatINR(stats.estimatedCommission),
       icon: TrendingUp,
-      trend: `${commissionRate}% rate`,
+      trend: isCustom
+        ? 'Varying rate'
+        : isFixed
+          ? `₹${commissionRate} flat`
+          : `${commissionRate}% rate`,
     },
     {
       title: 'Total Clicks',

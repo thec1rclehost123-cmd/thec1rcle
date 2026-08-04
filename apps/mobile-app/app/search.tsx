@@ -12,46 +12,37 @@ import {
   TextInput,
   StyleSheet,
   Keyboard,
-  ActivityIndicator,
+  InteractionManager,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, {
-  FadeIn,
   FadeInDown,
-  FadeOut,
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
-  Layout,
+  withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { useEventsStore, Event } from '@/store/eventsStore';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { SkeletonList } from '@/components/ui/Skeleton';
+import { SearchResultSkeleton } from '@/components/ui/Skeleton';
 import { colors, radii, gradients } from '@/lib/design/theme';
 import { trackScreen, trackSearch } from '@/lib/analytics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { apiFetch } from '@/lib/api';
+import {
+  buildPublicSearchPath,
+  mapPublicSearchResponse,
+  type PublicSearchFilter,
+  type PublicSearchResult,
+} from '@/lib/publicSearch';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const RECENT_SEARCHES_KEY = '@recent_searches';
 const MAX_RECENT_SEARCHES = 8;
+const SEARCH_DEBOUNCE_MS = 300;
 
-// Search result types
-type SearchResultType = 'event' | 'venue' | 'host' | 'history';
-
-interface SearchResult {
-  id: string;
-  type: SearchResultType;
-  title: string;
-  subtitle?: string;
-  imageUrl?: string;
-  data?: any;
-}
-
-// Filter chips
 const FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'events', label: 'Events' },
@@ -59,15 +50,13 @@ const FILTERS = [
   { id: 'hosts', label: 'Hosts' },
 ];
 
-const CITIES = ['Mumbai', 'Delhi', 'Bangalore', 'Pune', 'Goa', 'All Cities'];
-
 // Search result card
 function SearchResultCard({
   result,
   index,
   onPress,
 }: {
-  result: SearchResult;
+  result: PublicSearchResult;
   index: number;
   onPress: (posterTransitionTag: string) => void;
 }) {
@@ -79,16 +68,16 @@ function SearchResultCard({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.98, { duration: 250 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(1, { duration: 250 });
   };
 
   return (
     <AnimatedPressable
-      entering={FadeInDown.delay(index * 40).springify()}
+      entering={FadeInDown.delay(index * 40)}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={() => {
@@ -156,7 +145,7 @@ function RecentSearchItem({
   delay: number;
 }) {
   return (
-    <Animated.View entering={FadeInDown.delay(delay).springify()} style={styles.recentSearchItem}>
+    <Animated.View entering={FadeInDown.delay(delay)} style={styles.recentSearchItem}>
       <Pressable onPress={onPress} style={styles.recentSearchContent}>
         <Text style={styles.recentSearchIcon}>🕐</Text>
         <Text style={styles.recentSearchText}>{query}</Text>
@@ -195,25 +184,31 @@ function FilterChip({
 
 export default function SearchScreen() {
   const { filter: initialFilter } = useLocalSearchParams<{ filter?: string }>();
-  const { events, fetchPublicEvents } = useEventsStore();
   const insets = useSafeAreaInsets();
   const inputRef = useRef<TextInput>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchIdRef = useRef(0);
 
   const [query, setQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState(initialFilter || 'all');
+  const [activeFilter, setActiveFilter] = useState<PublicSearchFilter>(
+    initialFilter === 'events' || initialFilter === 'venues' || initialFilter === 'hosts'
+      ? initialFilter
+      : 'all',
+  );
   const [selectedCity, setSelectedCity] = useState('All Cities');
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<PublicSearchResult[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [isCityPickerOpen, setIsCityPickerOpen] = useState(false);
 
   useEffect(() => {
     trackScreen('Search');
     loadRecentSearches();
-    fetchPublicEvents({ limit: 50 });
-
-    // Auto-focus input
-    setTimeout(() => inputRef.current?.focus(), 100);
+    InteractionManager.runAfterInteractions(() => {
+      inputRef.current?.focus();
+    });
   }, []);
 
   const loadRecentSearches = async () => {
@@ -233,7 +228,6 @@ export default function SearchScreen() {
         0,
         MAX_RECENT_SEARCHES,
       );
-
       setRecentSearches(updated);
       await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
     } catch (error) {
@@ -253,78 +247,77 @@ export default function SearchScreen() {
   };
 
   const performSearch = useCallback(
-    (searchQuery: string) => {
+    async (searchQuery: string, overrides: { filter?: PublicSearchFilter; city?: string } = {}) => {
       if (!searchQuery.trim()) {
+        searchIdRef.current += 1;
         setResults([]);
         setHasSearched(false);
+        setLoading(false);
+        setError(null);
         return;
       }
 
+      const searchId = ++searchIdRef.current;
       setLoading(true);
       setHasSearched(true);
+      setError(null);
 
-      const lowerQuery = searchQuery.toLowerCase();
+      try {
+        const resolvedFilter = overrides.filter ?? activeFilter;
+        const resolvedCity = overrides.city ?? selectedCity;
+        const response = await apiFetch(
+          buildPublicSearchPath(searchQuery, resolvedFilter, resolvedCity),
+          { requireAuth: false },
+        );
 
-      // Search events
-      const eventResults: SearchResult[] = events
-        .filter((event) => {
-          const matchesQuery =
-            event.title.toLowerCase().includes(lowerQuery) ||
-            event.venue?.toLowerCase().includes(lowerQuery) ||
-            event.category?.toLowerCase().includes(lowerQuery) ||
-            event.location?.toLowerCase().includes(lowerQuery);
+        if (searchId !== searchIdRef.current) return;
+        const mapped = mapPublicSearchResponse(response as Record<string, any>, resolvedFilter);
 
-          const matchesCity =
-            selectedCity === 'All Cities' || event.location?.includes(selectedCity);
-
-          return matchesQuery && matchesCity;
-        })
-        .map((event) => ({
-          id: event.id,
-          type: 'event' as SearchResultType,
-          title: event.title,
-          subtitle: event.venue || event.location,
-          imageUrl: event.coverImage,
-          data: event,
-        }));
-
-      // Filter by type if needed
-      let filteredResults = eventResults;
-      if (activeFilter === 'venues') {
-        // Group by venue
-        const venueMap = new Map<string, SearchResult>();
-        eventResults.forEach((r) => {
-          if (r.subtitle && !venueMap.has(r.subtitle)) {
-            const eventData = r.data as Event & { venueId?: string };
-            venueMap.set(r.subtitle, {
-              id: eventData.venueId || `venue-${r.subtitle}`,
-              type: 'venue',
-              title: r.subtitle,
-              subtitle: `${events.filter((e) => e.venue === r.subtitle).length} events`,
-              imageUrl: r.imageUrl,
-              data: {
-                venueId: eventData.venueId,
-                query: r.subtitle,
-              },
-            });
-          }
+        setResults(mapped);
+        trackSearch(searchQuery, mapped.length, {
+          filter: resolvedFilter,
+          city: resolvedCity,
         });
-        filteredResults = Array.from(venueMap.values());
+      } catch (err: any) {
+        if (searchId !== searchIdRef.current) return;
+        setError(err.message || 'Search failed. Please try again.');
+        setResults([]);
+      } finally {
+        if (searchId === searchIdRef.current) {
+          setLoading(false);
+        }
       }
-
-      setResults(filteredResults);
-      setLoading(false);
-
-      trackSearch(searchQuery, filteredResults.length, {
-        filter: activeFilter,
-        city: selectedCity,
-      });
     },
-    [events, activeFilter, selectedCity],
+    [activeFilter, selectedCity],
   );
+
+  const debouncedSearch = useCallback(
+    (text: string) => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null;
+        performSearch(text);
+      }, SEARCH_DEBOUNCE_MS);
+    },
+    [performSearch],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleSearch = () => {
     Keyboard.dismiss();
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
     if (query.trim()) {
       saveRecentSearch(query.trim());
       performSearch(query);
@@ -333,11 +326,15 @@ export default function SearchScreen() {
 
   const handleRecentSearchPress = (searchQuery: string) => {
     setQuery(searchQuery);
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
     saveRecentSearch(searchQuery);
     performSearch(searchQuery);
   };
 
-  const handleResultPress = (result: SearchResult, posterTransitionTag?: string) => {
+  const handleResultPress = (result: PublicSearchResult, posterTransitionTag?: string) => {
     if (result.type === 'event') {
       router.push({
         pathname: '/event/[id]',
@@ -351,8 +348,20 @@ export default function SearchScreen() {
       if (venueId) {
         router.push(`/venue/${venueId}` as never);
       } else {
-        setQuery(result.title);
-        performSearch(result.title);
+        router.push({
+          pathname: '/search',
+          params: { filter: 'venues', q: result.title },
+        });
+      }
+    } else if (result.type === 'host') {
+      const hostId = result.data?.hostId as string | undefined;
+      if (hostId) {
+        router.push(`/host/${hostId}` as never);
+      } else {
+        router.push({
+          pathname: '/search',
+          params: { filter: 'hosts', q: result.title },
+        });
       }
     }
   };
@@ -367,20 +376,18 @@ export default function SearchScreen() {
   };
 
   const clearQuery = () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    searchIdRef.current += 1;
     setQuery('');
     setResults([]);
     setHasSearched(false);
+    setLoading(false);
+    setError(null);
     inputRef.current?.focus();
   };
-
-  // Suggested searches when empty
-  const suggestedSearches = [
-    'Techno',
-    'Hip Hop Night',
-    'Rooftop Party',
-    'Live Music',
-    'Club Night',
-  ];
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -394,10 +401,14 @@ export default function SearchScreen() {
             onChangeText={(text) => {
               setQuery(text);
               if (text.length > 2) {
-                performSearch(text);
+                debouncedSearch(text);
               } else if (text.length === 0) {
+                if (debounceTimerRef.current) {
+                  clearTimeout(debounceTimerRef.current);
+                }
                 setResults([]);
                 setHasSearched(false);
+                setError(null);
               }
             }}
             placeholder="Search events, venues..."
@@ -433,8 +444,14 @@ export default function SearchScreen() {
               selected={activeFilter === filter.id}
               onPress={() => {
                 Haptics.selectionAsync();
-                setActiveFilter(filter.id);
-                if (query) performSearch(query);
+                const nextFilter = filter.id as PublicSearchFilter;
+                setActiveFilter(nextFilter);
+                if (query) {
+                  if (debounceTimerRef.current) {
+                    clearTimeout(debounceTimerRef.current);
+                  }
+                  performSearch(query, { filter: nextFilter });
+                }
               }}
             />
           ))}
@@ -445,7 +462,8 @@ export default function SearchScreen() {
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              // Show city picker
+              Keyboard.dismiss();
+              setIsCityPickerOpen(true);
             }}
             style={styles.cityFilter}
           >
@@ -466,7 +484,7 @@ export default function SearchScreen() {
         {/* Loading */}
         {loading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.iris} />
+            <SearchResultSkeleton count={4} />
           </View>
         )}
 
@@ -478,7 +496,7 @@ export default function SearchScreen() {
             </Text>
             {results.map((result, index) => (
               <SearchResultCard
-                key={result.id}
+                key={`${result.type}:${result.id}`}
                 result={result}
                 index={index}
                 onPress={(posterTransitionTag) => handleResultPress(result, posterTransitionTag)}
@@ -487,8 +505,18 @@ export default function SearchScreen() {
           </View>
         )}
 
+        {/* Error state */}
+        {!loading && error && (
+          <EmptyState
+            type="error"
+            message={error}
+            actionLabel="Try Again"
+            onAction={() => performSearch(query)}
+          />
+        )}
+
         {/* No results */}
-        {!loading && hasSearched && results.length === 0 && (
+        {!loading && !error && hasSearched && results.length === 0 && (
           <EmptyState
             type="no-search-results"
             message={`No results for "${query}". Try different keywords.`}
@@ -526,58 +554,76 @@ export default function SearchScreen() {
                 ))}
               </View>
             )}
-
-            {/* Suggested Searches */}
-            <View style={styles.suggestedSection}>
-              <Text style={styles.sectionTitle}>Popular Searches</Text>
-              <View style={styles.suggestedChips}>
-                {suggestedSearches.map((suggestion, index) => (
-                  <Animated.View
-                    key={suggestion}
-                    entering={FadeInDown.delay(index * 40).springify()}
-                  >
-                    <Pressable
-                      onPress={() => handleRecentSearchPress(suggestion)}
-                      style={styles.suggestedChip}
-                    >
-                      <Text style={styles.suggestedChipText}>{suggestion}</Text>
-                    </Pressable>
-                  </Animated.View>
-                ))}
-              </View>
-            </View>
-
-            {/* Featured venues */}
-            <View style={styles.featuredSection}>
-              <Text style={styles.sectionTitle}>Featured Venues</Text>
-              <ScrollView
-                bounces={false}
-                overScrollMode="never"
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.featuredList}
-              >
-                {['District Club', 'Toit Brewpub', 'BKC Social', 'Yautcha'].map((venue, index) => (
-                  <Animated.View
-                    key={venue}
-                    entering={FadeInDown.delay(100 + index * 50).springify()}
-                  >
-                    <Pressable
-                      onPress={() => handleRecentSearchPress(venue)}
-                      style={styles.featuredCard}
-                    >
-                      <View style={styles.featuredImagePlaceholder}>
-                        <Text style={styles.featuredEmoji}>📍</Text>
-                      </View>
-                      <Text style={styles.featuredTitle}>{venue}</Text>
-                    </Pressable>
-                  </Animated.View>
-                ))}
-              </ScrollView>
-            </View>
           </>
         )}
       </ScrollView>
+
+      {isCityPickerOpen && (
+        <View style={StyleSheet.absoluteFill}>
+          <Pressable
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}
+            onPress={() => setIsCityPickerOpen(false)}
+          />
+          <Animated.View
+            entering={FadeInDown.duration(200)}
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: '#161616',
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              paddingBottom: insets.bottom + 16,
+              paddingTop: 16,
+              paddingHorizontal: 16,
+            }}
+          >
+            <View style={{ alignItems: 'center', marginBottom: 16 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: '#333' }} />
+              <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 16 }}>
+                Select City
+              </Text>
+            </View>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {['All Cities', 'Mumbai', 'Delhi', 'Bangalore', 'Goa', 'Pune'].map((city) => (
+                <Pressable
+                  key={city}
+                  style={{
+                    paddingVertical: 16,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    borderBottomWidth: 1,
+                    borderBottomColor: 'rgba(255,255,255,0.05)',
+                  }}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    if (debounceTimerRef.current) {
+                      clearTimeout(debounceTimerRef.current);
+                      debounceTimerRef.current = null;
+                    }
+                    setSelectedCity(city);
+                    setIsCityPickerOpen(false);
+                    if (query) performSearch(query, { city });
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: selectedCity === city ? colors.gold : '#fff',
+                      fontSize: 16,
+                      fontWeight: selectedCity === city ? '700' : '500',
+                    }}
+                  >
+                    {city}
+                  </Text>
+                  {selectedCity === city && <Text style={{ color: colors.gold }}>✓</Text>}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </Animated.View>
+        </View>
+      )}
     </View>
   );
 }
@@ -683,8 +729,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   loadingContainer: {
-    paddingVertical: 60,
-    alignItems: 'center',
+    paddingVertical: 18,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -805,57 +850,5 @@ const styles = StyleSheet.create({
   recentSearchRemoveIcon: {
     color: colors.goldMetallic,
     fontSize: 14,
-  },
-
-  // Suggested
-  suggestedSection: {},
-  suggestedChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  suggestedChip: {
-    backgroundColor: colors.base[50],
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  suggestedChipText: {
-    color: colors.gold,
-    fontSize: 14,
-  },
-
-  // Featured
-  featuredSection: {
-    marginTop: 8,
-  },
-  featuredList: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  featuredCard: {
-    width: 120,
-    alignItems: 'center',
-  },
-  featuredImagePlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: radii.xl,
-    backgroundColor: colors.base[50],
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  featuredEmoji: {
-    fontSize: 32,
-  },
-  featuredTitle: {
-    color: colors.gold,
-    fontSize: 13,
-    fontWeight: '500',
-    textAlign: 'center',
   },
 });

@@ -6,7 +6,8 @@ import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
 import {
   getPartnerProfileSummary,
-  getConnectionForViewer,
+  getPartnerProfileSummariesById,
+  getPartnerProfileWithPii,
 } from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { PromoterService } from '../../../services/unified/promoter-service.js';
@@ -22,6 +23,15 @@ import {
 } from '../../../lib/signed-urls.js';
 import { getAdminStorage } from '@c1rcle/core/admin';
 import { resolveEffectiveCommission, normalizeCompensationForRead } from '../events.js';
+// @ts-ignore - JS module with runtime exports
+import {
+  signPromoterAttribution,
+  verifyPromoterAttribution,
+} from '@c1rcle/core/promoter-attribution';
+import {
+  PromoterAssignmentRequestError,
+  requestPromoterAssignment,
+} from '@c1rcle/core/promoter-assignment-request';
 
 const AnalyticsQuerySchema = z
   .object({
@@ -45,10 +55,14 @@ const LinksQuerySchema = z
 
 const CreateLinkSchema = z
   .object({
-    eventId: z.string().optional(),
-    commissionRate: z.coerce.number().min(0).max(10000).optional(),
+    eventId: z.string().min(1),
+    promoterName: z.string().trim().max(120).optional(),
+    ticketTierIds: z.array(z.string()).max(50).optional(),
+    customTrackingCode: z.string().min(3).max(32).optional(),
+    campaignLabel: z.string().max(120).optional(),
+    channel: z.string().max(60).optional(),
   })
-  .passthrough();
+  .strict();
 
 const UpdateLinkSchema = z
   .object({
@@ -66,6 +80,12 @@ const EventsQuerySchema = z
     city: z.string().optional(),
   })
   .passthrough();
+
+const PromoterAssignmentRequestSchema = z
+  .object({
+    promoterName: z.string().trim().max(120).optional(),
+  })
+  .strict();
 
 const ConnectionsQuerySchema = z
   .object({
@@ -160,13 +180,30 @@ function toNumber(value: any): number {
  * predates `promoterCompensation` entirely.
  */
 function resolveEventCommissionRate(event: Record<string, any>, promoterId: string): number {
+  if (event.isRSVP === true) {
+    return 0;
+  }
   if (event.promoterCompensation) {
     const pc = normalizeCompensationForRead(event.promoterCompensation);
     return toNumber(resolveEffectiveCommission(pc, promoterId).rate);
   }
-  return toNumber(event.promoterSettings?.commissionRate || event.commissionRate || 0);
+  return toNumber(event.promoterSettings?.commissionRate ?? event.commissionRate ?? 0);
 }
 
+function resolveEventCommissionType(
+  event: Record<string, any>,
+  promoterId: string,
+): 'percentage' | 'fixed' {
+  if (event.isRSVP === true) {
+    return 'percentage';
+  }
+  if (event.promoterCompensation) {
+    const pc = normalizeCompensationForRead(event.promoterCompensation);
+    return resolveEffectiveCommission(pc, promoterId).type;
+  }
+  const type = event.promoterSettings?.commissionType || event.commissionType;
+  return type === 'flat' || type === 'fixed' ? 'fixed' : 'percentage';
+}
 function toIso(value: any): string | null {
   if (!value) return null;
   if (typeof value?.toDate === 'function') return value.toDate().toISOString();
@@ -361,6 +398,18 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   const svcCtx = { db: fastify.db, log: fastify.log, redis: fastify.redis };
   const promoterService = new PromoterService(svcCtx);
   const financeService = new FinanceService(svcCtx);
+  const invalidatePromoterReadCaches = async ({
+    finance = false,
+  }: {
+    finance?: boolean;
+  } = {}) => {
+    if (typeof fastify.cache?.invalidateNamespace !== 'function') return;
+    const namespaces = ['promoter-analytics', 'promoter-links', 'partners'];
+    if (finance) namespaces.push('partner-finance-ledger');
+    await Promise.allSettled(
+      namespaces.map((namespace) => fastify.cache.invalidateNamespace(namespace)),
+    );
+  };
 
   const pickString = (...values: any[]) => {
     for (const value of values) {
@@ -407,6 +456,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       endTime: pickString(event.endTime),
       campaignLabel: pickString(link.campaignLabel, link.label),
       label: pickString(link.label, link.campaignLabel),
+      promoterHandle: pickString(link.promoterHandle) || null,
       code: pickString(link.code),
       shortCode: pickString(link.shortCode, link.code),
       channel: pickString(link.channel),
@@ -419,7 +469,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       revenue: toNumber(link.revenue),
       commission: toNumber(link.commission),
       clearedCommission: toNumber(link.clearedCommission ?? link.commission),
-      commissionRate: toNumber(link.commissionRate),
+      commissionType: link.commissionType || 'percentage',
+      tierCommissions: link.tierCommissions || null,
       fullUrl: pickString(link.fullUrl, link.url) || null,
       vanityPrefix: pickString(link.vanityPrefix) || null,
       vanitySlug: pickString(link.vanitySlug) || null,
@@ -443,13 +494,28 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     activeLink?: Record<string, any>,
     promoterId?: string,
   ) => {
+    let overallRate = resolveEventCommissionRate(event, promoterId || '');
+    let overallType = resolveEventCommissionType(event, promoterId || '');
+    let tierCommissionsMap = activeLink?.tierCommissions || null;
+
+    if (!tierCommissionsMap && event.promoterCompensation) {
+      const pc = normalizeCompensationForRead(event.promoterCompensation);
+      tierCommissionsMap = resolveEffectiveCommission(pc, promoterId || '').tierCommissions;
+    }
+
     const tickets = Array.isArray(event.tickets)
-      ? event.tickets.map((ticket: any, index: number) => ({
-          id: String(ticket?.id || ticket?.ticketTierId || index),
-          name: pickString(ticket?.name, ticket?.title, `Tier ${index + 1}`),
-          price: toNumber(ticket?.price || ticket?.amount),
-          promoterEnabled: ticket?.promoterEnabled !== false,
-        }))
+      ? event.tickets.map((ticket: any, index: number) => {
+          const tierId = String(ticket?.id || ticket?.ticketTierId || index);
+          const tierComm = tierCommissionsMap ? tierCommissionsMap[tierId] : null;
+          return {
+            id: tierId,
+            name: pickString(ticket?.name, ticket?.title, `Tier ${index + 1}`),
+            price: toNumber(ticket?.price || ticket?.amount),
+            promoterEnabled: ticket?.promoterEnabled !== false,
+            commissionRate: tierComm ? toNumber(tierComm.rate) : toNumber(overallRate),
+            commissionType: tierComm ? tierComm.type : overallType,
+          };
+        })
       : [];
 
     return {
@@ -472,9 +538,12 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         min: tickets.length ? Math.min(...tickets.map((ticket: any) => toNumber(ticket.price))) : 0,
         max: tickets.length ? Math.max(...tickets.map((ticket: any) => toNumber(ticket.price))) : 0,
       },
+      compensationModel: event.promoterCompensation?.model || event.compensationModel || 'standard',
       commissionRate: toNumber(
-        activeLink?.commissionRate || resolveEventCommissionRate(event, promoterId || ''),
+        activeLink?.commissionRate ?? resolveEventCommissionRate(event, promoterId || ''),
       ),
+      commissionType:
+        activeLink?.commissionType || resolveEventCommissionType(event, promoterId || ''),
       tickets,
       stats: {
         interested: toNumber(event.interestedCount || event.rsvpCount || event.views || 0),
@@ -529,14 +598,11 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       err.code = 'BAD_REQUEST';
       throw err;
     }
-    const assignmentSnap = await fastify.db
+    const assignmentId = `${promoterId}_${eventId}`;
+    const assignmentDoc = await fastify.db
       .collection('promoter_assignments')
-      .where('promoterId', '==', promoterId)
-      .where('eventId', '==', eventId)
-      .limit(1)
+      .doc(assignmentId)
       .get();
-
-    let assignment;
     const eventDoc = await fastify.db.collection('events').doc(eventId).get();
 
     if (!eventDoc.exists) {
@@ -549,35 +615,31 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     const event: Record<string, any> = { id: eventDoc.id, ...(eventDoc.data() || {}) };
 
     const status = event.lifecycle || event.status || 'draft';
-    if (status !== 'published' && status !== 'live') {
+    if (!['scheduled', 'published', 'live'].includes(String(status).toLowerCase())) {
       const err: any = new Error('This event is not active or accepting promoters');
       err.statusCode = 403;
       err.code = 'FORBIDDEN';
       throw err;
     }
 
-    if (assignmentSnap.empty) {
-      if (!isPromoterAllowedForEvent(event, promoterId)) {
-        const err: any = new Error('Promoter is not assigned to this event');
-        err.statusCode = 403;
-        err.code = 'FORBIDDEN';
-        throw err;
-      }
-      // Auto-create assignment
-      const assignmentRef = fastify.db.collection('promoter_assignments').doc();
-      assignment = {
-        id: assignmentRef.id,
-        promoterId,
-        eventId,
-        eventName: encrypt(event.title || event.name || 'Event'),
-        venueName: encrypt(event.venueName || event.venue || ''),
-        status: 'active',
-        commissionRate: resolveEventCommissionRate(event, promoterId),
-        createdAt: new Date().toISOString(),
-      };
-      await assignmentRef.set(assignment);
-    } else {
-      assignment = assignmentSnap.docs[0].data();
+    if (!assignmentDoc.exists) {
+      const err: any = new Error('Promoter is not assigned to this event');
+      err.statusCode = 403;
+      err.code = 'PROMOTER_ASSIGNMENT_REQUIRED';
+      throw err;
+    }
+    const assignment = assignmentDoc.data() as any;
+    if (
+      assignment.status !== 'active' ||
+      assignment.promoterId !== promoterId ||
+      assignment.eventId !== eventId ||
+      Number(assignment.assignmentVersion || 0) < 2 ||
+      !assignment.approvedByPartnerId
+    ) {
+      const err: any = new Error('Approved promoter assignment is invalid');
+      err.statusCode = 403;
+      err.code = 'PROMOTER_ASSIGNMENT_REQUIRED';
+      throw err;
     }
 
     const existingSnap = await fastify.db
@@ -588,14 +650,35 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       .limit(1)
       .get();
 
-    if (!existingSnap.empty) {
-      const existing = { id: existingSnap.docs[0].id, ...(existingSnap.docs[0].data() || {}) };
+    const currentExisting = existingSnap.docs.find(
+      (doc: any) =>
+        Number(doc.data().assignmentVersion || 0) >= 2 && Boolean(doc.data().attributionSignature),
+    );
+    if (currentExisting) {
+      const existing = { id: currentExisting.id, ...(currentExisting.data() || {}) };
       return { link: buildLegacyLink(existing, event), duplicate: true };
     }
+    await Promise.all(
+      existingSnap.docs.map((doc: any) =>
+        doc.ref.set(
+          {
+            isActive: false,
+            active: false,
+            status: 'quarantined_unverified_assignment',
+            quarantinedAt: new Date().toISOString(),
+          },
+          { merge: true },
+        ),
+      ),
+    );
 
     const promoterRef = fastify.db.collection('promoters').doc(promoterId);
     const promoterDoc = await promoterRef.get();
-    let trackingCode = promoterDoc.exists ? promoterDoc.data()?.trackingCode : null;
+    const promoterData = promoterDoc.exists ? promoterDoc.data() || {} : {};
+    const promoterHandle = pickString(promoterData.handle, promoterData.username)
+      .replace(/^@/, '')
+      .toLowerCase();
+    let trackingCode = promoterData.trackingCode || null;
 
     if (!trackingCode) {
       if (body.customTrackingCode) {
@@ -651,19 +734,30 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     let code = trackingCode;
 
     const now = new Date().toISOString();
-    const id = randomUUID();
+    const id = assignmentId;
+    let resolvedRate = Number(assignment.commissionRate || 0);
+    const resolvedType = assignment.commissionType || 'percentage';
+    const resolvedTierCommissions = assignment.tierCommissions || null;
+
+    if (resolvedType === 'percentage') {
+      resolvedRate = normalizePromoterCommissionRate(resolvedRate);
+    }
+
     const link = {
       id,
       promoterId,
       promoterName: body.promoterName || '',
+      promoterHandle: promoterHandle || null,
       eventId,
       eventTitle: pickString(body.eventTitle, event.title, event.name),
       campaignLabel: pickString(body.campaignLabel),
       ticketTierIds: Array.isArray(body.ticketTierIds) ? body.ticketTierIds : [],
-      commissionRate: normalizePromoterCommissionRate(
-        assignment.commissionRate || resolveEventCommissionRate(event, promoterId),
-      ),
-      commissionType: pickString(body.commissionType, 'percentage'),
+      commissionRate: resolvedRate,
+      commissionType: resolvedType,
+      tierCommissions: resolvedTierCommissions,
+      assignmentId,
+      assignmentVersion: Number(assignment.assignmentVersion),
+      termsVersion: Number(assignment.termsVersion || assignment.assignmentVersion),
       code,
       clicks: 0,
       conversions: 0,
@@ -673,13 +767,14 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       active: true,
       status: 'active',
       fullUrl: pickString(body.fullUrl) || null,
-      vanityPrefix: pickString(body.vanityPrefix) || null,
+      vanityPrefix: promoterHandle ? `/${promoterHandle}/` : null,
       vanitySlug: pickString(body.editableSlug) || null,
       vanityAlias: pickString(body.editableSlug) || null,
       channel: pickString(body.channel, 'organic'),
       createdAt: now,
       updatedAt: now,
     };
+    (link as any).attributionSignature = signPromoterAttribution(link);
     await fastify.db.collection('promoter_links').doc(id).set(link);
     return { link: buildLegacyLink(link, event), duplicate: false };
   };
@@ -705,6 +800,27 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       throw err;
     }
     const action = String(body.action || deriveLinkAction(body) || '').toLowerCase();
+    if (action !== 'deactivate') {
+      const assignmentId = `${promoterId}_${current.eventId}`;
+      const assignmentDoc = await fastify.db
+        .collection('promoter_assignments')
+        .doc(assignmentId)
+        .get();
+      const assignment = assignmentDoc.exists ? assignmentDoc.data() : null;
+      if (
+        !assignment ||
+        assignment.status !== 'active' ||
+        current.assignmentId !== assignmentId ||
+        Number(current.assignmentVersion || 0) < 2 ||
+        Number(assignment.assignmentVersion || 0) !== Number(current.assignmentVersion || 0) ||
+        !verifyPromoterAttribution(current, current.attributionSignature)
+      ) {
+        const err: any = new Error('Link is not backed by an active signed assignment');
+        err.statusCode = 409;
+        err.code = 'PROMOTER_LINK_QUARANTINED';
+        throw err;
+      }
+    }
     const editableSlug = pickString(body.editableSlug);
     const updates: Record<string, any> = { updatedAt: new Date().toISOString() };
     if (action === 'deactivate') {
@@ -787,6 +903,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     const assignedEventIds: string[] = Array.from(
       new Set(
         ((assignmentsSnap as any).docs || [])
+          .filter((doc: any) => String(doc.data()?.status || '').toLowerCase() === 'active')
           .map((doc: any) => String(doc.data()?.eventId || ''))
           .filter(Boolean),
       ),
@@ -921,7 +1038,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       const revenue = toNumber(
         assignment.totalRevenue || assignment.revenue || activeLink?.revenue,
       );
-      const commissionRate = toNumber(assignment.commissionRate || activeLink?.commissionRate);
+      const commissionRate = toNumber(assignment.commissionRate ?? activeLink?.commissionRate);
       const estimatedCommission = toNumber(
         assignment.totalCommission || assignment.commissionEarned || activeLink?.commission,
       );
@@ -1235,34 +1352,37 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     // Firestore `in` query limits to 30 items
     const codes = allCodes.slice(0, 30);
 
-    let query = fastify.db.collection('orders').where('promoterCode', 'in', codes);
-
-    if (eventId) {
-      query = query.where('eventId', '==', eventId);
-    }
-
-    if (status === 'checked_in') {
-      // Must have checkedInAt or be explicitly marked checked_in
-      // For simplicity, if we filter by status we'll use the 'status' field.
-      // Assuming 'checked_in' is a valid status string
-      query = query.where('status', '==', 'checked_in');
-    } else if (status === 'pending') {
-      query = query.where('status', '==', 'confirmed');
-    }
-
-    query = query.orderBy('createdAt', 'desc').limit(limit + 1);
-
-    if (cursor) {
-      const cursorDoc = await fastify.db.collection('orders').doc(cursor).get();
-      if (cursorDoc.exists) {
-        query = query.startAfter(cursorDoc);
+    const buildQuery = (collectionName: string, useOrderBy: boolean) => {
+      let q = fastify.db.collection(collectionName).where('promoterCode', 'in', codes);
+      if (eventId) {
+        q = q.where('eventId', '==', eventId);
       }
-    }
+      if (status === 'checked_in') {
+        q = q.where('status', '==', 'checked_in');
+      } else if (status === 'pending') {
+        q = q.where('status', '==', 'confirmed');
+      }
+      if (useOrderBy) {
+        q = q.orderBy('createdAt', 'desc');
+      }
+      return q;
+    };
 
-    let snap;
+    let orderDocs: any[] = [];
+    let rsvpDocs: any[] = [];
     let fallbackUsed = false;
+
     try {
-      snap = await query.get();
+      const [orderSnap, rsvpSnap] = await Promise.all([
+        buildQuery('orders', true)
+          .limit(Math.max(limit + 50, 150))
+          .get(),
+        buildQuery('rsvp_orders', true)
+          .limit(Math.max(limit + 50, 150))
+          .get(),
+      ]);
+      orderDocs = orderSnap.docs;
+      rsvpDocs = rsvpSnap.docs;
     } catch (err: any) {
       const errMsg = String(err.message || err.details || '');
       if (err.code === 9 || errMsg.includes('index') || errMsg.includes('FAILED_PRECONDITION')) {
@@ -1270,49 +1390,66 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           errMsg.match(/https:\/\/console\.firebase\.google\.com\S+/)?.[0] ||
           'Check Firebase Console';
         fastify.log.warn(
-          `[resolvePromoterGuests] Missing Firestore composite index. You can create it here: ${url}`,
+          `[resolvePromoterGuests] Missing Firestore composite index, falling back to in-memory sort. URL: ${url}`,
         );
 
-        let fallbackQuery = fastify.db.collection('orders').where('promoterCode', 'in', codes);
-        if (eventId) {
-          fallbackQuery = fallbackQuery.where('eventId', '==', eventId);
-        }
-        if (status === 'checked_in') {
-          fallbackQuery = fallbackQuery.where('status', '==', 'checked_in');
-        } else if (status === 'pending') {
-          fallbackQuery = fallbackQuery.where('status', '==', 'confirmed');
-        }
-
-        snap = await fallbackQuery.limit(500).get();
+        const [orderSnap, rsvpSnap] = await Promise.all([
+          buildQuery('orders', false).limit(500).get(),
+          buildQuery('rsvp_orders', false).limit(500).get(),
+        ]);
+        orderDocs = orderSnap.docs;
+        rsvpDocs = rsvpSnap.docs;
         fallbackUsed = true;
       } else {
         throw err;
       }
     }
 
-    let allDocs = snap.docs;
-    if (fallbackUsed) {
-      // Sort in-memory by createdAt desc
-      allDocs.sort((a: any, b: any) => {
-        const dateA = a.data().createdAt ? new Date(a.data().createdAt).getTime() : 0;
-        const dateB = b.data().createdAt ? new Date(b.data().createdAt).getTime() : 0;
-        return dateB - dateA;
-      });
+    let allDocs = [...orderDocs, ...rsvpDocs];
 
-      // Handle cursor pagination in-memory
-      if (cursor) {
-        const cursorIndex = allDocs.findIndex((d: any) => d.id === cursor);
-        if (cursorIndex !== -1) {
-          allDocs = allDocs.slice(cursorIndex + 1);
+    // Sort in-memory by createdAt desc
+    allDocs.sort((a: any, b: any) => {
+      const dateA = a.data().createdAt ? new Date(a.data().createdAt).getTime() : 0;
+      const dateB = b.data().createdAt ? new Date(b.data().createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    // Handle cursor pagination in-memory
+    if (cursor) {
+      const cursorIndex = allDocs.findIndex((d: any) => d.id === cursor);
+      if (cursorIndex !== -1) {
+        allDocs = allDocs.slice(cursorIndex + 1);
+      } else {
+        // Fallback: fetch the cursor doc's createdAt timestamp if not in slice
+        const cursorDoc =
+          (await fastify.db
+            .collection('orders')
+            .doc(cursor)
+            .get()
+            .catch(() => null)) ||
+          (await fastify.db
+            .collection('rsvp_orders')
+            .doc(cursor)
+            .get()
+            .catch(() => null));
+        if (cursorDoc && cursorDoc.exists) {
+          const cursorData = cursorDoc.data();
+          const cursorTime = cursorData?.createdAt ? new Date(cursorData.createdAt).getTime() : 0;
+          allDocs = allDocs.filter((d: any) => {
+            const dTime = d.data().createdAt ? new Date(d.data().createdAt).getTime() : 0;
+            if (dTime < cursorTime) return true;
+            if (dTime === cursorTime) return d.id > cursor; // tie-breaker
+            return false;
+          });
         }
       }
     }
 
     const hasMore = allDocs.length > limit;
-    const orderDocs = allDocs.slice(0, limit);
+    const finalDocs = allDocs.slice(0, limit);
 
     const eventIds = [
-      ...new Set(orderDocs.map((d: any) => String(d.data().eventId || '')).filter(Boolean)),
+      ...new Set(finalDocs.map((d: any) => String(d.data().eventId || '')).filter(Boolean)),
     ];
     const eventSnaps =
       eventIds.length > 0
@@ -1323,11 +1460,11 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       if (doc.exists)
         eventMap.set(doc.id, (doc.data() as any).title || (doc.data() as any).name || '');
     }
-    const guests = orderDocs.map((doc: any) => {
+    const guests = finalDocs.map((doc: any) => {
       const order = doc.data() as Record<string, any>;
       const totalPaise = toNumber(order.totalPaise || 0);
       const amount = totalPaise > 0 ? totalPaise / 100 : toNumber(order.amount || 0);
-      const commissionRate = toNumber(order.commissionRate || 0.1);
+      const commissionRate = toNumber(order.commissionRate ?? 0.1);
       return {
         id: doc.id,
         guestName: order.guestName || order.buyerName || 'Guest',
@@ -1351,6 +1488,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   };
 
   const buildPromoterFinancePayload = async (promoterId: string) => {
+    const cacheKey = `promoter:${promoterId}:finance:contract-v1`;
+    const cached = await fastify.cache.get('partner-finance-ledger', cacheKey);
+    if (cached) return cached;
+
     const promoterCtx = {
       partnerId: promoterId,
       uid: promoterId,
@@ -1423,7 +1564,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       }
     }
 
-    return {
+    const payload = {
       balance: {
         totalEarned: toNumber(balances.available) + toNumber(balances.pending),
         available: toNumber(balances.available),
@@ -1457,6 +1598,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         };
       }),
     };
+    await fastify.cache.set('partner-finance-ledger', cacheKey, payload, 120);
+    return payload;
   };
 
   const createBankAccount = async (promoterId: string, body: Record<string, any>) => {
@@ -1582,6 +1725,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/promoters/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1597,12 +1741,21 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
       try {
         requireType(ctx, 'promoter');
+        const promoterDoc = await fastify.db
+          .collection('promoters')
+          .doc(ctx.partnerId)
+          .get()
+          .catch(() => null);
+        const warnings =
+          promoterDoc && promoterDoc.exists ? promoterDoc.data()?.warnings || [] : [];
+
         const cacheKey = `partners:promoter:overview:${ctx.partnerId}:contract-v1`;
         const cached = await fastify.cache.get('partners', cacheKey);
-        if (cached)
+        if (cached) {
           return reply
             .header('Cache-Control', 'private, max-age=120')
-            .send({ ...cached, fromCache: true });
+            .send({ ...cached, warnings, fromCache: true });
+        }
 
         const [result, assignmentsPayload] = await Promise.all([
           promoterService.getOverview(ctx),
@@ -1629,7 +1782,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
               attributedRevenue: toNumber(topLinkData.revenue),
               clicks: toNumber(topLinkData.clicks),
               conversions: toNumber(topLinkData.conversions),
-              commission: toNumber(topLinkData.commissionRate || topLinkData.commission),
+              commission: toNumber(topLinkData.commissionRate ?? topLinkData.commission ?? 0),
             }
           : null;
 
@@ -1656,6 +1809,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           recentActivity: asArray(result.recentActivity),
           activeLinks: toNumber(result.stats.totalLinks),
           upcomingEvents: assignments.length,
+          warnings,
         };
 
         await fastify.cache.set('partners', cacheKey, normalized, 120);
@@ -1687,6 +1841,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/promoters/analytics',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: AnalyticsQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1707,6 +1862,18 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           to: request.query.to,
           linkId: request.query.linkId,
         };
+        const cacheKey = `promoter:${ctx.partnerId}:analytics:${JSON.stringify({
+          from: request.query.from || null,
+          to: request.query.to || null,
+          linkId: request.query.linkId || null,
+          range: request.query.range || null,
+          eventId: request.query.eventId || null,
+          contract: 1,
+        })}`;
+        const cached = await fastify.cache.get('promoter-analytics', cacheKey);
+        if (cached) {
+          return reply.header('Cache-Control', 'private, max-age=120').send(cached);
+        }
         const [result, overview] = await Promise.all([
           promoterService.getAnalytics(ctx, filters),
           promoterService.getOverview(ctx),
@@ -1742,14 +1909,16 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             createdAt: link.updatedAt ?? link.createdAt ?? null,
           }));
 
-        return reply.header('Cache-Control', 'private, max-age=120').send({
+        const payload = {
           overview: overviewPayload,
           timeline,
           topLinks: asArray(overview.topLinks),
           activities,
           timeSeries: result.timeSeries,
           byLink,
-        });
+        };
+        await fastify.cache.set('promoter-analytics', cacheKey, payload, 120);
+        return reply.header('Cache-Control', 'private, max-age=120').send(payload);
       } catch (err: any) {
         if (err.statusCode)
           return reply
@@ -1773,6 +1942,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/promoters/links',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: LinksQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1790,6 +1960,17 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         requireType(ctx, 'promoter');
         const { eventId, cursor, limit } = request.query;
         const activeParam = request.query.active ?? request.query.isActive;
+        const cacheKey = `promoter:${ctx.partnerId}:links:${JSON.stringify({
+          eventId: eventId || null,
+          active: activeParam || null,
+          cursor: cursor || null,
+          limit: limit || null,
+          contract: 1,
+        })}`;
+        const cached = await fastify.cache.get('promoter-links', cacheKey);
+        if (cached) {
+          return reply.header('Cache-Control', 'private, max-age=60').send(cached);
+        }
         const result = await promoterService.getLinks(ctx, {
           eventId,
           active: activeParam === 'true' ? true : activeParam === 'false' ? false : undefined,
@@ -1810,16 +1991,18 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             clicks: link.clicks || link.clickCount || 0,
             conversions: link.conversions || link.conversionCount || 0,
             revenue: link.revenue || 0,
-            commission: link.commissionRate || link.commission || 0,
+            commission: link.commissionRate ?? link.commission ?? 0,
           };
           return normalizePromoterLink(legacyFormat, unifiedById.get(String(link.linkId || '')));
         });
-        return reply.header('Cache-Control', 'no-store, no-cache, must-revalidate').send({
+        const payload = {
           links,
           data: links,
           hasMore: Boolean(result.hasMore),
           nextCursor: result.nextCursor ?? null,
-        });
+        };
+        await fastify.cache.set('promoter-links', cacheKey, payload, 60);
+        return reply.header('Cache-Control', 'private, max-age=60').send(payload);
       } catch (err: any) {
         if (err.statusCode)
           return reply
@@ -1841,6 +2024,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partners/promoters/links',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CreateLinkSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1859,6 +2043,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         const legacyBody = await createLegacyLink(ctx.partnerId, asRecord(request.body));
         const legacyLink = asRecord(legacyBody.link);
         const rawLink = await loadRawLink(String(legacyLink.id || ''));
+        await invalidatePromoterReadCaches();
         return reply.status(legacyBody.duplicate ? 200 : 201).send({
           ...legacyBody,
           link: normalizePromoterLink(legacyLink, {}, rawLink),
@@ -1884,6 +2069,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/partners/promoters/links/:linkId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: UpdateLinkSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1906,6 +2092,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         );
         const legacyLink = asRecord(legacyBody.link);
         const rawLink = await loadRawLink(String(legacyLink.id || request.params.linkId));
+        await invalidatePromoterReadCaches();
         return reply.send({
           ...legacyBody,
           link: normalizePromoterLink(legacyLink, {}, rawLink),
@@ -1931,6 +2118,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/promoters/links/:linkId/analytics',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -1946,6 +2134,11 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
       try {
         requireType(ctx, 'promoter');
+        const cacheKey = `promoter:${ctx.partnerId}:link:${request.params.linkId}:analytics:contract-v1`;
+        const cached = await fastify.cache.get('promoter-analytics', cacheKey);
+        if (cached) {
+          return reply.header('Cache-Control', 'private, max-age=120').send(cached);
+        }
         const analytics = await promoterService.getLinkAnalytics(ctx, request.params.linkId);
         if (!analytics)
           return reply.status(404).send(
@@ -1969,13 +2162,13 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           clicks: analytics.clicks,
           conversions: analytics.conversions,
           revenue: analytics.revenue,
-          commission: linkData.commissionRate || linkData.commission || 0,
+          commission: linkData.commissionRate ?? linkData.commission ?? 0,
         };
 
         const rawLink = await loadRawLink(request.params.linkId);
         const link = normalizePromoterLink(legacyFormat, linkData, rawLink);
 
-        return reply.header('Cache-Control', 'private, max-age=120').send({
+        const payload = {
           link,
           funnel: {
             clicks: analytics.clicks,
@@ -1988,7 +2181,9 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           revenue: analytics.revenue,
           conversionRate: analytics.conversionRate,
           timeSeries: analytics.timeSeries,
-        });
+        };
+        await fastify.cache.set('promoter-analytics', cacheKey, payload, 120);
+        return reply.header('Cache-Control', 'private, max-age=120').send(payload);
       } catch (err: any) {
         if (err.statusCode)
           return reply
@@ -2012,11 +2207,13 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partners/promoters/links/click',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: TrackClickSchema })],
     },
     async (request: any, reply: any) => {
       try {
         await promoterService.trackClick(request.body.code);
+        await invalidatePromoterReadCaches();
         return reply.send({ success: true });
       } catch {
         return reply.send({ success: true }); // never surface tracking errors to client
@@ -2029,6 +2226,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/promoters/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: EventsQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -2048,14 +2246,25 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           cursor: request.query.cursor,
           limit: request.query.limit,
         };
-        const [result, legacyEventsBody, legacyAssignments] = await Promise.all([
-          promoterService.getEvents(ctx, filters),
-          getLegacyEvents(ctx.partnerId, request.query),
-          buildLegacyAssignments(ctx.partnerId, request.query.status),
-        ]);
+        const [result, legacyEventsBody, legacyAssignments, assignmentRequestsSnap] =
+          await Promise.all([
+            promoterService.getEvents(ctx, filters),
+            getLegacyEvents(ctx.partnerId, request.query),
+            buildLegacyAssignments(ctx.partnerId, request.query.status),
+            fastify.db
+              .collection('promoter_assignment_requests')
+              .where('promoterId', '==', ctx.partnerId)
+              .limit(100)
+              .get()
+              .catch(() => ({ docs: [] as any[] })),
+          ]);
         return reply.header('Cache-Control', 'no-store, no-cache, must-revalidate').send({
           ...legacyEventsBody,
           assignments: legacyAssignments,
+          assignmentRequests: (assignmentRequestsSnap as any).docs.map((doc: any) => ({
+            id: doc.id,
+            ...(doc.data() || {}),
+          })),
           events: asArray(legacyEventsBody.events),
           data: asArray(result.data),
           hasMore: Boolean(result.hasMore),
@@ -2080,9 +2289,63 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     },
   );
 
+  fastify.post(
+    '/partners/promoters/events/:eventId/request',
+    {
+      config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+      preHandler: [
+        fastify.validate({ body: PromoterAssignmentRequestSchema }),
+        fastify.requireAuth,
+      ],
+    },
+    async (request: any, reply: any) => {
+      const ctx = await resolvePartnerContext(fastify.db, request);
+      if (!ctx) {
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'FORBIDDEN',
+            message: 'No partner identity found',
+            requestId: request.id,
+          }),
+        );
+      }
+
+      try {
+        requireType(ctx, 'promoter');
+        const result = await requestPromoterAssignment(fastify.db, {
+          promoterId: ctx.partnerId,
+          eventId: String(request.params.eventId || ''),
+          promoterName: request.body.promoterName,
+        });
+        return reply.status(result.status === 'pending' && !result.duplicate ? 201 : 200).send({
+          request: result,
+        });
+      } catch (err: any) {
+        if (err instanceof PromoterAssignmentRequestError || err.statusCode) {
+          return reply.status(err.statusCode || 400).send(
+            buildErrorResponse({
+              code: err.code || 'BAD_REQUEST',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        }
+        request.log.error({ err, eventId: request.params.eventId }, 'Promoter request failed');
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
   fastify.get(
     '/partners/promoters/events/:assignmentId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -2144,6 +2407,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/promoters/connections',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: ConnectionsQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -2173,21 +2437,9 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           ),
         );
 
-        const profilesMap = new Map();
-        await Promise.all(
-          uniqueTargetIds.map(async (tid: any) => {
-            try {
-              const profile = await getPartnerProfileSummary(fastify.db, tid);
-              if (profile) {
-                profilesMap.set(tid, profile);
-              }
-            } catch (err) {
-              fastify.log.error(
-                err,
-                `Failed to fetch partner profile for connection target ${tid}`,
-              );
-            }
-          }),
+        const profilesMap = await getPartnerProfileSummariesById(
+          fastify.db,
+          uniqueTargetIds.map(String),
         );
 
         const mergedConnections = asArray(connections).map((conn: any) => {
@@ -2243,6 +2495,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partners/promoters/connections/request',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ConnectionRequestSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -2307,6 +2560,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/partners/promoters/connections/:connectionId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ConnectionRespondSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -2371,7 +2625,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/partners/promoters/profile',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2399,7 +2656,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.put(
     '/partners/promoters/profile',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2436,7 +2696,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/partners/promoters/guests',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2482,7 +2745,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/partners/promoters/finance',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2510,7 +2776,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/partners/promoters/payouts',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2538,7 +2807,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/partners/promoters/finance/bank-accounts',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2582,7 +2854,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.post(
     '/partners/promoters/finance/bank-accounts',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2619,7 +2894,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.delete(
     '/partners/promoters/finance/bank-accounts',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2651,7 +2929,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/partners/promoters/notifications',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2774,7 +3055,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.patch(
     '/partners/promoters/notifications',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2830,7 +3114,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/partners/promoters/commissions',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -2840,16 +3127,14 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         const limit = Math.min(query.limit || 50, 100);
 
         let q = fastify.db
-          .collection('promoter_commissions')
-          .where('promoterId', '==', ctx.partnerId)
+          .collection('partner_ledger')
+          .where('toPartnerId', '==', ctx.partnerId)
+          .where('type', '==', 'promoter_commission')
           .orderBy('createdAt', 'desc')
           .limit(limit + 1);
 
         if (query.cursor) {
-          const cursorDoc = await fastify.db
-            .collection('promoter_commissions')
-            .doc(query.cursor)
-            .get();
+          const cursorDoc = await fastify.db.collection('partner_ledger').doc(query.cursor).get();
           if (cursorDoc.exists) q = q.startAfter(cursorDoc);
         }
 
@@ -2858,7 +3143,24 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         const hasMore = allDocs.length > limit;
         const docsToReturn = allDocs.slice(0, limit);
 
-        const commissions = docsToReturn.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }));
+        const commissions = docsToReturn.map((doc: any) => {
+          const data = doc.data() || {};
+          const amountPaise = Number(data.amountPaise || 0);
+          return {
+            id: doc.id,
+            orderId: data.orderId || data.referenceId || null,
+            eventId: data.eventId || null,
+            promoterId: ctx.partnerId,
+            promoterLinkId: data.promoterLinkId || null,
+            commissionAmount: amountPaise / 100,
+            amount: amountPaise / 100,
+            amountPaise,
+            currency: data.currency || 'INR',
+            status: data.status || 'pending',
+            createdAt: data.createdAt || null,
+            source: 'partner_ledger',
+          };
+        });
         const nextCursor = hasMore ? (commissions[commissions.length - 1]?.id ?? null) : null;
 
         return reply.send({ commissions, nextCursor, hasMore });
@@ -2892,7 +3194,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/partners/promoters/leaderboard',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3040,7 +3345,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   // stats (aggregate, no id) optimized with Firestore Server-Side aggregations
   fastify.get(
     '/partners/promoters/stats',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3146,8 +3454,20 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.post(
     '/partners/promoters/payouts',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
+      if (process.env.C1RCLE_PAYOUT_MUTATIONS_ENABLED !== 'true') {
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'PAYOUTS_NOT_LAUNCH_ENABLED',
+            message: 'Payout withdrawals are unavailable during launch verification',
+            requestId: request.id,
+          }),
+        );
+      }
       try {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
@@ -3176,7 +3496,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             displayName: ctx.displayName || 'Promoter',
           };
           const balances = await financeService.getBalances(promoterCtx);
-          if (amountPaise > balances.available) {
+          if (amountPaise > balances.availablePaise) {
             throw Object.assign(new Error('Insufficient balance'), {
               statusCode: 400,
               code: 'INSUFFICIENT_FUNDS',
@@ -3218,6 +3538,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           result = await work();
         }
 
+        await invalidatePromoterReadCaches({ finance: true });
         return reply.send(result);
       } catch (err: any) {
         if (err instanceof z.ZodError)
@@ -3249,8 +3570,20 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.delete(
     '/partners/promoters/payouts',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
+      if (process.env.C1RCLE_PAYOUT_MUTATIONS_ENABLED !== 'true') {
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'PAYOUTS_NOT_LAUNCH_ENABLED',
+            message: 'Payout withdrawals are unavailable during launch verification',
+            requestId: request.id,
+          }),
+        );
+      }
       try {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
@@ -3284,6 +3617,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             }),
           );
         await ref.update({ status: 'cancelled', cancelledAt: new Date().toISOString() });
+        await invalidatePromoterReadCaches({ finance: true });
         return reply.send({ success: true });
       } catch (err: any) {
         if (err.statusCode)
@@ -3307,7 +3641,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.post(
     '/partners/promoters/upload',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3408,14 +3745,21 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/partners/promoters/partners/:id',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
         const partnerId = String(request.params.id || '');
-        const profile = await getPartnerProfileSummary(fastify.db, partnerId);
-        if (!profile) {
+        const result = await getPartnerProfileWithPii(fastify.db, {
+          viewerRole: ctx.type,
+          viewerId: ctx.partnerId,
+          partnerId,
+        });
+        if (!result) {
           return reply.status(404).send(
             buildErrorResponse({
               code: 'NOT_FOUND',
@@ -3424,20 +3768,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             }),
           );
         }
-        const connection = await getConnectionForViewer(fastify.db, {
-          viewerRole: ctx.type,
-          viewerId: ctx.partnerId,
-          partnerId,
-          partnerType: profile.type,
-        });
-        if (connection && (connection.status === 'active' || connection.status === 'approved')) {
-          if ((profile as any)._pii) {
-            (profile as any).email = (profile as any)._pii.email;
-            (profile as any).phone = (profile as any)._pii.phone;
-          }
-        }
-        delete (profile as any)._pii;
-        return reply.send({ profile, connection });
+        return reply.send(result);
       } catch (err: any) {
         if (err.statusCode)
           return reply.status(err.statusCode).send(
@@ -3460,7 +3791,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/partners/promoters/settings',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3589,7 +3923,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.patch(
     '/partners/promoters/settings/notifications',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3637,7 +3974,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/partners/promoters/settings/payout',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3677,7 +4017,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.post(
     '/partners/promoters/settings/payout',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3719,7 +4062,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.post(
     '/partners/promoters/settings/security/logout-all',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3748,7 +4094,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     '/partners/promoters/settings/verification',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
@@ -3784,7 +4133,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
   fastify.post(
     '/partners/promoters/settings/verification',
-    { preHandler: [fastify.requireAuth] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
     async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);

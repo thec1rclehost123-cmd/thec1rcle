@@ -1,4 +1,3 @@
-import { issueWallet } from '@c1rcle/core/cover-charge-engine';
 import { getAdminDb, isFirebaseConfigured } from '@c1rcle/core/admin';
 import { getEvent } from '@c1rcle/core/event-engine';
 import { getPromoterLinkByCode, recordConversion } from '@c1rcle/core/promoter-engine';
@@ -200,7 +199,6 @@ export async function createRSVPOrder(payload) {
   let persistedOrder = rsvpOrder;
 
   await db.runTransaction(async (transaction) => {
-    transaction.db = db; // Inject db for unified engine
     persistedOrder = await coreExecuteOrderCreation(transaction, {
       db,
       event,
@@ -477,8 +475,6 @@ export async function createOrder(payload) {
 
   try {
     await db.runTransaction(async (transaction) => {
-      transaction.db = db; // Inject db for unified engine
-
       // 1. Transaction-level Idempotency Check
       const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
       const existingOrderDoc = await transaction.get(orderRef);
@@ -844,6 +840,19 @@ export async function cancelOrder(orderId) {
   if (order.status === 'cancelled') {
     return order; // Already cancelled
   }
+  if (
+    ['confirmed', 'checked_in', 'refund_requested', 'refund_processing', 'refunded'].includes(
+      String(order.status || '').toLowerCase(),
+    ) ||
+    Number(order.totalPaise || 0) > 0 ||
+    Number(order.totalAmount || 0) > 0
+  ) {
+    const error = new Error(
+      'LEGACY_PAID_ORDER_CANCELLATION_DISABLED: paid orders require canonical provider refund finalization',
+    );
+    error.code = 'LEGACY_PAID_ORDER_CANCELLATION_DISABLED';
+    throw error;
+  }
 
   const now = new Date().toISOString();
 
@@ -972,6 +981,13 @@ export async function cancelOrder(orderId) {
  * Update order status (e.g., from Webhook)
  */
 export async function updateOrderStatus(orderId, status, paymentDetails = {}) {
+  if (String(status || '').toLowerCase() === 'confirmed') {
+    const error = new Error(
+      'LEGACY_ORDER_CONFIRMATION_DISABLED: finalizeTicketPayment is the only confirmation authority',
+    );
+    error.code = 'LEGACY_ORDER_CONFIRMATION_DISABLED';
+    throw error;
+  }
   const order = await getOrderById(orderId);
   if (!order) throw new Error('Order not found');
 
@@ -1201,53 +1217,6 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
     } catch (err) {
       console.error('[OrderStore] Failed to publish sale notification:', err);
     }
-  }
-
-  // Cover Wallet issuance — fire-and-forget after transaction
-  // Iterate tickets and issue wallets for any tier with coverChargeConfig.enabled
-  if (isFirebaseConfigured()) {
-    (async () => {
-      for (let tierIndex = 0; tierIndex < order.tickets.length; tierIndex++) {
-        const tier = order.tickets[tierIndex];
-        if (!tier.coverChargeConfig?.enabled) continue;
-        try {
-          await issueWallet({
-            orderId,
-            eventId: order.eventId,
-            venueId: event.venueId || null,
-            userId: order.userId,
-            tierConfig: tier.coverChargeConfig,
-            eventStartIso: event.startDate,
-            tzOffset: '+05:30',
-            termsAcceptedAt: now,
-          });
-          console.log(`[OrderStore] Cover wallet issued for order ${orderId} tier ${tierIndex}`);
-        } catch (err) {
-          console.error(
-            `[OrderStore] Cover wallet issuance failed for order ${orderId} tier ${tierIndex}:`,
-            err,
-          );
-          try {
-            const db = getAdminDb();
-            await db.collection('cover_wallet_issuance_failures').add({
-              orderId,
-              userId: order.userId,
-              eventId: order.eventId,
-              tierIndex,
-              error: err.message,
-              status: 'pending',
-              retryCount: 0,
-              createdAt: new Date().toISOString(),
-            });
-          } catch (outboxErr) {
-            console.error(
-              '[OrderStore] Failed to write cover_wallet_issuance_failures:',
-              outboxErr,
-            );
-          }
-        }
-      }
-    })().catch((err) => console.error('[OrderStore] Cover wallet loop failed:', err));
   }
 
   return { ...order, ...updates };

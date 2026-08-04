@@ -23,11 +23,15 @@ import {
   X,
   User,
   RotateCw,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import AdminConfirmModal from '@/components/admin/AdminConfirmModal';
+import { useToast } from '@/components/providers/ToastProvider';
 
 export default function AdminPromoters() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [promoters, setPromoters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPromoter, setSelectedPromoter] = useState(null);
@@ -37,14 +41,60 @@ export default function AdminPromoters() {
 
   const fetchPromoters = async () => {
     try {
+      setLoading(true);
       const token = await user.getIdToken();
-      const res = await fetch('/api/list?collection=promoters', {
-        headers: { Authorization: `Bearer ${token}` },
+
+      const [promotersRes, proposalsRes] = await Promise.all([
+        fetch('/api/list?collection=promoters', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch('/api/list?collection=proposed_actions', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      const promotersJson = await promotersRes.json();
+      const proposalsJson = await proposalsRes.json();
+
+      const activeProposals = (proposalsJson.data || []).filter((p) => p.status === 'pending');
+
+      const mergedPromoters = (promotersJson.data || []).map((promoter) => {
+        const pendingSuspend = activeProposals.find(
+          (p) => p.targetId === promoter.id && p.action === 'PROMOTER_SUSPEND',
+        );
+        const pendingReinstate = activeProposals.find(
+          (p) => p.targetId === promoter.id && p.action === 'PROMOTER_ACTIVATE',
+        );
+
+        if (pendingSuspend) {
+          return {
+            ...promoter,
+            pendingAction: 'suspend',
+            accountStatus: promoter.status || 'active',
+            operationsStatus: 'Suspension Requested',
+          };
+        } else if (pendingReinstate) {
+          return {
+            ...promoter,
+            pendingAction: 'reinstate',
+            accountStatus: promoter.status || 'suspended',
+            operationsStatus: 'Reinstatement Requested',
+          };
+        }
+        return {
+          ...promoter,
+          accountStatus: promoter.status || 'active',
+          operationsStatus: 'No Pending Action',
+        };
       });
-      const json = await res.json();
-      const fresh = json.data || [];
-      setPromoters(fresh);
-      return fresh;
+
+      setPromoters(mergedPromoters);
+
+      if (selectedPromoter) {
+        const updated = mergedPromoters.find((p) => p.id === selectedPromoter.id);
+        if (updated) setSelectedPromoter(updated);
+      }
+      return mergedPromoters;
     } catch (err) {
       console.error('Failed to fetch promoters', err);
       return null;
@@ -87,15 +137,14 @@ export default function AdminPromoters() {
         throw new Error(json.error || 'Action failed');
       }
 
-      if (json.message) alert(json.message);
-
-      const freshPromoters = await fetchPromoters();
-      if (selectedPromoter && freshPromoters) {
-        const updated = freshPromoters.find((p) => p.id === selectedPromoter.id);
-        if (updated) setSelectedPromoter(updated);
+      if (json.message) {
+        toast({ type: 'success', message: json.message });
+      } else {
+        toast({ type: 'success', message: 'Action executed successfully.' });
       }
+
+      await fetchPromoters();
     } catch (err) {
-      alert(`Authority Error: ${err.message}`);
       throw err;
     }
   };
@@ -234,23 +283,23 @@ export default function AdminPromoters() {
                     </div>
                     <div
                       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[9px] font-bold uppercase tracking-widest ${
-                        promoter.status === 'active'
+                        promoter.accountStatus === 'active'
                           ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
-                          : promoter.status === 'suspended'
+                          : promoter.accountStatus === 'pending'
                             ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
                             : 'bg-iris/10 border-iris/20 text-iris'
                       }`}
                     >
                       <div
-                        className={`h-1 w-1 rounded-full ${
-                          promoter.status === 'active'
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          promoter.accountStatus === 'active'
                             ? 'bg-emerald-500'
-                            : promoter.status === 'suspended'
-                              ? 'bg-amber-500'
+                            : promoter.accountStatus === 'pending'
+                              ? 'bg-amber-500 animate-pulse'
                               : 'bg-iris'
                         }`}
                       />
-                      {promoter.status ?? 'Active'}
+                      Account: {promoter.accountStatus || promoter.status || 'active'}
                     </div>
                   </div>
 
@@ -260,6 +309,9 @@ export default function AdminPromoters() {
                     </h3>
                     <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
                       ID: {promoter.id?.slice(0, 12)}
+                    </p>
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
+                      Operations: {promoter.operationsStatus || 'No Pending Action'}
                     </p>
                   </div>
 
@@ -335,6 +387,17 @@ export default function AdminPromoters() {
                     </p>
 
                     <div className="space-y-3">
+                      {selectedPromoter?.pendingAction && (
+                        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[11px] font-semibold flex items-center gap-2 mb-2 select-none animate-in fade-in duration-300">
+                          <AlertCircle className="h-4 w-4 shrink-0" />
+                          <span>
+                            A request to{' '}
+                            {selectedPromoter.pendingAction === 'suspend' ? 'restrict' : 'restore'}{' '}
+                            this partner is currently pending approval. Duplicate requests are
+                            disabled.
+                          </span>
+                        </div>
+                      )}
                       <button
                         onClick={() =>
                           setModalConfig({
@@ -360,85 +423,54 @@ export default function AdminPromoters() {
 
                       {selectedPromoter.status === 'active' ? (
                         <button
+                          disabled={!!selectedPromoter?.pendingAction}
                           onClick={() =>
                             setModalConfig({
                               action: 'PROMOTER_SUSPEND',
-                              title: 'Suspend Partner',
+                              title: 'Restrict Collaboration',
                               message:
-                                'Temporarily halts all distribution links and platform access.',
-                              label: 'Confirm Suspension',
+                                'Deactivate partner operations immediately. Requires security clearance.',
+                              label: 'Confirm Restriction',
                               type: 'danger',
+                              isTier2: true,
                             })
                           }
-                          className="w-full flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-iris/30 hover:bg-iris/5 transition-all group"
+                          className="w-full flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-iris/30 hover:bg-iris/5 transition-all group disabled:opacity-20 disabled:cursor-not-allowed"
                         >
                           <div className="flex items-center gap-3">
-                            <Ban className="h-4 w-4 text-iris" strokeWidth={1.5} />
+                            <Lock className="h-4 w-4 text-iris" strokeWidth={1.5} />
                             <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-300">
-                              Suspend Access
+                              Restrict Partner
                             </span>
                           </div>
                           <ChevronRight className="h-3.5 w-3.5 text-zinc-600 transition-transform group-hover:translate-x-1" />
                         </button>
                       ) : (
                         <button
+                          disabled={!!selectedPromoter?.pendingAction}
                           onClick={() =>
                             setModalConfig({
                               action: 'PROMOTER_ACTIVATE',
-                              title: 'Activate Partner',
+                              title: 'Restore Partner',
                               message:
                                 'Restores full distribution capabilities and platform access.',
-                              label: 'Confirm Activation',
+                              label: 'Restore Partner',
                               type: 'info',
+                              isTier2: true,
                             })
                           }
-                          className="w-full flex items-center justify-between p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/20 transition-all group shadow-lg shadow-emerald-500/10"
+                          className="w-full flex items-center justify-between p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/20 transition-all group shadow-lg shadow-emerald-500/10 disabled:opacity-20 disabled:cursor-not-allowed"
                         >
                           <div className="flex items-center gap-3">
-                            <CheckCircle2 className="h-4 w-4" strokeWidth={1.5} />
+                            <Unlock className="h-4 w-4" strokeWidth={1.5} />
                             <span className="text-[11px] font-bold uppercase tracking-widest">
-                              Restore Access
+                              Restore Partner
                             </span>
                           </div>
                           <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
                         </button>
                       )}
                     </div>
-                  </div>
-
-                  <div className="pt-6 border-t border-[#ffffff05] space-y-4">
-                    <div className="flex items-center gap-2 px-1">
-                      <ShieldAlert className="h-4 w-4 text-iris" strokeWidth={1.5} />
-                      <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-iris">
-                        Admin Revocation
-                      </p>
-                    </div>
-                    <button
-                      onClick={() =>
-                        setModalConfig({
-                          action: 'PROMOTER_DISABLE',
-                          title: 'Permanently Deactivate',
-                          message:
-                            'Permanently removes this partner from the network. This action cannot be undone.',
-                          label: 'Execute Deactivation',
-                          type: 'danger',
-                        })
-                      }
-                      className="w-full flex items-center justify-between p-5 rounded-xl bg-iris/10 border border-iris/20 text-white hover:bg-iris/20 transition-all group"
-                    >
-                      <div className="flex items-center gap-4 text-left">
-                        <ShieldAlert className="h-6 w-6 text-iris" strokeWidth={1.5} />
-                        <div>
-                          <span className="block text-sm font-bold tracking-tight">
-                            Deactivate Partner
-                          </span>
-                          <span className="block text-[9px] text-iris font-bold uppercase tracking-widest mt-0.5 opacity-80">
-                            Permanent Removal
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-iris group-hover:translate-x-1 transition-transform" />
-                    </button>
                   </div>
                 </div>
 
@@ -474,6 +506,8 @@ export default function AdminPromoters() {
           inputLabel={modalConfig.inputLabel}
           inputType={modalConfig.inputType}
           inputPlaceholder={modalConfig.inputPlaceholder}
+          isTier2={modalConfig.isTier2}
+          isTier3={modalConfig.isTier3}
         />
       )}
     </div>

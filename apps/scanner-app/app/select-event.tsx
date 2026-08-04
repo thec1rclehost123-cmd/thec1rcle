@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { fetchStaffEvents } from '@/lib/api/eventCode';
+import { establishStaffSession, fetchStaffEvents } from '@/lib/api/eventCode';
 import { useEvent } from '@/store/eventContext';
 
 interface EventItem {
@@ -66,23 +66,7 @@ export default function SelectEventScreen() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      const eventData = {
-        valid: true,
-        code: 'STAFF',
-        event: {
-          id: event.id,
-          title: event.title || event.name || 'Event',
-          venue: event.venueName || 'Venue',
-          venueId: venueId,
-          date: event.startDate || '',
-          startTime: event.startTime || '',
-          endTime: event.endTime || '',
-          capacity: event.capacity || 500,
-        },
-        permissions: { canScan: true, canDoorEntry: true },
-        tiers: [],
-      };
-
+      const eventData = await establishStaffSession(event.id, venueId);
       setEventData(eventData);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Replace routing stack to clear navigation history

@@ -1,18 +1,12 @@
 /**
  * Notifications Store
  * Manages in-app notifications and activity feed.
- * Reads from the same Firestore 'notifications' collection used by the
- * guest-portal webhook and partner-dashboard notification sender.
+ * Reads through the Fastify gateway. The previous direct Firestore listener
+ * is intentionally replaced with short polling for launch data ownership.
  */
 
 import { create } from 'zustand';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import { getFirestore, collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { apiFetch } from '@/lib/api';
-
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
 
 export type NotificationType =
   | 'ticket_purchased'
@@ -98,7 +92,8 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         loading: false,
       });
     } catch (error: any) {
-      console.warn('Unable to fetch notifications; showing an empty notification center.', error);
+      if (__DEV__)
+        console.warn('Unable to fetch notifications; showing an empty notification center.', error);
       set({ notifications: [], unreadCount: 0, error: null, loading: false });
     }
   },
@@ -123,12 +118,12 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
 
   markAllAsRead: async (_userId: string) => {
     const { notifications } = get();
+    if (notifications.every((n) => n.read)) return;
 
     // Optimistic update
     set({ notifications: notifications.map((n) => ({ ...n, read: true })), unreadCount: 0 });
 
     try {
-      if (notifications.every((n) => n.read)) return;
       await apiFetch('/api/v1/guest-notifications', {
         method: 'PATCH',
         body: JSON.stringify({ markAll: true }),
@@ -141,32 +136,13 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   subscribeToNotifications: (userId: string) => {
     get()._unsubscribe?.();
 
-    const unsubscribe = onSnapshot(
-      query(
-        collection(getDb(), 'notifications'),
-        where('targetId', '==', userId),
-        orderBy('createdAt', 'desc'),
-      ),
-      (snap) => {
-        const notifications: Notification[] = snap.docs.map((d) => {
-          const data = d.data();
-          return {
-            ...data,
-            id: d.id,
-            createdAt: data.createdAt?.toDate?.() ?? new Date(data.createdAt),
-          } as Notification;
-        });
-        set({
-          notifications,
-          unreadCount: notifications.filter((n) => !n.read).length,
-          loading: false,
-        });
-      },
-      (error) => {
-        console.warn('Notifications listener error:', error);
-        set({ notifications: [], unreadCount: 0, error: null, loading: false });
-      },
-    );
+    void get().fetchNotifications(userId);
+
+    const intervalId = setInterval(() => {
+      void get().fetchNotifications(userId);
+    }, 60000);
+
+    const unsubscribe = () => clearInterval(intervalId);
 
     set({ _unsubscribe: unsubscribe });
     return unsubscribe;
@@ -177,6 +153,14 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     set({
       notifications: notifications.filter((n) => n.id !== notificationId),
     });
+
+    try {
+      await apiFetch(`/api/v1/guest-notifications/${encodeURIComponent(notificationId)}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error('Failed to clear notification on server:', error);
+    }
   },
 
   clearNotifications: () => {

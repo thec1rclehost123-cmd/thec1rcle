@@ -24,10 +24,16 @@ export default function VenueQuickActions({
 
   const handleDirections = () => {
     const address = venue.address || venue.contact?.address;
-    const lat = venue.coordinates?.lat || venue.location?.latitude;
-    const lng = venue.coordinates?.lng || venue.location?.longitude;
+    const lat =
+      venue.coordinates?.lat !== undefined && venue.coordinates?.lat !== null
+        ? venue.coordinates.lat
+        : venue.location?.latitude;
+    const lng =
+      venue.coordinates?.lng !== undefined && venue.coordinates?.lng !== null
+        ? venue.coordinates.lng
+        : venue.location?.longitude;
 
-    if (lat && lng) {
+    if (lat != null && lng != null) {
       window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
     } else if (address) {
       window.open(

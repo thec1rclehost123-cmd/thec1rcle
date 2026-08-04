@@ -1,14 +1,20 @@
 import { Firestore, Transaction } from 'firebase-admin/firestore';
 import {
+  FreeTicketClaim,
   IOrderRepository,
   Order,
   Reservation,
   PaymentRecord,
   OrderIdentityLookup,
 } from '../../../domain/repositories/order-repository.js';
+import { createHash } from 'node:crypto';
 
 export class FirebaseOrderRepository implements IOrderRepository {
   constructor(private db: Firestore) {}
+
+  private freeTicketClaimDocId(eventId: string, tierId: string, userId: string): string {
+    return createHash('sha256').update(`${eventId}\0${tierId}\0${userId}`).digest('hex');
+  }
 
   private paymentRecordDocId(orderId: string, razorpayOrderId: string): string {
     return `${orderId}__${razorpayOrderId}`;
@@ -157,6 +163,45 @@ export class FirebaseOrderRepository implements IOrderRepository {
     }
 
     return totalTickets;
+  }
+
+  async checkExistingFreeTicketClaim(
+    eventId: string,
+    tierId: string,
+    userId: string,
+    transaction?: Transaction,
+  ): Promise<boolean> {
+    const claimRef = this.db
+      .collection('free_ticket_claims')
+      .doc(this.freeTicketClaimDocId(eventId, tierId, userId));
+    const claimSnapshot = transaction ? await transaction.get(claimRef) : await claimRef.get();
+    if (claimSnapshot.exists && claimSnapshot.data()?.status !== 'cancelled') return true;
+
+    // Legacy fallback: claims created before the uniqueness collection existed
+    // are detected from the user's confirmed orders. Querying by userId alone
+    // avoids requiring a new composite index in the checkout transaction.
+    const legacyQuery = this.db.collection('orders').where('userId', '==', userId).limit(200);
+    const legacySnapshot = transaction
+      ? await transaction.get(legacyQuery)
+      : await legacyQuery.get();
+    return legacySnapshot.docs.some((doc) => {
+      const order = doc.data() as Order;
+      if (order.eventId !== eventId || order.status !== 'confirmed') return false;
+      return (order.tickets || []).some(
+        (ticket) => ticket.ticketId === tierId && Number(ticket.price || 0) <= 0,
+      );
+    });
+  }
+
+  async createFreeTicketClaim(claim: FreeTicketClaim, transaction?: Transaction): Promise<void> {
+    const claimRef = this.db
+      .collection('free_ticket_claims')
+      .doc(this.freeTicketClaimDocId(claim.eventId, claim.tierId, claim.userId));
+    if (transaction) {
+      transaction.set(claimRef, claim);
+    } else {
+      await claimRef.set(claim);
+    }
   }
 
   async getReservationById(id: string, transaction?: Transaction): Promise<Reservation | null> {

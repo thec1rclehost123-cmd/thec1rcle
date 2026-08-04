@@ -77,8 +77,11 @@ export class CancellationService {
     let refundResult: any = null;
     if (decision.refundPercentage > 0 && refundPayment) {
       refundResult = await refundPayment({
+        paymentId: order.paymentId,
         orderId: order.id,
+        eventId: order.eventId,
         refundAmount: decision.refundAmount,
+        refundPercentage: decision.refundPercentage,
         reason: params.reason,
       });
     }

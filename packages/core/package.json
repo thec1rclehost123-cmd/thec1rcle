@@ -21,6 +21,7 @@
         "./promo-service": "./promo-service.js",
         "./time": "./time.js",
         "./ledger-engine": "./ledger-engine.js",
+        "./partner-ledger-service": "./partner-ledger-service.js",
         "./payout-engine": "./payout-engine.js",
         "./entitlement-engine": "./entitlement-engine.js",
         "./theme": "./theme.js",
@@ -48,11 +49,14 @@
         "./profile-engine": "./profile-engine.js",
         "./finance-engine": "./finance-engine.js",
         "./promoter-engine": "./promoter-engine.js",
+        "./promoter-attribution": "./promoter-attribution.js",
         "./analytics-engine": "./analytics-engine.js",
         "./table-engine": "./table-engine.js",
         "./waitlist-engine": "./waitlist-engine.js",
         "./calendar-engine": "./calendar-engine.js",
         "./cms-engine": "./cms-engine.js",
+        "./slot-engine": "./slot-engine.js",
+        "./security-logger": "./security-logger.js",
         "./auth-domain": "./dist/domain/auth/interfaces.js",
         "./auth-infra": "./dist/infrastructure/auth/firebase-auth-service.js",
         "./profile-repo": "./dist/infrastructure/repositories/firebase/profile-repository.js",
@@ -80,6 +84,7 @@
         "./guest-event-conversion": "./guest-event-conversion.js",
         "./guest-wallet-profile-notification-service": "./guest-wallet-profile-notification-service.js",
         "./follow-graph-engine": "./follow-graph-engine.js",
+        "./guest-follow-service": "./guest-follow-service.js",
         "./ticket-pdf-engine": "./ticket-pdf-engine.js",
         "./cover-charge-engine": "./cover-charge-engine.js",
         "./ticket-share-engine": "./ticket-share-engine.js",
@@ -88,10 +93,18 @@
         "./recommendation-engine": "./recommendation-engine.js",
         "./homepage-curation-engine": "./homepage-curation-engine.js",
         "./guest-discovery-engine": "./guest-discovery-engine.js",
-        "./guest-pass-engine": "./guest-pass-engine.js",
-        "./guest-chat-service": "./guest-chat-service.js",
-        "./guest-dating-service": "./guest-dating-service.js"
-    },
+    "./guest-pass-engine": "./guest-pass-engine.js",
+    "./guest-chat-service": "./guest-chat-service.js",
+    "./guest-dating-service": "./guest-dating-service.js",
+    "./guest-onboarding-service": "./guest-onboarding-service.js",
+        "./guest-subscription-service": "./guest-subscription-service.js",
+    "./partner-profile-normalizer": "./partner-profile-normalizer.js",
+    "./venue-presence-config": "./venue-presence-config.js",
+    "./event-update-policy": "./event-update-policy.js",
+    "./promoter-assignment-request": "./promoter-assignment-request.js",
+    "./venue-menu-service": "./venue-menu-service.js",
+    "./user-service": "./user-service.js"
+  },
     "dependencies": {
         "firebase": "^12.14.0",
         "firebase-admin": "^13.6.0",
@@ -102,6 +115,6 @@
     },
     "devDependencies": {
         "@types/node": "^20.11.0",
-        "typescript": "^5.3.3"
+        "typescript": "5.9.3"
     }
 }

@@ -39,6 +39,19 @@ export async function POST(req) {
       admin_role = body.admin_role || 'super';
     }
 
+    const VALID_ADMIN_ROLES = [
+      'super',
+      'admin',
+      'ops',
+      'finance',
+      'content',
+      'support',
+      'readonly',
+    ];
+    if (!VALID_ADMIN_ROLES.includes(admin_role)) {
+      return NextResponse.json({ error: 'Invalid admin_role' }, { status: 400 });
+    }
+
     const auth = getAdminAuth();
     const claims = { role: 'admin', admin: true, admin_role };
     await auth.setCustomUserClaims(uid, claims);

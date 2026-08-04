@@ -145,8 +145,8 @@ describe('auth routes GP-1 contracts', () => {
         onboardingComplete: true,
       },
       shell: {
-        unreadNotificationCount: 2,
-        hasUnreadNotifications: true,
+        unreadNotificationCount: 0,
+        hasUnreadNotifications: false,
       },
       onboarding: {
         onboardingComplete: true,

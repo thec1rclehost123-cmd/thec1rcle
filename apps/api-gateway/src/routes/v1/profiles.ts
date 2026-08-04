@@ -15,6 +15,7 @@ import {
   enrichVenueProfileWithSignedUrls,
   cleanVenueProfilePatch,
 } from '../../lib/signed-urls.js';
+import { getPartnerProfileWithPii } from '../../utils/partner-profiles.js';
 
 const ProfileIdParam = z.object({ id: z.string() }).strict();
 const ProfileTypeQuery = z.object({ type: z.string().optional() }).strict();
@@ -26,7 +27,7 @@ const guestPhoneSchema = z
   .string()
   .max(20)
   .refine((value) => value === '' || GUEST_PHONE_REGEX.test(value), {
-    message: 'Phone number must contain exactly 10 digits',
+    message: 'Phone number must be a 10-digit number optionally prefixed with +91',
   })
   .optional();
 
@@ -80,7 +81,31 @@ const UserProfileCreateBody = z
     onboardingComplete: z.boolean().optional(),
     bio: z.string().max(500).optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (data) => {
+      if (data.onboardingComplete === true) {
+        return (
+          data.phone &&
+          data.phone.trim() !== '' &&
+          data.displayName &&
+          data.displayName.trim() !== '' &&
+          data.age !== undefined &&
+          data.age !== null &&
+          data.gender &&
+          data.gender.trim() !== '' &&
+          data.city &&
+          data.city.trim() !== ''
+        );
+      }
+      return true;
+    },
+    {
+      message:
+        'displayName, age, gender, city, and phone are all required when onboardingComplete is true',
+      path: ['onboardingComplete'],
+    },
+  );
 
 export default async function profileRoutes(fastify: FastifyInstance) {
   const ALLOWED_PROMOTER_PROFILE_FIELDS = [
@@ -91,8 +116,10 @@ export default async function profileRoutes(fastify: FastifyInstance) {
     'photoURL',
     'profileImage',
     'phone',
+    'contactEmail',
     'contactPhone',
     'instagram',
+    'instagramHandle',
     'bio',
     'summary',
     'city',
@@ -157,6 +184,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         async (request) => {
           if ((fastify as any).requireAuth) await (fastify as any).requireAuth(request);
@@ -179,7 +207,26 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           if (!doc.exists) {
             return { profile: { id: profileId } };
           }
-          const enriched = await enrichPromoterProfileWithSignedUrls({ id: doc.id, ...doc.data() });
+          const raw = { id: doc.id, ...doc.data() };
+          const fallback = await getPartnerProfileWithPii(fastify.db, {
+            viewerRole: 'promoter',
+            viewerId: profileId,
+            partnerId: profileId,
+          });
+          const profile = {
+            ...fallback?.profile,
+            ...raw,
+            displayName: (raw as any).displayName || fallback?.profile?.name || '',
+            bio: (raw as any).bio || fallback?.profile?.bio || '',
+            contactEmail: (raw as any).contactEmail || (fallback?.profile as any)?.email || '',
+            contactPhone: (raw as any).contactPhone || (fallback?.profile as any)?.phone || '',
+            website: (raw as any).website || fallback?.profile?.website || '',
+            socialLinks: {
+              ...(fallback?.profile?.socialLinks || {}),
+              ...((raw as any).socialLinks || {}),
+            },
+          };
+          const enriched = await enrichPromoterProfileWithSignedUrls(profile);
           return { profile: enriched };
         }
 
@@ -272,6 +319,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         async (request) => {
           if ((fastify as any).requireAuth) await (fastify as any).requireAuth(request);
@@ -408,6 +456,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/profiles/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: ProfileIdParam, querystring: ProfileTypeQuery })],
     },
     async (request: any, reply) => {
@@ -483,6 +532,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/profiles',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         async (request) => {
           if ((fastify as any).requireAuth) await (fastify as any).requireAuth(request);
@@ -583,6 +633,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/users/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: UserProfileCreateBody })],
     },
     async (request: any, reply) => {

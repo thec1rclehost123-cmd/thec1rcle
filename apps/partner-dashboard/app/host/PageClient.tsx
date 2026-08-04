@@ -3,13 +3,21 @@
 import Link from 'next/link';
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarDays, ChevronRight, Image as ImageIcon, Search, ShoppingBag } from 'lucide-react';
+import {
+  CalendarDays,
+  ChevronRight,
+  Image as ImageIcon,
+  Search,
+  ShoppingBag,
+  AlertTriangle,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 import { VenuePageShell, VenueActionButton } from '@/components/venue-layout/VenuePageShell';
 import VenueChart, { ChartSkeleton } from '@/components/ui/VenueChart';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { usePartnerHostOverview } from '@/lib/hooks/useHostQueries';
 import { formatINRCompact, formatNumber } from '@/lib/utils/format';
+import { resolveHostOverviewQueryPolicy } from '@/lib/host/overviewQueryPolicy';
 
 type OverviewRange = '1d' | '1w' | '1m' | 'all';
 type OverviewMetric = 'tickets' | 'revenue';
@@ -95,15 +103,17 @@ const OVERVIEW_REFRESH_MS = 60_000;
 const OVERVIEW_ORDERS_STALE_MS = 2 * 60 * 1000;
 const OVERVIEW_EVENTS_STALE_MS = 5 * 60 * 1000;
 const OVERVIEW_SERIES_STALE_MS = 60_000;
-const USE_NEW_HOST_OVERVIEW = process.env.NEXT_PUBLIC_PARTNER_DASHBOARD_HOST_OVERVIEW_V2 === 'true';
-const ENABLE_HOST_OVERVIEW_COMPARE =
-  process.env.NEXT_PUBLIC_PARTNER_DASHBOARD_HOST_OVERVIEW_COMPARE === 'true';
+const HOST_OVERVIEW_QUERY_POLICY = resolveHostOverviewQueryPolicy(
+  process.env.NEXT_PUBLIC_PARTNER_DASHBOARD_HOST_OVERVIEW_V2,
+  process.env.NEXT_PUBLIC_PARTNER_DASHBOARD_HOST_OVERVIEW_COMPARE,
+);
+const USE_NEW_HOST_OVERVIEW = HOST_OVERVIEW_QUERY_POLICY.unifiedEnabled;
+const ENABLE_LEGACY_HOST_OVERVIEW_QUERIES = HOST_OVERVIEW_QUERY_POLICY.legacyEnabled;
 
 function formatRangeLabel(date: Date, range: OverviewRange) {
   if (range === '1d') {
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      hour12: true,
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
     });
   }
 
@@ -124,9 +134,10 @@ function buildEmptyRangeLabels(range: OverviewRange) {
   const now = new Date();
 
   if (range === '1d') {
-    return Array.from({ length: 8 }, (_, index) => {
+    return Array.from({ length: 2 }, (_, index) => {
       const point = new Date(now);
-      point.setHours(now.getHours() - (7 - index) * 3, 0, 0, 0);
+      point.setDate(now.getDate() - (1 - index));
+      point.setHours(0, 0, 0, 0);
       return formatRangeLabel(point, range);
     });
   }
@@ -461,8 +472,9 @@ export default function HostDashboardStreaming() {
     selectedRange,
     selectedMetric,
   );
-  const preferUnifiedOverview = USE_NEW_HOST_OVERVIEW && !unifiedOverviewQuery.isError;
-  const enableLegacyOverviewQueries = !preferUnifiedOverview || ENABLE_HOST_OVERVIEW_COMPARE;
+  const warnings = unifiedOverviewQuery.data?.warnings || [];
+  const preferUnifiedOverview = USE_NEW_HOST_OVERVIEW;
+  const enableLegacyOverviewQueries = ENABLE_LEGACY_HOST_OVERVIEW_QUERIES;
 
   const recentOrdersQuery = useQuery({
     queryKey: ['host', hostId, 'overview-orders-latest'],
@@ -600,6 +612,75 @@ export default function HostDashboardStreaming() {
           </Link>
         }
       >
+        {USE_NEW_HOST_OVERVIEW && unifiedOverviewQuery.isError && (
+          <div
+            role="alert"
+            className="mb-6 rounded-[24px] border border-amber-500/30 bg-amber-950/20 px-5 py-4 flex flex-wrap items-center justify-between gap-4"
+          >
+            <div>
+              <p className="text-[13px] font-bold text-amber-300">
+                Host overview data is temporarily unavailable.
+              </p>
+              <p className="text-[11px] text-zinc-400 mt-1">
+                Financial and ticket metrics are locked until the canonical ledger projection can be
+                read.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void unifiedOverviewQuery.refetch()}
+              className="rounded-full border border-amber-400/30 px-4 py-2 text-[11px] font-bold text-amber-200 hover:bg-amber-400/10"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {warnings.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1], delay: 0.01 }}
+            className="mb-6 rounded-[28px] p-6 flex flex-col gap-4 bg-red-950/20 border border-red-500/20 text-red-200"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-[14px] font-black uppercase tracking-wider text-red-500">
+                  Compliance Notice: Warnings Issued ({warnings.length})
+                </h3>
+                <p className="text-[12px] text-zinc-400 mt-1">
+                  Your host profile has active compliance warnings from the platform administration.
+                  Please ensure compliance to prevent account restriction or feature lock.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {warnings.map((w: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1.5"
+                >
+                  <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                    <span>Warning #{idx + 1}</span>
+                    <span>
+                      {w.timestamp
+                        ? new Date(w.timestamp).toLocaleDateString(undefined, {
+                            dateStyle: 'medium',
+                          })
+                        : 'Unknown Date'}
+                    </span>
+                  </div>
+                  <p className="text-[13px] text-white font-medium">{w.message}</p>
+                  {w.auditReason && (
+                    <p className="text-[11px] text-red-400/80 italic">Reason: {w.auditReason}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         <div className="flex flex-col gap-2">
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.85fr)_minmax(320px,0.95fr)] gap-6 xl:items-stretch">
             <section className="rounded-[32px] px-4 pt-4 pb-2 h-full" style={cardStyle()}>

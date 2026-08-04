@@ -57,6 +57,7 @@ vi.mock('@c1rcle/core/guest-wallet-profile-notification-service', () => ({
 }));
 
 vi.mock('@c1rcle/core/guest-event-conversion', () => ({
+  getEventInterested: vi.fn(async () => ({ count: 0, users: [] })),
   getEventQueueStatus: vi.fn(async () => ({ id: 'queue_1', status: 'waiting' })),
   getEventSurgeStatus: vi.fn(async () => ({ status: 'surge' })),
   joinEventQueue: vi.fn(async (_db: any, payload: any) => ({
@@ -370,6 +371,8 @@ describe('Phase 4 auth enforcement matrix', () => {
       ['GET', '/api/v1/guest-profiles/lookup?email=guest%40example.com', undefined],
       ['POST', '/api/v1/guest-profiles/avatar', undefined],
       ['POST', '/api/v1/follow', { targetId: 'host_1', targetType: 'host' }],
+      ['GET', '/api/v1/users/me/follows', undefined],
+      ['GET', '/api/v1/events/event_1/interested?limit=24', undefined],
       ['POST', '/api/v1/events/event_1/rsvp', { shouldInclude: true }],
       ['POST', '/api/v1/events/event_1/queue', {}],
       [

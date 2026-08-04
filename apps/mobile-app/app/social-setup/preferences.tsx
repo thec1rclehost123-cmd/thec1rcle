@@ -11,7 +11,8 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/lib/design/theme';
-import type { SocialProfile } from '@/store/socialProfileStore';
+import { useAuth } from '@/hooks/useAuth';
+import { markSocialSetupSkipped } from '@/lib/onboardingFlow';
 import { useSocialProfileStore } from '@/store/socialProfileStore';
 
 // ── Chip multi-select ─────────────────────────────────────────────────────────
@@ -121,7 +122,7 @@ function AgeRangePicker({
               style={ageStyles.counterBtn}
               onPress={() => {
                 Haptics.selectionAsync();
-                onChangeMin(Math.min(max - 1, min + 1));
+                onChangeMin(Math.min(max, min + 1));
               }}
             >
               <Text style={ageStyles.counterBtnText}>+</Text>
@@ -138,7 +139,7 @@ function AgeRangePicker({
               style={ageStyles.counterBtn}
               onPress={() => {
                 Haptics.selectionAsync();
-                onChangeMax(Math.max(min + 1, max - 1));
+                onChangeMax(Math.max(min, max - 1));
               }}
             >
               <Text style={ageStyles.counterBtnText}>−</Text>
@@ -199,7 +200,8 @@ type InterestedIn = 'male' | 'female' | 'nonbinary' | 'everyone';
 
 export default function SocialSetupPreferences() {
   const params = useLocalSearchParams<{ photosJson: string }>();
-  const { socialProfile } = useSocialProfileStore();
+  const { user } = useAuth();
+  const socialProfile = useSocialProfileStore((state) => state.socialProfile);
 
   const [city, setCity] = useState(socialProfile?.city ?? '');
   const [interestedIn, setInterestedIn] = useState<InterestedIn[]>(
@@ -234,11 +236,23 @@ export default function SocialSetupPreferences() {
     });
   };
 
+  const handleSkip = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await markSocialSetupSkipped(user?.uid);
+    router.replace('/(tabs)/explore');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable
+          style={styles.backBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+        >
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.stepIndicator}>
@@ -259,21 +273,15 @@ export default function SocialSetupPreferences() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Animated.Text entering={FadeInDown.delay(60).springify().damping(18)} style={styles.title}>
+        <Animated.Text entering={FadeInDown.delay(60)} style={styles.title}>
           Your preferences
         </Animated.Text>
-        <Animated.Text
-          entering={FadeInDown.delay(100).springify().damping(18)}
-          style={styles.subtitle}
-        >
+        <Animated.Text entering={FadeInDown.delay(100)} style={styles.subtitle}>
           Help us find the right people at your events.
         </Animated.Text>
 
         {/* City */}
-        <Animated.View
-          entering={FadeInDown.delay(140).springify().damping(18)}
-          style={styles.fieldGroup}
-        >
+        <Animated.View entering={FadeInDown.delay(140)} style={styles.fieldGroup}>
           <Text style={styles.fieldLabel}>Your City</Text>
           <TextInput
             style={styles.textInput}
@@ -287,7 +295,7 @@ export default function SocialSetupPreferences() {
         </Animated.View>
 
         {/* Interested in */}
-        <Animated.View entering={FadeInDown.delay(180).springify().damping(18)}>
+        <Animated.View entering={FadeInDown.delay(180)}>
           <ChipGroup<InterestedIn>
             label="Interested In"
             options={[
@@ -303,7 +311,7 @@ export default function SocialSetupPreferences() {
         </Animated.View>
 
         {/* Age range */}
-        <Animated.View entering={FadeInDown.delay(220).springify().damping(18)}>
+        <Animated.View entering={FadeInDown.delay(220)}>
           <AgeRangePicker
             min={ageMin}
             max={ageMax}
@@ -313,7 +321,7 @@ export default function SocialSetupPreferences() {
         </Animated.View>
 
         {/* Looking for */}
-        <Animated.View entering={FadeInDown.delay(260).springify().damping(18)}>
+        <Animated.View entering={FadeInDown.delay(260)}>
           <ChipGroup<string>
             label="Looking For"
             options={[
@@ -329,7 +337,7 @@ export default function SocialSetupPreferences() {
         </Animated.View>
 
         {/* Sexuality */}
-        <Animated.View entering={FadeInDown.delay(300).springify().damping(18)}>
+        <Animated.View entering={FadeInDown.delay(300)}>
           <ChipGroup<string>
             label="Sexuality (optional)"
             options={[
@@ -345,7 +353,7 @@ export default function SocialSetupPreferences() {
         </Animated.View>
 
         {/* Drinking */}
-        <Animated.View entering={FadeInDown.delay(340).springify().damping(18)}>
+        <Animated.View entering={FadeInDown.delay(340)}>
           <ChipGroup<string>
             label="Drinking"
             options={[
@@ -360,7 +368,7 @@ export default function SocialSetupPreferences() {
         </Animated.View>
 
         {/* Smoking */}
-        <Animated.View entering={FadeInDown.delay(380).springify().damping(18)}>
+        <Animated.View entering={FadeInDown.delay(380)}>
           <ChipGroup<string>
             label="Smoking"
             options={[
@@ -379,6 +387,9 @@ export default function SocialSetupPreferences() {
         <Pressable style={styles.nextBtn} onPress={handleNext}>
           <Text style={styles.nextBtnText}>Continue</Text>
           <ChevronRight size={18} color="#fff" strokeWidth={2} />
+        </Pressable>
+        <Pressable onPress={handleSkip} style={styles.skipBtn}>
+          <Text style={styles.skipText}>Skip for now</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -470,6 +481,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 20,
     paddingTop: 12,
+    gap: 12,
   },
   nextBtn: {
     backgroundColor: colors.iris,
@@ -489,5 +501,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  skipBtn: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  skipText: {
+    color: 'rgba(255,255,255,0.38)',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

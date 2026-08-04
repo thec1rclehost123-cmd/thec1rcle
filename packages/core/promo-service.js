@@ -316,19 +316,26 @@ export async function validatePromoCode(eventId, code, userId, items) {
 
 /**
  * Record a promo code redemption
+ *
+ * Idempotency design: the redemption record is keyed deterministically by
+ * orderId (one order redeems at most one promo code), and uses batch.create()
+ * which fails the entire batch if a redemption for this order already exists.
+ * This prevents double-counting on retry regardless of what the caller does.
  */
 export async function recordRedemption(promoCodeId, orderId, userId, details = {}) {
   if (!isFirebaseConfigured()) {
-    const id = randomUUID();
+    if (fallbackRedemptions.has(orderId)) {
+      return { success: true, alreadyRedeemed: true };
+    }
     const redemption = {
-      id,
+      id: orderId,
       promoCodeId,
       orderId,
       userId,
       ...details,
       timestamp: new Date().toISOString(),
     };
-    fallbackRedemptions.set(id, redemption);
+    fallbackRedemptions.set(orderId, redemption);
 
     // Update local count
     const pc = fallbackPromoCodes.get(promoCodeId);
@@ -358,9 +365,11 @@ export async function recordRedemption(promoCodeId, orderId, userId, details = {
   // 2. Background Sync to Firestore (Persistent Storage)
   const batch = db.batch();
 
-  // Create redemption record
-  const redemptionRef = db.collection(PROMO_REDEMPTIONS_COLLECTION).doc(randomUUID());
-  batch.set(redemptionRef, {
+  // Deterministic doc ID keyed by orderId, not a random UUID: a retried call
+  // resolves to the same document instead of minting a fresh one and
+  // incrementing redemptionCount a second time.
+  const redemptionRef = db.collection(PROMO_REDEMPTIONS_COLLECTION).doc(orderId);
+  batch.create(redemptionRef, {
     promoCodeId,
     orderId,
     userId,
@@ -375,32 +384,16 @@ export async function recordRedemption(promoCodeId, orderId, userId, details = {
     updatedAt: new Date().toISOString(),
   });
 
-  await batch.commit();
-  return { success: true };
-}
-
-/**
- * Get user's redemption count for a promo code
- */
-async function getUserRedemptionCount(promoCodeId, userId) {
-  if (!isFirebaseConfigured()) {
-    let count = 0;
-    for (const redemption of fallbackRedemptions.values()) {
-      if (redemption.promoCodeId === promoCodeId && redemption.userId === userId) {
-        count++;
-      }
+  try {
+    await batch.commit();
+  } catch (err) {
+    // batch.create() fails atomically if the redemption doc already exists
+    if (err.code === 6 || err.message?.includes('ALREADY_EXISTS')) {
+      return { success: true, alreadyRedeemed: true };
     }
-    return count;
+    throw err;
   }
-
-  const db = getAdminDb();
-  const snapshot = await db
-    .collection(PROMO_REDEMPTIONS_COLLECTION)
-    .where('promoCodeId', '==', promoCodeId)
-    .where('userId', '==', userId)
-    .get();
-
-  return snapshot.size;
+  return { success: true };
 }
 
 export default {

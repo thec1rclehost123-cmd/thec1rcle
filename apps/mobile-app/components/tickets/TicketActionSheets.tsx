@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import type { OrderTicket } from '@/store/ticketsStore';
 
@@ -34,7 +35,12 @@ interface TicketTierGroup {
 
 interface ShareSheetContentProps {
   tickets?: OrderTicket[];
-  onShare: (channel: string, tierId?: string, expiresAt?: string) => Promise<void>;
+  onShare: (
+    channel: string,
+    tierId?: string,
+    expiresAt?: string,
+    quantity?: number,
+  ) => Promise<void>;
 }
 
 interface TransferSheetContentProps {
@@ -58,7 +64,12 @@ const SHARE_OPTIONS = [
 
 function buildTierGroups(tickets: OrderTicket[] = []): TicketTierGroup[] {
   return tickets
-    .filter((ticket) => !ticket.isClaimed && ticket.tierId)
+    .filter((ticket) => {
+      const claimedByGuest = Boolean(
+        ticket.claimedBy?.uid || ticket.claimedBy?.name || ticket.claimedBy?.email,
+      );
+      return !claimedByGuest && ticket.tierId;
+    })
     .reduce<TicketTierGroup[]>((groups, ticket) => {
       const existing = groups.find((group) => group.id === ticket.tierId);
       if (existing) {
@@ -87,10 +98,12 @@ export function ActionSheet({
 
   return (
     <Modal visible={isVisible} transparent animationType="none" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}
         style={styles.modalContainer}
+        enableOnAndroid={true}
+        extraScrollHeight={20}
+        bounces={false}
       >
         <Animated.View
           entering={FadeIn.duration(200)}
@@ -98,7 +111,12 @@ export function ActionSheet({
           style={StyleSheet.absoluteFill}
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
-            <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFill} />
+            <BlurView
+              blurMethod="dimezisBlurView"
+              intensity={35}
+              tint="dark"
+              style={StyleSheet.absoluteFill}
+            />
           </Pressable>
         </Animated.View>
 
@@ -120,7 +138,7 @@ export function ActionSheet({
 
           <View style={styles.content}>{children}</View>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </Modal>
   );
 }
@@ -128,7 +146,7 @@ export function ActionSheet({
 export function ShareSheetContent({ tickets, onShare }: ShareSheetContentProps) {
   const [loading, setLoading] = useState<string | null>(null);
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
-  const [expiryMode, setExpiryMode] = useState<'24h' | '48h' | 'event'>('event');
+  const [quantityMode, setQuantityMode] = useState<'all' | 'one'>('all');
 
   const tiers = buildTierGroups(tickets);
 
@@ -139,6 +157,7 @@ export function ShareSheetContent({ tickets, onShare }: ShareSheetContentProps) 
   }, [selectedTierId, tiers]);
 
   const selectedTier = tiers.find((tier) => tier.id === selectedTierId);
+  const selectedQuantity = quantityMode === 'all' ? Math.max(selectedTier?.count || 1, 1) : 1;
 
   const handleShare = async (channel: string) => {
     if (tiers.length > 1 && !selectedTierId) {
@@ -149,11 +168,7 @@ export function ShareSheetContent({ tickets, onShare }: ShareSheetContentProps) 
     setLoading(channel);
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    let expiresAt: string | undefined;
-    if (expiryMode === '24h') expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    if (expiryMode === '48h') expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
-
-    await onShare(channel, selectedTierId || tiers[0]?.id, expiresAt);
+    await onShare(channel, selectedTierId || tiers[0]?.id, undefined, selectedQuantity);
     setLoading(null);
   };
 
@@ -161,7 +176,7 @@ export function ShareSheetContent({ tickets, onShare }: ShareSheetContentProps) 
     <View>
       {tiers.length > 0 ? (
         <>
-          <Text style={styles.sectionTitle}>Select Ticket Type</Text>
+          <Text style={styles.sectionTitle}>Ticket type</Text>
           {tiers.map((tier) => (
             <Pressable
               key={tier.id}
@@ -177,7 +192,7 @@ export function ShareSheetContent({ tickets, onShare }: ShareSheetContentProps) 
                   <Text style={styles.tierMeta}>{tier.gender.toUpperCase()} only</Text>
                 ) : null}
               </View>
-              <Text style={styles.tierCount}>{tier.count} left</Text>
+              <Text style={styles.tierCount}>{tier.count} in order</Text>
             </Pressable>
           ))}
         </>
@@ -190,20 +205,33 @@ export function ShareSheetContent({ tickets, onShare }: ShareSheetContentProps) 
         </View>
       )}
 
-      <Text style={styles.sectionTitle}>Link Expiry</Text>
-      <View style={styles.segmentRow}>
-        {(['24h', '48h', 'event'] as const).map((mode) => (
-          <Pressable
-            key={mode}
-            onPress={() => setExpiryMode(mode)}
-            style={[styles.segment, expiryMode === mode && styles.segmentActive]}
-          >
-            <Text style={[styles.segmentText, expiryMode === mode && styles.segmentTextActive]}>
-              {mode === 'event' ? 'Event Start' : mode === '24h' ? '24 Hours' : '48 Hours'}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      {selectedTier && selectedTier.count > 1 ? (
+        <>
+          <Text style={styles.sectionTitle}>How many</Text>
+          <View style={styles.segmentRow}>
+            <Pressable
+              onPress={() => setQuantityMode('all')}
+              style={[styles.segment, quantityMode === 'all' && styles.segmentActive]}
+            >
+              <Text
+                style={[styles.segmentText, quantityMode === 'all' && styles.segmentTextActive]}
+              >
+                All {selectedTier.count}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setQuantityMode('one')}
+              style={[styles.segment, quantityMode === 'one' && styles.segmentActive]}
+            >
+              <Text
+                style={[styles.segmentText, quantityMode === 'one' && styles.segmentTextActive]}
+              >
+                Just 1
+              </Text>
+            </Pressable>
+          </View>
+        </>
+      ) : null}
 
       {selectedTier?.gender ? (
         <View style={styles.warningBanner}>
@@ -214,7 +242,7 @@ export function ShareSheetContent({ tickets, onShare }: ShareSheetContentProps) 
         </View>
       ) : null}
 
-      <Text style={styles.sectionTitle}>Share via</Text>
+      <Text style={styles.sectionTitle}>Share</Text>
       <View style={styles.shareGrid}>
         {SHARE_OPTIONS.map((option) => (
           <Pressable
@@ -254,9 +282,13 @@ export function TransferSheetContent({
 
   const handleEmail = () => {
     if (!email.trim() || !email.includes('@')) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Enter Email', 'Enter a valid email address for the recipient.');
       return;
     }
+
+    Keyboard.dismiss();
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     Alert.alert(
       'Confirm Transfer',
@@ -269,6 +301,7 @@ export function TransferSheetContent({
           onPress: async () => {
             setLoading('email');
             await onTransferEmail(email.trim());
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             setLoading(null);
           },
         },
@@ -277,6 +310,8 @@ export function TransferSheetContent({
   };
 
   const handleLink = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
     Alert.alert(
       'Generate Transfer Link',
       'Anyone with this link can claim ownership of the ticket.',
@@ -287,6 +322,7 @@ export function TransferSheetContent({
           onPress: async () => {
             setLoading('link');
             await onGenerateLink();
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             setLoading(null);
           },
         },
@@ -377,14 +413,18 @@ export function TransferSheetContent({
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.72)',
   },
   sheet: {
-    backgroundColor: '#1A1A1A',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    maxHeight: '82%',
+    width: '100%',
+    alignSelf: 'stretch',
+    backgroundColor: '#111113',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 28,
+    maxHeight: '92%',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.14)',
   },
   handle: {
     width: 40,
@@ -399,8 +439,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255,255,255,0.12)',
   },
@@ -410,7 +450,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#fff',
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
   },
   description: {
@@ -428,8 +468,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   content: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
   sectionTitle: {
     color: '#fff',
@@ -471,7 +511,7 @@ const styles = StyleSheet.create({
   segmentRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 18,
+    marginBottom: 16,
   },
   segment: {
     flex: 1,
@@ -530,25 +570,25 @@ const styles = StyleSheet.create({
   },
   shareGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 18,
-    paddingBottom: 10,
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingBottom: 0,
   },
   shareOption: {
-    width: 72,
+    flex: 1,
     alignItems: 'center',
   },
   iconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
   shareLabel: {
     color: 'rgba(255,255,255,0.78)',
-    fontSize: 12,
+    fontSize: 11,
     textAlign: 'center',
   },
   input: {

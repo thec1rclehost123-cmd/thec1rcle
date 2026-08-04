@@ -2,9 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { guestApi, getApiErrorMessage } from '../../lib/api/client';
-import { isGuestBffEnabled } from '../../lib/bff/flags.js';
-import { fetchGuestBffNotificationsSummary } from '../../lib/bff/fetchers.js';
-import { logGuestBffParity } from '../../lib/bff/parity.js';
 
 const NOTIFICATIONS_ROOT_QUERY_KEY = ['guest', 'notifications'];
 const NOTIFICATIONS_STALE_MS = 30 * 1000;
@@ -24,27 +21,6 @@ export function guestUnreadNotificationCountQueryKey(uid) {
 }
 
 export async function fetchGuestNotifications({ unreadOnly = false, limit = 50 } = {}) {
-  if (isGuestBffEnabled('notifications')) {
-    const summary = await fetchGuestBffNotificationsSummary({ unreadOnly, limit });
-    const items = summary?.items || [];
-
-    try {
-      const params = new URLSearchParams();
-      if (unreadOnly) params.set('unreadOnly', 'true');
-      if (limit) params.set('limit', String(limit));
-      const query = params.toString() ? `?${params.toString()}` : '';
-      const { response, data } = await guestApi.notifications.list(query);
-      if (response.ok) {
-        logGuestBffParity('notifications.list', data?.notifications || [], items, {
-          limit,
-          unreadOnly,
-        });
-      }
-    } catch {}
-
-    return items;
-  }
-
   const params = new URLSearchParams();
   if (unreadOnly) params.set('unreadOnly', 'true');
   if (limit) params.set('limit', String(limit));
@@ -58,24 +34,6 @@ export async function fetchGuestNotifications({ unreadOnly = false, limit = 50 }
 }
 
 export async function fetchGuestUnreadNotificationCount() {
-  if (isGuestBffEnabled('notifications')) {
-    const summary = await fetchGuestBffNotificationsSummary({ countOnly: true });
-    const nextData = { unreadCount: summary?.unreadCount || 0 };
-
-    try {
-      const { response, data } = await guestApi.notifications.unreadCount();
-      if (response.ok) {
-        logGuestBffParity(
-          'notifications.unreadCount',
-          { unreadCount: data?.unreadCount || 0 },
-          nextData,
-        );
-      }
-    } catch {}
-
-    return nextData;
-  }
-
   const { response, data } = await guestApi.notifications.unreadCount();
   if (!response.ok) {
     throw new Error(getApiErrorMessage(data, 'Failed to load notification count'));

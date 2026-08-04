@@ -30,6 +30,7 @@ export default async function waitlistRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/join',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: JoinBody })],
     },
     async (request: any, reply) => {
@@ -60,6 +61,7 @@ export default async function waitlistRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/process',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         async (request: any, reply: any) => {
           const internalKey = process.env.INTERNAL_API_KEY;
@@ -89,6 +91,7 @@ export default async function waitlistRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/status',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({
           querystring: z
@@ -156,6 +159,7 @@ export default async function waitlistRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/verify',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: VerifyQuery })],
     },
     async (request, reply) => {

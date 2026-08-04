@@ -5,12 +5,7 @@ import { X, Mail, User, Shield } from 'lucide-react';
 
 // Local StaffRole type matching the roles used in this component
 type VenueStaffRole =
-  | 'OWNER'
-  | 'CLUB_MANAGER'
-  | 'FLOOR_MANAGER'
-  | 'TABLE_MANAGER'
-  | 'SECURITY'
-  | 'OPS_STAFF';
+  'OWNER' | 'CLUB_MANAGER' | 'FLOOR_MANAGER' | 'TABLE_MANAGER' | 'SECURITY' | 'OPS_STAFF';
 
 interface AddStaffModalProps {
   isOpen: boolean;

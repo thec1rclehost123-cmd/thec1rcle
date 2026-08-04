@@ -1,4 +1,4 @@
-import { inngest, Events } from '../inngest-client.js';
+import { inngest } from '../inngest-client.js';
 import { getAdminDb } from '../admin.js';
 import { computeVenueHeatScore, computeHostHeatScore } from '../guest-discovery-engine.js';
 
@@ -13,7 +13,7 @@ export const recalculateHeatScores = inngest.createFunction(
     id: 'recalculate-heat-scores',
     name: 'Recalculate Heat Scores',
   },
-  { cron: '*/30 * * * *' }, // Every 30 minutes
+  { cron: '0 * * * *' }, // Every 1 hour
   async ({ step }) => {
     const db = getAdminDb();
 
@@ -27,27 +27,30 @@ export const recalculateHeatScores = inngest.createFunction(
       return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     });
 
-    // Batch update heat scores
+    // Batch update heat scores in chunks of 500 to stay under Firestore's batch limits
     await step.run('update-heat-scores', async () => {
       const now = new Date();
-      const BATCH_LIMIT = 500;
+      const batchLimit = 500;
 
-      for (let i = 0; i < events.length; i += BATCH_LIMIT) {
+      for (let i = 0; i < events.length; i += batchLimit) {
+        const chunk = events.slice(i, i + batchLimit);
         const batch = db.batch();
-        const chunk = events.slice(i, i + BATCH_LIMIT);
 
         for (const event of chunk) {
           // Formula: (Tickets Sold * 10) + (Heat Signal * 5) - (Days to Event penalty)
+          // Simplified for Phase 2:
           const ticketsSold = event.ticketsStats?.totalSold ?? 0;
           const views = event.analytics?.views ?? 0;
 
+          // Base score
           let score = ticketsSold * 10 + views * 0.5;
 
+          // Recency/Urgency: More heat if event is soon (but not past)
           const eventStart = new Date(event.startDate);
           const diffDays = (eventStart - now) / (1000 * 60 * 60 * 24);
 
           if (diffDays > 0 && diffDays < 7) {
-            score += (7 - diffDays) * 20;
+            score += (7 - diffDays) * 20; // Up to 140 points for urgency
           }
 
           batch.update(db.collection('events').doc(event.id), {
@@ -76,7 +79,7 @@ export const processVenueClick = inngest.createFunction(
   },
   { event: 'venue/click' },
   async ({ event, step }) => {
-    const { venueId, visitorId, timestamp } = event.data;
+    const { venueId, _visitorId, timestamp } = event.data;
     const db = getAdminDb();
 
     // 1. Fetch ticket sales count from events collection
@@ -85,7 +88,7 @@ export const processVenueClick = inngest.createFunction(
       let totalSales = 0;
       eventsSnap.forEach((doc) => {
         const eventData = doc.data() || {};
-        totalSales += eventData.ticketsStats?.totalSold || 0;
+        totalSales += eventData.ticketsStats?.totalSold ?? 0;
       });
       return totalSales;
     });
@@ -138,7 +141,7 @@ export const processHostClick = inngest.createFunction(
   },
   { event: 'host/click' },
   async ({ event, step }) => {
-    const { hostId, visitorId, timestamp } = event.data;
+    const { hostId, _visitorId, timestamp } = event.data;
     const db = getAdminDb();
 
     // 1. Fetch ticket sales count from events collection
@@ -147,7 +150,7 @@ export const processHostClick = inngest.createFunction(
       let totalSales = 0;
       eventsSnap.forEach((doc) => {
         const eventData = doc.data() || {};
-        totalSales += eventData.ticketsStats?.totalSold || 0;
+        totalSales += eventData.ticketsStats?.totalSold ?? 0;
       });
       return totalSales;
     });

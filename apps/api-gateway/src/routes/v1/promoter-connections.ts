@@ -60,6 +60,7 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
   fastify.post(
     '/request',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: RequestBody })],
     },
     async (request: any, reply) => {
@@ -163,6 +164,7 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
   fastify.get(
     '/promoter/:promoterId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: PromoterIdParam, querystring: StatusQuery }),
@@ -194,6 +196,7 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
   fastify.get(
     '/incoming',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: IncomingQuery })],
     },
     async (request: any, reply) => {
@@ -230,6 +233,7 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
   fastify.get(
     '/discover',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: DiscoverQuery })],
     },
     async (request: any, reply) => {
@@ -292,6 +296,7 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
   fastify.patch(
     '/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: ConnectionIdParam, body: ActionBody }),
@@ -347,6 +352,7 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
   fastify.post(
     '/invites',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: InvitesBody })],
     },
     async (request: any, reply) => {
@@ -395,6 +401,7 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
   fastify.post(
     '/links/click',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: LinkClickBody })],
     },
     async (request: any, reply) => {

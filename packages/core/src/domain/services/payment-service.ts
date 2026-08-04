@@ -22,13 +22,21 @@ export class PaymentService {
       keyId: string;
       keySecret: string;
       allowMockPayment?: boolean;
+      forceMockPayment?: boolean;
     };
   }): Promise<any> {
     const { order, userId, config } = params;
-    const { keyId, keySecret, allowMockPayment } = config;
+    const { keyId, keySecret, allowMockPayment, forceMockPayment } = config;
+    const amountPaise = Number.isSafeInteger(order.totalPaise)
+      ? Number(order.totalPaise)
+      : Math.round(order.totalAmount * 100);
+    const currency = String(order.currency || 'INR').toUpperCase();
     const reusableRecord = await this.orderRepo.getLatestPendingPaymentRecord(order.id);
 
-    if (this.canReusePaymentRecord(reusableRecord, order, userId)) {
+    if (
+      this.canReusePaymentRecord(reusableRecord, order, userId) &&
+      (!forceMockPayment || String(reusableRecord!.razorpayOrderId || '').startsWith('order_mock_'))
+    ) {
       const isMockOrder = String(reusableRecord!.razorpayOrderId || '').startsWith('order_mock_');
       if (isMockOrder && !allowMockPayment) {
         throw new Error('Mock payments are disabled');
@@ -40,12 +48,14 @@ export class PaymentService {
       return {
         razorpayOrderId: reusableRecord!.razorpayOrderId,
         amount: reusableRecord!.amount,
-        currency: 'INR',
+        amountPaise:
+          reusableRecord!.amountPaise ?? Math.round(Number(reusableRecord!.amount || 0) * 100),
+        currency: reusableRecord!.currency || currency,
         key: isMockOrder ? 'rzp_test_DEVELOPMENT' : keyId,
       };
     }
 
-    if (!keyId || !keySecret) {
+    if (!keyId || !keySecret || forceMockPayment) {
       if (!allowMockPayment) {
         throw new Error('Payment gateway is not configured');
       }
@@ -56,6 +66,8 @@ export class PaymentService {
         razorpayOrderId,
         workspaceId: order.workspaceId || null,
         amount: order.totalAmount,
+        amountPaise,
+        currency,
         status: 'initiated',
         userId,
         createdAt: new Date().toISOString(),
@@ -63,7 +75,8 @@ export class PaymentService {
       return {
         razorpayOrderId,
         amount: order.totalAmount,
-        currency: 'INR',
+        amountPaise,
+        currency,
         key: 'rzp_test_DEVELOPMENT',
       };
     }
@@ -74,8 +87,8 @@ export class PaymentService {
     try {
       rzpOrder = await withTimeout(
         razorpay.orders.create({
-          amount: Math.round(order.totalAmount * 100),
-          currency: 'INR',
+          amount: amountPaise,
+          currency,
           receipt: order.id,
           notes: { orderId: order.id, userId },
         }),
@@ -90,6 +103,8 @@ export class PaymentService {
       razorpayOrderId: rzpOrder.id,
       workspaceId: order.workspaceId || null,
       amount: order.totalAmount,
+      amountPaise,
+      currency,
       status: 'initiated',
       userId,
       createdAt: new Date().toISOString(),
@@ -98,7 +113,8 @@ export class PaymentService {
     return {
       razorpayOrderId: rzpOrder.id,
       amount: order.totalAmount,
-      currency: 'INR',
+      amountPaise,
+      currency,
       key: keyId,
     };
   }

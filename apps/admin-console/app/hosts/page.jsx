@@ -14,13 +14,17 @@ import {
   X,
   AlertCircle,
   RotateCw,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { DataTable } from '@/components/ui/DataTable';
 import { ActionDrawer } from '@/components/ui/ActionDrawer';
 import AdminConfirmModal from '@/components/admin/AdminConfirmModal';
+import { useToast } from '@/components/providers/ToastProvider';
 
 export default function AdminHosts() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [hosts, setHosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedHost, setSelectedHost] = useState(null);
@@ -30,12 +34,59 @@ export default function AdminHosts() {
 
   const fetchHosts = async () => {
     try {
+      setLoading(true);
       const token = await user.getIdToken();
-      const res = await fetch('/api/list?collection=hosts', {
-        headers: { Authorization: `Bearer ${token}` },
+
+      const [hostsRes, proposalsRes] = await Promise.all([
+        fetch('/api/list?collection=hosts', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch('/api/list?collection=proposed_actions', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      const hostsJson = await hostsRes.json();
+      const proposalsJson = await proposalsRes.json();
+
+      const activeProposals = (proposalsJson.data || []).filter((p) => p.status === 'pending');
+
+      const mergedHosts = (hostsJson.data || []).map((host) => {
+        const pendingSuspend = activeProposals.find(
+          (p) => p.targetId === host.id && p.action === 'HOST_SUSPEND',
+        );
+        const pendingReinstate = activeProposals.find(
+          (p) => p.targetId === host.id && p.action === 'HOST_REINSTATE',
+        );
+
+        if (pendingSuspend) {
+          return {
+            ...host,
+            pendingAction: 'suspend',
+            accountStatus: host.status || 'active',
+            operationsStatus: 'Suspension Requested',
+          };
+        } else if (pendingReinstate) {
+          return {
+            ...host,
+            pendingAction: 'reinstate',
+            accountStatus: host.status || 'suspended',
+            operationsStatus: 'Reinstatement Requested',
+          };
+        }
+        return {
+          ...host,
+          accountStatus: host.status || 'active',
+          operationsStatus: 'No Pending Action',
+        };
       });
-      const json = await res.json();
-      setHosts(json.data || []);
+
+      setHosts(mergedHosts);
+
+      if (selectedHost) {
+        const updated = mergedHosts.find((h) => h.id === selectedHost.id);
+        if (updated) setSelectedHost(updated);
+      }
     } catch (err) {
       console.error('Failed to fetch host registry', err);
     } finally {
@@ -77,19 +128,14 @@ export default function AdminHosts() {
         throw new Error(json.error || 'Action failed');
       }
 
-      if (json.message) alert(json.message);
+      if (json.message) {
+        toast({ type: 'success', message: json.message });
+      } else {
+        toast({ type: 'success', message: 'Action executed successfully.' });
+      }
 
-      const updatedRes = await fetch('/api/list?collection=hosts', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const updatedJson = await updatedRes.json();
-      const mappedHosts = updatedJson.data || [];
-      setHosts(mappedHosts);
-
-      const updated = mappedHosts.find((h) => h.id === selectedHost.id);
-      if (updated) setSelectedHost(updated);
+      await fetchHosts();
     } catch (err) {
-      alert(`Error: ${err.message}`);
       throw err;
     }
   };
@@ -165,18 +211,26 @@ export default function AdminHosts() {
     },
     {
       key: 'status',
-      label: 'Status',
+      label: 'Account Status',
       sortable: true,
-      render: (val) => (
-        <div className="flex items-center justify-end gap-2.5">
-          <div
-            className={`h-1.5 w-1.5 rounded-full ${val === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : val === 'suspended' ? 'bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]' : 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]'}`}
-          ></div>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">
-            {val}
-          </span>
-        </div>
-      ),
+      render: (val, row) => {
+        const displayStatus = row.accountStatus || val || 'active';
+        const colorClass =
+          displayStatus === 'active'
+            ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+            : displayStatus === 'pending'
+              ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
+              : 'bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]';
+
+        return (
+          <div className="flex items-center justify-end gap-2.5">
+            <div className={`h-1.5 w-1.5 rounded-full ${colorClass}`}></div>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">
+              Account: {displayStatus}
+            </span>
+          </div>
+        );
+      },
     },
   ];
 
@@ -244,6 +298,7 @@ export default function AdminHosts() {
       <DataTable
         columns={columns}
         data={filteredHosts}
+        loading={loading}
         searchPlaceholder="Find organizer by name, ID or owner profile..."
         onRowClick={(host) => {
           setSelectedHost(host);
@@ -258,44 +313,90 @@ export default function AdminHosts() {
         subtitle={`Organizer ID: ${selectedHost?.id}`}
         footer={
           <div className="space-y-3">
-            <button
-              onClick={() =>
-                setModalConfig({
-                  action: 'PAYOUT_FREEZE',
-                  title: 'Restrict Payouts',
-                  message:
-                    'Immediately prevent all outgoing payments to this organizer. Requires security clearance.',
-                  label: 'Confirm Restriction',
-                  type: 'danger',
-                  isTier3: true,
-                })
-              }
-              className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-iris/10 border border-iris/20 text-white hover:bg-iris/20 transition-all font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-iris/10"
-            >
-              <Ban className="h-4 w-4" strokeWidth={2} />
-              Restrict Payouts
-            </button>
-
-            <button
-              onClick={() =>
-                setModalConfig({
-                  action: 'PAYOUT_RELEASE',
-                  title: 'Resume Payouts',
-                  message: 'Restore standard payment processing for this organizer profile.',
-                  label: 'Authorize Resume',
-                  type: 'info',
-                  isTier3: false,
-                })
-              }
-              className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10 text-zinc-600 hover:text-white hover:bg-white/10 transition-all font-bold text-[10px] uppercase tracking-widest"
-            >
-              <RotateCcw className="h-4 w-4" strokeWidth={1.5} />
-              Restore Payouts
-            </button>
+            {selectedHost?.pendingAction && (
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[11px] font-semibold flex items-center gap-2 mb-2 select-none animate-in fade-in duration-300">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>
+                  A request to {selectedHost.pendingAction === 'suspend' ? 'restrict' : 'restore'}{' '}
+                  this organizer is currently pending approval. Duplicate requests are disabled.
+                </span>
+              </div>
+            )}
+            {selectedHost?.status === 'suspended' ? (
+              <button
+                disabled={!!selectedHost?.pendingAction}
+                onClick={() =>
+                  setModalConfig({
+                    action: 'HOST_REINSTATE',
+                    title: 'Restore Partner',
+                    message: 'Allow this organizer to resume event hosting and platform access.',
+                    label: 'Restore Partner',
+                    type: 'info',
+                    isTier2: true,
+                  })
+                }
+                className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/20 transition-all font-bold text-[11px] uppercase tracking-widest disabled:opacity-20 disabled:cursor-not-allowed"
+              >
+                <Unlock className="h-4 w-4" strokeWidth={2} />
+                Restore Partner
+              </button>
+            ) : (
+              <button
+                disabled={!!selectedHost?.pendingAction}
+                onClick={() =>
+                  setModalConfig({
+                    action: 'HOST_SUSPEND',
+                    title: 'Restrict Collaboration',
+                    message:
+                      'Deactivate partner operations immediately. Requires security clearance.',
+                    label: 'Confirm Restriction',
+                    type: 'danger',
+                    isTier2: true,
+                  })
+                }
+                className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-iris/10 border border-iris/20 text-white hover:bg-iris/20 transition-all font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-iris/10 disabled:opacity-20 disabled:cursor-not-allowed"
+              >
+                <Lock className="h-4 w-4" strokeWidth={2} />
+                Restrict Partner
+              </button>
+            )}
           </div>
         }
       >
         <div className="space-y-8">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1">
+                Account Status
+              </p>
+              <div className="flex items-center gap-2">
+                <div
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    selectedHost?.accountStatus === 'active'
+                      ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+                      : selectedHost?.accountStatus === 'pending'
+                        ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)] animate-pulse'
+                        : 'bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]'
+                  }`}
+                />
+                <p className="text-[11px] font-bold uppercase tracking-widest text-white truncate max-w-[150px]">
+                  Account: {selectedHost?.accountStatus || selectedHost?.status || 'active'}
+                </p>
+              </div>
+              <p className="mt-2 text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+                Operations: {selectedHost?.operationsStatus || 'No Pending Action'}
+              </p>
+            </div>
+            <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1">
+                Account Type
+              </p>
+              <p className="text-xl font-light text-white uppercase truncate">
+                {selectedHost?.role || 'Member'}
+              </p>
+            </div>
+          </div>
+
           <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">
               Administrative Owner
@@ -384,6 +485,7 @@ export default function AdminHosts() {
           inputLabel={modalConfig.inputLabel}
           inputType={modalConfig.inputType}
           inputPlaceholder={modalConfig.inputPlaceholder}
+          isTier2={modalConfig.isTier2}
           isTier3={modalConfig.isTier3}
         />
       )}

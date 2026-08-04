@@ -5,13 +5,23 @@ import { guestApi } from '../../lib/api/client';
 async function apiFetch(request) {
   const { response, data } = await request();
   if (!response.ok) {
-    throw new Error(data?.error || data?.message || `Request failed (${response.status})`);
+    const errorMsg =
+      data?.error?.message ||
+      data?.message ||
+      (typeof data?.error === 'string' ? data.error : null) ||
+      `Request failed (${response.status})`;
+    throw new Error(errorMsg);
   }
   return data;
 }
 
 export async function getUserTickets() {
   return apiFetch(() => guestApi.tickets.wallet());
+}
+
+export async function getPublicTicket(id) {
+  const result = await apiFetch(() => guestApi.tickets.getPublic(id));
+  return result.ticket;
 }
 
 export async function createShareBundle(orderId, eventId, quantity, tierId = null) {

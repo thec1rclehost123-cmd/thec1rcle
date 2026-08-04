@@ -1,12 +1,16 @@
 import { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { finalizeProcessedRefund } from '../../lib/refundLedger';
 
 const RequestBody = z
   .object({
     orderId: z.string(),
     reason: z.string().optional(),
+    amountPaise: z.number().int().positive().nullable().optional(),
     amount: z.number().positive().nullable().optional(),
+    ticketIds: z.array(z.string().min(1)).min(1).max(50).optional(),
+    entitlementIds: z.array(z.string().min(1)).min(1).max(50).optional(),
     // `source` is accepted for backward compatibility but ignored — it is
     // derived server-side from the authenticated actor, never trusted.
     source: z.string().optional(),
@@ -78,12 +82,12 @@ async function claimRefundForSettlement(
  * failure, the order is restored to its pre-refund status rather than left
  * locked in `refund_requested`.
  */
-async function settleRefund(
+export async function settleRefund(
   fastify: FastifyInstance,
   params: {
     refundId: string;
     orderId: string;
-    amount: number;
+    amountPaise: number;
     razorpayPaymentId: string;
     fullyRefunded: boolean;
     previousStatus: string;
@@ -94,7 +98,7 @@ async function settleRefund(
   const {
     refundId,
     orderId,
-    amount,
+    amountPaise,
     razorpayPaymentId,
     fullyRefunded,
     previousStatus,
@@ -118,7 +122,7 @@ async function settleRefund(
   try {
     const refund = await (fastify as any).checkoutService.refundPayment({
       razorpayPaymentId,
-      amount,
+      amount: amountPaise / 100,
       receipt: refundId,
       notes: { orderId, refundRequestId: refundId },
       config: {
@@ -130,20 +134,29 @@ async function settleRefund(
 
     const status = refund.status === 'processed' ? 'completed' : 'processing';
 
-    await fastify.db.runTransaction(async (t: any) => {
-      t.update(refundRef, {
-        status,
-        razorpayRefundId: refund.id,
-        settledAt: now,
-        updatedAt: now,
+    if (status === 'completed') {
+      await finalizeProcessedRefund({
+        db: fastify.db,
+        refundId,
+        providerRefundId: refund.id,
+        processedAt: now,
       });
-      t.update(orderRef, {
-        status: fullyRefunded ? 'refunded' : previousStatus,
-        refundStatus: status,
-        razorpayRefundId: refund.id,
-        updatedAt: now,
+    } else {
+      await fastify.db.runTransaction(async (t: any) => {
+        t.update(refundRef, {
+          status,
+          razorpayRefundId: refund.id,
+          settledAt: now,
+          updatedAt: now,
+        });
+        t.update(orderRef, {
+          status: fullyRefunded ? 'refund_processing' : previousStatus,
+          refundStatus: status,
+          razorpayRefundId: refund.id,
+          updatedAt: now,
+        });
       });
-    });
+    }
 
     await fastify.writeAuditLog({
       action: 'refund.settled',
@@ -152,7 +165,7 @@ async function settleRefund(
       entityType: 'refund',
       entityId: refundId,
       requestId,
-      payload: { orderId, amount, razorpayRefundId: refund.id, status },
+      payload: { orderId, amountPaise, razorpayRefundId: refund.id, status },
     });
 
     return { ok: true, status, razorpayRefundId: refund.id };
@@ -171,7 +184,7 @@ async function settleRefund(
       entityType: 'refund',
       entityId: refundId,
       requestId,
-      payload: { orderId, amount, reason: message },
+      payload: { orderId, amountPaise, reason: message },
     });
 
     fastify.log.error(`Refund settlement failed for ${refundId}: ${message}`);
@@ -190,7 +203,14 @@ export default async function refundRoutes(fastify: FastifyInstance) {
       preHandler: [fastify.requireAuth, fastify.validate({ body: RequestBody })],
     },
     async (request: any, reply) => {
-      const { orderId, reason = '', amount = null } = request.body;
+      const {
+        orderId,
+        reason = '',
+        amountPaise: requestedAmountPaise,
+        amount = null,
+        ticketIds = [],
+        entitlementIds = [],
+      } = request.body;
       const requestedBy = request.user;
       if (!requestedBy) return reply.status(401).send({ error: 'Unauthorized' });
 
@@ -234,23 +254,34 @@ export default async function refundRoutes(fastify: FastifyInstance) {
         const priorSnap = await t.get(
           fastify.db.collection(REFUNDS_COL).where('orderId', '==', orderId),
         );
-        const paid = Number(order.totalAmount || 0);
-        const alreadyRefunded = priorSnap.docs.reduce((sum: number, d: any) => {
+        const paidPaise = Number.isSafeInteger(order.totalPaise)
+          ? order.totalPaise
+          : Math.round(Number(order.totalAmount || 0) * 100);
+        const alreadyRefundedPaise = priorSnap.docs.reduce((sum: number, d: any) => {
           const r = d.data();
-          return ACTIVE_REFUND_STATUSES.includes(r.status) ? sum + Number(r.amount || 0) : sum;
+          if (!ACTIVE_REFUND_STATUSES.includes(r.status)) return sum;
+          return (
+            sum +
+            (Number.isSafeInteger(r.amountPaise)
+              ? r.amountPaise
+              : Math.round(Number(r.amount || 0) * 100))
+          );
         }, 0);
-        const remaining = Math.max(0, paid - alreadyRefunded);
-        if (remaining <= 0) {
+        const remainingPaise = Math.max(0, paidPaise - alreadyRefundedPaise);
+        if (remainingPaise <= 0) {
           return { ok: false as const, status: 409, message: 'Order is already fully refunded' };
         }
 
-        // Clamp the requested amount to the refundable balance. `amount` is only
-        // honored when explicitly provided; otherwise refund the full balance.
-        const refundAmount = amount == null ? remaining : Number(amount);
-        if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+        const refundAmountPaise =
+          requestedAmountPaise != null
+            ? Number(requestedAmountPaise)
+            : amount != null
+              ? Math.round(Number(amount) * 100)
+              : remainingPaise;
+        if (!Number.isSafeInteger(refundAmountPaise) || refundAmountPaise <= 0) {
           return { ok: false as const, status: 400, message: 'Invalid refund amount' };
         }
-        if (refundAmount > remaining) {
+        if (refundAmountPaise > remainingPaise) {
           return {
             ok: false as const,
             status: 400,
@@ -258,8 +289,61 @@ export default async function refundRoutes(fastify: FastifyInstance) {
           };
         }
 
-        const autoApprove = refundAmount < AUTO_APPROVE_THRESHOLD && order.status !== 'checked_in';
-        const fullyRefunded = refundAmount >= remaining;
+        const refundAmount = refundAmountPaise / 100;
+        const autoApprove =
+          refundAmountPaise < AUTO_APPROVE_THRESHOLD * 100 && order.status !== 'checked_in';
+        const fullyRefunded = refundAmountPaise >= remainingPaise;
+        if (
+          !fullyRefunded &&
+          (ticketIds.length === 0 ||
+            entitlementIds.length === 0 ||
+            ticketIds.length !== entitlementIds.length)
+        ) {
+          return {
+            ok: false as const,
+            status: 400,
+            message: 'Partial refunds require exact ticket and entitlement IDs',
+          };
+        }
+
+        if (!fullyRefunded) {
+          const [selectedTickets, selectedEntitlements] = await Promise.all([
+            Promise.all(
+              ticketIds.map((ticketId: string) =>
+                t.get(fastify.db.collection('tickets').doc(ticketId)),
+              ),
+            ),
+            Promise.all(
+              entitlementIds.map((entitlementId: string) =>
+                t.get(fastify.db.collection('entitlements').doc(entitlementId)),
+              ),
+            ),
+          ]);
+          const selectedTicketIds = new Set(ticketIds);
+          const mappingIsValid =
+            selectedTickets.every(
+              (ticket: any) =>
+                ticket.exists &&
+                String(ticket.data()?.orderId || '') === orderId &&
+                !['refunded', 'revoked'].includes(
+                  String(ticket.data()?.status || '').toLowerCase(),
+                ),
+            ) &&
+            selectedEntitlements.every(
+              (entitlement: any) =>
+                entitlement.exists &&
+                String(entitlement.data()?.orderId || '') === orderId &&
+                selectedTicketIds.has(String(entitlement.data()?.ticketDocumentId || '')) &&
+                String(entitlement.data()?.state || '').toUpperCase() === 'ACTIVE',
+            );
+          if (!mappingIsValid) {
+            return {
+              ok: false as const,
+              status: 400,
+              message: 'Refund admission mapping is invalid',
+            };
+          }
+        }
 
         const refundRequest: any = {
           id,
@@ -267,14 +351,19 @@ export default async function refundRoutes(fastify: FastifyInstance) {
           eventId: order.eventId,
           customerId: order.customerId || order.userId,
           amount: refundAmount,
-          isPartial: refundAmount < paid,
+          amountPaise: refundAmountPaise,
+          isPartial: refundAmountPaise < paidPaise,
           fullyRefunded,
+          revokeAdmission: true,
+          ticketIds: fullyRefunded ? [] : ticketIds,
+          entitlementIds: fullyRefunded ? [] : entitlementIds,
           reason,
           source,
           requestedBy: { uid: requestedBy.uid, role: requestedBy.role },
           status: autoApprove ? 'approved' : 'pending',
-          approvalType: refundAmount < 500 ? 'auto' : refundAmount < 5000 ? 'single' : 'dual',
-          approversRequired: refundAmount < 500 ? 0 : refundAmount < 5000 ? 1 : 2,
+          approvalType:
+            refundAmountPaise < 50000 ? 'auto' : refundAmountPaise < 500000 ? 'single' : 'dual',
+          approversRequired: refundAmountPaise < 50000 ? 0 : refundAmountPaise < 500000 ? 1 : 2,
           approvers: autoApprove ? [{ uid: 'system', role: 'system', at: now }] : [],
           paymentDetails: { originalPaymentId },
           previousStatus: order.status,
@@ -311,7 +400,7 @@ export default async function refundRoutes(fastify: FastifyInstance) {
         requestId: request.id,
         payload: {
           refundId: id,
-          amount: outcome.refundRequest.amount,
+          amountPaise: outcome.refundRequest.amountPaise,
           autoApproved: outcome.autoApprove,
           ip: request.ip,
         },
@@ -328,7 +417,7 @@ export default async function refundRoutes(fastify: FastifyInstance) {
       const settled = await settleRefund(fastify, {
         refundId: id,
         orderId,
-        amount: outcome.refundRequest.amount,
+        amountPaise: outcome.refundRequest.amountPaise,
         razorpayPaymentId: outcome.refundRequest.paymentDetails.originalPaymentId,
         fullyRefunded: outcome.refundRequest.fullyRefunded,
         previousStatus: outcome.refundRequest.previousStatus,
@@ -363,6 +452,7 @@ export default async function refundRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/pending',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: PendingQuery })],
     },
     async (request: any, reply) => {
@@ -385,6 +475,7 @@ export default async function refundRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/order/:orderId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: OrderIdParam })],
     },
     async (request: any, reply) => {
@@ -413,6 +504,7 @@ export default async function refundRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: RefundIdParam, body: ActionBody }),
@@ -433,33 +525,75 @@ export default async function refundRoutes(fastify: FastifyInstance) {
       const previousStatus = refundData.previousStatus || 'confirmed';
 
       if (action === 'approve') {
-        if (refundData.razorpayRefundId) {
-          return reply.status(409).send({ error: 'Refund has already been processed' });
-        }
-        if (!['pending', 'approved'].includes(refundData.status)) {
-          return reply
-            .status(409)
-            .send({ error: `Refund is not approvable from status "${refundData.status}"` });
-        }
-        const originalPaymentId = refundData.paymentDetails?.originalPaymentId;
-        if (!originalPaymentId) {
-          return reply
-            .status(409)
-            .send({ error: 'Refund request has no linked payment to refund' });
-        }
-
-        await fastify.db
-          .collection(REFUNDS_COL)
-          .doc(id)
-          .update({
-            status: 'approved',
-            approvedAt: now,
+        const approval = await fastify.db.runTransaction(async (transaction: any) => {
+          const refundRef = fastify.db.collection(REFUNDS_COL).doc(id);
+          const snapshot = await transaction.get(refundRef);
+          if (!snapshot.exists) {
+            return { ok: false as const, status: 404, error: 'Refund not found' };
+          }
+          const current = snapshot.data() as any;
+          if (current.razorpayRefundId) {
+            return {
+              ok: false as const,
+              status: 409,
+              error: 'Refund has already been processed',
+            };
+          }
+          if (!['pending', 'approved'].includes(current.status)) {
+            return {
+              ok: false as const,
+              status: 409,
+              error: `Refund is not approvable from status "${current.status}"`,
+            };
+          }
+          if (current.approvers?.some((approver: any) => approver.uid === actor.uid)) {
+            return {
+              ok: false as const,
+              status: 409,
+              error: 'This admin has already approved the refund',
+            };
+          }
+          const originalPaymentId = current.paymentDetails?.originalPaymentId;
+          if (!originalPaymentId) {
+            return {
+              ok: false as const,
+              status: 409,
+              error: 'Refund request has no linked payment to refund',
+            };
+          }
+          const approvers = [
+            ...(current.approvers || []),
+            { uid: actor.uid, role: actor.role, at: now },
+          ];
+          const approversRequired = Math.max(1, Number(current.approversRequired || 1));
+          const fullyApproved = approvers.length >= approversRequired;
+          const amountPaise = Number.isSafeInteger(current.amountPaise)
+            ? current.amountPaise
+            : Math.round(Number(current.amount || 0) * 100);
+          if (!Number.isSafeInteger(amountPaise) || amountPaise <= 0) {
+            return {
+              ok: false as const,
+              status: 409,
+              error: 'Refund request has an invalid amount',
+            };
+          }
+          transaction.update(refundRef, {
+            status: fullyApproved ? 'approved' : 'pending',
+            approvedAt: fullyApproved ? now : null,
             updatedAt: now,
-            approvers: [
-              ...(refundData.approvers || []),
-              { uid: actor.uid, role: actor.role, at: now },
-            ],
+            approvers,
           });
+          return {
+            ok: true as const,
+            fullyApproved,
+            pendingApprovals: Math.max(0, approversRequired - approvers.length),
+            refund: { ...current, amountPaise },
+            originalPaymentId,
+          };
+        });
+        if (!approval.ok) {
+          return reply.status(approval.status).send({ error: approval.error });
+        }
 
         await fastify.writeAuditLog({
           action: 'refund.approve',
@@ -468,15 +602,29 @@ export default async function refundRoutes(fastify: FastifyInstance) {
           entityType: 'refund',
           entityId: id,
           requestId: request.id,
-          payload: { orderId: refundData.orderId, amount: refundData.amount, ip: request.ip },
+          payload: {
+            orderId: approval.refund.orderId,
+            amountPaise: approval.refund.amountPaise,
+            fullyApproved: approval.fullyApproved,
+            ip: request.ip,
+          },
         });
+
+        if (!approval.fullyApproved) {
+          return {
+            success: true,
+            approved: false,
+            pendingApprovals: approval.pendingApprovals,
+            status: 'pending',
+          };
+        }
 
         const settled = await settleRefund(fastify, {
           refundId: id,
-          orderId: refundData.orderId,
-          amount: refundData.amount,
-          razorpayPaymentId: originalPaymentId,
-          fullyRefunded: Boolean(refundData.fullyRefunded ?? !refundData.isPartial),
+          orderId: approval.refund.orderId,
+          amountPaise: approval.refund.amountPaise,
+          razorpayPaymentId: approval.originalPaymentId,
+          fullyRefunded: Boolean(approval.refund.fullyRefunded ?? !approval.refund.isPartial),
           previousStatus,
           actor: { uid: actor.uid, role: actor.role },
           requestId: request.id,
@@ -488,6 +636,8 @@ export default async function refundRoutes(fastify: FastifyInstance) {
 
         return {
           success: true,
+          approved: true,
+          pendingApprovals: 0,
           status: settled.status,
           razorpayRefundId: settled.razorpayRefundId,
         };
@@ -497,14 +647,28 @@ export default async function refundRoutes(fastify: FastifyInstance) {
       // the refund was requested (e.g. `checked_in`), never hardcode it —
       // otherwise a rejected refund on an already-scanned ticket would
       // reopen it for re-entry.
-      await fastify.db
-        .collection(REFUNDS_COL)
-        .doc(id)
-        .update({ status: 'rejected', rejectionReason: reason, rejectedAt: now, updatedAt: now });
-      await fastify.db
-        .collection(ORDERS_COL)
-        .doc(refundData.orderId)
-        .update({ status: previousStatus, updatedAt: now });
+      const rejected = await fastify.db.runTransaction(async (transaction: any) => {
+        const refundRef = fastify.db.collection(REFUNDS_COL).doc(id);
+        const currentSnapshot = await transaction.get(refundRef);
+        if (!currentSnapshot.exists) return false;
+        const current = currentSnapshot.data() as any;
+        if (current.status !== 'pending') return false;
+        transaction.update(refundRef, {
+          status: 'rejected',
+          rejectionReason: reason,
+          rejectedAt: now,
+          updatedAt: now,
+        });
+        transaction.update(fastify.db.collection(ORDERS_COL).doc(current.orderId), {
+          status: current.previousStatus || 'confirmed',
+          refundStatus: 'rejected',
+          updatedAt: now,
+        });
+        return true;
+      });
+      if (!rejected) {
+        return reply.status(409).send({ error: 'Refund is no longer rejectable' });
+      }
 
       await fastify.writeAuditLog({
         action: 'refund.reject',
@@ -513,7 +677,12 @@ export default async function refundRoutes(fastify: FastifyInstance) {
         entityType: 'refund',
         entityId: id,
         requestId: request.id,
-        payload: { orderId: refundData.orderId, amount: refundData.amount, reason, ip: request.ip },
+        payload: {
+          orderId: refundData.orderId,
+          amountPaise: refundData.amountPaise ?? Math.round(Number(refundData.amount || 0) * 100),
+          reason,
+          ip: request.ip,
+        },
       });
 
       return { success: true };

@@ -10,7 +10,6 @@ import Animated, {
   useAnimatedStyle,
   withRepeat,
   withTiming,
-  withSpring,
   withSequence,
   withDelay,
   interpolate,
@@ -80,6 +79,7 @@ export function LiquidGlass({
     <View style={[styles.liquidGlassContainer, { borderRadius }, style]}>
       {/* Background blur */}
       <BlurView
+        blurMethod="dimezisBlurView"
         intensity={intensity}
         tint="dark"
         style={[StyleSheet.absoluteFill, { borderRadius }]}
@@ -228,19 +228,19 @@ export function AuroraBackground({
   return (
     <View style={[styles.auroraContainer, { opacity }]}>
       <Animated.View style={[styles.auroraBlob, styles.auroraBlob1, blob1Style]}>
-        <BlurView intensity={100} style={StyleSheet.absoluteFill}>
+        <BlurView blurMethod="dimezisBlurView" intensity={100} style={StyleSheet.absoluteFill}>
           <View style={[StyleSheet.absoluteFill, { backgroundColor: auroraColors[0] }]} />
         </BlurView>
       </Animated.View>
 
       <Animated.View style={[styles.auroraBlob, styles.auroraBlob2, blob2Style]}>
-        <BlurView intensity={100} style={StyleSheet.absoluteFill}>
+        <BlurView blurMethod="dimezisBlurView" intensity={100} style={StyleSheet.absoluteFill}>
           <View style={[StyleSheet.absoluteFill, { backgroundColor: auroraColors[1] }]} />
         </BlurView>
       </Animated.View>
 
       <Animated.View style={[styles.auroraBlob, styles.auroraBlob3, blob3Style]}>
-        <BlurView intensity={100} style={StyleSheet.absoluteFill}>
+        <BlurView blurMethod="dimezisBlurView" intensity={100} style={StyleSheet.absoluteFill}>
           <View style={[StyleSheet.absoluteFill, { backgroundColor: auroraColors[2] }]} />
         </BlurView>
       </Animated.View>
@@ -282,7 +282,12 @@ export function HolographicCard({ children: childrenRaw, style }: HolographicCar
 
   return (
     <View style={[styles.holographicContainer, style]}>
-      <BlurView intensity={30} tint="dark" style={styles.holographicBlur} />
+      <BlurView
+        blurMethod="dimezisBlurView"
+        intensity={30}
+        tint="dark"
+        style={styles.holographicBlur}
+      />
 
       {/* Rainbow shifting background */}
       <Animated.View style={[styles.holographicRainbow, rainbowStyle]} />
@@ -422,7 +427,7 @@ export function FloatingOrb({
         style as any,
       ]}
     >
-      <BlurView intensity={60} style={StyleSheet.absoluteFill} />
+      <BlurView blurMethod="dimezisBlurView" intensity={60} style={StyleSheet.absoluteFill} />
     </Animated.View>
   );
 }

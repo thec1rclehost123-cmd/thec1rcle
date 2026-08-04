@@ -2,33 +2,55 @@
  * eventInterestStore.ts
  *
  * Manages:
- *  - Event likes ("interested") — per user, written to Firestore
- *  - Interested users list per event (shown in "Who's Going")
- *  - Event group chat membership on ticket purchase
+ *  - Event likes ("interested") — routed through the API Gateway RSVP contract
+ *  - Interested users list per event (shown in the public Interested List)
+ *  - Privacy-safe event group member discovery
  *
- * Firestore structure:
- *   eventInterest/{eventId}/interestedUsers/{userId}
- *     → { userId, displayName, photoURL, likedAt }
- *
- *   eventGroupChatMembers/{eventId}/members/{userId}
- *     → { userId, displayName, photoURL, joinedAt, source }
+ * Ticket-based chat membership is issued only by the server fulfillment outbox.
  */
 import { create } from 'zustand';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  deleteDoc,
-  getDocs,
-  collection,
-  query,
-  where,
-  serverTimestamp,
-} from 'firebase/firestore';
+import { apiFetch } from '@/lib/api';
 
-function getDb() {
-  return getFirestore(getFirebaseApp());
+const RECENT_INTEREST_TOGGLE_MS = 15_000;
+const recentInterestToggles = new Map<string, { included: boolean; at: number }>();
+
+export function __resetRecentInterestTogglesForTests() {
+  recentInterestToggles.clear();
+}
+
+type InterestOverrides = Record<string, boolean>;
+
+function isFreshInterestToggle(toggle: { included: boolean; at: number } | undefined) {
+  return Boolean(toggle && Date.now() - toggle.at < RECENT_INTEREST_TOGGLE_MS);
+}
+
+function applyInterestOverrides(eventIds: Set<string>, overrides: InterestOverrides) {
+  const next = new Set(eventIds);
+  for (const [eventId, included] of Object.entries(overrides)) {
+    if (included) next.add(eventId);
+    else next.delete(eventId);
+  }
+  return next;
+}
+
+function applyRecentInterestToggles(eventIds: Set<string>) {
+  const recentOverrides: InterestOverrides = {};
+  for (const [eventId, toggle] of recentInterestToggles.entries()) {
+    if (!isFreshInterestToggle(toggle)) {
+      recentInterestToggles.delete(eventId);
+      continue;
+    }
+    recentOverrides[eventId] = toggle.included;
+  }
+  return applyInterestOverrides(eventIds, recentOverrides);
+}
+
+function shouldRollbackInterestToggle(error: unknown) {
+  const status =
+    typeof error === 'object' && error !== null && 'status' in error
+      ? Number((error as { status?: unknown }).status)
+      : 0;
+  return status === 401 || status === 403 || status === 404;
 }
 
 export interface InterestedUser {
@@ -49,6 +71,8 @@ export interface GroupChatMember {
 interface EventInterestState {
   /** Set of event IDs the current user has liked */
   likedEventIds: Set<string>;
+  /** Session-local truth for fresh user taps; prevents stale reads from visually clearing hearts */
+  interestOverrides: InterestOverrides;
   /** Interested users per eventId */
   interestedUsers: Record<string, InterestedUser[]>;
   /** Group chat members per eventId */
@@ -58,6 +82,8 @@ interface EventInterestState {
 
   /** Load all events the current user has liked */
   loadUserInterests: (userId: string) => Promise<void>;
+  /** Load current viewer's interested state for a single event */
+  fetchEventInterestState: (eventId: string) => Promise<void>;
   /** Toggle like on an event */
   toggleInterest: (
     eventId: string,
@@ -66,92 +92,148 @@ interface EventInterestState {
   ) => Promise<void>;
   /** Fetch list of users interested in an event */
   fetchInterestedUsers: (eventId: string) => Promise<void>;
-  /** Auto-add user to event group chat when ticket is purchased */
-  joinEventGroupChat: (
-    eventId: string,
-    userId: string,
-    userInfo: { displayName: string; photoURL: string | null },
-  ) => Promise<void>;
   /** Fetch group chat members for an event */
   fetchGroupChatMembers: (eventId: string) => Promise<void>;
+  /** Check if an event is liked by the current user */
+  isInterested: (eventId: string) => boolean;
 }
 
 export const useEventInterestStore = create<EventInterestState>((set, get) => ({
   likedEventIds: new Set(),
+  interestOverrides: {},
   interestedUsers: {},
   groupChatMembers: {},
   loadingInterested: {},
 
+  isInterested: (eventId: string) => {
+    const overrides = get().interestOverrides;
+    if (Object.prototype.hasOwnProperty.call(overrides, eventId)) {
+      return overrides[eventId];
+    }
+    return get().likedEventIds.has(eventId);
+  },
+
   loadUserInterests: async (userId: string) => {
     try {
-      const db = getDb();
-      // Query all eventInterest subcollections where this userId has a doc
-      // We store a top-level mirror collection for efficient user-centric queries
-      const snap = await getDocs(collection(db, 'userEventInterests', userId, 'events'));
-      const ids = new Set<string>();
-      snap.forEach((d) => ids.add(d.id));
-      set({ likedEventIds: ids });
+      const response = await apiFetch<any>('/api/v1/users/me', { requireAuth: true });
+      const profile = response.profile || response.data?.profile || {};
+      const extractIds = (arr: any[]): string[] =>
+        arr
+          .map((item: any) => (typeof item === 'string' ? item : item?.id || item?.eventId || ''))
+          .filter(Boolean);
+      const ids = new Set<string>([
+        ...(Array.isArray(profile.interestedEventIds)
+          ? extractIds(profile.interestedEventIds)
+          : []),
+        ...(Array.isArray(profile.interestedEvents) ? extractIds(profile.interestedEvents) : []),
+        ...(Array.isArray(profile.attendedEvents) ? extractIds(profile.attendedEvents) : []),
+      ]);
+      set((state) => ({
+        likedEventIds: applyInterestOverrides(
+          applyRecentInterestToggles(ids),
+          state.interestOverrides,
+        ),
+      }));
     } catch (e) {
       console.warn('[EventInterestStore] loadUserInterests:', e);
     }
   },
 
-  toggleInterest: async (eventId, userId, userInfo) => {
-    const { likedEventIds } = get();
-    const isLiked = likedEventIds.has(eventId);
-    const db = getDb();
+  fetchEventInterestState: async (eventId: string) => {
+    const likedBeforeRequest = get().isInterested(eventId);
+    try {
+      const response = await apiFetch<any>(
+        `/api/v1/events/${encodeURIComponent(eventId)}/viewer-state`,
+        { requireAuth: true },
+      );
+      if (get().isInterested(eventId) !== likedBeforeRequest) return;
+      const viewerState = response.data || response;
+      const isInterested = Boolean(viewerState.hasRsvped || viewerState.isInterested);
+      const overrides = get().interestOverrides;
+      if (
+        Object.prototype.hasOwnProperty.call(overrides, eventId) &&
+        overrides[eventId] !== isInterested
+      ) {
+        return;
+      }
+      const recentToggle = recentInterestToggles.get(eventId);
+      if (isFreshInterestToggle(recentToggle) && recentToggle?.included !== isInterested) return;
 
-    // Optimistic update
-    const next = new Set(likedEventIds);
-    if (isLiked) {
-      next.delete(eventId);
-    } else {
-      next.add(eventId);
+      const next = new Set(get().likedEventIds);
+      if (isInterested) next.add(eventId);
+      else next.delete(eventId);
+      set({ likedEventIds: next });
+    } catch (e) {
+      console.warn('[EventInterestStore] fetchEventInterestState:', e);
     }
-    set({ likedEventIds: next });
+  },
+
+  toggleInterest: async (eventId, userId, userInfo) => {
+    const previous = get().likedEventIds;
+    const previousInterestOverrides = get().interestOverrides;
+    const isLiked = get().isInterested(eventId);
+    const previousInterestedUsers = get().interestedUsers;
+    const nextIncluded = !isLiked;
+    recentInterestToggles.set(eventId, { included: nextIncluded, at: Date.now() });
+
+    // Optimistic update — use functional updater to avoid stale closure
+    set((state) => {
+      const next = new Set(state.likedEventIds);
+      if (!nextIncluded) {
+        next.delete(eventId);
+      } else {
+        next.add(eventId);
+      }
+      return {
+        likedEventIds: next,
+        interestOverrides: { ...state.interestOverrides, [eventId]: nextIncluded },
+      };
+    });
+
+    // Optimistically update interestedUsers
+    if (isLiked) {
+      set((state) => ({
+        interestedUsers: {
+          ...state.interestedUsers,
+          [eventId]: (state.interestedUsers[eventId] ?? []).filter((u) => u.userId !== userId),
+        },
+      }));
+    } else {
+      const payload = {
+        userId,
+        displayName: userInfo.displayName || 'C1rcle User',
+        photoURL: userInfo.photoURL ?? null,
+        likedAt: new Date().toISOString(),
+      };
+      set((state) => {
+        const current = state.interestedUsers[eventId] ?? [];
+        if (current.find((u) => u.userId === userId)) return state;
+        return {
+          interestedUsers: {
+            ...state.interestedUsers,
+            [eventId]: [payload, ...current],
+          },
+        };
+      });
+    }
 
     try {
-      // Write to eventInterest/{eventId}/interestedUsers/{userId}
-      const interestRef = doc(db, 'eventInterest', eventId, 'interestedUsers', userId);
-      // Mirror for user-centric queries
-      const mirrorRef = doc(db, 'userEventInterests', userId, 'events', eventId);
-
-      if (isLiked) {
-        await Promise.all([deleteDoc(interestRef), deleteDoc(mirrorRef)]);
-        // Remove from local interestedUsers list
-        const current = get().interestedUsers[eventId] ?? [];
-        set({
-          interestedUsers: {
-            ...get().interestedUsers,
-            [eventId]: current.filter((u) => u.userId !== userId),
-          },
-        });
-      } else {
-        const payload = {
-          userId,
-          displayName: userInfo.displayName || 'C1rcle User',
-          photoURL: userInfo.photoURL ?? null,
-          likedAt: new Date().toISOString(),
-        };
-        await Promise.all([
-          setDoc(interestRef, { ...payload, _ts: serverTimestamp() }),
-          setDoc(mirrorRef, { eventId, _ts: serverTimestamp() }),
-        ]);
-        // Add to local interestedUsers list
-        const current = get().interestedUsers[eventId] ?? [];
-        if (!current.find((u) => u.userId === userId)) {
-          set({
-            interestedUsers: {
-              ...get().interestedUsers,
-              [eventId]: [payload, ...current],
-            },
-          });
-        }
-      }
+      await apiFetch(`/api/v1/events/${encodeURIComponent(eventId)}/rsvp`, {
+        method: 'POST',
+        body: JSON.stringify({ shouldInclude: !isLiked }),
+        requireAuth: true,
+      });
     } catch (e) {
       console.warn('[EventInterestStore] toggleInterest failed:', e);
-      // Rollback
-      set({ likedEventIds });
+      if (shouldRollbackInterestToggle(e)) {
+        recentInterestToggles.delete(eventId);
+        // Full rollback — revert both likedEventIds AND interestedUsers
+        set({
+          likedEventIds: previous,
+          interestOverrides: previousInterestOverrides,
+          interestedUsers: previousInterestedUsers,
+        });
+      }
     }
   },
 
@@ -159,19 +241,29 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
     if (get().loadingInterested[eventId]) return;
     set({ loadingInterested: { ...get().loadingInterested, [eventId]: true } });
     try {
-      const db = getDb();
-      const snap = await getDocs(collection(db, 'eventInterest', eventId, 'interestedUsers'));
-      const users: InterestedUser[] = [];
-      snap.forEach((d) => {
-        const data = d.data();
-        users.push({
-          userId: data.userId ?? d.id,
-          displayName: data.displayName ?? 'C1rcle User',
-          photoURL: data.photoURL ?? null,
-          likedAt: data.likedAt ?? '',
-        });
-      });
-      set({ interestedUsers: { ...get().interestedUsers, [eventId]: users } });
+      const response = await apiFetch<any>(
+        `/api/v1/events/${encodeURIComponent(eventId)}/interested?limit=24`,
+        { requireAuth: true },
+      );
+      const interested = response.users || response.data?.users || [];
+      const users: InterestedUser[] = interested.map((user: any) => ({
+        userId: user.userId || user.id,
+        displayName: user.displayName || user.name || 'C1rcle User',
+        photoURL: user.photoURL || user.avatar || null,
+        likedAt: user.likedAt || user.createdAt || '',
+      }));
+      const previousUsers = get().interestedUsers[eventId] ?? [];
+      const shouldPreserveOptimisticViewer = get().likedEventIds.has(eventId);
+      const mergedUsers = shouldPreserveOptimisticViewer
+        ? [
+            ...previousUsers.filter(
+              (previousUser) => !users.some((user) => user.userId === previousUser.userId),
+            ),
+            ...users,
+          ]
+        : users;
+
+      set({ interestedUsers: { ...get().interestedUsers, [eventId]: mergedUsers } });
     } catch (e) {
       console.warn('[EventInterestStore] fetchInterestedUsers:', e);
     } finally {
@@ -179,38 +271,20 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
     }
   },
 
-  joinEventGroupChat: async (eventId, userId, userInfo) => {
-    try {
-      const db = getDb();
-      const memberRef = doc(db, 'eventGroupChatMembers', eventId, 'members', userId);
-      await setDoc(memberRef, {
-        userId,
-        displayName: userInfo.displayName || 'C1rcle User',
-        photoURL: userInfo.photoURL ?? null,
-        joinedAt: new Date().toISOString(),
-        source: 'ticket',
-        _ts: serverTimestamp(),
-      });
-    } catch (e) {
-      console.warn('[EventInterestStore] joinEventGroupChat:', e);
-    }
-  },
-
   fetchGroupChatMembers: async (eventId: string) => {
     try {
-      const db = getDb();
-      const snap = await getDocs(collection(db, 'eventGroupChatMembers', eventId, 'members'));
-      const members: GroupChatMember[] = [];
-      snap.forEach((d) => {
-        const data = d.data();
-        members.push({
-          userId: data.userId ?? d.id,
-          displayName: data.displayName ?? 'C1rcle User',
-          photoURL: data.photoURL ?? null,
-          joinedAt: data.joinedAt ?? '',
-          source: data.source ?? 'ticket',
-        });
-      });
+      const response = await apiFetch<any>(
+        `/api/v1/events/${encodeURIComponent(eventId)}/attendees?limit=100`,
+        { requireAuth: true },
+      );
+      const attendees = response.attendees || response.data?.attendees || [];
+      const members: GroupChatMember[] = attendees.map((attendee: any) => ({
+        userId: attendee.userId || attendee.id,
+        displayName: attendee.displayName || attendee.name || 'C1rcle User',
+        photoURL: attendee.photoURL || attendee.avatar || null,
+        joinedAt: attendee.joinedAt || '',
+        source: 'ticket',
+      }));
       set({ groupChatMembers: { ...get().groupChatMembers, [eventId]: members } });
     } catch (e) {
       console.warn('[EventInterestStore] fetchGroupChatMembers:', e);

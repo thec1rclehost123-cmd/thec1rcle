@@ -169,7 +169,9 @@ export function subscribeToEventMedia(
         { requireAuth: false },
       );
       if (active && response.media) onMedia(response.media);
-    } catch (e) {}
+    } catch {
+      console.warn('[media] poll failed for event', eventId);
+    }
   }
 
   poll();

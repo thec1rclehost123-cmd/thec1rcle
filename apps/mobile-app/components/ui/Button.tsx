@@ -2,12 +2,7 @@ import { ReactNode } from 'react';
 import { Pressable, Text, ActivityIndicator, View, PressableProps, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { colors, gradients, radii } from '@/lib/design/theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -60,12 +55,12 @@ export function Button({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.96, { duration: 150 });
     opacity.value = withTiming(0.9, { duration: 100 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(1, { duration: 150 });
     opacity.value = withTiming(1, { duration: 100 });
   };
 

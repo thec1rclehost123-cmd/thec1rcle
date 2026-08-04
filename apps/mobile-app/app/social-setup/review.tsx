@@ -3,7 +3,7 @@
  * Step 3 — Profile preview card + isVisible toggle + "Go Live" CTA.
  * Calls socialProfileStore.completeSetup() on confirm.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -17,10 +17,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ShieldCheck, Eye, EyeOff, Sparkles } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/hooks/useAuth';
+import { clearSocialSetupSkipped, markSocialSetupSkipped } from '@/lib/onboardingFlow';
 import { useProfileStore } from '@/store/profileStore';
 import { useSocialProfileStore } from '@/store/socialProfileStore';
 import { colors } from '@/lib/design/theme';
@@ -37,18 +38,39 @@ type Params = {
   lookingFor: string;
 };
 
+function parseStringArray(value: string | undefined, fallback: string[]) {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')
+      ? parsed
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export default function SocialSetupReview() {
   const params = useLocalSearchParams<Params>();
   const { user } = useAuth();
-  const { profile } = useProfileStore();
-  const { completeSetup, loading } = useSocialProfileStore();
+  const profile = useProfileStore((state) => state.profile);
+  const updateProfile = useProfileStore((state) => state.updateProfile);
+  const completeSetup = useSocialProfileStore((state) => state.completeSetup);
 
   const [isVisible, setIsVisible] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const photos: string[] = JSON.parse(params.photosJson ?? '[]');
-  const interestedIn = JSON.parse(params.interestedIn ?? '["everyone"]');
-  const lookingFor = JSON.parse(params.lookingFor ?? '["friends"]');
+  const photos = useMemo(() => parseStringArray(params.photosJson, []), [params.photosJson]);
+  const interestedIn = useMemo(
+    () =>
+      parseStringArray(params.interestedIn, ['everyone']) as (
+        'male' | 'female' | 'nonbinary' | 'everyone'
+      )[],
+    [params.interestedIn],
+  );
+  const lookingFor = useMemo(
+    () => parseStringArray(params.lookingFor, ['friends']),
+    [params.lookingFor],
+  );
 
   const primaryPhoto = photos[0];
   const displayName = profile?.displayName || user?.displayName || 'You';
@@ -73,16 +95,21 @@ export default function SocialSetupReview() {
         isVisible,
       });
 
+      await clearSocialSetupSkipped(user.uid);
+      await updateProfile(user.uid, { socialSetupComplete: true });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      // Navigate to social tab
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      router.replace('/(tabs)/social' as any);
+      router.replace('/(tabs)/explore');
     } catch {
       Alert.alert('Something went wrong', "Couldn't save your profile. Please try again.");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSkip = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await markSocialSetupSkipped(user?.uid);
+    router.replace('/(tabs)/explore');
   };
 
   const lookingForLabel = lookingFor.join(' · ');
@@ -102,7 +129,13 @@ export default function SocialSetupReview() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable
+          style={styles.backBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+        >
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.stepIndicator}>
@@ -122,21 +155,15 @@ export default function SocialSetupReview() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.Text entering={FadeInDown.delay(60).springify().damping(18)} style={styles.title}>
+        <Animated.Text entering={FadeInDown.delay(60)} style={styles.title}>
           Looking good!
         </Animated.Text>
-        <Animated.Text
-          entering={FadeInDown.delay(100).springify().damping(18)}
-          style={styles.subtitle}
-        >
+        <Animated.Text entering={FadeInDown.delay(100)} style={styles.subtitle}>
           Here's how your profile will appear to others.
         </Animated.Text>
 
         {/* Profile card preview */}
-        <Animated.View
-          entering={FadeInDown.delay(160).springify().damping(16)}
-          style={styles.previewCard}
-        >
+        <Animated.View entering={FadeInDown.delay(160)} style={styles.previewCard}>
           {/* Photo */}
           <View style={styles.photoContainer}>
             {primaryPhoto ? (
@@ -169,10 +196,7 @@ export default function SocialSetupReview() {
         </Animated.View>
 
         {/* Visibility toggle */}
-        <Animated.View
-          entering={FadeInDown.delay(220).springify().damping(18)}
-          style={styles.visibilityRow}
-        >
+        <Animated.View entering={FadeInDown.delay(220)} style={styles.visibilityRow}>
           <View style={styles.visibilityLeft}>
             {isVisible ? (
               <Eye size={20} color={colors.iris} strokeWidth={1.8} />
@@ -202,10 +226,7 @@ export default function SocialSetupReview() {
         </Animated.View>
 
         {/* Verification nudge */}
-        <Animated.View
-          entering={FadeInDown.delay(280).springify().damping(18)}
-          style={styles.verifyNudge}
-        >
+        <Animated.View entering={FadeInDown.delay(280)} style={styles.verifyNudge}>
           <ShieldCheck size={18} color={colors.iris} strokeWidth={1.8} />
           <Text style={styles.verifyNudgeText}>
             You can verify your profile later to unlock dating and messaging.
@@ -214,7 +235,7 @@ export default function SocialSetupReview() {
       </ScrollView>
 
       {/* Footer */}
-      <Animated.View entering={FadeInDown.delay(320).springify().damping(18)} style={styles.footer}>
+      <Animated.View entering={FadeInDown.delay(320)} style={styles.footer}>
         <Pressable
           style={[styles.goLiveBtn, saving && styles.goLiveBtnDisabled]}
           onPress={handleGoLive}
@@ -228,6 +249,9 @@ export default function SocialSetupReview() {
               <Text style={styles.goLiveBtnText}>Go Live</Text>
             </>
           )}
+        </Pressable>
+        <Pressable onPress={handleSkip} style={styles.skipBtn}>
+          <Text style={styles.skipText}>Skip for now</Text>
         </Pressable>
         <Text style={styles.disclaimer}>
           You can edit or delete your Social Profile at any time from Settings.
@@ -463,5 +487,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 17,
+  },
+  skipBtn: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  skipText: {
+    color: 'rgba(255,255,255,0.38)',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

@@ -1,14 +1,18 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
+// @ts-ignore - JS module with runtime exports
+import { signPromoterAttribution } from '@c1rcle/core/promoter-attribution';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 import { resolvePartnerContext } from '../../lib/partner-context.js';
+import { getPermissionsForRole } from '../../lib/rbac-permissions.js';
 import { encrypt } from '../../lib/encryption.js';
 import { applyPublicCacheHeaders, buildVersionedPublicCacheKey } from '../../utils/public-cache';
 import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
 import {
   getEventQueueStatus,
   getEventSurgeStatus,
+  getEventInterested,
   getEventWaitlistStatus,
   joinEventQueue,
   joinEventWaitlist,
@@ -29,11 +33,57 @@ import {
   InventoryUnavailableError,
   listAvailableTicketTiers,
 } from '@c1rcle/core/inventory-engine';
+// @ts-ignore - JS module with runtime exports
+import { validateCoverWalletFundingAtUnitPrice } from '@c1rcle/core/pricing-engine';
+// @ts-ignore - JS module with runtime exports
+import { validateCoverWalletTierConfig } from '@c1rcle/core/cover-charge-engine';
+import { schedulingRangesOverlap } from '../../services/unified/scheduling-service.js';
 
 // Guard against prototype-pollution / remote property injection when a
 // user-provided value (promoterId, ticketTierId, …) is used as an object key.
 const isUnsafeObjectKey = (key: unknown): boolean =>
   typeof key !== 'string' || key === '__proto__' || key === 'constructor' || key === 'prototype';
+
+function validateCoverChargeTicketConfigs(tickets: any[], requireComplete: boolean) {
+  return tickets.map((ticket, index) => {
+    const config = ticket?.coverChargeConfig || ticket?.coverWallet || null;
+    if (!config?.enabled) return ticket;
+
+    // Wizard drafts may contain an intentionally incomplete enabled panel.
+    // Publication and non-draft creation must always persist a fully
+    // validated, server-normalized configuration.
+    if (!requireComplete) {
+      return ticket;
+    }
+
+    try {
+      const normalized = validateCoverWalletTierConfig(config);
+      const priceCandidates = [
+        ticket?.basePrice ?? ticket?.price,
+        ...(Array.isArray(ticket?.scheduledPrices)
+          ? ticket.scheduledPrices.map((schedule: any) => schedule?.price)
+          : []),
+      ].filter((price) => price !== undefined && price !== null);
+      if (priceCandidates.length === 0) {
+        throw new Error('Cover Charge ticket price is required');
+      }
+      priceCandidates.forEach((price) =>
+        validateCoverWalletFundingAtUnitPrice(normalized, Number(price)),
+      );
+      return {
+        ...ticket,
+        coverChargeConfig: { ...normalized, enabled: true },
+      };
+    } catch (error: any) {
+      const validationError: any = new Error(
+        `Ticket tier ${index + 1} has invalid Cover Charge configuration: ${error.message}`,
+      );
+      validationError.statusCode = 400;
+      validationError.code = 'COVER_CHARGE_CONFIG_INVALID';
+      throw validationError;
+    }
+  });
+}
 
 const ExploreEventListQuery = z
   .object({
@@ -67,6 +117,7 @@ const ExploreEventListQuery = z
     venueSlug: z.string().trim().max(120).optional(),
     lifecycle: z.string().trim().max(120).optional(),
     creatorId: z.string().trim().max(120).optional(),
+    fresh: z.enum(['true', 'false']).optional(),
   })
   .strict();
 
@@ -126,12 +177,35 @@ const EventUpdateBody = EventCreateBody.partial();
 
 // Wizard auto-save sends { actor, updates } — accept both flat and wrapped forms.
 const PartnerEventUpdateBody = z.union([
-  z.object({
-    actor: z.unknown(),
-    updates: z.record(z.string(), z.unknown()),
-    action: z.string().optional(),
-  }),
+  z
+    .object({
+      actor: z.unknown().optional(),
+      updates: z.record(z.string(), z.unknown()),
+      action: z.enum(['draft', 'publish', 'submit']).optional(),
+    })
+    .strict(),
   z.record(z.string(), z.unknown()),
+]);
+
+const PROTECTED_EVENT_UPDATE_FIELDS = new Set([
+  'id',
+  'creatorId',
+  'creatorRole',
+  'workspaceId',
+  'hostId',
+  'venueId',
+  'ownership',
+  'financialAttribution',
+  'splitRuleSnapshot',
+  'partnerAttribution',
+  'lifecycle',
+  'status',
+  'visibility',
+  'approvalState',
+  'approvedBy',
+  'approvedAt',
+  'publishedAt',
+  'cancelledAt',
 ]);
 
 // Partner wizard sends a rich payload — validate only the required fields
@@ -161,7 +235,7 @@ const PartnerEventCreateBody = z
   .passthrough();
 const EventTrackBody = z
   .object({
-    type: z.enum(['view', 'click', 'share', 'rsvp_intent']),
+    type: z.enum(['view', 'impression', 'click', 'share', 'rsvp_intent']),
     ref: z.string().max(100).optional(),
   })
   .strict();
@@ -189,6 +263,11 @@ const EventAttendeesQuery = z
     limit: z.coerce.number().int().min(1).max(100).optional().default(100),
   })
   .strict();
+const EventInterestedQuery = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(24).optional().default(20),
+  })
+  .strict();
 
 function sortObjectKeys(obj: any): any {
   if (!obj || typeof obj !== 'object') return obj;
@@ -204,6 +283,7 @@ function sortObjectKeys(obj: any): any {
 
 function normalizeExploreEventsQuery(rawQuery: Record<string, any> = {}) {
   const query = { ...(rawQuery || {}) };
+  delete query.fresh;
   const normalizedCityKey = normalizeCityKey(query.cityKey || query.city || null);
 
   if (normalizedCityKey) {
@@ -290,10 +370,6 @@ const SCHEDULING_BLOCKING_STATUSES = new Set([
   'changes_requested',
 ]);
 
-function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string) {
-  return aStart < bEnd && bStart < aEnd;
-}
-
 function hasSchedulingConflict(
   slotDocs: any[],
   proposed: { startTime?: string | null; endTime?: string | null },
@@ -313,7 +389,7 @@ function hasSchedulingConflict(
       return true;
     }
 
-    return rangesOverlap(startTime, endTime, proposed.startTime, proposed.endTime);
+    return schedulingRangesOverlap(startTime, endTime, proposed.startTime, proposed.endTime);
   });
 }
 
@@ -1302,6 +1378,19 @@ export async function ensurePromoterLink(
     const linkId = `${promoterId}_${eventId}`;
     const linkRef = db.collection('promoter_links').doc(linkId);
     const linkDoc = await linkRef.get();
+    const assignmentVersion = 2;
+    const termsVersion = 2;
+    const attributionSignature = signPromoterAttribution({
+      assignmentId: linkId,
+      assignmentVersion,
+      termsVersion,
+      promoterId,
+      eventId,
+      commissionRate,
+      commissionType,
+      ticketTierIds: [],
+      tierCommissions,
+    });
 
     const now = new Date().toISOString();
     if (!linkDoc.exists) {
@@ -1318,6 +1407,10 @@ export async function ensurePromoterLink(
         commissionRate,
         commissionType,
         tierCommissions,
+        assignmentId: linkId,
+        assignmentVersion,
+        termsVersion,
+        attributionSignature,
         code: trackingCode,
         clicks: 0,
         conversions: 0,
@@ -1331,7 +1424,16 @@ export async function ensurePromoterLink(
       // Keep the link's payout-time commission in sync with the current
       // effective rate (standard flat rate, per-tier custom map, or salary's 0).
       await linkRef.set(
-        { commissionRate, commissionType, tierCommissions, updatedAt: now },
+        {
+          commissionRate,
+          commissionType,
+          tierCommissions,
+          assignmentId: linkId,
+          assignmentVersion,
+          termsVersion,
+          attributionSignature,
+          updatedAt: now,
+        },
         { merge: true },
       );
     }
@@ -1339,7 +1441,7 @@ export async function ensurePromoterLink(
     return trackingCode || '';
   } catch (err: any) {
     console.error(`[ensurePromoterLink] Error: ${err.message}`);
-    return '';
+    throw err;
   }
 }
 
@@ -1528,6 +1630,11 @@ async function syncEventPromoters(
               commissionRate: effective.rate,
               commissionType: effective.type,
               tierCommissions: effective.tierCommissions,
+              assignmentVersion: 2,
+              termsVersion: 2,
+              approvedByPartnerId:
+                eventData?.hostId || eventData?.venueId || eventData?.creatorId || null,
+              approvedAt: now,
               linkCode: trackingCode || null,
               totalSales: 0,
               totalRevenue: 0,
@@ -1569,15 +1676,23 @@ async function syncEventPromoters(
           effective.tierCommissions,
         );
         const assignId = `${promoterId}_${eventId}`;
-        await db.collection('promoter_assignments').doc(assignId).set(
-          {
-            commissionRate: effective.rate,
-            commissionType: effective.type,
-            tierCommissions: effective.tierCommissions,
-            updatedAt: now,
-          },
-          { merge: true },
-        );
+        await db
+          .collection('promoter_assignments')
+          .doc(assignId)
+          .set(
+            {
+              commissionRate: effective.rate,
+              commissionType: effective.type,
+              tierCommissions: effective.tierCommissions,
+              assignmentVersion: 2,
+              termsVersion: 2,
+              approvedByPartnerId:
+                eventData?.hostId || eventData?.venueId || eventData?.creatorId || null,
+              approvedAt: now,
+              updatedAt: now,
+            },
+            { merge: true },
+          );
       }),
     );
 
@@ -1636,6 +1751,7 @@ async function syncEventPromoters(
     }
   } catch (err: any) {
     console.error(`[syncEventPromoters] Error: ${err.message}`);
+    throw err;
   }
 }
 
@@ -1646,7 +1762,10 @@ export default async function eventRoutes(fastify: FastifyInstance) {
    */
   fastify.get(
     '/events',
-    { preHandler: [fastify.validate({ querystring: ExploreEventListQuery })] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.validate({ querystring: ExploreEventListQuery })],
+    },
     async (request: any, reply) => {
       try {
         const { lifecycle, creatorId, venueId } = request.query || {};
@@ -1664,12 +1783,67 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             );
           }
 
-          let q: any = fastify.db.collection('events');
-          if (creatorId) {
-            q = q.where('creatorId', '==', creatorId);
-          } else if (venueId) {
-            q = q.where('venueId', '==', venueId);
+          let partnerCtx;
+          try {
+            partnerCtx = await resolvePartnerContext(fastify.db, request);
+          } catch {
+            return reply.status(503).send(
+              buildErrorResponse({
+                code: 'AUTHORIZATION_UNAVAILABLE',
+                message: 'Partner authorization is unavailable',
+                requestId: request.id,
+              }),
+            );
           }
+          if (!partnerCtx) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Events not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          const membership = (request.authContext?.memberships || []).find(
+            (candidate: any) =>
+              candidate.partnerId === partnerCtx.partnerId &&
+              (candidate.isActive === true || candidate.status === 'active'),
+          );
+          const fallbackRole = partnerCtx.roles.some((role: string) => role.endsWith('_owner'))
+            ? 'owner'
+            : 'staff';
+          if (
+            !getPermissionsForRole(
+              partnerCtx.type,
+              String(membership?.role || fallbackRole),
+            ).includes('MANAGE_EVENTS')
+          ) {
+            return reply.status(403).send(
+              buildErrorResponse({
+                code: 'PERMISSION_REQUIRED',
+                message: 'MANAGE_EVENTS permission is required',
+                requestId: request.id,
+              }),
+            );
+          }
+          if (
+            (creatorId && creatorId !== partnerCtx.partnerId) ||
+            (venueId && venueId !== partnerCtx.partnerId)
+          ) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Events not found',
+                requestId: request.id,
+              }),
+            );
+          }
+
+          let q: any = fastify.db.collection('events');
+          q =
+            partnerCtx.type === 'venue'
+              ? q.where('venueId', '==', partnerCtx.partnerId)
+              : q.where('creatorId', '==', partnerCtx.partnerId);
 
           if (lifecycle) {
             const lifecycles = lifecycle
@@ -1682,19 +1856,39 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           }
 
           const limit = Math.min(Number(request.query.limit) || 20, 100);
-          let snap;
-          let sortedInMemory = false;
-          try {
-            snap = await q.orderBy('startDate', 'desc').limit(limit).get();
-          } catch (err: any) {
-            fastify.log.warn(
-              `Firestore query with orderBy failed (likely missing index): ${err.message}. Retrying without orderBy and sorting in memory.`,
-            );
-            snap = await q.get();
-            sortedInMemory = true;
+          const cursor = String(request.query.cursor || '');
+          q = q.orderBy('startDate', 'desc');
+          if (cursor) {
+            const cursorDocument = await fastify.db.collection('events').doc(cursor).get();
+            const cursorData = cursorDocument.data() || {};
+            const cursorOwner =
+              partnerCtx.type === 'venue' ? cursorData.venueId : cursorData.creatorId;
+            const allowedLifecycles = lifecycle
+              ? lifecycle
+                  .split(',')
+                  .map((value: string) => value.trim())
+                  .filter(Boolean)
+              : [];
+            if (
+              !cursorDocument.exists ||
+              cursorOwner !== partnerCtx.partnerId ||
+              (allowedLifecycles.length > 0 &&
+                !allowedLifecycles.includes(String(cursorData.lifecycle || '')))
+            ) {
+              return reply.status(400).send(
+                buildErrorResponse({
+                  code: 'INVALID_CURSOR',
+                  message: 'Event cursor is invalid for this query',
+                  requestId: request.id,
+                }),
+              );
+            }
+            q = q.startAfter(cursorDocument);
           }
-
-          let events = snap.docs.map((doc: any) => {
+          const snap = await q.limit(limit + 1).get();
+          const hasMore = snap.docs.length > limit;
+          const pageDocuments = snap.docs.slice(0, limit);
+          const events = pageDocuments.map((doc: any) => {
             const data = doc.data();
             return {
               ...data,
@@ -1703,31 +1897,32 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             };
           });
 
-          if (sortedInMemory) {
-            events.sort((a: any, b: any) => {
-              const dateA = a.startDate || '';
-              const dateB = b.startDate || '';
-              return dateB.localeCompare(dateA);
-            });
-            events = events.slice(0, limit);
-          }
-
-          return { events, success: true };
+          return {
+            events,
+            success: true,
+            hasMore,
+            nextCursor: hasMore ? pageDocuments[pageDocuments.length - 1]?.id || null : null,
+          };
         }
 
         await enforcePublicRateLimit(fastify, request, 'events:explore', 120, 60);
-        applyPublicCacheHeaders(reply, 60);
+        const forceFresh = request.query?.fresh === 'true';
+        if (forceFresh) {
+          reply.header('Cache-Control', 'no-store');
+        } else {
+          applyPublicCacheHeaders(reply, 60);
+        }
 
         const normalizedQuery = normalizeExploreEventsQuery(request.query || {});
         const rawCacheKey = `explore:v${EXPLORE_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(
           normalizedQuery,
         )}`;
         const cacheKey = await buildVersionedPublicCacheKey(fastify, 'events', rawCacheKey);
-        const cached = await fastify.cache.get('public-discovery', cacheKey);
+        const cached = forceFresh ? null : await fastify.cache.get('public-discovery', cacheKey);
         if (cached) return cached;
 
         const result = await fastify.publicDiscoveryService.listEvents(normalizedQuery);
-        await fastify.cache.set('public-discovery', cacheKey, result, 60);
+        await fastify.cache.set('public-discovery', cacheKey, result, 600);
         return result;
       } catch (error: any) {
         if (error.message === 'RATE_LIMITED')
@@ -1756,7 +1951,10 @@ export default async function eventRoutes(fastify: FastifyInstance) {
    */
   fastify.get(
     '/events/featured',
-    { preHandler: [fastify.validate({ querystring: ExploreFeaturedEventListQuery })] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.validate({ querystring: ExploreFeaturedEventListQuery })],
+    },
     async (request: any, reply) => {
       try {
         await enforcePublicRateLimit(fastify, request, 'events:featured', 120, 60);
@@ -1771,7 +1969,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         if (cached) return cached;
 
         const result = await fastify.publicDiscoveryService.listFeaturedEvents(normalizedQuery);
-        await fastify.cache.set('public-discovery', cacheKey, result, 60);
+        await fastify.cache.set('public-discovery', cacheKey, result, 600);
         return result;
       } catch (error: any) {
         if (error.message === 'RATE_LIMITED')
@@ -1800,7 +1998,10 @@ export default async function eventRoutes(fastify: FastifyInstance) {
    */
   fastify.get(
     '/events/map',
-    { preHandler: [fastify.validate({ querystring: EventMapQuery })] },
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [fastify.validate({ querystring: EventMapQuery })],
+    },
     async (request: any, reply) => {
       try {
         await enforcePublicRateLimit(fastify, request, 'events:map', 180, 60);
@@ -1849,11 +2050,12 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events/nearby',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: EventNearbyQuery })],
     },
     async (request: any, reply) => {
       const { lat, lng, radius = 50, limit = 20 } = request.query;
-      if (!lat || !lng)
+      if (lat == null || lat === '' || lng == null || lng === '')
         return reply.status(400).send(
           buildErrorResponse({
             code: 'BAD_REQUEST',
@@ -1874,7 +2076,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           Number(limit),
         );
 
-        await fastify.cache.set('events:nearby', cacheKey, events, 60); // 60s TTL
+        await fastify.cache.set('events:nearby', cacheKey, events, 600); // 10min TTL, invalidated on event publish/edit
         return events;
       } catch (error: any) {
         fastify.log.error(`Error in GET /events/nearby: ${error.message}`);
@@ -1892,6 +2094,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/:id/view',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId })],
     },
     async (request: any, reply) => {
@@ -1910,6 +2113,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/:id/track',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId, body: EventTrackBody })],
     },
     async (request: any, reply) => {
@@ -1929,6 +2133,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/:id/rsvp',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId, body: EventRsvpBody })],
     },
     async (request: any, reply) => {
@@ -1972,6 +2177,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events/:id/viewer-state',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId })],
     },
     async (request: any, reply) => {
@@ -2009,6 +2215,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events/:id/queue',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId, querystring: EventQueueQuery })],
     },
     async (request: any, reply) => {
@@ -2059,6 +2266,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/:id/queue',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId, body: EventQueueBody })],
     },
     async (request: any, reply) => {
@@ -2095,6 +2303,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/:id/waitlist',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: EventParamId, body: EventWaitlistBody }),
@@ -2164,8 +2373,50 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   );
 
   fastify.get(
+    '/events/:id/interested',
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+      preHandler: [
+        fastify.requireAuth,
+        fastify.validate({ params: EventParamId, querystring: EventInterestedQuery }),
+      ],
+    },
+    async (request: any, reply) => {
+      const userId = request.user?.uid;
+      if (!userId) {
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            requestId: request.id,
+          }),
+        );
+      }
+
+      try {
+        reply.header('Cache-Control', 'private, no-store');
+        const result = await getEventInterested(fastify.db, request.params.id, request.query.limit);
+        return buildSuccessResponse(result);
+      } catch (error: any) {
+        request.log.error(
+          { error, userId, eventId: request.params.id },
+          'GET event interested users failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Unable to load interested users',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
     '/events/:id/attendees',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: EventParamId, querystring: EventAttendeesQuery }),
@@ -2214,6 +2465,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events/:id/tickets',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId })],
     },
     async (request: any, reply) => {
@@ -2266,6 +2518,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId })],
     },
     async (request: any, reply) => {
@@ -2347,7 +2600,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         }
 
         if (!isPrivateOrDraft) {
-          await fastify.cache.set('public-discovery', cacheKey, detail, 60);
+          await fastify.cache.set('public-discovery', cacheKey, detail, 600);
         }
         return detail;
       } catch (error: any) {
@@ -2481,12 +2734,13 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         });
 
         await fastify.invalidatePublicDiscovery('all');
-        await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
+        await fastify.publicDiscoveryService.syncEventReadModels(event.id);
+        await fastify.revalidateGuestEvent(event.id, 'created');
 
-        // Sync promoters (fire-and-forget) — pass V2 pc object directly
+        // Promoter attribution must be durable before the event mutation succeeds.
         const bodyPromotersEnabled = pc.enabled ?? false;
 
-        syncEventPromoters(
+        await syncEventPromoters(
           fastify.db,
           event.id,
           event.title || 'Untitled Event',
@@ -2518,6 +2772,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/events/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId, body: PartnerEventUpdateBody })],
     },
     async (request: any, reply) => {
@@ -2532,53 +2787,125 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           }),
         );
 
-      // workspaceId from x-workspace-id header or auth context activeMembership.
-      // For solo owners (no partner_memberships doc), both may be null — derive from the event itself.
-      let workspaceId: string | null = request.workspaceId || null;
-      let existingEventSnap: any = null;
-      if (!workspaceId) {
-        const snap = await fastify.db
-          .collection('events')
-          .doc(id)
-          .get()
-          .catch(() => null);
-        if (snap?.exists) {
-          existingEventSnap = snap.data() as any;
-          const candidate: string =
-            existingEventSnap.workspaceId ||
-            existingEventSnap.creatorId ||
-            existingEventSnap.hostId ||
-            '';
-          if (candidate) {
-            const ok =
-              candidate === userId ||
-              (await fastify.verifyPartnerAccess(request, candidate).catch(() => false));
-            if (ok) workspaceId = candidate;
-          }
-        }
-      }
-      if (!workspaceId)
-        return reply.status(400).send(
+      const existingEventDoc = await fastify.db.collection('events').doc(id).get();
+      if (!existingEventDoc.exists) {
+        return reply.status(404).send(
           buildErrorResponse({
-            code: 'MISSING_SCOPE',
-            message: 'Missing workspace scope',
+            code: 'NOT_FOUND',
+            message: 'Event not found',
             requestId: request.id,
           }),
         );
+      }
+      const existingEventSnap = existingEventDoc.data() as Record<string, any>;
+
+      let partnerCtx;
+      try {
+        partnerCtx = await resolvePartnerContext(fastify.db, request);
+      } catch (error: any) {
+        request.log.error({ error }, 'Unable to resolve event update authorization');
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'AUTHORIZATION_UNAVAILABLE',
+            message: 'Partner authorization is unavailable',
+            requestId: request.id,
+          }),
+        );
+      }
+      if (!partnerCtx || !['host', 'venue'].includes(partnerCtx.type)) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Event not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      const membership = (request.authContext?.memberships || []).find(
+        (candidate: any) =>
+          candidate.partnerId === partnerCtx.partnerId &&
+          (candidate.isActive === true || candidate.status === 'active'),
+      );
+      const fallbackRole = partnerCtx.roles.some((role: string) => role.endsWith('_owner'))
+        ? 'owner'
+        : 'staff';
+      if (
+        !getPermissionsForRole(partnerCtx.type, String(membership?.role || fallbackRole)).includes(
+          'MANAGE_EVENTS',
+        )
+      ) {
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'PERMISSION_REQUIRED',
+            message: 'MANAGE_EVENTS permission is required',
+            requestId: request.id,
+          }),
+        );
+      }
+      const authorizedPartnerIds = new Set(
+        [
+          existingEventSnap.workspaceId,
+          existingEventSnap.creatorId,
+          existingEventSnap.hostId,
+          existingEventSnap.venueId,
+        ].filter(Boolean),
+      );
+      if (!authorizedPartnerIds.has(partnerCtx.partnerId)) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Event not found',
+            requestId: request.id,
+          }),
+        );
+      }
+      const workspaceId: string =
+        existingEventSnap.workspaceId ||
+        existingEventSnap.creatorId ||
+        existingEventSnap.hostId ||
+        partnerCtx.partnerId;
 
       // Unwrap wizard auto-save envelope { actor, updates } → use updates as the patch body
       const rawBody: any = request.body;
-      const patchFields: any =
+      const submittedPatch: Record<string, unknown> =
         rawBody?.updates && typeof rawBody.updates === 'object' ? rawBody.updates : rawBody;
-
-      // Self-heal: venue-creator events saved before venueId fallback fix had venueId=""
-      if (
-        existingEventSnap &&
-        !existingEventSnap.venueId &&
-        (existingEventSnap.creatorRole === 'venue' || existingEventSnap.creatorRole === 'club') &&
-        existingEventSnap.creatorId
-      ) {
-        patchFields.venueId = patchFields.venueId || existingEventSnap.creatorId;
+      const protectedFields = Object.keys(submittedPatch).filter((field) =>
+        PROTECTED_EVENT_UPDATE_FIELDS.has(field),
+      );
+      if (protectedFields.length > 0) {
+        return reply.status(400).send(
+          buildErrorResponse({
+            code: 'PROTECTED_EVENT_FIELD',
+            message: `Protected event fields cannot be patched: ${protectedFields.join(', ')}`,
+            requestId: request.id,
+          }),
+        );
+      }
+      const patchFields: Record<string, any> = { ...submittedPatch };
+      const action = rawBody?.updates ? rawBody.action : undefined;
+      if (action === 'submit') {
+        return reply.status(400).send(
+          buildErrorResponse({
+            code: 'EVENT_COMMAND_REQUIRED',
+            message: 'Host submission must use the host event submission command',
+            requestId: request.id,
+          }),
+        );
+      }
+      if (action === 'publish') {
+        if (partnerCtx.type !== 'venue' || existingEventSnap.venueId !== partnerCtx.partnerId) {
+          return reply.status(403).send(
+            buildErrorResponse({
+              code: 'PERMISSION_REQUIRED',
+              message: 'Only the assigned venue can publish this event',
+              requestId: request.id,
+            }),
+          );
+        }
+        patchFields.lifecycle = 'scheduled';
+        patchFields.status = 'active';
+        patchFields.visibility = 'public';
+        patchFields.publishedAt = new Date().toISOString();
       }
 
       // --- Promoter compensation validation + stale-model cleanup ---
@@ -2612,11 +2939,15 @@ export default async function eventRoutes(fastify: FastifyInstance) {
       }
 
       // ── Build/normalise V2 promoterCompensation for patch ──────────────────
-      const baseTickets = Array.isArray(patchFields.tickets)
+      const rawBaseTickets = Array.isArray(patchFields.tickets)
         ? patchFields.tickets
         : Array.isArray(preEventData?.tickets)
           ? preEventData.tickets
           : [];
+      const baseTickets = validateCoverChargeTicketConfigs(rawBaseTickets, patchIsPublishing);
+      if (Array.isArray(patchFields.tickets)) {
+        patchFields.tickets = baseTickets;
+      }
 
       if (patchFields.promoterCompensation) {
         // Incoming pc object — normalise to V2
@@ -2769,7 +3100,8 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         });
 
         await fastify.invalidatePublicDiscovery('all');
-        await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
+        await fastify.publicDiscoveryService.syncEventReadModels(event.id);
+        await fastify.revalidateGuestEvent(event.id, 'updated');
 
         if (touchesCompensation) {
           const settingsDoc = await fastify.db
@@ -2780,7 +3112,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           const prevIds: string[] =
             (settingsDoc?.exists ? (settingsDoc.data() as any)?.allowedPromoterIds : null) ?? [];
 
-          // Sync promoters (fire-and-forget) — pass V2 pc object directly
+          // Promoter attribution is part of the authoritative event mutation.
           const resolvedPc = patchFields.promoterCompensation
             ? patchFields.promoterCompensation
             : preEventData?.promoterCompensation
@@ -2792,7 +3124,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             : prevIds;
           const bodyPromotersEnabled = resolvedPc.enabled ?? false;
 
-          syncEventPromoters(
+          await syncEventPromoters(
             fastify.db,
             id,
             event.title || 'Untitled Event',
@@ -2826,6 +3158,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/:id/repair',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: EventParamId })],
     },
     async (request: any, reply) => {
@@ -2892,7 +3225,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           .doc(id)
           .update({ ...repairs, updatedAt: new Date().toISOString() });
       }
-      await fastify.publicDiscoveryService.syncEventReadModels(id).catch(() => undefined);
+      await fastify.publicDiscoveryService.syncEventReadModels(id);
       await fastify.invalidatePublicDiscovery('all').catch(() => undefined);
 
       return reply.send({ success: true, repaired: repairs });
@@ -2915,6 +3248,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partner/events/create',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PartnerEventCreateBody })],
     },
     async (request: any, reply) => {
@@ -2929,28 +3263,59 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         );
 
       const body: Record<string, any> = { ...request.body };
+      let partnerCtx;
+      try {
+        partnerCtx = await resolvePartnerContext(fastify.db, request);
+      } catch (error: any) {
+        request.log.error({ error }, 'Unable to resolve event creator partner context');
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'AUTHORIZATION_UNAVAILABLE',
+            message: 'Partner authorization is unavailable',
+            requestId: request.id,
+          }),
+        );
+      }
+      if (!partnerCtx || !['host', 'venue'].includes(partnerCtx.type)) {
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'PARTNER_SCOPE_REQUIRED',
+            message: 'An active host or venue membership is required',
+            requestId: request.id,
+          }),
+        );
+      }
+      const membership = (request.authContext?.memberships || []).find(
+        (candidate: any) =>
+          candidate.partnerId === partnerCtx.partnerId &&
+          (candidate.isActive === true || candidate.status === 'active'),
+      );
+      const fallbackRole = partnerCtx.roles.some((role: string) => role.endsWith('_owner'))
+        ? 'owner'
+        : 'staff';
+      const permissions = getPermissionsForRole(
+        partnerCtx.type,
+        String(membership?.role || fallbackRole),
+      );
+      if (!permissions.includes('MANAGE_EVENTS')) {
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'PERMISSION_REQUIRED',
+            message: 'MANAGE_EVENTS permission is required',
+            requestId: request.id,
+          }),
+        );
+      }
 
-      let hostId: string = body.creatorId || body.hostId || userId;
+      const creatorRole = partnerCtx.type;
+      const creatorPartnerId = partnerCtx.partnerId;
+      let hostId: string = creatorPartnerId;
       const isDraft: boolean = body.lifecycle === 'draft';
-      if (body.creatorRole === 'host') {
-        body.creatorId = hostId;
-        body.hostId = hostId;
-      }
-
-      // Verify the authenticated user has access to the claimed partner identity.
-      // Skip when creatorId === userId (solo user whose Firebase UID is the partner doc ID).
-      if (hostId !== userId) {
-        const hasAccess = await fastify.verifyPartnerAccess(request, hostId).catch(() => false);
-        if (!hasAccess) {
-          return reply.status(403).send(
-            buildErrorResponse({
-              code: 'FORBIDDEN',
-              message: 'You do not have access to this partner account',
-              requestId: request.id,
-            }),
-          );
-        }
-      }
+      body.creatorRole = creatorRole;
+      body.creatorId = creatorPartnerId;
+      body.workspaceId = creatorPartnerId;
+      body.hostId = creatorPartnerId;
+      if (creatorRole === 'venue') body.venueId = creatorPartnerId;
 
       // --- Normalize image fields ---
       const normalizedPoster =
@@ -2965,17 +3330,8 @@ export default async function eventRoutes(fastify: FastifyInstance) {
       // For venue/club creators, ensure venueId is the actual venue Firestore doc ID.
       // When activeMembership is null on the client, the wizard sends creatorId=uid which
       // can differ from the venue's Firestore document ID. resolvePartnerContext gives the truth.
-      if ((body.creatorRole === 'venue' || body.creatorRole === 'club') && !body.venueId) {
-        const partnerCtx = await resolvePartnerContext(fastify.db, request).catch(() => null);
-        if (partnerCtx?.type === 'venue' && partnerCtx.partnerId) {
-          body.venueId = partnerCtx.partnerId;
-          body.creatorId = partnerCtx.partnerId;
-          hostId = partnerCtx.partnerId; // update so buildEvent uses the venue doc ID, not uid
-        }
-      }
-
       // --- Resolve host–venue selection ---
-      if (body.creatorRole === 'host' && body.venueId) {
+      if (creatorRole === 'host' && body.venueId) {
         const activeSnap = await fastify.db
           .collection('partnerships')
           .where('hostId', '==', hostId)
@@ -3051,7 +3407,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
       }
 
       // --- Active partnership enforcement ---
-      if (body.creatorRole === 'host' && body.venueId && !isDraft) {
+      if (creatorRole === 'host' && body.venueId && !isDraft) {
         const partnershipSnap = await fastify.db
           .collection('partnerships')
           .where('hostId', '==', hostId)
@@ -3072,17 +3428,19 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
       // --- Lifecycle enforcement ---
       if (!isDraft) {
-        if (body.creatorRole === 'host') {
+        if (creatorRole === 'host') {
           body.lifecycle = 'submitted';
           // visibility stays as-is (will be set to 'public' when venue approves)
-        } else if (body.creatorRole === 'venue' || body.creatorRole === 'club') {
+        } else if (creatorRole === 'venue') {
           body.lifecycle = 'scheduled';
           body.visibility = 'public'; // Venue events self-approve — stamp public immediately
         }
       }
 
       // ── Build canonical V2 promoterCompensation ──────────────────────────
-      const baseTickets = Array.isArray(body.tickets) ? body.tickets : [];
+      const rawBaseTickets = Array.isArray(body.tickets) ? body.tickets : [];
+      const baseTickets = validateCoverChargeTicketConfigs(rawBaseTickets, !isDraft);
+      if (Array.isArray(body.tickets)) body.tickets = baseTickets;
       let pcBody: any;
 
       if (body.promoterCompensation?.schemaVersion === SCHEMA_VERSION) {
@@ -3132,8 +3490,14 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         };
         const eventRecord = await enrichPartnerSnapshots(fastify.db, event);
 
+        body.creatorRole = creatorRole;
+        body.creatorId = creatorPartnerId;
+        body.workspaceId = creatorPartnerId;
+        body.hostId = creatorPartnerId;
+        if (creatorRole === 'venue') body.venueId = creatorPartnerId;
+
         const slotRecord =
-          body.creatorRole === 'host' && body.venueId && !isDraft
+          body.venueId && !isDraft
             ? {
                 eventId: event.id,
                 hostId,
@@ -3149,8 +3513,8 @@ export default async function eventRoutes(fastify: FastifyInstance) {
                 requestedEndTime: body.endTime || null,
                 requestedBy: hostId,
                 notes: `Event creation request: ${body.title}`,
-                source: 'host_event_request',
-                status: 'pending',
+                source: creatorRole === 'host' ? 'host_event_request' : 'venue_self_booking',
+                status: creatorRole === 'host' ? 'pending' : 'booked',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
                 createdBy: userId,
@@ -3193,11 +3557,12 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         await fastify.cache.invalidateNamespace('events:nearby');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id);
         await fastify.invalidatePublicDiscovery('all');
+        await fastify.revalidateGuestEvent(event.id, 'created');
 
-        // Sync promoters (fire-and-forget) — pass V2 pc object directly
+        // Promoter attribution must be durable before creation returns.
         const bodyPromotersEnabled = pcBody.enabled ?? false;
 
-        syncEventPromoters(
+        await syncEventPromoters(
           fastify.db,
           event.id,
           eventRecord.title || 'Untitled Event',
@@ -3227,6 +3592,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/events/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventParamId })],
     },
     async (request: any, reply) => {
@@ -3263,7 +3629,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           id: id,
         });
         await fastify.invalidatePublicDiscovery('all');
-        await fastify.publicDiscoveryService.syncEventReadModels(id).catch(() => undefined);
+        await fastify.publicDiscoveryService.syncEventReadModels(id);
         return { success: true, message: 'Event deleted', workspaceId };
       } catch (error: any) {
         fastify.log.error(`Error in DELETE /events/:id: ${error.message}`);
@@ -3332,6 +3698,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/wizard/preview-breakdown',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: WizardPreviewSchema })],
     },
     async (request: any, reply) => {

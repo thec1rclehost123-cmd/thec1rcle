@@ -5,22 +5,11 @@ import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-ca
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useScannerStore } from '@/store/scannerStore';
-import {
-  processQRScan,
-  recordStaffDeny,
-  fetchWalletByOrder,
-  getScannerDeviceId,
-} from '@/lib/scanner';
-import { ScanResultData, ScanResultType, WalletContext } from '@/lib/scanner/types';
+import { processQRScan, recordStaffDeny } from '@/lib/scanner';
+import { ScanResultData, ScanResultType } from '@/lib/scanner/types';
 import { colors, gradients } from '@/lib/design/theme';
-import { CoverDeductionOverlay } from '@/components/scanner/CoverDeductionOverlay';
 
 const { width } = Dimensions.get('window');
 const SCAN_AREA_SIZE = width * 0.68;
@@ -49,12 +38,10 @@ export default function ScanScreen() {
   const [showCoupleModal, setShowCoupleModal] = useState(false);
   const [pendingCoupleData, setPendingCoupleData] = useState<any>(null);
   const [entryCount, setEntryCount] = useState(0);
-  const [coverWallet, setCoverWallet] = useState<WalletContext | null>(null);
-  const [showCoverOverlay, setShowCoverOverlay] = useState(false);
-  const [pendingCoverResult, setPendingCoverResult] = useState<any>(null);
-  const [scannerDeviceId, setScannerDeviceId] = useState('');
 
-  const { eventData, clearEvent, sessionToken } = useScannerStore();
+  const eventData = useScannerStore((state) => state.eventData);
+  const clearEvent = useScannerStore((state) => state.clearEvent);
+  const sessionToken = useScannerStore((state) => state.sessionToken);
   const lastScannedRef = useRef<string | null>(null);
   const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -69,14 +56,11 @@ export default function ScanScreen() {
     if (eventData?.stats) {
       setEntryCount(eventData.stats.totalEntered);
     }
-    getScannerDeviceId()
-      .then((id) => setScannerDeviceId(id))
-      .catch(() => {});
   }, []);
 
   const showResultOverlay = (result: ScanResultData) => {
     setScanResult(result);
-    resultScale.value = withSpring(1, { damping: 15 });
+    resultScale.value = withTiming(1, { duration: 250 });
     resultOpacity.value = withTiming(1, { duration: 200 });
 
     if (result.type === 'valid') {
@@ -92,7 +76,7 @@ export default function ScanScreen() {
 
   const dismissResult = () => {
     if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-    resultScale.value = withSpring(0);
+    resultScale.value = 0;
     resultOpacity.value = withTiming(0, { duration: 200 });
     setTimeout(() => {
       setScanResult(null);
@@ -140,21 +124,6 @@ export default function ScanScreen() {
         setPendingCoupleData(result);
         setShowCoupleModal(true);
         return;
-      }
-
-      // Cover charge: fetch wallet and show deduction overlay
-      if (result.success && result.ticket?.entryType === 'cover' && result.ticket?.orderId) {
-        const walletResult = await fetchWalletByOrder(
-          result.ticket.orderId,
-          sessionToken || eventData?.sessionToken || '',
-        );
-        if ('wallet' in walletResult && walletResult.wallet.state === 'ACTIVE') {
-          setCoverWallet(walletResult.wallet);
-          setPendingCoverResult(result);
-          setShowCoverOverlay(true);
-          return;
-        }
-        // Wallet not active or not found — fall through to normal entry
       }
 
       handleScanResult(result);
@@ -467,31 +436,6 @@ export default function ScanScreen() {
             <Text style={styles.resultDismissHint}>Tap anywhere to continue</Text>
           </Pressable>
         </Animated.View>
-      )}
-
-      {/* Cover Charge Deduction Overlay */}
-      {showCoverOverlay && coverWallet && (
-        <CoverDeductionOverlay
-          wallet={coverWallet}
-          sessionToken={sessionToken || eventData?.sessionToken || ''}
-          deviceId={scannerDeviceId}
-          eventCodeId={eventData?.codeId || ''}
-          operatorId={eventData?.codeId || ''}
-          operatorName="Staff"
-          onSuccess={(newBalance) => {
-            setShowCoverOverlay(false);
-            setCoverWallet(null);
-            if (pendingCoverResult) handleScanResult(pendingCoverResult);
-            setPendingCoverResult(null);
-          }}
-          onDismiss={() => {
-            setShowCoverOverlay(false);
-            setCoverWallet(null);
-            setPendingCoverResult(null);
-            setIsScanning(true);
-            lastScannedRef.current = null;
-          }}
-        />
       )}
 
       {/* Couple Confirm Modal */}

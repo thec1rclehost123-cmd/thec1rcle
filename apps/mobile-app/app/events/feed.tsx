@@ -1,5 +1,14 @@
-import React, { useState, useRef, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, Dimensions, Pressable } from 'react-native';
+import React, { useMemo, useCallback, useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Dimensions,
+  Pressable,
+  ActivityIndicator,
+  Share as RNShare,
+  type ViewStyle,
+} from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -14,21 +23,46 @@ import Animated, {
   useAnimatedScrollHandler,
   SharedValue,
 } from 'react-native-reanimated';
-import { Search, ListFilter, Share, Heart, Check, ChevronLeft } from 'lucide-react-native';
+import {
+  ChevronLeft,
+  Search,
+  Share,
+  Heart,
+  Check,
+  Filter,
+  VolumeX,
+  Bookmark,
+} from 'lucide-react-native';
 import { useEventsStore, type Event, getHeatScore } from '@/store/eventsStore';
 import { useRecommendationsStore } from '@/store/recommendationsStore';
 import { useEventInterestStore } from '@/store/eventInterestStore';
+import { useProfileStore } from '@/store/profileStore';
+import { useAuth } from '@/hooks/useAuth';
 import { getEventImage } from '@/lib/utils/event';
 import { safeDate, formatEventTime } from '@/lib/utils/date';
+
+// Scene types from ExploreChooseScene mapped to filter keywords
+const SCENE_KEYWORDS: Record<string, string[]> = {
+  bollywood: ['bollywood', 'indian', 'desi', 'bhangra'],
+  techno: ['techno', 'electronic', 'house', 'techno music'],
+  raves: ['rave', 'edm', 'electronic', 'underground'],
+  'pool-parties': ['pool', 'pool party', 'day party', 'swim'],
+  sundowners: ['sundowner', 'sunset', 'rooftop', 'happy hour', 'evening'],
+};
+
+function matchSceneKeywords(event: Event, keywords: string[]): boolean {
+  const cat = (event.category ?? event.type ?? '').toLowerCase();
+  const tags = (event.tags ?? []).map((t: string) => t.toLowerCase());
+  const title = (event.title ?? '').toLowerCase();
+  return keywords.some(
+    (kw) => cat.includes(kw) || tags.some((t) => t.includes(kw)) || title.includes(kw),
+  );
+}
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
 const ITEM_HEIGHT = SCREEN_HEIGHT;
-
-// Tabs
-const TABS = ['For You', 'Following', 'Saved'] as const;
-type TabType = (typeof TABS)[number];
 
 const attendeeAvatarImages = {
   arya: require('../../assets/images/attendees/arya.png'),
@@ -41,50 +75,239 @@ const attendeeAvatarImages = {
   sam: require('../../assets/images/attendees/sam.png'),
 };
 
-// ── Background Glow ────────────────────────────────────────────────────────────
+const AVATAR_COLORS = [
+  '#FF6B6B',
+  '#4ECDC4',
+  '#45B7D1',
+  '#96CEB4',
+  '#FFEAA7',
+  '#DDA0DD',
+  '#98D8C8',
+  '#F7DC6F',
+];
+
+function getFallbackInterestedUsers() {
+  return [
+    {
+      userId: 'fallback-arya',
+      displayName: 'Arya',
+      photoURL: null,
+      photoSource: attendeeAvatarImages.arya,
+    },
+    {
+      userId: 'fallback-riya',
+      displayName: 'Riya',
+      photoURL: null,
+      photoSource: attendeeAvatarImages.riya,
+    },
+    {
+      userId: 'fallback-anaya',
+      displayName: 'Anaya',
+      photoURL: null,
+      photoSource: attendeeAvatarImages.anaya,
+    },
+    {
+      userId: 'fallback-isha',
+      displayName: 'Isha',
+      photoURL: null,
+      photoSource: attendeeAvatarImages.isha,
+    },
+    {
+      userId: 'fallback-hira',
+      displayName: 'Hira',
+      photoURL: null,
+      photoSource: attendeeAvatarImages.hira,
+    },
+    {
+      userId: 'fallback-yash',
+      displayName: 'Yash',
+      photoURL: null,
+      photoSource: attendeeAvatarImages.yash,
+    },
+    {
+      userId: 'fallback-neil',
+      displayName: 'Neil',
+      photoURL: null,
+      photoSource: attendeeAvatarImages.neil,
+    },
+    {
+      userId: 'fallback-sam',
+      displayName: 'Sam',
+      photoURL: null,
+      photoSource: attendeeAvatarImages.sam,
+    },
+    {
+      userId: 'fallback-arya-2',
+      displayName: 'Arya',
+      photoURL: null,
+      photoSource: attendeeAvatarImages.arya,
+    },
+    {
+      userId: 'fallback-riya-2',
+      displayName: 'Riya',
+      photoURL: null,
+      photoSource: attendeeAvatarImages.riya,
+    },
+    {
+      userId: 'fallback-anaya-2',
+      displayName: 'Anaya',
+      photoURL: null,
+      photoSource: attendeeAvatarImages.anaya,
+    },
+    {
+      userId: 'fallback-isha-2',
+      displayName: 'Isha',
+      photoURL: null,
+      photoSource: attendeeAvatarImages.isha,
+    },
+  ];
+}
+
+function firstNonEmptyString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  }
+  return '';
+}
+
+function resolveUserPhoto(profile: any, user: any): string | null {
+  return (
+    firstNonEmptyString(
+      profile?.photoURL,
+      profile?.photos?.[0],
+      profile?.datingPhotos?.[0],
+      profile?.avatar,
+      profile?.photo,
+      profile?.imageUrl,
+      user?.photoURL,
+    ) || null
+  );
+}
+
+function normalizeIdentityString(value: unknown) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function isViewerInterestedEntry(
+  userInfo: any,
+  viewerUid: string,
+  viewerDisplayName: string,
+  viewerPhoto: string | null,
+) {
+  const candidateId = firstNonEmptyString(userInfo?.userId, userInfo?.id, userInfo?.uid);
+  if (candidateId && candidateId === viewerUid) return true;
+
+  const candidateName = normalizeIdentityString(userInfo?.displayName || userInfo?.name);
+  const candidatePhoto = firstNonEmptyString(
+    userInfo?.photoURL,
+    userInfo?.avatar,
+    userInfo?.photo,
+    userInfo?.imageUrl,
+  );
+
+  return Boolean(
+    (viewerDisplayName && candidateName === normalizeIdentityString(viewerDisplayName)) ||
+    (viewerPhoto && candidatePhoto === viewerPhoto),
+  );
+}
+
+function DynamicBackgroundLayer({
+  img,
+  index,
+  scrollY,
+}: {
+  img: string;
+  index: number;
+  scrollY: SharedValue<number>;
+}) {
+  const opacityStyle = useAnimatedStyle(() => {
+    const input = [(index - 1) * ITEM_HEIGHT, index * ITEM_HEIGHT, (index + 1) * ITEM_HEIGHT];
+    const opacity = interpolate(scrollY.value, input, [0, 1, 0], Extrapolate.CLAMP);
+    return { opacity };
+  });
+
+  return (
+    <Animated.View style={[StyleSheet.absoluteFillObject, opacityStyle]}>
+      <Image
+        source={{ uri: img }}
+        style={StyleSheet.absoluteFillObject}
+        contentFit="cover"
+        blurRadius={80}
+      />
+    </Animated.View>
+  );
+}
+
+interface LayerData {
+  key: string;
+  img: string;
+}
+
 function DynamicBackground({ events, scrollY }: { events: Event[]; scrollY: SharedValue<number> }) {
+  const layers: (LayerData | null)[] = useMemo(() => {
+    return events.map((event) => {
+      const img = event ? getEventImage(event) : null;
+      return img ? { key: event.id, img } : null;
+    });
+  }, [events]);
+
   return (
     <View style={StyleSheet.absoluteFillObject}>
-      {events.slice(0, 10).map((event, index) => {
-        const img = getEventImage(event);
-        if (!img) return null;
-
-        const opacityStyle = useAnimatedStyle(() => {
-          const input = [(index - 1) * ITEM_HEIGHT, index * ITEM_HEIGHT, (index + 1) * ITEM_HEIGHT];
-          const opacity = interpolate(scrollY.value, input, [0, 1, 0], Extrapolate.CLAMP);
-          return { opacity };
-        });
+      {layers.map((layer, index) => {
+        if (!layer) {
+          return <View key={`bg-empty-${index}`} style={StyleSheet.absoluteFillObject} />;
+        }
 
         return (
-          <Animated.View key={event.id} style={[StyleSheet.absoluteFillObject, opacityStyle]}>
-            <Image
-              source={{ uri: img }}
-              style={StyleSheet.absoluteFillObject}
-              contentFit="cover"
-              blurRadius={60}
-            />
-          </Animated.View>
+          <DynamicBackgroundLayer key={layer.key} img={layer.img} index={index} scrollY={scrollY} />
         );
       })}
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.6)' }]} />
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.15)' }]} />
     </View>
   );
 }
 
-// ── Feed Card ──────────────────────────────────────────────────────────────────
+const AVATAR_POSITIONS: ViewStyle[] = [
+  { left: -16, top: '25%' },
+  { right: -12, top: '40%' },
+  { left: -8, top: '65%' },
+  { right: -20, top: '75%' },
+  { left: '20%', bottom: -16 },
+];
+
 function FeedCard({
   event,
   index,
   scrollY,
   insetsTop,
+  insetsBottom,
 }: {
   event: Event;
   index: number;
   scrollY: SharedValue<number>;
   insetsTop: number;
+  insetsBottom: number;
 }) {
   const router = useRouter();
   const img = getEventImage(event);
+
+  const isInterested = useEventInterestStore((state) => state.isInterested);
+  const toggleInterest = useEventInterestStore((state) => state.toggleInterest);
+  const interestedUsers = useEventInterestStore((state) => state.interestedUsers);
+  const { user } = useAuth();
+  const profile = useProfileStore((s) => s.profile);
+  const interested = isInterested(event.id);
+
+  const handleShare = async () => {
+    try {
+      await RNShare.share({
+        message: `Check out ${event.title} at ${event.venue ?? 'this venue'}!`,
+        title: event.title,
+      });
+    } catch (error) {
+      console.log('Error sharing event', error);
+    }
+  };
 
   const startDate = safeDate(event.startDate);
   const dateStr = startDate
@@ -93,114 +316,49 @@ function FeedCard({
   const timeStr = formatEventTime(event.startDate);
   const venueStr = event.venue ?? event.location ?? 'TBA';
 
-  const organizerName = event.hostName ?? 'THE C1RCLE';
-  const price = event.minPrice ?? 20;
+  const guestlistUsers = useMemo(() => {
+    const storeUsers = interestedUsers[event.id] ?? [];
+    const eventUsers = Array.isArray(event.interestedData?.users) ? event.interestedData.users : [];
+    const sourceUsers = storeUsers.length > 0 ? storeUsers : eventUsers;
+    const viewerDisplayName = firstNonEmptyString(profile?.displayName, user?.displayName);
+    const viewerPhoto = resolveUserPhoto(profile, user);
+    const viewerInterestedUser =
+      interested && user?.uid
+        ? {
+            userId: user.uid,
+            displayName: viewerDisplayName || 'C1rcle User',
+            photoURL: viewerPhoto,
+            isCurrentUser: true,
+          }
+        : null;
+    const users = viewerInterestedUser
+      ? [
+          viewerInterestedUser,
+          ...sourceUsers.filter(
+            (userInfo: any) =>
+              !isViewerInterestedEntry(
+                userInfo,
+                viewerInterestedUser.userId,
+                viewerDisplayName,
+                viewerPhoto,
+              ),
+          ),
+        ]
+      : sourceUsers;
 
-  const { interestedUsers } = useEventInterestStore();
-  const eventInterested = interestedUsers[event.id] ?? [];
-
-  const interestedFallbackUsers = [
-    {
-      userId: 'fallback-arya',
-      displayName: 'Arya',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.arya,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-riya',
-      displayName: 'Riya',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.riya,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-anaya',
-      displayName: 'Anaya',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.anaya,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-isha',
-      displayName: 'Isha',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.isha,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-hira',
-      displayName: 'Hira',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.hira,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-yash',
-      displayName: 'Yash',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.yash,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-neil',
-      displayName: 'Neil',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.neil,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-sam',
-      displayName: 'Sam',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.sam,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-arya-2',
-      displayName: 'Arya',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.arya,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-riya-2',
-      displayName: 'Riya',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.riya,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-anaya-2',
-      displayName: 'Anaya',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.anaya,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-isha-2',
-      displayName: 'Isha',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.isha,
-      likedAt: '',
-    },
-  ];
-  const guestlistUsers = eventInterested.length > 0 ? eventInterested : interestedFallbackUsers;
-  const interestedLeadName = 'Arya';
-  const interestedOthersCount = 60;
+    return users.length > 0 ? users : getFallbackInterestedUsers();
+  }, [event, interested, interestedUsers, profile, user]);
 
   const posterTransitionTag = `poster-${event.id}-feed-${index}`;
-
-  const cardAnimStyle = useAnimatedStyle(() => {
-    return { transform: [{ scale: 1 }], opacity: 1 };
-  });
+  const cardAnimStyle = useAnimatedStyle(() => ({ transform: [{ scale: 1 }], opacity: 1 }));
 
   return (
-    <View style={[styles.itemContainer, { paddingTop: insetsTop + 70, paddingBottom: 120 }]}>
+    <View style={[styles.itemContainer, { paddingBottom: 0 }]}>
       <Animated.View style={[styles.cardWrapper, cardAnimStyle]}>
         <Pressable
           style={{ flex: 1 }}
           onPress={() => {
+            const Haptics = require('expo-haptics');
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             router.push({
               pathname: '/event/[id]',
@@ -208,88 +366,174 @@ function FeedCard({
             });
           }}
         >
-          <View style={styles.posterContainer}>
-            {img && (
-              <AnimatedExpoImage
-                sharedTransitionTag={posterTransitionTag}
-                source={{ uri: img }}
-                style={StyleSheet.absoluteFillObject}
-                contentFit="cover"
-                contentPosition="top"
-              />
-            )}
-          </View>
+          <View style={{ flex: 1, paddingTop: insetsTop + 80, paddingHorizontal: 16 }}>
+            {/* Poster Wrapper (allows overflow for floating avatars) */}
+            <View style={{ flex: 1, marginBottom: 8, zIndex: 10 }}>
+              <View style={styles.posterContainer}>
+                {img ? (
+                  <AnimatedExpoImage
+                    sharedTransitionTag={posterTransitionTag}
+                    source={{ uri: img }}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="cover"
+                    contentPosition="top"
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                )}
+                {/* Gradient to make text legible if it was overlapping, but since it's a card we can keep a subtle one at the bottom for aesthetics */}
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.6)']}
+                  locations={[0.5, 0.85, 1]}
+                  style={StyleSheet.absoluteFillObject}
+                />
+              </View>
 
-          {/* Info Block Below Poster */}
-          <View style={styles.infoBlock}>
-            <View style={styles.titleRow}>
-              <View style={{ flex: 1, marginRight: 16 }}>
-                <Text style={styles.eventTitle} numberOfLines={2}>
-                  {event.title}
-                </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-                  <Text
-                    style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '600' }}
-                    numberOfLines={1}
-                  >
-                    {venueStr}
-                  </Text>
-                  <View
-                    style={{
-                      backgroundColor: '#F44A22',
-                      width: 14,
-                      height: 14,
-                      borderRadius: 7,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginLeft: 6,
+              {/* Floating Avatars */}
+              {guestlistUsers.slice(0, 4).map((userInfo: any, idx: number) => {
+                const initial = (userInfo?.displayName || userInfo?.name || '?')
+                  .charAt(0)
+                  .toUpperCase();
+                const avatarUri = firstNonEmptyString(
+                  userInfo?.photoURL,
+                  userInfo?.avatar,
+                  userInfo?.photo,
+                  userInfo?.imageUrl,
+                );
+                const avatarSource = userInfo?.photoSource
+                  ? userInfo.photoSource
+                  : avatarUri
+                    ? { uri: avatarUri }
+                    : null;
+                const userId = userInfo?.userId ?? userInfo?.uid ?? userInfo?.id;
+
+                return (
+                  <Pressable
+                    key={userId ?? `${initial}-${idx}`}
+                    style={[styles.floatingAvatar, AVATAR_POSITIONS[idx]]}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      if (userId && !userId.startsWith('fallback')) {
+                        router.push(`/social/profile/${userId}`);
+                      }
                     }}
                   >
-                    <Check color="#FFFFFF" size={10} strokeWidth={3} />
-                  </View>
-                </View>
-                <Text style={[styles.dateVenueText, { marginTop: 4 }]} numberOfLines={1}>
-                  {dateStr} at {timeStr}
-                </Text>
-              </View>
-              <View style={styles.actionIcons}>
-                <Share color="rgba(255,255,255,0.7)" size={22} />
-                <Heart color="rgba(255,255,255,0.7)" size={22} />
-              </View>
+                    {avatarSource ? (
+                      <Image
+                        source={avatarSource}
+                        style={StyleSheet.absoluteFillObject}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <Text style={styles.floatingAvatarText}>{initial}</Text>
+                    )}
+                  </Pressable>
+                );
+              })}
             </View>
 
-            <View style={styles.interestedBar}>
-              <View style={styles.interestedAvatars}>
-                {guestlistUsers.slice(0, 6).map((userInfo, idx) => {
-                  const initial = (userInfo.displayName?.[0] ?? '?').toUpperCase();
-                  const avatarSource = (userInfo as any).photoSource
-                    ? (userInfo as any).photoSource
-                    : typeof userInfo?.photoURL === 'string' &&
-                        userInfo.photoURL.length > 0 &&
-                        (userInfo.photoURL.startsWith('http') ||
-                          userInfo.photoURL.startsWith('https'))
-                      ? { uri: userInfo.photoURL }
-                      : null;
-                  return (
+            <View style={[styles.infoOverlay, { paddingBottom: insetsBottom + 58 }]}>
+              <View style={styles.infoBlock}>
+                <View style={styles.titleRow}>
+                  <View style={{ flex: 1, marginRight: 16 }}>
+                    <Text style={styles.eventTitle} numberOfLines={2}>
+                      {event.title}
+                    </Text>
+
+                    {/* Host Row */}
                     <View
-                      key={userInfo.userId || `${initial}-${idx}`}
-                      style={[
-                        styles.interestedAvatar,
-                        { marginLeft: idx > 0 ? -16 : 0, zIndex: 20 - idx },
-                      ]}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        marginTop: 8,
+                        marginBottom: 6,
+                      }}
                     >
-                      {avatarSource ? (
+                      {img && (
                         <Image
-                          source={avatarSource}
-                          style={StyleSheet.absoluteFill}
-                          contentFit="cover"
+                          source={{ uri: img }}
+                          style={{ width: 18, height: 18, borderRadius: 9, marginRight: 8 }}
                         />
-                      ) : (
-                        <Text style={styles.interestedAvatarText}>{initial}</Text>
                       )}
+                      <Text
+                        style={{
+                          color: '#FFFFFF',
+                          fontSize: 14,
+                          fontWeight: '700',
+                          textTransform: 'uppercase',
+                        }}
+                        numberOfLines={1}
+                      >
+                        {event.hostName || (event as any)?.host?.name || 'THE C1RCLE'}
+                      </Text>
+                      <View
+                        style={{
+                          backgroundColor: '#FFD700',
+                          borderRadius: 8,
+                          width: 14,
+                          height: 14,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginLeft: 6,
+                        }}
+                      >
+                        <Check color="#000" size={10} strokeWidth={3} />
+                      </View>
                     </View>
-                  );
-                })}
+
+                    {/* Subtitle Row */}
+                    <Text style={[styles.dateVenueText]} numberOfLines={2}>
+                      {dateStr} at {timeStr} at {venueStr}
+                    </Text>
+                  </View>
+
+                  <View style={styles.actionIcons}>
+                    <Pressable
+                      hitSlop={12}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        const Haptics = require('expo-haptics');
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        if (!user?.uid) return;
+                        toggleInterest(event.id, user.uid, {
+                          displayName: profile?.displayName || user.displayName || 'C1rcle User',
+                          photoURL: profile?.photoURL || user.photoURL || null,
+                        });
+                      }}
+                    >
+                      <Heart
+                        color={interested ? '#F44A22' : 'rgba(255,255,255,0.7)'}
+                        fill={interested ? '#F44A22' : 'transparent'}
+                        size={22}
+                      />
+                    </Pressable>
+
+                    <Pressable
+                      hitSlop={12}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        const Haptics = require('expo-haptics');
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        handleShare();
+                      }}
+                    >
+                      <Share color="rgba(255,255,255,0.7)" size={22} />
+                    </Pressable>
+
+                    <Pressable
+                      hitSlop={12}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        // Volume toggle logic placeholder
+                      }}
+                    >
+                      <VolumeX color="rgba(255,255,255,0.7)" size={22} />
+                    </Pressable>
+                  </View>
+                </View>
               </View>
             </View>
           </View>
@@ -299,7 +543,6 @@ function FeedCard({
   );
 }
 
-// ── Main Screen ────────────────────────────────────────────────────────────────
 export default function ImmersiveFeedScreen() {
   const { type } = useLocalSearchParams<{ type: string }>();
   const insets = useSafeAreaInsets();
@@ -315,10 +558,27 @@ export default function ImmersiveFeedScreen() {
   }, [type]);
 
   const events = useEventsStore((s) => s.events);
+  const loading = useEventsStore((s) => s.loading);
+  const fetchEvents = useEventsStore((s) => s.fetchEvents);
   const scoredEvents = useRecommendationsStore((s) => s.scoredEvents);
+
+  useEffect(() => {
+    if (events.length === 0 && !loading) {
+      fetchEvents();
+    }
+  }, [type]);
 
   const feedEvents = useMemo(() => {
     const list = [...events];
+
+    // Filter by scene keywords if type maps to a known scene
+    const sceneKeywords = type ? SCENE_KEYWORDS[type] : null;
+    if (sceneKeywords) {
+      return list
+        .filter((e) => matchSceneKeywords(e, sceneKeywords))
+        .sort((a, b) => getHeatScore(b) - getHeatScore(a));
+    }
+
     if (type === 'foryou') {
       const sortedIds = Object.keys(scoredEvents).sort(
         (a, b) => scoredEvents[b].score - scoredEvents[a].score,
@@ -346,26 +606,43 @@ export default function ImmersiveFeedScreen() {
 
   const [activeIndex, setActiveIndex] = useState(0);
 
+  const viewabilityConfig = useMemo(
+    () => ({
+      itemVisiblePercentThreshold: 50,
+    }),
+    [],
+  );
+
   const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
     if (viewableItems.length > 0) {
       const idx = viewableItems[0].index;
       if (idx !== null) {
-        setActiveIndex(idx);
+        setActiveIndex((current) => (current === idx ? current : idx));
       }
-      Haptics.selectionAsync();
     }
   }, []);
 
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-  }).current;
-
   const renderFeedItem = useCallback(
     ({ item, index }: { item: Event; index: number }) => (
-      <FeedCard event={item} index={index} scrollY={scrollY} insetsTop={insets.top} />
+      <FeedCard
+        event={item}
+        index={index}
+        scrollY={scrollY}
+        insetsTop={insets.top}
+        insetsBottom={insets.bottom}
+      />
     ),
     [insets.top, scrollY],
   );
+
+  if (loading && events.length === 0) {
+    return (
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ActivityIndicator size="large" color="#F44A22" />
+      </View>
+    );
+  }
 
   if (feedEvents.length === 0) {
     return (
@@ -376,37 +653,43 @@ export default function ImmersiveFeedScreen() {
     );
   }
 
+  const activeFeedIndex = Math.min(activeIndex, Math.max(feedEvents.length - 1, 0));
+  const activeEvent = feedEvents[activeFeedIndex];
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
       <DynamicBackground events={feedEvents} scrollY={scrollY} />
 
-      {/* Top Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        {/* Search Capsule */}
         <View style={styles.topCapsuleContainer}>
-          <BlurView intensity={30} tint="dark" style={styles.topCapsule}>
+          <BlurView
+            blurMethod="dimezisBlurView"
+            intensity={40}
+            tint="dark"
+            style={styles.topCapsule}
+          >
             <Pressable
               hitSlop={15}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.push('/');
-                }
+                router.push('/search');
               }}
+              style={styles.topCapsuleIconButton}
+              accessibilityRole="button"
+              accessibilityLabel="Search events"
             >
-              <ChevronLeft color="#FFFFFF" size={20} />
+              <Search color="rgba(255,255,255,0.8)" size={18} />
             </Pressable>
 
             <Pressable
+              hitSlop={15}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/search');
               }}
-              style={{ flex: 1, alignItems: 'center' }}
+              style={styles.topCapsuleTitleButton}
             >
               <Text style={styles.topCapsuleText}>
                 {topPrefix} <Text style={{ color: 'rgba(255,255,255,0.5)' }}>{topSuffix}</Text>
@@ -417,16 +700,18 @@ export default function ImmersiveFeedScreen() {
               hitSlop={15}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/search');
+                // Open filter modal
               }}
+              style={styles.topCapsuleIconButton}
+              accessibilityRole="button"
+              accessibilityLabel="Filter events"
             >
-              <Search color="#FFFFFF" size={16} />
+              <Filter color="rgba(255,255,255,0.8)" size={18} />
             </Pressable>
           </BlurView>
         </View>
       </View>
 
-      {/* Vertical Card List */}
       <Animated.FlatList
         bounces={false}
         overScrollMode="never"
@@ -443,13 +728,11 @@ export default function ImmersiveFeedScreen() {
         viewabilityConfig={viewabilityConfig}
       />
 
-      {/* Sticky Bottom Bar */}
       <View style={[styles.stickyBottomBar, { paddingBottom: insets.bottom }]}>
         <Pressable
           style={styles.buyButton}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            const activeEvent = feedEvents[activeIndex];
             if (activeEvent) {
               router.push(`/checkout/${activeEvent.id}`);
             }
@@ -459,7 +742,6 @@ export default function ImmersiveFeedScreen() {
             Get Tickets{' '}
             <Text style={styles.buyButtonSubtext}>
               {(() => {
-                const activeEvent = feedEvents[activeIndex];
                 const displayPrice = activeEvent?.minPrice ?? 20;
                 return displayPrice === 0
                   ? 'Free'
@@ -495,21 +777,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 12,
-    borderRadius: 24,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.05)',
     overflow: 'hidden',
+  },
+  topCapsuleIconButton: {
+    width: 36,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topCapsuleTitleButton: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   topCapsuleText: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
+    textAlign: 'center',
   },
 
-  // ── Item Layout ─────────────────────────────────────────────────────────────
   itemContainer: {
     width: SCREEN_WIDTH,
     height: ITEM_HEIGHT,
@@ -517,22 +811,23 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   cardWrapper: {
-    width: SCREEN_WIDTH - 32,
+    width: SCREEN_WIDTH,
     flex: 1,
   },
   posterContainer: {
-    width: '100%',
     flex: 1,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    width: '100%',
+    borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: '#000',
+    marginBottom: 16,
   },
 
-  // ── Info Block ──────────────────────────────────────────────────────────────
   infoBlock: {
-    marginTop: 16,
-    paddingHorizontal: 4,
+    gap: 4,
+  },
+  infoOverlay: {
+    width: '100%',
   },
   titleRow: {
     flexDirection: 'row',
@@ -553,50 +848,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  verifiedVenueDot: {
+    backgroundColor: '#F44A22',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
   dateVenueText: {
     color: 'rgba(255,255,255,0.7)',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500',
+    lineHeight: 20,
   },
-  interestedBar: {
-    marginTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  interestedAvatars: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  interestedAvatar: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+  floatingAvatar: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 2,
-    borderColor: '#050505',
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: '#1C1C1E',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
-  interestedAvatarText: {
+  floatingAvatarText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  interestedCopyRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 12,
-  },
-  interestedText: {
-    color: 'rgba(255,255,255,0.84)',
-    fontSize: 14,
-    fontWeight: '600',
-  },
 
-  // ── Bottom Bar ──────────────────────────────────────────────────────────────
   stickyBottomBar: {
     position: 'absolute',
     bottom: 0,
@@ -609,14 +898,14 @@ const styles = StyleSheet.create({
   buyButton: {
     backgroundColor: '#F44A22',
     width: '100%',
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buyButtonText: {
     color: '#FFFFFF',
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   buyButtonSubtext: {

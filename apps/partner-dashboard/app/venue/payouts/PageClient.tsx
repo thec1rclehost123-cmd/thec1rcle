@@ -1,72 +1,115 @@
 'use client';
 
-import { useState } from 'react';
-import {
-  Banknote,
-  Download,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  Search,
-  CreditCard,
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Download, Clock, CheckCircle2, AlertCircle, Search, CreditCard } from 'lucide-react';
 import { VenuePageShell, VenueActionButton } from '@/components/venue-layout/VenuePageShell';
 import { AppleHeroStat } from '@/components/ui/AppleHeroStat';
 import { VenueStatStrip } from '@/components/ui/VenueStatStrip';
 import { BentoCard } from '@/components/ui/BentoCard';
+import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 
-const MOCK_PAYOUTS = [
-  {
-    id: 'PY-88219',
-    amount: 68400,
-    date: '2026-01-25',
-    status: 'completed',
-    account: 'HDFC •••• 8821',
-  },
-  {
-    id: 'PY-88104',
-    amount: 42100,
-    date: '2026-01-18',
-    status: 'completed',
-    account: 'HDFC •••• 8821',
-  },
-  {
-    id: 'PY-88002',
-    amount: 125000,
-    date: '2026-01-11',
-    status: 'completed',
-    account: 'HDFC •••• 8821',
-  },
-  {
-    id: 'PY-87941',
-    amount: 35600,
-    date: '2026-01-04',
-    status: 'failed',
-    account: 'ICICI •••• 1102',
-  },
-];
+type PayoutRow = {
+  id: string;
+  amountPaise: number;
+  requestedAt: string | null;
+  completedAt?: string | null;
+  status: string;
+  destination: string | null;
+};
 
-function fmtCurrency(n: number) {
-  if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
-  return `₹${n}`;
+type PayoutResponse = {
+  payouts?: PayoutRow[];
+  balance?: { availablePaise?: number; pendingPaise?: number; currency?: string };
+  bankAccount?: { bankName?: string; last4?: string | null } | null;
+  withdrawalsEnabled?: boolean;
+  error?: string;
+};
+
+function fmtCurrency(paise: number) {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+  }).format((Number(paise) || 0) / 100);
 }
 
 export default function PayoutsPage() {
-  const [payouts] = useState(MOCK_PAYOUTS);
+  const { profile, getIdToken } = useDashboardAuth();
+  const venueId = profile?.activeMembership?.partnerId;
+  const [data, setData] = useState<PayoutResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
 
-  const filtered = payouts.filter((p) => p.id.toLowerCase().includes(search.toLowerCase()));
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      if (!venueId) throw new Error('Venue scope is unavailable');
+      const token = await getIdToken();
+      const params = new URLSearchParams({ venueId });
+      const response = await fetch(`/api/venue/finance/payouts?${params}`, {
+        cache: 'no-store',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const body = (await response.json().catch(() => ({}))) as PayoutResponse;
+      if (!response.ok) throw new Error(body.error || 'Unable to load payouts');
+      setData(body);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to load payouts');
+    } finally {
+      setLoading(false);
+    }
+  }, [getIdToken, venueId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const payouts = data?.payouts || [];
+  const filtered = useMemo(
+    () => payouts.filter((p) => p.id.toLowerCase().includes(search.toLowerCase())),
+    [payouts, search],
+  );
   const totalSettled = payouts
-    .filter((p) => p.status === 'completed')
-    .reduce((s, p) => s + p.amount, 0);
+    .filter((p) => ['completed', 'paid', 'settled', 'cleared'].includes(p.status))
+    .reduce((s, p) => s + p.amountPaise, 0);
+  const bankLabel = data?.bankAccount
+    ? `${data.bankAccount.bankName || 'Bank account'}${
+        data.bankAccount.last4 ? ` •••• ${data.bankAccount.last4}` : ''
+      }`
+    : 'No payout account';
+
+  const exportCsv = useCallback(() => {
+    if (!payouts.length) return;
+    const rows = [
+      ['Payout ID', 'Requested At', 'Amount Paise', 'Currency', 'Destination', 'Status'],
+      ...payouts.map((p) => [
+        p.id,
+        p.requestedAt || '',
+        String(p.amountPaise),
+        data?.balance?.currency || 'INR',
+        p.destination || '',
+        p.status,
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `venue-payouts-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [data?.balance?.currency, payouts]);
 
   return (
     <VenuePageShell
       title="Payouts"
       subtitle="Track your earnings and bank transfers"
       actions={
-        <VenueActionButton variant="secondary">
+        <VenueActionButton variant="secondary" onClick={exportCsv} disabled={!payouts.length}>
           <Download className="w-4 h-4" /> Export CSV
         </VenueActionButton>
       }
@@ -74,23 +117,28 @@ export default function PayoutsPage() {
       {/* Hero balance */}
       <AppleHeroStat
         label="AVAILABLE BALANCE"
-        value="₹48,200"
-        subtitle="Settling in 2 days · HDFC Bank •••• 8821"
-        cta={{ label: 'Withdraw', href: '#' }}
+        value={loading ? '—' : fmtCurrency(data?.balance?.availablePaise || 0)}
+        subtitle={
+          error
+            ? 'Canonical payout data is temporarily unavailable'
+            : `${fmtCurrency(data?.balance?.pendingPaise || 0)} pending · ${bankLabel}`
+        }
       />
 
       {/* Financial strip */}
       <VenueStatStrip
         stats={[
           {
-            label: 'TOTAL SETTLED (JAN)',
+            label: 'TOTAL SETTLED',
             value: fmtCurrency(totalSettled),
-            trend: { value: '+12% vs Dec', direction: 'up' },
           },
-          { label: 'PENDING PAYOUT', value: '₹48,200' },
+          {
+            label: 'PENDING PAYOUT',
+            value: loading ? '—' : fmtCurrency(data?.balance?.pendingPaise || 0),
+          },
           {
             label: 'ACTIVE BANK',
-            value: 'HDFC •••• 8821',
+            value: loading ? '—' : bankLabel,
             icon: <CreditCard className="w-3.5 h-3.5" />,
           },
         ]}
@@ -125,12 +173,23 @@ export default function PayoutsPage() {
         }
         padding="sm"
       >
+        {error ? (
+          <div className="flex items-center justify-between gap-4 px-5 py-8">
+            <p className="text-sm" style={{ color: 'var(--v-error)' }}>
+              {error}
+            </p>
+            <VenueActionButton variant="secondary" onClick={() => void load()}>
+              Retry
+            </VenueActionButton>
+          </div>
+        ) : null}
+
         {/* Table header */}
         <div
-          className="grid grid-cols-[1fr_1fr_1fr_1.5fr_1fr_40px] px-5 py-3 rounded-xl mb-1"
+          className="grid grid-cols-[1fr_1fr_1fr_1.5fr_1fr] px-5 py-3 rounded-xl mb-1"
           style={{ background: 'var(--v-elevated)' }}
         >
-          {['PAYOUT ID', 'DATE', 'AMOUNT', 'DESTINATION', 'STATUS', ''].map((h) => (
+          {['PAYOUT ID', 'DATE', 'AMOUNT', 'DESTINATION', 'STATUS'].map((h) => (
             <span
               key={h}
               className="text-[10px] font-bold uppercase tracking-widest"
@@ -143,12 +202,27 @@ export default function PayoutsPage() {
 
         {/* Rows */}
         <div className="space-y-1">
+          {loading ? (
+            <div
+              className="px-5 py-10 text-center text-sm"
+              style={{ color: 'var(--v-text-muted)' }}
+            >
+              Loading canonical payouts…
+            </div>
+          ) : filtered.length === 0 && !error ? (
+            <div
+              className="px-5 py-10 text-center text-sm"
+              style={{ color: 'var(--v-text-muted)' }}
+            >
+              No payouts found.
+            </div>
+          ) : null}
           {filtered.map((p) => {
-            const ok = p.status === 'completed';
+            const ok = ['completed', 'paid', 'settled', 'cleared'].includes(p.status);
             return (
               <div
                 key={p.id}
-                className="grid grid-cols-[1fr_1fr_1fr_1.5fr_1fr_40px] px-5 py-3 rounded-xl items-center transition-colors hover:brightness-125"
+                className="grid grid-cols-[1fr_1fr_1fr_1.5fr_1fr] px-5 py-3 rounded-xl items-center transition-colors hover:brightness-125"
                 style={{ background: 'var(--v-elevated)' }}
               >
                 <span
@@ -163,20 +237,20 @@ export default function PayoutsPage() {
                     style={{ color: 'var(--v-text-muted)' }}
                   />
                   <span className="text-[12px]" style={{ color: 'var(--v-text-secondary)' }}>
-                    {p.date}
+                    {p.requestedAt ? new Date(p.requestedAt).toLocaleDateString('en-IN') : '—'}
                   </span>
                 </div>
                 <span
                   className="text-[14px] font-bold tabular-nums"
                   style={{ color: 'var(--v-text-primary)' }}
                 >
-                  {fmtCurrency(p.amount)}
+                  {fmtCurrency(p.amountPaise)}
                 </span>
                 <span
                   className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full w-fit"
                   style={{ background: 'var(--v-card)', color: 'var(--v-text-muted)' }}
                 >
-                  {p.account}
+                  {p.destination || bankLabel}
                 </span>
                 <div>
                   <span
@@ -197,13 +271,6 @@ export default function PayoutsPage() {
                     )}
                   </span>
                 </div>
-                <button
-                  className="p-1.5 rounded-lg transition-colors hover:brightness-125"
-                  style={{ color: 'var(--v-text-muted)' }}
-                  aria-label="Download invoice"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                </button>
               </div>
             );
           })}

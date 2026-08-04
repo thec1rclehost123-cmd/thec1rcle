@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { apiFetch } from '@/lib/api';
+import { DEMO_EVENTS, PUBLIC_DEMO_MODE } from '@/lib/demo';
+import { getEventImage } from '@/lib/utils/event';
 
 // Order/Ticket type matching Firestore schema
 export interface Order {
@@ -9,20 +11,39 @@ export interface Order {
   userName?: string;
   eventId: string;
   eventTitle?: string;
+  eventCategory?: string;
+  category?: string;
   eventDate?: string;
   eventStartDate?: string;
   eventTime?: string;
+  eventTimezone?: string;
   eventCoverImage?: string;
+  coverImage?: string;
+  coverPhoto?: string;
+  posterUrl?: string;
+  poster?: string;
+  image?: string;
+  images?: string[];
+  gallery?: string[];
+  flyer?: string;
+  banner?: string;
+  thumbnail?: string;
   venueLocation?: string;
   hostName?: string;
   accentColor?: string;
-  status: 'pending_payment' | 'confirmed' | 'checked_in' | 'cancelled' | 'refunded';
+  eventAccentColor?: string;
+  posterAccentColor?: string;
+  dominantColor?: string;
+  status:
+    'payment_pending' | 'pending_payment' | 'confirmed' | 'checked_in' | 'cancelled' | 'refunded';
   tickets: OrderTicket[];
   totalAmount: number;
   currency?: string;
   createdAt: string;
   updatedAt?: string;
   confirmedAt?: string;
+  bookingCode?: string;
+  bookingCodes?: BookingCode[];
   qrData?: string;
   qrCodes?: QRCode[];
   isClaimed?: boolean;
@@ -39,6 +60,7 @@ export interface OrderTicket {
   subtotal?: number;
   entryType?: string;
   ticketId?: string;
+  bookingCode?: string;
   isClaimed?: boolean;
   claimedBy?: {
     uid?: string;
@@ -54,13 +76,22 @@ export interface OrderTicket {
   receivedFrom?: string;
 }
 
+export interface BookingCode {
+  ticketId?: string;
+  ticketDocumentId?: string;
+  bookingCode: string;
+  tierId?: string | null;
+  tierName?: string | null;
+}
+
 export interface QRCode {
   ticketId: string;
   ticketIndex: number;
   qrCode: string;
+  bookingCode?: string;
   qrUrl?: string;
   qrExpiresAt?: string;
-  qrMode?: 'jwt' | 'static' | string;
+  qrMode?: 'raw_id' | 'jwt' | 'static' | string;
   isUsed?: boolean;
 }
 
@@ -68,131 +99,141 @@ interface TicketsState {
   orders: Order[];
   loading: boolean;
   error: string | null;
-
-  fetchUserOrders: (userId: string) => Promise<void>;
+  fetchUserOrders: () => Promise<void>;
   getOrderById: (orderId: string) => Promise<Order | null>;
   clearOrders: () => void;
 }
 
-function toIso(value: any): string | null {
-  try {
-    if (!value) return null;
-    if (typeof value === 'string') return value;
-    if (value instanceof Date) return value.toISOString();
-    if (typeof value.toDate === 'function') return value.toDate().toISOString();
-    if (value.seconds != null) return new Date(value.seconds * 1000).toISOString();
-  } catch {
-    // ignore
-  }
-  return null;
+function getCanonicalDemoEvent(eventId?: string) {
+  if (!PUBLIC_DEMO_MODE) return null;
+  if (!eventId) return null;
+  return (DEMO_EVENTS as any[]).find((event) => event.id === eventId) || null;
 }
 
-function mapOrder(docId: string, data: any): Order {
-  const eventDate =
-    toIso(data.eventDate) ||
-    toIso(data.eventStartDate) ||
-    toIso(data.startDate) ||
-    toIso(data.startAt) ||
-    toIso(data.date);
+function getCanonicalDemoPoster(eventId?: string): string | undefined {
+  const demoEvent = getCanonicalDemoEvent(eventId);
+  return (
+    demoEvent?.poster ||
+    demoEvent?.coverImage ||
+    demoEvent?.image ||
+    demoEvent?.posterUrl ||
+    demoEvent?.images?.[0]
+  );
+}
+
+function getCanonicalDemoAccent(eventId?: string): string | undefined {
+  const demoEvent = getCanonicalDemoEvent(eventId);
+  return (
+    demoEvent?.posterAccentColor ||
+    demoEvent?.dominantColor ||
+    demoEvent?.eventAccentColor ||
+    demoEvent?.accentColor
+  );
+}
+
+function normalizeOrder(raw: Order): Order {
+  const canonicalDemoPoster = getCanonicalDemoPoster(raw.eventId);
+  const canonicalPoster =
+    canonicalDemoPoster ||
+    getEventImage({
+      ...raw,
+      coverImage: raw.coverImage || raw.eventCoverImage,
+    }) ||
+    raw.eventCoverImage;
+  const canonicalAccent =
+    getCanonicalDemoAccent(raw.eventId) ||
+    raw.posterAccentColor ||
+    raw.dominantColor ||
+    raw.eventAccentColor ||
+    raw.accentColor;
+
   return {
-    id: docId,
-    userId: data.userId || data.uid || data.customerId || '',
-    userEmail: data.userEmail || undefined,
-    userName: data.userName || undefined,
-    eventId: data.eventId || '',
-    eventTitle: data.eventTitle || data.eventName || data.title,
-    eventDate: eventDate || undefined,
-    eventStartDate: toIso(data.eventStartDate) || toIso(data.startDate) || undefined,
-    eventTime: data.eventTime || data.time || undefined,
-    eventCoverImage:
-      data.eventCoverImage || data.eventImage || data.image || data.posterUrl || data.poster,
-    venueLocation: data.venueLocation || data.eventLocation || data.location || data.venue,
-    hostName: data.hostName || data.host?.name || data.host || undefined,
-    accentColor: data.accentColor || undefined,
-    status: (data.status || 'confirmed') as any,
-    tickets: (data.tickets || []).map((t: any) => ({
-      ticketId: t.ticketId || t.id,
-      tierId: t.tierId || t.ticketId || t.id,
-      tierName: t.tierName || t.name || 'General Entry',
-      quantity: Number(t.quantity) || 1,
-      price: Number(t.price) || 0,
-      subtotal: Number(t.subtotal) || (Number(t.price) || 0) * (Number(t.quantity) || 1),
-      entryType: t.entryType,
-      isClaimed: !!t.isClaimed || !!t.claimedBy,
-      claimedBy: t.claimedBy || null,
-      requiredGender: t.requiredGender || undefined,
-      shareToken: t.shareToken || undefined,
-      transferStatus: t.transferStatus || undefined,
-      transferId: t.transferId || undefined,
-      transferRecipientEmail: t.transferRecipientEmail || undefined,
-      receivedFrom: t.receivedFrom || undefined,
-    })),
-    totalAmount: Number(data.totalAmount ?? data.total ?? 0),
-    currency: data.currency || undefined,
-    createdAt: toIso(data.createdAt) || new Date().toISOString(),
-    updatedAt: toIso(data.updatedAt) || undefined,
-    confirmedAt: toIso(data.confirmedAt) || undefined,
-    qrData: data.qrData,
-    qrCodes: (data.qrCodes || []).map((qr: any, index: number) => ({
-      ticketId: qr.ticketId || qr.tierId || `${docId}-${index}`,
-      ticketIndex: Number(qr.ticketIndex ?? index),
-      qrCode:
-        qr.qrCode ||
-        qr.qrData ||
-        qr.qrPayload ||
-        qr.qrJwt ||
-        JSON.stringify({ orderId: docId, index }),
-      qrUrl: qr.qrUrl || undefined,
-      qrExpiresAt: qr.qrExpiresAt || undefined,
-      qrMode: qr.qrMode || undefined,
-      isUsed: !!qr.isUsed,
-    })),
-    isClaimed: !!data.isClaimed,
-    bundleId: data.bundleId || undefined,
-    isRSVP: !!data.isRSVP || data.source === 'rsvp',
-    source: data.source,
+    ...raw,
+    eventCoverImage: canonicalPoster,
+    coverImage: canonicalPoster || raw.coverImage,
+    coverPhoto: canonicalPoster || raw.coverPhoto,
+    posterUrl: canonicalPoster || raw.posterUrl || raw.poster,
+    poster: canonicalPoster || raw.poster || raw.posterUrl,
+    image: canonicalPoster || raw.image,
+    images: canonicalPoster ? [canonicalPoster] : raw.images,
+    gallery: canonicalPoster ? [canonicalPoster] : raw.gallery,
+    flyer: canonicalPoster || raw.flyer,
+    banner: canonicalPoster || raw.banner,
+    thumbnail: canonicalPoster || raw.thumbnail,
+    accentColor: canonicalAccent || raw.accentColor,
+    eventAccentColor: canonicalAccent || raw.eventAccentColor,
+    posterAccentColor: canonicalAccent || raw.posterAccentColor,
+    dominantColor: canonicalAccent || raw.dominantColor,
   };
 }
 
-export const useTicketsStore = create<TicketsState>((set, get) => ({
-  orders: [],
-  loading: false,
-  error: null,
+export const useTicketsStore = create<TicketsState>((set, get) => {
+  let pendingFetchPromise: Promise<void> | null = null;
+  let requestGeneration = 0;
 
-  fetchUserOrders: async (_userId: string) => {
-    if (get().loading) return;
-    set({ loading: true, error: null });
+  return {
+    orders: [],
+    loading: false,
+    error: null,
 
-    try {
-      const response = await apiFetch<{
-        success: boolean;
-        data?: { orders?: any[] };
-        orders?: any[];
-      }>('/api/v1/tickets/my-wallet');
-      const walletOrders = response.data?.orders || response.orders || [];
-      const all = walletOrders.map((order: any) => mapOrder(order.id, order));
+    fetchUserOrders: async () => {
+      if (get().loading && pendingFetchPromise) return pendingFetchPromise;
 
-      set({ orders: all, loading: false });
-    } catch (error: any) {
-      console.warn('Unable to fetch wallet orders; showing an empty ticket wallet.', error);
-      set({ orders: [], error: null, loading: false });
-    }
-  },
+      const generation = requestGeneration;
+      set({ loading: true, error: null });
+      const fetchPromise = (async () => {
+        try {
+          const response = await apiFetch<{
+            success: boolean;
+            data?: { orders?: Order[] };
+            orders?: Order[];
+          }>('/api/v1/tickets/my-wallet');
+          const walletOrders: Order[] = (response.data?.orders || response.orders || []).map(
+            normalizeOrder,
+          );
 
-  getOrderById: async (orderId: string): Promise<Order | null> => {
-    try {
-      const cached = get().orders.find((order) => order.id === orderId);
-      if (cached) return cached;
+          if (generation !== requestGeneration) return;
+          set({ orders: walletOrders, loading: false, error: null });
+        } catch (error: any) {
+          if (generation !== requestGeneration) return;
+          console.warn('Unable to fetch wallet orders; keeping existing ticket wallet.', error);
+          set({
+            error: error?.message || 'Unable to sync ticket wallet. Pull to retry.',
+            loading: false,
+          });
+        }
+      })();
+      pendingFetchPromise = fetchPromise;
 
-      await get().fetchUserOrders('');
-      return get().orders.find((order) => order.id === orderId) || null;
-    } catch (error: any) {
-      console.warn('Unable to fetch order by ID:', error);
-      return null;
-    }
-  },
+      try {
+        await fetchPromise;
+      } finally {
+        if (pendingFetchPromise === fetchPromise) pendingFetchPromise = null;
+      }
+    },
 
-  clearOrders: () => {
-    set({ orders: [], loading: false, error: null });
-  },
-}));
+    getOrderById: async (orderId: string): Promise<Order | null> => {
+      try {
+        const cached = get().orders.find((order) => order.id === orderId);
+        if (cached) return cached;
+
+        if (get().loading && pendingFetchPromise) {
+          await pendingFetchPromise;
+          return get().orders.find((order) => order.id === orderId) || null;
+        }
+
+        await get().fetchUserOrders();
+        return get().orders.find((order) => order.id === orderId) || null;
+      } catch (error: any) {
+        console.warn('Unable to fetch order by ID:', error);
+        return null;
+      }
+    },
+
+    clearOrders: () => {
+      requestGeneration += 1;
+      pendingFetchPromise = null;
+      set({ orders: [], loading: false, error: null });
+    },
+  };
+});

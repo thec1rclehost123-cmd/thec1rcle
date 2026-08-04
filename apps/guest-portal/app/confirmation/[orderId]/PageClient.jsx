@@ -6,8 +6,6 @@ import FunnelShell from '../../../components/FunnelShell';
 import OrderConfirmationDetails from '../../../components/OrderConfirmationDetails';
 import { useAuth } from '../../../components/providers/AuthProvider';
 import { normalizeCheckoutEventDetail } from '../../../features/checkout/checkoutEventModel.js';
-import { fetchGuestBffConfirmation } from '../../../lib/bff/fetchers.js';
-import { isGuestBffEnabled } from '../../../lib/bff/flags.js';
 import { fetchPublicEvent } from '../../../features/discovery/publicDiscovery';
 import { fetchGuestOrder } from '../../../features/orders/api/orderApi';
 
@@ -47,21 +45,6 @@ export default function ConfirmationPageClient({
     async function loadOrder() {
       setStatus('loading');
       try {
-        if (isGuestBffEnabled('confirmation')) {
-          const data = await fetchGuestBffConfirmation(orderId);
-          if (cancelled) return;
-
-          if (!data?.order) {
-            setStatus(data?.status || 'missing');
-            return;
-          }
-
-          setOrder(data.order);
-          setEvent(data.event || null);
-          setStatus(data.status || (data.order.status === 'confirmed' ? 'ready' : 'pending'));
-          return;
-        }
-
         const { response, data } = await fetchGuestOrder(orderId, {
           cache: 'no-store',
         });

@@ -188,6 +188,30 @@ async function patchHandler(req, { params }) {
     return NextResponse.json({ error: 'stepId and action are required.' }, { status: 400 });
   }
 
+  // 🛡️ Task 4.16: Action-Specific Scope & Role Verification
+  const allowedRolesForAction = {
+    approve: ['admin', 'super', 'ops'],
+    reject: ['admin', 'super', 'ops'],
+    request_resubmission: ['admin', 'super', 'ops', 'support'],
+    mark_under_review: ['admin', 'super', 'ops', 'support'],
+  };
+
+  const adminRole = req.user?.admin_role || 'readonly';
+  const allowedRoles = allowedRolesForAction[action];
+
+  if (!allowedRoles) {
+    return NextResponse.json({ error: `Unsupported KYC action '${action}'.` }, { status: 400 });
+  }
+
+  if (!allowedRoles.includes(adminRole)) {
+    return NextResponse.json(
+      {
+        error: `Forbidden: Admin role '${adminRole}' lacks scope to perform action '${action}' on KYC.`,
+      },
+      { status: 403 },
+    );
+  }
+
   const adminId = req.user.uid;
   const app = getAdminApp();
   const db = getFirestore(app);
@@ -291,4 +315,4 @@ async function patchHandler(req, { params }) {
 }
 
 export const GET = withAdminAuth(getHandler);
-export const PATCH = withAdminAuth(patchHandler);
+export const PATCH = withAdminAuth(patchHandler, 'support');

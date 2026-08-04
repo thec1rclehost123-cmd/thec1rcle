@@ -125,13 +125,16 @@ async function migrate() {
             { merge: true },
           );
       } else if (acc.type === 'admin') {
-        await db
-          .collection('admins')
-          .doc(uid)
-          .set(
-            { uid, email: acc.email, role: 'super', displayName: 'Aayush Admin' },
-            { merge: true },
-          );
+        await db.collection('admins').doc(uid).set(
+          {
+            uid,
+            email: acc.email,
+            admin_role: 'super',
+            role: 'admin',
+            displayName: 'Aayush Admin',
+          },
+          { merge: true },
+        );
       }
       console.log(`✅ Entity record verified.`);
     } catch (error) {

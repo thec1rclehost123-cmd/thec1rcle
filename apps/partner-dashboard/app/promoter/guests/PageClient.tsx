@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Users,
   Activity,
@@ -93,9 +94,6 @@ function useDebounce<T>(value: T, delay: number): T {
 export default function GuestStreamPage() {
   const { profile, user } = useDashboardAuth();
   const [guests, setGuests] = useState<GuestEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'checked_in' | 'pending'>('all');
   const [autoRefresh, setAutoRefresh] = useState(true);
 
@@ -103,10 +101,6 @@ export default function GuestStreamPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 500);
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
-
-  // Cursor Pagination state
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
 
   // ── Add Guest modal state ────────────────────────────────────────────────
   const [assignOpen, setAssignOpen] = useState(false);
@@ -138,71 +132,47 @@ export default function GuestStreamPage() {
 
   const promoterId = profile?.activeMembership?.partnerId;
 
-  const fetchGuests = useCallback(
-    async (isRefresh = false, cursor: string | null = null) => {
-      if (!promoterId) return;
-      if (isRefresh) setRefreshing(true);
-      else if (cursor) setLoadingMore(true);
-      else setLoading(true);
+  const guestsQuery = useQuery({
+    queryKey: ['promoter-guests', promoterId, filterStatus, selectedEventId, debouncedSearch],
+    queryFn: async ({ signal }) => {
+      const token = await user?.getIdToken();
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const params = new URLSearchParams({ limit: '20' });
+      if (filterStatus !== 'all') params.set('status', filterStatus);
+      if (selectedEventId && selectedEventId !== 'all') params.set('eventId', selectedEventId);
 
-      try {
-        const token = await user?.getIdToken();
-        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-        const params = new URLSearchParams({ limit: '20' });
-        if (cursor) params.set('cursor', cursor);
-        if (filterStatus !== 'all') params.set('status', filterStatus);
-        if (selectedEventId && selectedEventId !== 'all') params.set('eventId', selectedEventId);
+      const res = await fetch(`/api/partners/promoters/guests?${params.toString()}`, {
+        headers,
+        signal,
+      });
+      if (!res.ok) throw new Error('Failed to fetch guests');
+      const data = await res.json();
+      let fetchedGuests = data.guests || [];
 
-        const res = await fetch(`/api/partners/promoters/guests?${params.toString()}`, { headers });
-        if (!res.ok) throw new Error('Failed to fetch guests');
-        const data = await res.json();
-
-        let fetchedGuests = data.guests || [];
-
-        // Client-side search (since Firestore full-text is limited)
-        if (debouncedSearch) {
-          const lower = debouncedSearch.toLowerCase();
-          fetchedGuests = fetchedGuests.filter(
-            (g: any) =>
-              g.guestName?.toLowerCase().includes(lower) ||
-              g.eventTitle?.toLowerCase().includes(lower) ||
-              g.promoterCode?.toLowerCase().includes(lower),
-          );
-        }
-
-        if (cursor) {
-          setGuests((prev) => [...prev, ...fetchedGuests]);
-        } else {
-          setGuests(fetchedGuests);
-        }
-
-        setNextCursor(data.nextCursor || null);
-        setError(false);
-      } catch (err) {
-        console.error(err);
-        setError(true);
-      } finally {
-        setLoading(false);
-        setLoadingMore(false);
-        setRefreshing(false);
+      if (debouncedSearch) {
+        const lower = debouncedSearch.toLowerCase();
+        fetchedGuests = fetchedGuests.filter(
+          (guest: GuestEntry & { promoterCode?: string }) =>
+            guest.guestName?.toLowerCase().includes(lower) ||
+            guest.eventTitle?.toLowerCase().includes(lower) ||
+            guest.promoterCode?.toLowerCase().includes(lower),
+        );
       }
+
+      return fetchedGuests as GuestEntry[];
     },
-    [promoterId, user, filterStatus, selectedEventId, debouncedSearch],
-  );
+    enabled: Boolean(promoterId && user),
+    refetchInterval: autoRefresh ? 30_000 : false,
+  });
 
-  // Re-fetch when dependencies change
   useEffect(() => {
-    fetchGuests();
-  }, [fetchGuests]);
+    if (guestsQuery.data) setGuests(guestsQuery.data);
+  }, [guestsQuery.data]);
 
-  // Auto-refresh polling (first page only)
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(() => fetchGuests(true), 30000);
-    return () => clearInterval(interval);
-  }, [autoRefresh, fetchGuests]);
-
-  const mutate = () => fetchGuests(true);
+  const loading = guestsQuery.isLoading;
+  const error = guestsQuery.isError;
+  const refreshing = guestsQuery.isFetching && !guestsQuery.isLoading;
+  const mutate = () => guestsQuery.refetch();
 
   // ── Add Guest handlers ───────────────────────────────────────────────────
   const openAssignModal = async () => {
@@ -284,7 +254,7 @@ export default function GuestStreamPage() {
       if (c === 'assigned') {
         setAssignStep('assigned');
         setAssignMsg('Guest added successfully!');
-        fetchGuests(true);
+        void guestsQuery.refetch();
         setTimeout(() => setAssignOpen(false), 1800);
       } else {
         setAssignStep(c);
@@ -448,7 +418,7 @@ export default function GuestStreamPage() {
               </p>
             </div>
             <button
-              onClick={() => fetchGuests()}
+              onClick={() => guestsQuery.refetch()}
               className="px-6 py-2 rounded-xl text-sm font-bold"
               style={{
                 background: 'rgba(239,68,68,0.1)',

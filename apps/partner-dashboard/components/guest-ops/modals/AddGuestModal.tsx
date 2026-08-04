@@ -23,7 +23,7 @@ interface AddGuestModalProps {
 }
 
 export function AddGuestModal({ eventId, venueId, onClose, onSuccess }: AddGuestModalProps) {
-  const { profile } = useDashboardAuth();
+  const { getIdToken } = useDashboardAuth();
   const nameRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState('');
@@ -49,11 +49,11 @@ export function AddGuestModal({ eventId, venueId, onClose, onSuccess }: AddGuest
   }, [onClose]);
 
   const authHeaders = useCallback(
-    () => ({
+    async () => ({
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${(profile as any)?._token ?? ''}`,
+      Authorization: `Bearer ${await getIdToken()}`,
     }),
-    [profile],
+    [getIdToken],
   );
 
   const handleSubmit = useCallback(
@@ -84,7 +84,7 @@ export function AddGuestModal({ eventId, venueId, onClose, onSuccess }: AddGuest
           `/api/partners/venues/guest-ops/${eventId}/guests?venueId=${venueId}`,
           {
             method: 'POST',
-            headers: authHeaders(),
+            headers: await authHeaders(),
             body: JSON.stringify(body),
           },
         );

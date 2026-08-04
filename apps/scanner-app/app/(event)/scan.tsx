@@ -12,20 +12,17 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CoupleConfirmModal from '@/components/Scanner/CoupleConfirmModal';
+import CoverDeductionOverlay from '@/components/Scanner/CoverDeductionOverlay';
 import ScanResult from '@/components/Scanner/ScanResult';
-import { processQRScan } from '@/lib/api/scan';
+import { CoverWalletContext, fetchCoverWallet, isCoverWalletQr } from '@/lib/api/coverCharge';
+import { confirmCoupleScan, processQRScan } from '@/lib/api/scan';
 import { useEvent } from '@/store/eventContext';
 
 const { width } = Dimensions.get('window');
 const SCAN_AREA_SIZE = width * 0.7;
 
 type ScanResultType =
-  | 'valid'
-  | 'already_scanned'
-  | 'invalid'
-  | 'wrong_event'
-  | 'not_confirmed'
-  | null;
+  'valid' | 'already_scanned' | 'invalid' | 'wrong_event' | 'not_confirmed' | null;
 
 interface ScanResultData {
   type: ScanResultType;
@@ -50,6 +47,7 @@ export default function ScanScreen() {
   const [showCoupleModal, setShowCoupleModal] = useState(false);
   const [pendingCoupleData, setPendingCoupleData] = useState<any>(null);
   const [entryCount, setEntryCount] = useState(0);
+  const [coverWallet, setCoverWallet] = useState<CoverWalletContext | null>(null);
 
   const { eventData } = useEvent();
   const lastScannedRef = useRef<string | null>(null);
@@ -104,15 +102,30 @@ export default function ScanScreen() {
     lastScannedRef.current = data;
 
     try {
+      if (isCoverWalletQr(data)) {
+        if (!eventData?.permissions.canCharge) {
+          throw new Error('This scanner session is not authorized for Cover Wallet charges');
+        }
+        const wallet = await fetchCoverWallet(data, {
+          eventId: eventData.event.id,
+          eventCode: eventData.code,
+          venueId: eventData.event.venueId,
+          gate: eventData.gate,
+        });
+        setCoverWallet(wallet);
+        return;
+      }
+
       const result = await processQRScan({
         qrData: data,
         eventId: eventData?.event.id || '',
         eventCode: eventData?.code || '',
+        venueId: eventData?.event.venueId || '',
         gate: eventData?.gate,
       });
 
       // Check for couple ticket that needs partner confirmation
-      if (result.success && result.ticket?.entryType === 'couple') {
+      if (result.success && result.requiresConfirmation && result.confirmationToken) {
         setPendingCoupleData(result);
         setShowCoupleModal(true);
         return;
@@ -149,12 +162,24 @@ export default function ScanScreen() {
     }
   };
 
-  const handleCoupleConfirm = (partnerPresent: boolean) => {
+  const handleCoupleConfirm = async (partnerPresent: boolean) => {
     setShowCoupleModal(false);
 
     if (partnerPresent && pendingCoupleData) {
-      // Complete the couple entry
-      handleScanResult(pendingCoupleData);
+      try {
+        const confirmed = await confirmCoupleScan(pendingCoupleData.confirmationToken, {
+          eventId: eventData?.event.id || '',
+          eventCode: eventData?.code || '',
+          venueId: eventData?.event.venueId || '',
+          gate: eventData?.gate,
+        });
+        handleScanResult(confirmed);
+      } catch (error: any) {
+        showResult({
+          type: 'invalid',
+          message: error.message || 'Couple admission could not be confirmed',
+        });
+      }
     } else {
       // Reject - partner not present
       showResult({
@@ -279,6 +304,25 @@ export default function ScanScreen() {
         onConfirm={handleCoupleConfirm}
         guestName={pendingCoupleData?.ticket?.userName}
       />
+
+      {coverWallet && (
+        <CoverDeductionOverlay
+          wallet={coverWallet}
+          onDismiss={() => {
+            setCoverWallet(null);
+            setIsScanning(true);
+            lastScannedRef.current = null;
+          }}
+          onBalanceChanged={(balancePaise) => {
+            setCoverWallet((current) =>
+              current ? { ...current, currentBalancePaise: balancePaise } : current,
+            );
+            setCoverWallet(null);
+            setIsScanning(true);
+            lastScannedRef.current = null;
+          }}
+        />
+      )}
     </View>
   );
 }

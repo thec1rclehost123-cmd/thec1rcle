@@ -30,7 +30,7 @@ export default function ReservationsPage() {
   const [reservations, setReservations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { profile } = useDashboardAuth();
+  const { profile, getIdToken } = useDashboardAuth();
   const venueId = profile?.activeMembership?.partnerId;
 
   // Fetch reservations from the API
@@ -41,7 +41,10 @@ export default function ReservationsPage() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/partners/venues/reservations?venueId=${venueId}`);
+      const token = await getIdToken();
+      const res = await fetch(`/api/partners/venues/reservations?venueId=${venueId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error('Failed to fetch reservations');
       const data = await res.json();
       setReservations(data.reservations || []);
@@ -51,7 +54,7 @@ export default function ReservationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [venueId]);
+  }, [getIdToken, venueId]);
 
   useEffect(() => {
     fetchReservations();
@@ -62,9 +65,13 @@ export default function ReservationsPage() {
     setProcessingId(id);
 
     try {
+      const token = await getIdToken();
       const res = await fetch(`/api/partners/venues/reservations/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ status: newStatus }),
       });
 

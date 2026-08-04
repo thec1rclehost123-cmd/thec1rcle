@@ -9,7 +9,8 @@ import { sendScannerHeartbeat } from '@/lib/scanner';
  * Security staff navigates: code entry → tabbed scanner experience
  */
 export default function ScannerLayout() {
-  const { eventData, sessionToken } = useScannerStore();
+  const eventData = useScannerStore((state) => state.eventData);
+  const sessionToken = useScannerStore((state) => state.sessionToken);
 
   useEffect(() => {
     // H9: Rehydrate session from SecureStore on app open

@@ -1,9 +1,18 @@
-import { normalizeReservationItems } from './checkoutViewModel';
+import { normalizeReservationItems } from './checkoutViewModel.js';
 
 const ADMISSION_TOKEN_STORAGE_PREFIX = 'admission_token_';
+const PENDING_ORDER_TTL_MS = 30 * 60 * 1000;
 
 export function getReservationItemsSignature(items) {
   return JSON.stringify(normalizeReservationItems(items));
+}
+
+export function isPendingOrderSnapshotCurrent({ eventId, snapshot, ticketSignature, userId }) {
+  if (!snapshot?.orderId || !snapshot?.ticketSignature) return false;
+  if (snapshot.eventId && eventId && snapshot.eventId !== eventId) return false;
+  if (snapshot.userId && userId && snapshot.userId !== userId) return false;
+  if (snapshot.ticketSignature !== ticketSignature) return false;
+  return Date.now() - Number(snapshot.savedAt || 0) < PENDING_ORDER_TTL_MS;
 }
 
 function buildItemsToken(items) {

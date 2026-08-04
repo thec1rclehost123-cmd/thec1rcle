@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { trackEventView } from './analytics-service.js';
 import * as surgeCore from './surge.js';
@@ -23,6 +23,16 @@ export function normalizeInterestedUserGender(value) {
   if (['male', 'man', 'men', 'boy', 'boys', 'm', 'cis male', 'cis man'].includes(normalized))
     return 'male';
   return 'other';
+}
+
+export function normalizePublicPhotoUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const parsed = new URL(value);
+    return ['http:', 'https:'].includes(parsed.protocol) ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function serialize(value) {
@@ -112,7 +122,7 @@ export async function getEventInterested(db, eventId, limit = 20) {
         id: doc.id,
         name: displayName,
         handle: data.handle || `@${displayName.toLowerCase().replace(/\s/g, '')}`,
-        photoURL: data.photoURL || null,
+        photoURL: normalizePublicPhotoUrl(data.photoURL),
         initials: displayName
           .split(' ')
           .map((part) => part[0])
@@ -179,19 +189,44 @@ export async function trackGuestEventView(db, { eventId, viewerId }) {
   if (!eventId || !viewerId) return { ok: true };
 
   try {
-    const isNewSession = await trackEventView(eventId, viewerId);
-    if (isNewSession) {
-      await db
-        .collection(EVENT_COLLECTION)
-        .doc(eventId)
-        .set(
-          {
-            stats: { views: FieldValue.increment(1) },
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true },
-        );
-    }
+    await trackEventView(eventId, viewerId).catch(() => undefined);
+    const viewerHash = createHash('sha256').update(String(viewerId)).digest('hex');
+    const viewRef = db.collection('event_views').doc(String(eventId));
+    const sessionRef = db.collection('event_view_sessions').doc(`${eventId}_${viewerHash}`);
+    const eventRef = db.collection(EVENT_COLLECTION).doc(String(eventId));
+
+    await db.runTransaction(async (transaction) => {
+      const sessionDoc = await transaction.get(sessionRef);
+      const now = new Date().toISOString();
+      transaction.set(
+        viewRef,
+        {
+          eventId: String(eventId),
+          count: FieldValue.increment(1),
+          uniqueCount: FieldValue.increment(sessionDoc.exists ? 0 : 1),
+          updatedAt: now,
+        },
+        { merge: true },
+      );
+      transaction.set(
+        eventRef,
+        {
+          stats: { views: FieldValue.increment(1) },
+          updatedAt: now,
+        },
+        { merge: true },
+      );
+      if (!sessionDoc.exists) {
+        transaction.set(sessionRef, {
+          eventId: String(eventId),
+          viewerHash,
+          firstViewedAt: now,
+          lastViewedAt: now,
+        });
+      } else {
+        transaction.set(sessionRef, { lastViewedAt: now }, { merge: true });
+      }
+    });
   } catch {
     return { ok: true };
   }

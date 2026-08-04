@@ -44,6 +44,7 @@ describe('guest-auth contracts', () => {
       partnerId: null,
       onboardingStatus: null,
       isApproved: false,
+      isBanned: false,
       contactPerson: null,
       area: null,
       website: null,
@@ -186,19 +187,15 @@ describe('guest-auth contracts', () => {
     expect(result.error).toBeNull();
     expect(result.safeUpdates).toEqual({
       photoURL: 'https://cdn.example/new.jpg',
-      phoneNumber: '9999999999',
-      phone: '9999999999',
+      phoneNumber: '+919999999999',
+      phone: '+919999999999',
       avatar: 'https://cdn.example/new.jpg',
       updatedAt: '2026-04-20T00:00:00.000Z',
     });
   });
 
   it('rejects phone numbers that are not exactly 10 digits', () => {
-    const result = buildGuestProfileUpdates(
-      { phoneNumber: '+919999999999' },
-      {},
-      '2026-04-20T00:00:00.000Z',
-    );
+    const result = buildGuestProfileUpdates({ phoneNumber: '123' }, {}, '2026-04-20T00:00:00.000Z');
 
     expect(result.statusCode).toBe(400);
     expect(result.error).toMatch(/exactly 10 digits/);
@@ -210,5 +207,34 @@ describe('guest-auth contracts', () => {
 
     expect(result.error).toBeNull();
     expect(result.safeUpdates).toMatchObject({ phone: '', phoneNumber: '' });
+  });
+
+  it('rejects transitioning onboardingComplete to true if required fields are missing', () => {
+    const result = buildGuestProfileUpdates(
+      { onboardingComplete: true },
+      { displayName: 'Guest' },
+      '2026-04-20T00:00:00.000Z',
+    );
+
+    expect(result.statusCode).toBe(400);
+    expect(result.error).toMatch(/Cannot complete onboarding/);
+  });
+
+  it('allows onboardingComplete: true if all required fields are present', () => {
+    const result = buildGuestProfileUpdates(
+      { onboardingComplete: true },
+      {
+        displayName: 'Guest',
+        phone: '+919999999999',
+        age: 25,
+        gender: 'man',
+        city: 'Mumbai',
+      },
+      '2026-04-20T00:00:00.000Z',
+    );
+
+    expect(result.error).toBeNull();
+    expect(result.statusCode).toBe(200);
+    expect((result.safeUpdates as any).onboardingComplete).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-import { randomUUID, createHmac } from 'node:crypto';
+import { randomUUID, createHmac, randomBytes } from 'node:crypto';
 import { getAdminDb } from './admin.js';
 import { getQrSecret } from './secret-registry.js';
 
@@ -15,6 +15,26 @@ let _QR_SECRET = null;
 function QR_SECRET() {
   if (!_QR_SECRET) _QR_SECRET = getQrSecret();
   return _QR_SECRET;
+}
+
+/** Prefix that unambiguously marks a value as a public share token (never an ID). */
+export const PUBLIC_TOKEN_PREFIX = 'stk_';
+
+/**
+ * Mint an unguessable public share token for an entitlement.
+ *
+ * Entitlement *IDs* are deterministic (`ENT-{orderId}-{tierId}-{index}`), which
+ * makes them enumerable — anyone who can guess an order ID can derive every
+ * ticket ID for that order. So the public "view / share this ticket" capability
+ * must NOT be the ID. This token is 192 bits of randomness and is the only thing
+ * that authorises an anonymous viewer to see a ticket; the deterministic ID is
+ * reserved for owner-authenticated access, scanning, and idempotency.
+ *
+ * The `stk_` prefix lets callers tell a token from an ID by shape alone, with no
+ * lookup and no chance of collision with the `ENT-` ID space.
+ */
+export function generatePublicToken() {
+  return `${PUBLIC_TOKEN_PREFIX}${randomBytes(24).toString('base64url')}`;
 }
 
 export const ENTITLEMENT_STATES = {
@@ -58,8 +78,16 @@ export async function issueEntitlements(order, items, transaction = null) {
     for (let i = 0; i < (item.quantity || 1); i++) {
       // Deterministic ID: stable across retries, no UUID randomness.
       const tierId = (item.ticketId || item.tierId || 'GEN').replace(/\//g, '-');
+      const entId = `ENT-${order.id}-${tierId}-${i + 1}`.toUpperCase();
       const entitlement = {
-        id: `ENT-${order.id}-${tierId}-${i + 1}`.toUpperCase(),
+        id: entId,
+        entitlementId: entId,
+        qrCode: entId,
+        // Unguessable capability for anonymous share links. Minted once at issue
+        // time and stable across idempotent retries (retries return the already
+        // persisted docs below, so the token never changes for a given ticket).
+        publicToken: generatePublicToken(),
+        checkedIn: false,
         eventId: order.eventId,
         orderId: order.id,
         ownerUserId: order.userId,
@@ -288,6 +316,7 @@ export async function processEntryScan(qrPayload, scannerId, eventId, context = 
       t.update(entRef, {
         scanCountUsed: newCountUsed,
         state: isFull ? ENTITLEMENT_STATES.CONSUMED : entitlement.state,
+        checkedIn: true,
         lastScannerId: scannerId,
         consumedMetadata: context,
         ...(isFirstScan
@@ -320,6 +349,7 @@ export async function processEntryScan(qrPayload, scannerId, eventId, context = 
     t.update(entRef, {
       scanCountUsed: newCountUsed,
       state: newState,
+      checkedIn: true,
       consumedAt: timestamp,
       lastScannerId: scannerId,
       consumedMetadata: context,
@@ -402,6 +432,9 @@ export async function transferEntitlement(
       ...oldEnt,
       id: `ENT-${randomUUID().substring(0, 12).toUpperCase()}`,
       ownerUserId: newOwnerUserId,
+      // Fresh share token: the previous owner's shared links must NOT resolve to
+      // the new owner's ticket after a transfer.
+      publicToken: generatePublicToken(),
       state: ENTITLEMENT_STATES.ISSUED,
       issuedAt: now,
       scanCountUsed: 0,

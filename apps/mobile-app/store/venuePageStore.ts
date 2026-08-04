@@ -1,15 +1,11 @@
 import { create } from 'zustand';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import { getFirestore, doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import {
   type Coordinates,
   findKnownVenueCoordinates,
   resolveVenueCoordinates,
 } from '@/lib/venueDiscovery';
-
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
+import { fetchPublicVenuePage } from '@/lib/publicDetailRequests';
+import { createLatestRequestGuard } from '@/lib/requestGuard';
 
 export interface VenueHighlight {
   id: string;
@@ -75,7 +71,7 @@ export interface VenuePageData {
   upcomingEventsCount?: number;
 }
 
-interface VenuePageState {
+export interface VenuePageEntry {
   venue: VenuePageData | null;
   highlights: VenueHighlight[];
   gallery: VenueGalleryPhoto[];
@@ -84,11 +80,15 @@ interface VenuePageState {
   upcomingEvents: any[];
   loading: boolean;
   error: string | null;
-  fetchVenuePage: (venueIdOrSlug: string) => Promise<void>;
-  clearVenuePage: () => void;
 }
 
-export const useVenuePageStore = create<VenuePageState>((set) => ({
+interface VenuePageState {
+  pages: Record<string, VenuePageEntry>;
+  fetchVenuePage: (venueIdOrSlug: string) => Promise<void>;
+  clearVenuePage: (venueIdOrSlug?: string) => void;
+}
+
+export const EMPTY_VENUE_PAGE_ENTRY: VenuePageEntry = {
   venue: null,
   highlights: [],
   gallery: [],
@@ -97,99 +97,83 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
   upcomingEvents: [],
   loading: false,
   error: null,
+};
 
-  clearVenuePage: () =>
-    set({
-      venue: null,
-      highlights: [],
-      gallery: [],
-      menu: [],
-      facilities: [],
-      upcomingEvents: [],
-      error: null,
-    }),
+const venuePageRequestGuards = new Map<string, ReturnType<typeof createLatestRequestGuard>>();
+
+function getVenuePageRequestGuard(key: string) {
+  const existing = venuePageRequestGuards.get(key);
+  if (existing) return existing;
+  const guard = createLatestRequestGuard();
+  venuePageRequestGuards.set(key, guard);
+  return guard;
+}
+
+export const useVenuePageStore = create<VenuePageState>((set) => ({
+  pages: {},
+
+  clearVenuePage: (venueIdOrSlug?: string) => {
+    if (!venueIdOrSlug) {
+      venuePageRequestGuards.forEach((guard) => guard.invalidate());
+      venuePageRequestGuards.clear();
+      set({ pages: {} });
+      return;
+    }
+
+    getVenuePageRequestGuard(venueIdOrSlug).invalidate();
+    set((state) => {
+      const pages = { ...state.pages };
+      delete pages[venueIdOrSlug];
+      return { pages };
+    });
+  },
 
   fetchVenuePage: async (venueIdOrSlug: string) => {
-    set({ loading: true, error: null });
+    const requestGuard = getVenuePageRequestGuard(venueIdOrSlug);
+    const requestToken = requestGuard.begin(venueIdOrSlug);
+    set((state) => ({
+      pages: {
+        ...state.pages,
+        [venueIdOrSlug]: {
+          ...(state.pages[venueIdOrSlug] ?? EMPTY_VENUE_PAGE_ENTRY),
+          loading: true,
+          error: null,
+        },
+      },
+    }));
 
     try {
-      const db = getDb();
-      let venueDoc: any = null;
-      let venueId = venueIdOrSlug;
-
-      // 1. Try fetch by doc ID first
-      const directSnap = await getDoc(doc(db, 'venues', venueIdOrSlug));
-      if (directSnap.exists()) {
-        venueDoc = { id: directSnap.id, ...directSnap.data() };
-      } else {
-        // 2. Fall back to slug query
-        const slugSnap = await getDocs(
-          query(collection(db, 'venues'), where('slug', '==', venueIdOrSlug)),
-        );
-        if (!slugSnap.empty) {
-          const d = slugSnap.docs[0];
-          venueDoc = { id: d.id, ...d.data() };
-          venueId = d.id;
-        }
-      }
+      const response = await fetchPublicVenuePage<any>(venueIdOrSlug);
+      if (!requestGuard.isCurrent(requestToken)) return;
+      const venueDoc = response.venue || response.profile || response;
 
       if (!venueDoc) {
-        set({ loading: false, error: 'Venue not found' });
+        set((state) => ({
+          pages: {
+            ...state.pages,
+            [venueIdOrSlug]: {
+              ...(state.pages[venueIdOrSlug] ?? EMPTY_VENUE_PAGE_ENTRY),
+              loading: false,
+              error: 'Venue not found',
+            },
+          },
+        }));
         return;
       }
 
-      // 3. Fetch all sub-data in parallel — sort client-side to avoid composite index requirements
-      const now = new Date().toISOString();
-
-      const [highlightsSnap, gallerySnap, menuSnap, facilitiesSnap, eventsSnap] = await Promise.all(
-        [
-          getDocs(
-            query(
-              collection(db, 'venue_highlights'),
-              where('venueId', '==', venueId),
-              where('isActive', '==', true),
-            ),
-          ).catch(() => null),
-          getDocs(query(collection(db, 'venue_gallery'), where('venueId', '==', venueId))).catch(
-            () => null,
-          ),
-          getDocs(query(collection(db, 'venue_menu'), where('venueId', '==', venueId))).catch(
-            () => null,
-          ),
-          getDocs(
-            query(
-              collection(db, 'venue_facilities'),
-              where('venueId', '==', venueId),
-              where('isEnabled', '==', true),
-            ),
-          ).catch(() => null),
-          getDocs(query(collection(db, 'events'), where('venueId', '==', venueId))).catch(
-            () => null,
-          ),
-        ],
-      );
-
-      const toItems = (snap: any) =>
-        snap ? snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) : [];
-
-      const highlights: VenueHighlight[] = toItems(highlightsSnap).sort(
+      const highlights: VenueHighlight[] = (response.highlights || venueDoc.highlights || []).sort(
         (a: any, b: any) => (a.order ?? 0) - (b.order ?? 0),
       );
-      const gallery: VenueGalleryPhoto[] = toItems(gallerySnap)
+      const gallery: VenueGalleryPhoto[] = (response.gallery || venueDoc.gallery || [])
         .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
         .slice(0, 9);
-      const menu: VenueMenuItem[] = toItems(menuSnap).sort(
+      const menu: VenueMenuItem[] = (response.menu || venueDoc.menu || []).sort(
         (a: any, b: any) => (a.order ?? 0) - (b.order ?? 0),
       );
-      const facilities: VenueFacility[] = toItems(facilitiesSnap).sort(
+      const facilities: VenueFacility[] = (response.facilities || venueDoc.facilities || []).sort(
         (a: any, b: any) => (a.order ?? 0) - (b.order ?? 0),
       );
-      const upcomingEvents: any[] = toItems(eventsSnap)
-        .filter((e: any) => {
-          const end = e.endDate || e.startDate;
-          const normalized = end && end.length === 10 ? end + 'T23:59:59.999Z' : end;
-          return normalized && normalized >= now && !e.isDeleted;
-        })
+      const upcomingEvents: any[] = (response.upcomingEvents || venueDoc.upcomingEvents || [])
         .sort((a: any, b: any) => {
           const aDate = a.startDate ?? '';
           const bDate = b.startDate ?? '';
@@ -199,42 +183,58 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
 
       const leadEventWithCoords = upcomingEvents.find((e: any) => resolveVenueCoordinates(e));
 
-      set({
-        venue: {
-          ...venueDoc,
-          followers:
-            typeof venueDoc.followers === 'number'
-              ? venueDoc.followers
-              : typeof venueDoc.followersCount === 'number'
-                ? venueDoc.followersCount
-                : 0,
-          hasReservation:
-            Boolean(venueDoc.hasReservation) ||
-            Boolean(venueDoc.tablesAvailable) ||
-            Boolean(venueDoc.whatsapp) ||
-            Boolean(venueDoc.phone),
-          coordinates:
-            resolveVenueCoordinates(venueDoc) ||
-            (leadEventWithCoords ? resolveVenueCoordinates(leadEventWithCoords) : null) ||
-            findKnownVenueCoordinates(
-              venueDoc.displayName,
-              venueDoc.name,
-              venueDoc.neighborhood,
-              venueDoc.city,
-              venueDoc.address,
-            ),
-          upcomingEventsCount: upcomingEvents.length,
+      set((state) => ({
+        pages: {
+          ...state.pages,
+          [venueIdOrSlug]: {
+            venue: {
+              ...venueDoc,
+              followers:
+                typeof venueDoc.followers === 'number'
+                  ? venueDoc.followers
+                  : typeof venueDoc.followersCount === 'number'
+                    ? venueDoc.followersCount
+                    : 0,
+              hasReservation:
+                Boolean(venueDoc.hasReservation) ||
+                Boolean(venueDoc.tablesAvailable) ||
+                Boolean(venueDoc.whatsapp) ||
+                Boolean(venueDoc.phone),
+              coordinates:
+                resolveVenueCoordinates(venueDoc) ||
+                (leadEventWithCoords ? resolveVenueCoordinates(leadEventWithCoords) : null) ||
+                findKnownVenueCoordinates(
+                  venueDoc.displayName,
+                  venueDoc.name,
+                  venueDoc.neighborhood,
+                  venueDoc.city,
+                  venueDoc.address,
+                ),
+              upcomingEventsCount: upcomingEvents.length,
+            },
+            highlights,
+            gallery,
+            menu,
+            facilities,
+            upcomingEvents,
+            loading: false,
+            error: null,
+          },
         },
-        highlights,
-        gallery,
-        menu,
-        facilities,
-        upcomingEvents,
-        loading: false,
-      });
+      }));
     } catch (error: any) {
+      if (!requestGuard.isCurrent(requestToken)) return;
       console.error('[VenuePageStore] Failed to fetch venue page:', error);
-      set({ loading: false, error: error?.message || 'Failed to load venue page' });
+      set((state) => ({
+        pages: {
+          ...state.pages,
+          [venueIdOrSlug]: {
+            ...(state.pages[venueIdOrSlug] ?? EMPTY_VENUE_PAGE_ENTRY),
+            loading: false,
+            error: error?.message || 'Failed to load venue page',
+          },
+        },
+      }));
     }
   },
 }));

@@ -22,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Plus, X, ChevronRight } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
+import { markSocialSetupSkipped } from '@/lib/onboardingFlow';
 import { useSocialProfileStore } from '@/store/socialProfileStore';
 import { colors } from '@/lib/design/theme';
 
@@ -66,7 +67,10 @@ function PhotoSlot({
   return (
     <Pressable
       style={[styles.slot, { width, height }, isMain && styles.slotMain]}
-      onPress={() => onPick(index)}
+      onPress={() => {
+        Haptics.selectionAsync();
+        onPick(index);
+      }}
     >
       {uploading ? (
         <View style={styles.uploadingOverlay}>
@@ -124,7 +128,8 @@ function PhotoSlot({
 
 export default function SocialSetupPhotos() {
   const { user } = useAuth();
-  const { uploadPhoto, socialProfile } = useSocialProfileStore();
+  const uploadPhoto = useSocialProfileStore((state) => state.uploadPhoto);
+  const socialProfile = useSocialProfileStore((state) => state.socialProfile);
 
   const [photos, setPhotos] = useState<(string | null)[]>(() => {
     const existing = socialProfile?.photos ?? [];
@@ -190,6 +195,12 @@ export default function SocialSetupPhotos() {
     });
   };
 
+  const handleSkip = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await markSocialSetupSkipped(user?.uid);
+    router.replace('/(tabs)/explore');
+  };
+
   const slotProps = (index: number) => ({
     index,
     uri: photos[index],
@@ -203,7 +214,13 @@ export default function SocialSetupPhotos() {
     <SafeAreaView style={styles.container}>
       {/* Progress header */}
       <View style={styles.header}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable
+          style={styles.backBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+        >
           <Text style={styles.backArrow}>‹</Text>
         </Pressable>
         <View style={styles.progressTrack}>
@@ -219,21 +236,15 @@ export default function SocialSetupPhotos() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.Text entering={FadeInDown.delay(40).springify().damping(18)} style={styles.title}>
+        <Animated.Text entering={FadeInDown.delay(40)} style={styles.title}>
           Add your photos
         </Animated.Text>
-        <Animated.Text
-          entering={FadeInDown.delay(80).springify().damping(18)}
-          style={styles.subtitle}
-        >
+        <Animated.Text entering={FadeInDown.delay(80)} style={styles.subtitle}>
           First photo is your main pic. Add up to 6.
         </Animated.Text>
 
         {/* ── Top row: 1 large + 2 small stacked ── */}
-        <Animated.View
-          entering={FadeInDown.delay(140).springify().damping(16)}
-          style={styles.topRow}
-        >
+        <Animated.View entering={FadeInDown.delay(140)} style={styles.topRow}>
           <PhotoSlot {...slotProps(0)} width={LARGE_W} height={LARGE_H} />
           <View style={styles.smallStack}>
             <PhotoSlot {...slotProps(1)} width={SMALL_W} height={SMALL_H} />
@@ -242,16 +253,13 @@ export default function SocialSetupPhotos() {
         </Animated.View>
 
         {/* ── Bottom row: 3 equal ── */}
-        <Animated.View
-          entering={FadeInDown.delay(200).springify().damping(16)}
-          style={styles.bottomRow}
-        >
+        <Animated.View entering={FadeInDown.delay(200)} style={styles.bottomRow}>
           <PhotoSlot {...slotProps(3)} width={THIRD_W} height={THIRD_H} />
           <PhotoSlot {...slotProps(4)} width={THIRD_W} height={THIRD_H} />
           <PhotoSlot {...slotProps(5)} width={THIRD_W} height={THIRD_H} />
         </Animated.View>
 
-        <Animated.Text entering={FadeInDown.delay(260).springify().damping(18)} style={styles.tip}>
+        <Animated.Text entering={FadeInDown.delay(260)} style={styles.tip}>
           💡 Clear solo face shots get 3× more matches
         </Animated.Text>
       </ScrollView>
@@ -271,6 +279,9 @@ export default function SocialSetupPhotos() {
         >
           <Text style={styles.nextBtnText}>Continue</Text>
           <ChevronRight size={18} color="#fff" strokeWidth={2.5} />
+        </Pressable>
+        <Pressable onPress={handleSkip} style={styles.skipBtn}>
+          <Text style={styles.skipText}>Skip for now</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -507,5 +518,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.1,
+  },
+  skipBtn: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  skipText: {
+    color: 'rgba(255,255,255,0.38)',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

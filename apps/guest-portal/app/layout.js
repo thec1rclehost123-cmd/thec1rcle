@@ -4,6 +4,7 @@ import CheckoutAwareShell from '../components/CheckoutAwareShell';
 import AppProviders from '../components/providers/AppProviders';
 import { QueryProvider } from '../components/providers/QueryProvider';
 import { WebVitals } from '../components/WebVitals';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -86,14 +87,16 @@ export default function RootLayout({ children }) {
       <body className={`${inter.variable} font-body antialiased`}>
         <WebVitals />
         <QueryProvider>
-          <AppProviders>
-            <CheckoutAwareShell
-              navbar={<Navbar />}
-              footer={<ContextualFooter footerContent={<FooterContent />} />}
-            >
-              {children}
-            </CheckoutAwareShell>
-          </AppProviders>
+          <GlobalErrorBoundary>
+            <AppProviders>
+              <CheckoutAwareShell
+                navbar={<Navbar />}
+                footer={<ContextualFooter footerContent={<FooterContent />} />}
+              >
+                {children}
+              </CheckoutAwareShell>
+            </AppProviders>
+          </GlobalErrorBoundary>
         </QueryProvider>
       </body>
     </html>

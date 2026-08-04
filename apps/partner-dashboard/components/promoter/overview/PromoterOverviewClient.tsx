@@ -6,12 +6,17 @@ import { PromoterActiveEventsRail } from './PromoterActiveEventsRail';
 import { PromoterConversionSnapshot } from './PromoterConversionSnapshot';
 import { PromoterTopLinkCard } from './PromoterTopLinkCard';
 import { PromoterLeaderboardCard } from './PromoterLeaderboardCard';
+import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 
 export function PromoterOverviewClient({ initialData }: any) {
+  const { getIdToken } = useDashboardAuth();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['promoter', 'overview'],
     queryFn: async () => {
-      const res = await fetch('/api/partners/promoters/overview');
+      const token = await getIdToken();
+      const res = await fetch('/api/partners/promoters/overview', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error('Failed to fetch overview');
       return res.json();
     },

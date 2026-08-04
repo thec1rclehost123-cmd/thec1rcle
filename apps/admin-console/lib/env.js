@@ -32,6 +32,7 @@ const clientEnvSchema = z.object({
   NEXT_PUBLIC_DEFAULT_CITY: z.string().optional().default('Pune'),
   NEXT_PUBLIC_GATEWAY_URL: z.string().url().optional(),
   NEXT_PUBLIC_DASHBOARD_URL: z.string().url().optional(),
+  NEXT_PUBLIC_ADMIN_URL: z.string().url().optional(),
 });
 
 const _serverEnv = serverEnvSchema.safeParse(process.env);
@@ -47,6 +48,7 @@ const _clientEnv = clientEnvSchema.safeParse({
   NEXT_PUBLIC_DEFAULT_CITY: process.env.NEXT_PUBLIC_DEFAULT_CITY,
   NEXT_PUBLIC_GATEWAY_URL: process.env.NEXT_PUBLIC_GATEWAY_URL,
   NEXT_PUBLIC_DASHBOARD_URL: process.env.NEXT_PUBLIC_DASHBOARD_URL,
+  NEXT_PUBLIC_ADMIN_URL: process.env.NEXT_PUBLIC_ADMIN_URL,
 });
 
 if (!process.env.SKIP_ENV_VALIDATION) {

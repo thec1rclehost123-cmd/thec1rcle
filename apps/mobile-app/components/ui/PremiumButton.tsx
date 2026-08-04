@@ -19,7 +19,6 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withTiming,
   withRepeat,
   withSequence,
@@ -122,12 +121,12 @@ export function PremiumButton({
 
   const handlePressIn = () => {
     if (disabled) return;
-    scale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.96, { duration: 250 });
     glowOpacity.value = withTiming(1, { duration: 100 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 12, stiffness: 300 });
+    scale.value = withTiming(1, { duration: 250 });
     glowOpacity.value = withTiming(glow ? 0.5 : 0, { duration: 200 });
   };
 
@@ -233,7 +232,12 @@ export function PremiumButton({
       {/* Glass variant */}
       {variant === 'glass' && (
         <>
-          <BlurView intensity={40} tint="dark" style={styles.glassBlur} />
+          <BlurView
+            blurMethod="dimezisBlurView"
+            intensity={40}
+            tint="dark"
+            style={styles.glassBlur}
+          />
           <LinearGradient
             colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.03)']}
             style={styles.glassGradient}
@@ -306,11 +310,11 @@ export function IconButton({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.9, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.9, { duration: 250 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 10, stiffness: 300 });
+    scale.value = withTiming(1, { duration: 250 });
   };
 
   const handlePress = () => {
@@ -341,7 +345,12 @@ export function IconButton({
       ]}
     >
       {variant === 'glass' && (
-        <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView
+          blurMethod="dimezisBlurView"
+          intensity={30}
+          tint="dark"
+          style={StyleSheet.absoluteFill}
+        />
       )}
       {icon}
     </AnimatedPressable>
@@ -388,11 +397,11 @@ export function FloatingActionButton({ icon: iconRaw, onPress, pulse = true, sty
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.9, { damping: 15 });
+    scale.value = withTiming(0.9, { duration: 250 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 12 });
+    scale.value = withTiming(1, { duration: 250 });
   };
 
   const handlePress = () => {

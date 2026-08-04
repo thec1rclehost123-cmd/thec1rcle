@@ -109,7 +109,7 @@ export default function ProfilePage({
         if (data) {
           const loaded = {
             displayName: data.displayName || data.name || '',
-            email: data.email || '',
+            email: data.email || data.contactEmail || '',
             phone: data.phone || data.contactPhone || '',
             instagram: data.instagram || '',
             bio: data.bio || data.summary || '',
@@ -161,14 +161,15 @@ export default function ProfilePage({
           action: 'updateProfile',
           data: {
             displayName: formData.displayName,
-            phone: formData.phone,
+            contactPhone: formData.phone,
             instagram: formData.instagram,
+            instagramHandle: formData.instagram,
             bio: formData.bio,
             city: formData.city,
             username: normalizedHandle,
             handle: normalizedHandle,
             website: formData.website,
-            email: formData.email,
+            contactEmail: formData.email,
             profileImage: formData.avatarUrl,
             avatarUrl: formData.avatarUrl,
             photoURL: formData.avatarUrl,

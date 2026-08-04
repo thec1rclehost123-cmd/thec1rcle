@@ -12,7 +12,10 @@ export type TokenVerificationStatus =
   | 'malformed'
   | 'session_cookie_mismatch'
   | 'invalid'
-  | 'error';
+  | 'error'
+  | 'revoked'
+  | 'disabled'
+  | 'credential_mismatch';
 
 export type TokenVerificationSource = 'id_token' | 'session_cookie';
 
@@ -20,6 +23,8 @@ export interface TokenVerificationResult {
   status: TokenVerificationStatus;
   user: DecodedUser | null;
   source: TokenVerificationSource | null;
+  revokedChecked: boolean;
+  disabledChecked: boolean;
   errorCode?: string | null;
   errorMessage?: string | null;
 }

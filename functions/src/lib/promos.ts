@@ -128,27 +128,53 @@ export async function recordRedemption(
   orderId: string,
   userId: string,
   details: any = {},
+  transaction?: any,
 ) {
   const db = admin.firestore();
-  const batch = db.batch();
 
-  // 1. Create redemption record
-  const redemptionRef = db.collection(PROMO_REDEMPTIONS_COLLECTION).doc();
-  batch.set(redemptionRef, {
+  // Keyed deterministically by orderId (one order redeems at most one promo
+  // code), so a retried call -- from this function's own caller, or any
+  // future caller -- resolves to the same document instead of minting a
+  // fresh random ID and incrementing redemptionCount a second time.
+  const redemptionRef = db.collection(PROMO_REDEMPTIONS_COLLECTION).doc(orderId);
+  const promoCodeRef = db.collection(PROMO_CODES_COLLECTION).doc(promoCodeId);
+
+  const redemptionData = {
     promoCodeId,
     orderId,
     userId,
     ...details,
     timestamp: new Date().toISOString(),
-  });
+  };
 
-  // 2. Increment redemption count on promo code
-  const promoCodeRef = db.collection(PROMO_CODES_COLLECTION).doc(promoCodeId);
-  batch.update(promoCodeRef, {
+  const promoUpdates = {
     redemptionCount: admin.firestore.FieldValue.increment(1),
     updatedAt: new Date().toISOString(),
-  });
+  };
 
+  if (transaction) {
+    // transaction.create() fails the whole transaction if a redemption for
+    // this order already exists, instead of silently overwriting it and
+    // double-incrementing redemptionCount. No pre-read here on purpose:
+    // by the time this runs, the surrounding order transaction has
+    // already issued writes, and Firestore requires all reads to happen
+    // before any writes in a transaction.
+    transaction.create(redemptionRef, redemptionData);
+    transaction.update(promoCodeRef, promoUpdates);
+    return { success: true };
+  }
+
+  // Standalone mode: no surrounding transaction, so it's safe to check
+  // first.
+  const existing = await redemptionRef.get();
+  if (existing.exists) {
+    return { success: true, alreadyRedeemed: true };
+  }
+
+  const batch = db.batch();
+  batch.set(redemptionRef, redemptionData);
+  batch.update(promoCodeRef, promoUpdates);
   await batch.commit();
+
   return { success: true };
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, CheckCircle2, AlertTriangle, Loader2, CalendarDays } from 'lucide-react';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
@@ -195,6 +196,7 @@ export function DoorSellClient() {
   const { profile, getIdToken } = useDashboardAuth();
   const hub = useDoorHub();
   const venueId = hub?.venueId ?? '';
+  const queryClient = useQueryClient();
 
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -210,10 +212,6 @@ export function DoorSellClient() {
   const [submitting, setSubmitting] = useState(false);
   const [flash, setFlash] = useState<FlashState>(null);
 
-  // ── Capacity (walk-ins only, after event selected) ────────────────────────
-  const [capacity, setCapacity] = useState<EventCapacity | null>(null);
-  const [capLoading, setCapLoading] = useState(false);
-
   const authHeaders = useCallback(
     async () => ({
       'Content-Type': 'application/json',
@@ -227,28 +225,21 @@ export function DoorSellClient() {
   const todayIST = toISODateIST(new Date());
   const todayEvents = (hub?.events ?? []).filter((e) => eventDateIST(e) === todayIST);
 
-  // ── Fetch capacity when walk-in event is picked ───────────────────────────
-  const fetchCapacity = useCallback(async () => {
-    if (!selectedEventId || !venueId) return;
-    setCapLoading(true);
-    try {
+  const capacityQuery = useQuery({
+    queryKey: ['venue-door-capacity', venueId, selectedEventId],
+    queryFn: async ({ signal }) => {
       const res = await fetch(
         `/api/partners/venues/door/capacity?eventId=${selectedEventId}&venueId=${venueId}`,
-        { headers: await authHeaders() },
+        { headers: await authHeaders(), signal },
       );
-      if (res.ok) {
-        const d = await res.json();
-        setCapacity(d.capacity ?? null);
-      }
-    } finally {
-      setCapLoading(false);
-    }
-  }, [selectedEventId, venueId, authHeaders]);
-
-  useEffect(() => {
-    setCapacity(null);
-    if (selectedEventId) fetchCapacity();
-  }, [selectedEventId]);
+      if (!res.ok) throw new Error('Failed to load event capacity');
+      const data = await res.json();
+      return (data.capacity ?? null) as EventCapacity | null;
+    },
+    enabled: Boolean(selectedEventId && venueId && entryType === 'walkins'),
+  });
+  const capacity = capacityQuery.data ?? null;
+  const capLoading = capacityQuery.isFetching;
 
   useEffect(() => {
     if (hub?.eventId && entryType === 'walkins') {
@@ -259,9 +250,8 @@ export function DoorSellClient() {
   // Reset event selection and dine-in guest count when type changes
   useEffect(() => {
     setSelectedEventId(entryType === 'walkins' ? hub?.eventId || '' : '');
-    setCapacity(null);
     setTotalGuests('');
-  }, [entryType]);
+  }, [entryType, hub?.eventId]);
 
   // Autofocus name on mount
   useEffect(() => {
@@ -282,7 +272,6 @@ export function DoorSellClient() {
     setEntryType(null);
     setTotalGuests('');
     setSelectedEventId('');
-    setCapacity(null);
     setTimeout(() => nameRef.current?.focus(), 50);
   };
 
@@ -345,14 +334,16 @@ export function DoorSellClient() {
       });
       resetForm();
       if (data.remainingCapacity !== null && selectedEventId) {
-        setCapacity((prev) =>
-          prev
-            ? {
-                ...prev,
-                available: data.remainingCapacity,
-                isSoldOut: data.remainingCapacity === 0,
-              }
-            : prev,
+        queryClient.setQueryData<EventCapacity | null>(
+          ['venue-door-capacity', venueId, selectedEventId],
+          (current) =>
+            current
+              ? {
+                  ...current,
+                  available: data.remainingCapacity,
+                  isSoldOut: data.remainingCapacity === 0,
+                }
+              : current,
         );
       }
     } finally {

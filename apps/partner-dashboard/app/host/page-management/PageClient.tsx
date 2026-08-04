@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Plus,
   Image as ImageIcon,
@@ -86,6 +86,7 @@ const ROLE_OPTIONS = ['DJ', 'Promoter', 'Collective', 'Artist', 'Producer', 'Lab
 
 export default function HostPageManagement() {
   const { profile, user } = useDashboardAuth();
+  const hostId = profile?.activeMembership?.partnerId || '';
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
@@ -114,13 +115,12 @@ export default function HostPageManagement() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerFileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchProfileData = async () => {
-    if (!profile?.activeMembership?.partnerId) return;
+  const fetchProfileData = useCallback(async () => {
+    if (!hostId) return;
     setIsLoading(true);
     setIsError(false);
     try {
-      const partnerId = profile.activeMembership.partnerId;
-      const res = await fetch(`/api/profile?profileId=${partnerId}&type=host&stats=true`);
+      const res = await fetch(`/api/profile?profileId=${hostId}&type=host&stats=true`);
       if (res.ok) {
         const json = await res.json();
         setData(json);
@@ -132,11 +132,11 @@ export default function HostPageManagement() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [hostId]);
 
   useEffect(() => {
     fetchProfileData();
-  }, [profile]);
+  }, [fetchProfileData]);
 
   const handleUpdateProfile = async (updates: any) => {
     if (!profile?.activeMembership?.partnerId || !profile?.uid) return;

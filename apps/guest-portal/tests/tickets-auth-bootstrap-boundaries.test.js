@@ -7,7 +7,7 @@ const pageClientPath = path.resolve(process.cwd(), 'app/tickets/PageClient.jsx')
 const ticketsStorePath = path.resolve(process.cwd(), 'store/ticketsStore.js');
 const ticketQueriesPath = path.resolve(process.cwd(), 'features/tickets/ticketsQueries.js');
 const guestApiClientPath = path.resolve(process.cwd(), 'lib/api/client.js');
-const cacheWarmerPath = path.resolve(process.cwd(), 'components/CacheWarmer.js');
+const appProvidersPath = path.resolve(process.cwd(), 'components/providers/AppProviders.jsx');
 
 test('tickets page waits for auth bootstrap before loading tickets', () => {
   const source = readFileSync(pageClientPath, 'utf8');
@@ -31,13 +31,14 @@ test('tickets server state is React Query owned, with a compatibility-only store
   assert.equal(querySource.includes('guestApi.tickets.wallet'), true);
   assert.equal(querySource.includes('useCoverWalletsQueries'), false);
   assert.equal(querySource.includes('guestApi.tickets.coverWallet'), false);
-  assert.equal(querySource.includes('coverWalletsByOrder'), true);
+  assert.equal(querySource.includes('normalizeTicketsWallet'), true);
   assert.equal(querySource.includes('invalidateTicketsQueries'), true);
   assert.equal(clientSource.includes("credentials = 'include'"), true);
 });
 
-test('cache warmer only preloads tickets after canonical auth bootstrap succeeds', () => {
-  const source = readFileSync(cacheWarmerPath, 'utf8');
+test('root providers leave ticket loading to the ticket route', () => {
+  const source = readFileSync(appProvidersPath, 'utf8');
 
-  assert.equal(source.includes('bootstrap?.routeAccess?.isAuthenticated'), true);
+  assert.equal(source.includes('CacheWarmer'), false);
+  assert.equal(source.includes('fetchTicketsWallet'), false);
 });

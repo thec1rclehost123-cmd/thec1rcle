@@ -1,0 +1,1120 @@
+{
+  "passed": true,
+  "role": "host",
+  "email": "qa_host_2026@test.c1rcle.com",
+  "loginStatus": 200,
+  "elapsedMs": 245185,
+  "routeResults": [
+    {
+      "route": "/host",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host",
+      "elapsedMs": 11492,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:12 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Overview Create Event Performance TICKETS REVENUE TICKETS 0 Analytics access is required This graph is built from cross-event host performance data, so it only appears for roles with analytics access. 1D 1W 1M ALL Latest Orders VIEW MORE Orders are hidden for this role Host order activity is only shown for roles with host analytics or guestlist access. Upcoming Events",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 5254
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/analytics",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/analytics/overview",
+      "elapsedMs": 9855,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:13 pm TUE, 28 JUL + Create Event Search... K ₹0 Q",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 2246
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 3448
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 5460
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/hosts/events",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/hosts/events?hostId=host_89zVPTET&limit=50",
+          "status": 200,
+          "elapsedMs": 1658
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/analytics/overview",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/analytics/overview",
+      "elapsedMs": 7930,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:13 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Analytics VIEWING All Events SUMMARY FUNNEL REVENUE CROWD DOOR COMPARE No analytics recorded yet Metrics will populate after your first event goes live. Summary GROSS REVENUE ₹0 TICKETS SOLD 0 CHECK-INS 0 AVG TICKET PRICE ₹0 PERFORMANCE RINGS 0.0% FILL RATE 0.0% CONVERSION 0.0% SELL-THROUGH DAILY TICKET SALES Est. from avg price TICKET SALES CHART POPULATES AFTER FIRST SALE No-show Rate 0.0% Refund Rate 0.0% Repeat Guests 0.0% Rev / Attendee — Conversion Funnel VIEW → PURCHASE 0.0% CHECKOUT ABANDON 0.0% PURCHASE → ARRIVAL 0.0% GUESTLIST → ARRIVAL 0.0% FUNNEL STAGES IMPRESSIONS 0 PAGE VIEWS 0 INTERESTED 0 CHECKOUT STARTED 0 TICKET BOUGHT 0 CHECKED IN 0 FUNNEL POPULATES AFTER DISCOVERY & BOOKING ACTIVITY BEGINS Revenue REVENUE OVER TIME 2026-07-08T07:00:00.000Z 2026-07-13T07:00:00.000Z 2026-07-18T07:00:00.000Z 2026-07-28T07:00:00.000Z 0 1 2 3 4 REVENUE CHART POPULATES AFTER YOUR FIRST TICKET SALE BREAKDOWN Gross Ticket Revenue ₹0 Net Ticket Revenue ₹0 Platform Fee ₹0 Refund Value ₹0 Discount Value ₹0 PAYOUT STATUS COMPLETED ₹0 PENDING ₹0 0% settled Total: ₹0 Crowd & Demographics GENDER SPLIT GENDER DATA APPEARS AFTER CHECK-INS BEGIN AGE DISTRIBUTION 18–22 0 0% 23–27 0 0% 28–34 0 0% 35+ 0 0% NEW GUESTS 0 First time at your venue REPEAT GUESTS 0 Have attended before VIP GUESTS 0 High-value regulars LOYALTY TIERS FIRST TIME 0 RETURNING 0 REGULAR 0 VIP 0 Door & Operations ENTRY VELOCITY BY HOUR 20:00 21:00 22:00 23:00 00:00 01:00 02:00 03:00 0 1 2 3 4 ENTRY CURVE APPEARS AFTER YOUR FIRST EVENT NIGHT SCANNER PERFORMANCE 0.0% SUCCESS RATE Total Scans 0 Successful 0 Rejected 0 Duplicates 0 CAPACITY USED 0% LATE ARRIVALS 0% RE-ENTRIES 0 MANUAL OVERRIDES 0 Event Comparison RANKED BY REVENUE ATTENDANCE FILL RATE SELL-THROUGH #1 — BEST REVENUE No events yet ₹0 REVENUE ₹0 ATTENDANCE 0 FILL RATE 0.0% ",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1423
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1953
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/hosts/events",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/hosts/events?hostId=host_89zVPTET&limit=50",
+          "status": 200,
+          "elapsedMs": 2116
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 2589
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/analytics/overview",
+          "requestUrl": "http://127.0.0.1:3001/api/host/analytics/overview?hostId=host_89zVPTET&eventId=all",
+          "status": 200,
+          "elapsedMs": 3960
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/audience",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/audience",
+      "elapsedMs": 7448,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:13 pm TUE, 28 JUL + Create Event Search... K ₹0 Q AUDIENCE Guest Network Aggregated audience across all your events. Names are pseudonymized to protect guest privacy. PII MASKED 0 TOTAL GUESTS 0 VIP GUESTS 0 REPEAT ATTENDEES 0 TICKETED VIP REPEAT All Sources Ticket Manual Comp No guests found Guests will appear here once tickets are sold.",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1336
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1742
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/hosts/audience",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/hosts/audience?hostId=host_89zVPTET&limit=50",
+          "status": 200,
+          "elapsedMs": 2005
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 2888
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/calendar",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/calendar",
+      "elapsedMs": 10209,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:13 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Slot Calendar Coordinate production slots and venue availability. MY EVENTS JULY 2026 SUN MON TUE WED THU FRI SAT SELECT A DATE TO VIEW DETAILS",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1437
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 6676
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 6961
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/hosts/partnerships",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/hosts/partnerships?hostId=host_89zVPTET&status=active",
+          "status": 200,
+          "elapsedMs": 7102
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/create",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/create/select-venue",
+      "elapsedMs": 18609,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:13 pm TUE, 28 JUL + Create Event Search... K ₹0 Q CREATE EVENT SAVED PROGRESS 1 / 7 Identity Lineup Tickets Tables PROMOTERS Media Review IDENTITY & HEADLINE Event name, category, host and venue VALIDATION REQUIRED: • Event title is required • Please select a venue partner • Event date is required EVENT IDENTITY EVENT TITLE * DESCRIPTION (OPTIONAL) CATEGORY (OPTIONAL) Music Art Fashion Tech Food & Drink Nightlife Festival Private CITY / HUB (OPTIONAL) Pune Mumbai Goa Bengaluru Delhi Hyderabad Chennai CAPACITY (OPTIONAL) Max expected guests HOST Q QA Host 2026 Event Host VENUE PARTNER No venue partnerships yet. Contact venues to establish a partnership. Back SAVE DRAFT Continue PREVIEW SAVED MUSIC DATE TBA UNTITLED EVENT HOST Inventory Value ₹2,00,000 Total Capacity 400 Ticket Tiers 1",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1166
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 12782
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 14903
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/create/select-venue",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/create/select-venue",
+      "elapsedMs": 5718,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:14 pm TUE, 28 JUL + Create Event Search... K ₹0 Q CREATE EVENT Select a venue partner to check availability and schedule your event",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 2266
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1465
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/hosts/partnerships",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/hosts/partnerships?hostId=host_89zVPTET&status=active",
+          "status": 200,
+          "elapsedMs": 2135
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/create/select-venue/calendar",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/create/select-venue/calendar",
+      "elapsedMs": 3951,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:14 pm TUE, 28 JUL + Create Event Search... K ₹0 Q No venue selected. GO BACK",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1007
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1475
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1950
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/discover",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/discover",
+      "elapsedMs": 3989,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:14 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Explore Venues Discover and connect with verified venues across The C1rcle network 50+ VENUES ON C1RCLE 4 CITIES COVERED 30% AVG. BOOKING LIFT VENUES PROMOTERS All Cities Pune Mumbai Goa Bengaluru",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 911
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 2253
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/events",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/events",
+      "elapsedMs": 3863,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:14 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Events 0 LIVE NOW 1 DECIDING SLOT REQUESTS ALL0 LIVE0 PUBLISHED1 DRAFTS0 Roster empty Schedule your next production by securing a venue slot in the calendar. BROWSE NETWORK CALENDAR",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1293
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1207
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/hosts/events",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/hosts/events?hostId=host_89zVPTET",
+          "status": 200,
+          "elapsedMs": 1459
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1698
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/events/requests",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/events/requests",
+      "elapsedMs": 3398,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:14 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Back to Venues Slot Requests Track your event slot requests across all partner venues Refresh PENDING 0 APPROVAL 0 NEEDS ACTION 0 DENIED 0",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 841
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1208
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/hosts/slot-requests",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/hosts/slot-requests",
+          "status": 200,
+          "elapsedMs": 1206
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1647
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/finance",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/finance",
+      "elapsedMs": 4021,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Overview Payout Settings Team Presence Support Q QA Host 2026 LIVE 03:14 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Finance ₹0 BALANCE Available ... Pending Funds settling from recent events. ... Instant Available Eligible for instant transfer. ... SETTINGS Country India Currency INR Statement Descriptor C1RCLE Payout Schedule Weekly BANKS & DEBIT CARDS Loading accounts... View Disputes PAYOUTS Last updated 02:44 am",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 897
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1507
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/hosts/finance/payouts",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/hosts/finance/payouts?hostId=host_89zVPTET&page=1&limit=10",
+          "status": 200,
+          "elapsedMs": 1710
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/hosts/finance/bank-accounts",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/hosts/finance/bank-accounts?hostId=host_89zVPTET",
+          "status": 200,
+          "elapsedMs": 2187
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 2317
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/finance/payouts",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/finance/payouts",
+      "elapsedMs": 3715,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Overview Payout Settings Team Presence Support Q QA Host 2026 LIVE 03:14 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Payout Settings Set up and manage your payout bank account to receive earnings from your events. SETUP — STEP 1 OF 1 Add Payout Bank Account Enter your bank account details to start receiving payouts from your events. Your information is encrypted and securely stored. ACCOUNT HOLDER NAME ACCOUNT NUMBER CONFIRM ACCOUNT NUMBER IFSC CODE ACCOUNT TYPE Select type… Savings Current CANCELLED CHEQUE OR PASSBOOK FRONT Click to upload · JPG, PNG or PDF · Max 5MB Save Bank Account 256-bit Encryption Bank-grade security Fast Payouts T+1 business day Secure Rails Razorpay-powered",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 913
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1385
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1852
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/finance/bank-accounts",
+          "requestUrl": "http://127.0.0.1:3001/api/host/finance/bank-accounts?hostId=host_89zVPTET",
+          "status": 200,
+          "elapsedMs": 2002
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/notifications",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/notifications",
+      "elapsedMs": 3089,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:14 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Notifications All caught up Refresh",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1226
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 874
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/ops",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/ops",
+      "elapsedMs": 3345,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:14 pm TUE, 28 JUL + Create Event Search... K ₹0 Q NO ACTIVE ENTRY STREAM Live scanning stats will appear here when your production goes live.",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 781
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1111
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/hosts/ops/tonight",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/hosts/ops/tonight?hostId=host_89zVPTET",
+          "status": 200,
+          "elapsedMs": 1005
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/page-management",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/presence",
+      "elapsedMs": 4671,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:14 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Presence How your profile appears publicly — page, identity, and reach. YOUR PAGE SYNCING HOST PRESENCE...",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1156
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1614
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/partners",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/partners",
+      "elapsedMs": 4708,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:14 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Partners Venues and promoters connected to your host profile PARTNER NETWORK Connect with venues and promoters to access production calendars, book slots, and grow your event portfolio. ACTIVE VENUES 1 ACTIVE PROMOTERS 0 PENDING INCOMING 0 SENT REQUESTS 0 DISCOVER ACTIVE 1 INCOMING REQUESTS SENT REQUESTS DECLINED VENUES PROMOTERS T VENUE THE C1RCLE CLUB (DEMO) 0 events | 1 followers Send Request VENUE ATHARVA ENTERTAINMENT CLUB 0 events | 2.5K followers Send Request VENUE AGUADA FORT, GOA 0 events | 620 followers Send Request VENUE CREATIVE CONF PUNE 0 events | 69 followers Send Request VENUE D.O.T PUNE 0 events | 220 followers Send Request VENUE KLTV, BENGALURU 0 events | 330 followers Send Request VENUE NOWL 0 events | 1.8K followers Send Request VENUE PLAYBOY CLUB DELHI 0 events | 410 followers Send Request VENUE QUANTIKA 0 events | 880 followers Send Request VENUE SOCIAL, KOREGAON PARK, PUNE 0 events | 167 followers Send Request VENUE SUNSET BEACH, GOA 0 events | 280 followers Send Request VENUE THE RITZ POOL, PUNE 0 events | 220 followers Send Request VENUE TOIT BREW PUB, BENGALURU 0 events | 310 followers Send Request VENUE TUNING FORK, MUMBAI 0 events | 150 followers Send Request A VENUE ATHARVA ENTERTAINMENT 0 events | 1 followers Send Request D VENUE DEEPAK PAWAR 0 events | 0 followers Send Request E VENUE EPITOME 0 events | 0 followers Send Request E VENUE EPITOME 0 events | 0 followers Send Request A VENUE ANSHUL CLUB 0 events | 0 followers Send Request B VENUE BABURAV NIGHT CLUB 0 events | 0 followers Send Request A VENUE ACAI 0 events | 0 followers Send Request Q VENUE QA VENUE 2026 0 events | 0 followers Connected R VENUE ROCKY BHAI ADDA 0 events | 0 followers Send Request",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 857
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/discovery",
+          "requestUrl": "http://127.0.0.1:3001/api/discovery?action=list&partnerId=host_89zVPTET&role=host",
+          "status": 200,
+          "elapsedMs": 1131
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1343
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/discovery",
+          "requestUrl": "http://127.0.0.1:3001/api/discovery?partnerId=host_89zVPTET&role=host&action=discover&limit=30&type=venue",
+          "status": 200,
+          "elapsedMs": 1264
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1782
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/partners/venue_tEnPagMv",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/partners/venue_tEnPagMv",
+      "elapsedMs": 3191,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:15 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Partner Profile",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1179
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1053
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/partnerships",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/partners?tab=venues",
+      "elapsedMs": 5741,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:15 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Partners Venues and promoters connected to your host profile PARTNER NETWORK Connect with venues and promoters to access production calendars, book slots, and grow your event portfolio. ACTIVE VENUES 1 ACTIVE PROMOTERS 0 PENDING INCOMING 0 SENT REQUESTS 0 DISCOVER ACTIVE 1 INCOMING REQUESTS SENT REQUESTS DECLINED VENUES PROMOTERS T VENUE THE C1RCLE CLUB (DEMO) 0 events | 1 followers Send Request VENUE ATHARVA ENTERTAINMENT CLUB 0 events | 2.5K followers Send Request VENUE AGUADA FORT, GOA 0 events | 620 followers Send Request VENUE CREATIVE CONF PUNE 0 events | 69 followers Send Request VENUE D.O.T PUNE 0 events | 220 followers Send Request VENUE KLTV, BENGALURU 0 events | 330 followers Send Request VENUE NOWL 0 events | 1.8K followers Send Request VENUE PLAYBOY CLUB DELHI 0 events | 410 followers Send Request VENUE QUANTIKA 0 events | 880 followers Send Request VENUE SOCIAL, KOREGAON PARK, PUNE 0 events | 167 followers Send Request VENUE SUNSET BEACH, GOA 0 events | 280 followers Send Request VENUE THE RITZ POOL, PUNE 0 events | 220 followers Send Request VENUE TOIT BREW PUB, BENGALURU 0 events | 310 followers Send Request VENUE TUNING FORK, MUMBAI 0 events | 150 followers Send Request A VENUE ATHARVA ENTERTAINMENT 0 events | 1 followers Send Request D VENUE DEEPAK PAWAR 0 events | 0 followers Send Request E VENUE EPITOME 0 events | 0 followers Send Request E VENUE EPITOME 0 events | 0 followers Send Request A VENUE ANSHUL CLUB 0 events | 0 followers Send Request B VENUE BABURAV NIGHT CLUB 0 events | 0 followers Send Request A VENUE ACAI 0 events | 0 followers Send Request Q VENUE QA VENUE 2026 0 events | 0 followers Connected R VENUE ROCKY BHAI ADDA 0 events | 0 followers Send Request",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 817
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1837
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/discovery",
+          "requestUrl": "http://127.0.0.1:3001/api/discovery?action=list&partnerId=host_89zVPTET&role=host",
+          "status": 200,
+          "elapsedMs": 269
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1783
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/discovery",
+          "requestUrl": "http://127.0.0.1:3001/api/discovery?partnerId=host_89zVPTET&role=host&action=discover&limit=30&type=venue",
+          "status": 200,
+          "elapsedMs": 835
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/payouts",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/finance/payouts",
+      "elapsedMs": 5889,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Overview Payout Settings Team Presence Support Q QA Host 2026 LIVE 03:15 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Payout Settings Set up and manage your payout bank account to receive earnings from your events. SETUP — STEP 1 OF 1 Add Payout Bank Account Enter your bank account details to start receiving payouts from your events. Your information is encrypted and securely stored. ACCOUNT HOLDER NAME ACCOUNT NUMBER CONFIRM ACCOUNT NUMBER IFSC CODE ACCOUNT TYPE Select type… Savings Current CANCELLED CHEQUE OR PASSBOOK FRONT Click to upload · JPG, PNG or PDF · Max 5MB Save Bank Account 256-bit Encryption Bank-grade security Fast Payouts T+1 business day Secure Rails Razorpay-powered",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1138
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1752
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1889
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/finance/bank-accounts",
+          "requestUrl": "http://127.0.0.1:3001/api/host/finance/bank-accounts?hostId=host_89zVPTET",
+          "status": 200,
+          "elapsedMs": 1950
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/presence",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/presence",
+      "elapsedMs": 4939,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:15 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Presence How your profile appears publicly — page, identity, and reach. YOUR PAGE Page Management Curate how your public profile appears to guests and partners HOST Your Page Curate how your public profile appears to guests and partners. PUBLIC PROFILE Profile is live. Guests can open your page from search, event links, and profile pills. Publish 0 FOLLOWERS 0 POSTS 0 TOTAL ENGAGEMENT 0 PAGE VIEWS IDENTITY CONTENT MEDIA BROADCAST ENGAGEMENT Core Identity The fundamentals of your public presence DISPLAY NAME TAGLINE NEIGHBORHOOD CATEGORY TAG Host Venue Brand Promoter Collective BIO / STORY ROLE / TYPE DJ Promoter Collective Artist Producer Label Action Layer Configure primary call-to-action buttons for your page WHATSAPP NUMBER PRIMARY CTA TYPE Follow Only Contact via WhatsApp Phone Call Visit Website Buy Tickets (Featured) Visual Identity Cover image for your public page Upload Cover Image Recommended: 1920 × 480px Sound & Style Help guests discover you by genre and vibe GENRES Techno House Deep House Tech House Minimal Trance Progressive Melodic Afro House Amapiano Bollywood Hip-hop Trap Bass Dubstep Drum & Bass Commercial Open Format Lounge Chill STYLE TAGS Underground Mainstream Exclusive Boutique Festival Club Afterhours Day Party Rooftop Warehouse Intimate High Energy Social & Contact Connect your channels and let fans find you everywhere INSTAGRAM TWITTER / X SOUNDCLOUD SPOTIFY WEBSITE EMAIL LOCATION",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1150
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1305
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/hosts/page",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/hosts/page?hostId=host_89zVPTET&dashboard=true",
+          "status": 200,
+          "elapsedMs": 2236
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 2682
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/profile",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/settings?tab=profile",
+      "elapsedMs": 6571,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:15 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Settings Organisation configuration GENERAL PROFILE PAGE Edit Hero & Visuals QA HOST 2026 Pune EVENTS HOSTED TICKETS SOLD VENUES CONNECTED PROMOTERS CONNECTED Host Identity Public-facing info shown to venues and guests DISPLAY NAME Shown on event pages and tickets HOST TYPE Select host type DJ / Music Act Event Producer Club Night Host Concert Promoter Brand & Activation Artist / Performer Nightlife Curator Festival Organiser Best describes what you do CITY / LOCATION Primary city displayed on your profile WEBSITE Your official website or booking URL SUPPORT EMAIL Public contact email for support PHONE Public phone number BIO / TAGLINE 0 / 200 A short description shown on your public profile (max 200 characters) Social Links Connect your social presence for discovery INSTAGRAM HANDLE X / TWITTER HANDLE",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 998
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 2078
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1965
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/discovery",
+          "requestUrl": "http://127.0.0.1:3001/api/discovery?action=list&partnerId=host_89zVPTET&role=host",
+          "status": 200,
+          "elapsedMs": 1392
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/hosts/profile",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/hosts/profile?hostId=host_89zVPTET",
+          "status": 200,
+          "elapsedMs": 1815
+        },
+        {
+          "method": "POST",
+          "url": "http://127.0.0.1:3001/api/host/settings",
+          "requestUrl": "http://127.0.0.1:3001/api/host/settings",
+          "status": 200,
+          "elapsedMs": 3496
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/promoters",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/partners?tab=promoters",
+      "elapsedMs": 7853,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:15 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Partners Venues and promoters connected to your host profile PARTNER NETWORK Connect with venues and promoters to access production calendars, book slots, and grow your event portfolio. ACTIVE VENUES 1 ACTIVE PROMOTERS 0 PENDING INCOMING 0 SENT REQUESTS 0 DISCOVER ACTIVE 1 INCOMING REQUESTS SENT REQUESTS DECLINED VENUES PROMOTERS T VENUE THE C1RCLE CLUB (DEMO) 0 events | 1 followers Send Request VENUE ATHARVA ENTERTAINMENT CLUB 0 events | 2.5K followers Send Request VENUE AGUADA FORT, GOA 0 events | 620 followers Send Request VENUE CREATIVE CONF PUNE 0 events | 69 followers Send Request VENUE D.O.T PUNE 0 events | 220 followers Send Request VENUE KLTV, BENGALURU 0 events | 330 followers Send Request VENUE NOWL 0 events | 1.8K followers Send Request VENUE PLAYBOY CLUB DELHI 0 events | 410 followers Send Request VENUE QUANTIKA 0 events | 880 followers Send Request VENUE SOCIAL, KOREGAON PARK, PUNE 0 events | 167 followers Send Request VENUE SUNSET BEACH, GOA 0 events | 280 followers Send Request VENUE THE RITZ POOL, PUNE 0 events | 220 followers Send Request VENUE TOIT BREW PUB, BENGALURU 0 events | 310 followers Send Request VENUE TUNING FORK, MUMBAI 0 events | 150 followers Send Request A VENUE ATHARVA ENTERTAINMENT 0 events | 1 followers Send Request D VENUE DEEPAK PAWAR 0 events | 0 followers Send Request E VENUE EPITOME 0 events | 0 followers Send Request E VENUE EPITOME 0 events | 0 followers Send Request A VENUE ANSHUL CLUB 0 events | 0 followers Send Request B VENUE BABURAV NIGHT CLUB 0 events | 0 followers Send Request A VENUE ACAI 0 events | 0 followers Send Request Q VENUE QA VENUE 2026 0 events | 0 followers Connected R VENUE ROCKY BHAI ADDA 0 events | 0 followers Send Request",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 952
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 2464
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 2571
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/discovery",
+          "requestUrl": "http://127.0.0.1:3001/api/discovery?action=list&partnerId=host_89zVPTET&role=host",
+          "status": 200,
+          "elapsedMs": 2536
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/discovery",
+          "requestUrl": "http://127.0.0.1:3001/api/discovery?partnerId=host_89zVPTET&role=host&action=discover&limit=30&type=venue",
+          "status": 200,
+          "elapsedMs": 3674
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/reviews",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/reviews",
+      "elapsedMs": 4002,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:15 pm TUE, 28 JUL + Create Event Search... K ₹0 Q ANALYZING PAST PRODUCTIONS...",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 955
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1333
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 2026
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/settings",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/settings",
+      "elapsedMs": 3888,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:15 pm TUE, 28 JUL + Create Event Search... K ₹0 Q LOADING",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1405
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1085
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/support",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/support",
+      "elapsedMs": 6402,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:15 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Concierge Center Track tickets, review guidelines, and suggest feature upgrades. New Ticket DASHBOARD LEDGER HELP CENTER FEATURE REQUEST PORTAL REPORT A BUG EMERGENCY SUPPORT OPEN TICKETS 0 unresolved ACTIVE SWEEPS 0 investigating RESOLVED TICKETS 0 completed AVG RESPONSE — SLA speed DESK STATUS Offline TICKET ARCHIVES Communication ledger with admin staff ALL OPEN RESOLVED BULLETINS Important broadcasts from Admin Console",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 2290
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/v1/support/stats",
+          "requestUrl": "http://127.0.0.1:3001/api/v1/support/stats",
+          "status": 200,
+          "elapsedMs": 2891
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 3169
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/team",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/team",
+      "elapsedMs": 2957,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Team Presence Support Q QA Host 2026 LIVE 03:15 pm TUE, 28 JUL + Create Event Search... K ₹0 Q HOST TEAM Give the right access to the right people Keep host roles simple so co-hosts, managers, and staff only see what they need. INVITE MEMBER",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 830
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1058
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/host/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/host/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1459
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/host/wallet",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/host/finance",
+      "elapsedMs": 3746,
+      "navigationError": null,
+      "bodyText": "H THE C1RCLE HOST Overview Events Requests Calendar Partners Audience Analytics Finance Overview Payout Settings Team Presence Support Q QA Host 2026 LIVE 03:16 pm TUE, 28 JUL + Create Event Search... K ₹0 Q Finance ₹0 BALANCE Available ... Pending Funds settling from recent events. ... Instant Available Eligible for instant transfer. ... SETTINGS Country India Currency INR Statement Descriptor C1RCLE Payout Schedule Weekly BANKS & DEBIT CARDS Loading accounts... View Disputes PAYOUTS Last updated 02:46 am",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 776
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1554
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    }
+  ],
+  "skippedDynamicRoutes": [
+    {
+      "route": "/host/events/[id]",
+      "reason": "No authoritative QA fixture exists for this dynamic segment"
+    },
+    {
+      "route": "/host/events/[id]/analytics",
+      "reason": "No authoritative QA fixture exists for this dynamic segment"
+    }
+  ],
+  "consoleEvents": [],
+  "pageErrors": []
+}

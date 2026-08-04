@@ -19,9 +19,16 @@ import {
   Clock3,
   ArrowRight,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
+import { getCachedFirebaseIdToken } from '@/lib/auth/getCachedFirebaseIdToken';
+import {
+  buildHostVenueCalendarUrl,
+  getHostVenueCalendarDays,
+  nightlifeTimeRangesOverlap,
+} from '@/lib/host/venueCalendar';
 
 // ── Color system ──
 const C = {
@@ -61,21 +68,8 @@ function fmt12(t: string): string {
   return `${h12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
 }
 
-function toMins(t: string) {
-  if (!t) return 0;
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
-}
-
 function timeOverlaps(s1: string, e1: string, s2: string, e2: string) {
-  if (!s1 || !e1 || !s2 || !e2) return true;
-  let a = toMins(s1),
-    b = toMins(e1),
-    c = toMins(s2),
-    d = toMins(e2);
-  if (b < a) b += 1440;
-  if (d < c) d += 1440;
-  return !(b <= c || a >= d);
+  return nightlifeTimeRangesOverlap(s1, e1, s2, e2);
 }
 
 function filterVisible(events: any[]) {
@@ -86,23 +80,27 @@ function filterVisible(events: any[]) {
 
 // ── Timeline helpers ──
 const TIMELINE_HOURS = [
-  { label: '2 PM', mins: 0 },
-  { label: '4 PM', mins: 120 },
-  { label: '6 PM', mins: 240 },
-  { label: '8 PM', mins: 360 },
-  { label: '10 PM', mins: 480 },
-  { label: '12 AM', mins: 600 },
-  { label: '2 AM', mins: 720 },
-  { label: '4 AM', mins: 840 },
+  { label: '8 AM', mins: 0 },
+  { label: '10 AM', mins: 120 },
+  { label: '12 PM', mins: 240 },
+  { label: '2 PM', mins: 360 },
+  { label: '4 PM', mins: 480 },
+  { label: '6 PM', mins: 600 },
+  { label: '8 PM', mins: 720 },
+  { label: '10 PM', mins: 840 },
+  { label: '12 AM', mins: 960 },
+  { label: '2 AM', mins: 1080 },
+  { label: '4 AM', mins: 1200 },
+  { label: '6 AM', mins: 1320 },
 ];
-const TOTAL_MINS = 840;
+const TOTAL_MINS = 1320;
 
 function timeToMins(t: string): number {
   if (!t) return 0;
   const [h, m] = t.split(':').map(Number);
   let mins = h * 60 + m;
-  if (h < 14) mins += 1440;
-  return mins - 840;
+  if (h < 8) mins += 1440;
+  return mins - 480;
 }
 
 function pct(mins: number) {
@@ -111,9 +109,9 @@ function pct(mins: number) {
 
 const BLOCK_TIMES: string[] = (() => {
   const out: string[] = [];
-  for (let h = 14; h < 24; h++)
+  for (let h = 8; h < 24; h++)
     ['00', '30'].forEach((m) => out.push(`${String(h).padStart(2, '0')}:${m}`));
-  for (let h = 0; h <= 4; h++)
+  for (let h = 0; h <= 5; h++)
     ['00', '30'].forEach((m) => out.push(`${String(h).padStart(2, '0')}:${m}`));
   return out;
 })();
@@ -149,6 +147,8 @@ export function HostVenueCalendar() {
   });
   const [calendarData, setCalendarData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [calendarError, setCalendarError] = useState('');
+  const [reloadVersion, setReloadVersion] = useState(0);
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate || null);
   const [confirmChecking, setConfirmChecking] = useState(false);
   const [confirmError, setConfirmError] = useState('');
@@ -156,7 +156,7 @@ export function HostVenueCalendar() {
   const authedFetch = useCallback(
     async (url: string) => {
       if (!user) throw new Error('Not authenticated');
-      const token = await user.getIdToken(true);
+      const token = await getCachedFirebaseIdToken(user);
       return fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     },
     [user],
@@ -166,6 +166,7 @@ export function HostVenueCalendar() {
     if (!venueId) return;
     const load = async () => {
       setLoading(true);
+      setCalendarError('');
       try {
         const startDate = formatDate(
           new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1),
@@ -173,21 +174,26 @@ export function HostVenueCalendar() {
         const endDate = formatDate(
           new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0),
         );
-        const res = await authedFetch(
-          `/api/partners/hosts/calendar?venueId=${venueId}&view=operating&startDate=${startDate}&endDate=${endDate}`,
-        );
+        const res = await authedFetch(buildHostVenueCalendarUrl({ venueId, startDate, endDate }));
         const data = await res.json();
-        const rawDays = Array.isArray(data) ? data : data.calendar || data.days || [];
+        if (!res.ok) {
+          const message =
+            typeof data.error === 'object' ? data.error?.message : data.error || data.message;
+          throw new Error(message || 'Failed to load venue availability');
+        }
+        const rawDays = getHostVenueCalendarDays(data);
         setCalendarData(rawDays);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to fetch host calendar:', err);
         setCalendarData([]);
+        setSelectedDate(null);
+        setCalendarError(err.message || 'Venue availability is temporarily unavailable.');
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [venueId, currentMonth, authedFetch]);
+  }, [venueId, currentMonth, authedFetch, reloadVersion]);
 
   const today = formatDate(new Date());
   const year = currentMonth.getFullYear();
@@ -250,10 +256,19 @@ export function HostVenueCalendar() {
     setConfirmError('');
     try {
       const res = await authedFetch(
-        `/api/partners/hosts/calendar?venueId=${venueId}&view=operating&startDate=${selectedDate}&endDate=${selectedDate}`,
+        buildHostVenueCalendarUrl({
+          venueId,
+          startDate: selectedDate,
+          endDate: selectedDate,
+        }),
       );
       const data = await res.json();
-      const day = Array.isArray(data) ? data[0] : (data.calendar || data.days || [])[0];
+      if (!res.ok) {
+        const message =
+          typeof data.error === 'object' ? data.error?.message : data.error || data.message;
+        throw new Error(message || 'Failed to verify venue availability');
+      }
+      const day = getHostVenueCalendarDays(data)[0];
 
       const visibleEvents = filterVisible(day?.events);
       const hasConflict = visibleEvents.some((e: any) =>
@@ -409,6 +424,28 @@ export function HostVenueCalendar() {
         </div>
       </div>
 
+      {calendarError && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-4 rounded-2xl px-4 py-3 text-sm"
+          style={{
+            background: 'rgba(248,113,113,.10)',
+            border: `1px solid ${C.borderBlocked}`,
+            color: C.red,
+          }}
+        >
+          <span>{calendarError} No date can be selected until availability is verified.</span>
+          <button
+            type="button"
+            onClick={() => setReloadVersion((version) => version + 1)}
+            className="rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-widest"
+            style={{ background: 'rgba(248,113,113,.14)', color: C.red }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       <div
         className="flex flex-col lg:flex-row rounded-[28px] overflow-hidden"
         style={{
@@ -498,15 +535,15 @@ export function HostVenueCalendar() {
                   return (
                     <button
                       key={cell.dateStr}
-                      onClick={() => !isPast && setSelectedDate(cell.dateStr)}
-                      disabled={isPast}
+                      onClick={() => !isPast && !calendarError && setSelectedDate(cell.dateStr)}
+                      disabled={isPast || Boolean(calendarError)}
                       className="relative rounded-2xl flex flex-col items-center justify-center gap-1 transition-all duration-100"
                       style={{
                         background: bg,
                         border,
                         boxShadow: shadow,
-                        cursor: isPast ? 'not-allowed' : 'pointer',
-                        opacity: isPast ? 0.42 : 1,
+                        cursor: isPast || calendarError ? 'not-allowed' : 'pointer',
+                        opacity: isPast || calendarError ? 0.42 : 1,
                         minHeight: 56,
                       }}
                     >
@@ -697,6 +734,55 @@ function RightPanel({
   const [timeModalOpen, setTimeModalOpen] = useState(false);
   const [timeConfirmed, setTimeConfirmed] = useState(false);
 
+  const [dragging, setDragging] = useState<'from' | 'to' | null>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
+
+  const fromIdx = useMemo(() => {
+    const idx = BLOCK_TIMES.indexOf(startTime);
+    return idx === -1 ? 26 : idx;
+  }, [startTime]);
+
+  const toIdx = useMemo(() => {
+    const idx = BLOCK_TIMES.indexOf(endTime);
+    return idx === -1 ? 40 : idx;
+  }, [endTime]);
+
+  const BLOCK_TIMES_LEN = BLOCK_TIMES.length;
+  const fromPercent = (fromIdx / (BLOCK_TIMES_LEN - 1)) * 100;
+  const toPercent = (toIdx / (BLOCK_TIMES_LEN - 1)) * 100;
+
+  const handlePointerDown = (type: 'from' | 'to') => (e: React.PointerEvent) => {
+    e.preventDefault();
+    setDragging(type);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (type: 'from' | 'to') => (e: React.PointerEvent) => {
+    if (dragging !== type) return;
+    const rect = sliderRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const relativeX = (e.clientX - rect.left) / rect.width;
+    const percentage = Math.max(0, Math.min(1, relativeX));
+    const idx = Math.round(percentage * (BLOCK_TIMES.length - 1));
+
+    if (type === 'from') {
+      const newFrom = Math.min(idx, toIdx - 1);
+      if (newFrom >= 0 && BLOCK_TIMES[newFrom] !== startTime) {
+        handleStartChange(BLOCK_TIMES[newFrom]);
+      }
+    } else {
+      const newTo = Math.max(idx, fromIdx + 1);
+      if (newTo < BLOCK_TIMES.length && BLOCK_TIMES[newTo] !== endTime) {
+        handleEndChange(BLOCK_TIMES[newTo]);
+      }
+    }
+  };
+
+  const handlePointerUp = (type: 'from' | 'to') => (e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    setDragging(null);
+  };
+
   const isTimeInvalid = useMemo(() => {
     return timeToMins(endTime) <= timeToMins(startTime);
   }, [startTime, endTime]);
@@ -792,7 +878,7 @@ function RightPanel({
     const yest = formatDate(new Date(now.getTime() - 86_400_000));
     const h = now.getHours(),
       m = now.getMinutes();
-    const active = (h >= 14 && dateStr === todayStr) || (h < 4 && dateStr === yest);
+    const active = (h >= 8 && dateStr === todayStr) || (h < 6 && dateStr === yest);
     const mins = timeToMins(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
     const h12 = h % 12 || 12;
     return {
@@ -1009,20 +1095,36 @@ function RightPanel({
 
       {timeModalOpen && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
           onClick={() => setTimeModalOpen(false)}
         >
           <div
-            className="w-full max-w-2xl bg-[#141418] rounded-3xl border border-white/10 overflow-hidden shadow-2xl"
+            className="w-full max-w-xl bg-[#131215] rounded-[28px] border border-white/5 overflow-hidden shadow-2xl p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
-              <div className="flex items-center gap-3">
-                <Clock className="w-5 h-5 text-orange-500" />
+            {/* Header */}
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-full border border-orange-600/30 bg-orange-600/10 flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-orange-500" />
+                </div>
                 <div>
-                  <p className="text-[16px] font-black text-white">Select Time Slot</p>
-                  <p className="text-[12px] text-white/30 uppercase font-black">
+                  <h3 className="text-[17px] font-black text-white leading-tight">
+                    Select Time Slot
+                  </h3>
+                  <p className="text-[13px] text-zinc-400 font-semibold mt-1">
                     {dayName}, {monthStr} {dayNum}
+                  </p>
+                  <p className="text-[11px] text-zinc-500 font-medium mt-0.5">
+                    (Note: Overnight slots may cross into{' '}
+                    {(() => {
+                      const nextD = new Date(d.getTime() + 86400000);
+                      const nextDayName = nextD.toLocaleDateString('en-US', { weekday: 'long' });
+                      const nextMonthStr = nextD.toLocaleDateString('en-US', { month: 'long' });
+                      const nextDayNum = nextD.getDate();
+                      return `${nextDayName}, ${nextMonthStr} ${nextDayNum}`;
+                    })()}
+                    )
                   </p>
                 </div>
               </div>
@@ -1030,105 +1132,178 @@ function RightPanel({
                 onClick={() => setTimeModalOpen(false)}
                 className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
               >
-                <X className="w-5 h-5 text-white/50" />
+                <X className="w-5 h-5 text-zinc-400" />
               </button>
             </div>
-            <div className="p-6 space-y-6">
-              <TimePicker
-                label="FROM"
-                value={startTime}
-                onChange={handleStartChange}
-                disabledTimes={fromDisabled}
-              />
-              <TimePicker
-                label="UNTIL"
-                value={endTime}
-                onChange={handleEndChange}
-                disabledTimes={untilDisabled}
-              />
 
-              <div className="grid grid-cols-2 gap-5 pt-3 border-t border-white/5">
-                <div>
-                  <label
-                    className="block text-[9px] font-black uppercase tracking-widest mb-1.5"
-                    style={{ color: 'rgba(255,255,255,0.3)' }}
+            {/* Content body */}
+            <div className="space-y-6">
+              {/* TIME RANGE Section */}
+              <div className="space-y-12 pt-4">
+                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500">
+                  TIME RANGE
+                </label>
+
+                {/* Range Slider Container */}
+                <div className="relative px-2">
+                  {/* Tooltips */}
+                  {/* From Tooltip */}
+                  <div
+                    className="absolute bottom-full mb-3 -translate-x-1/2 bg-[#2A2A30] text-white text-[11px] font-bold px-3 py-1.5 rounded-lg border border-white/10 whitespace-nowrap shadow-lg transition-all pointer-events-none"
+                    style={{ left: `${fromPercent}%` }}
                   >
-                    Doors Open
-                  </label>
-                  <select
-                    value={doorsOpen}
-                    onChange={(e) => setDoorsOpen(e.target.value)}
-                    className="w-full rounded-xl px-3.5 py-2.5 text-[13px] font-black text-white border transition-colors focus:outline-none focus:border-orange-500 appearance-none cursor-pointer"
-                    style={{
-                      background: '#0f0f14',
-                      borderColor: 'rgba(255,255,255,0.08)',
-                    }}
+                    From: {fmt12(startTime)}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#2A2A30] border-r border-b border-white/10 rotate-45 -mt-0.5" />
+                  </div>
+
+                  {/* To Tooltip */}
+                  <div
+                    className="absolute bottom-full mb-3 -translate-x-1/2 bg-[#2A2A30] text-white text-[11px] font-bold px-3 py-1.5 rounded-lg border border-white/10 whitespace-nowrap shadow-lg transition-all pointer-events-none"
+                    style={{ left: `${toPercent}%` }}
                   >
+                    Until: {fmt12(endTime)}
                     {(() => {
-                      const options = [...SELECT_TIMES];
-                      if (doorsOpen && !options.includes(doorsOpen)) {
-                        options.push(doorsOpen);
-                        options.sort();
-                      }
-                      return options.map((t) => (
-                        <option key={t} value={t} className="bg-[#0f0f14] text-white">
-                          {fmt12(t)}
-                        </option>
-                      ));
+                      const [h] = endTime.split(':').map(Number);
+                      return h < 8 ? ' (Next Day)' : '';
                     })()}
-                  </select>
-                </div>
-                <div>
-                  <label
-                    className="block text-[9px] font-black uppercase tracking-widest mb-1.5"
-                    style={{ color: 'rgba(255,255,255,0.3)' }}
-                  >
-                    Last Entry
-                  </label>
-                  <select
-                    value={lastEntry}
-                    onChange={(e) => setLastEntry(e.target.value)}
-                    className="w-full rounded-xl px-3.5 py-2.5 text-[13px] font-black text-white border transition-colors focus:outline-none focus:border-orange-500 appearance-none cursor-pointer"
-                    style={{
-                      background: '#0f0f14',
-                      borderColor: 'rgba(255,255,255,0.08)',
-                    }}
-                  >
-                    {(() => {
-                      const options = [...SELECT_TIMES];
-                      if (lastEntry && !options.includes(lastEntry)) {
-                        options.push(lastEntry);
-                        options.sort();
-                      }
-                      return options.map((t) => (
-                        <option key={t} value={t} className="bg-[#0f0f14] text-white">
-                          {fmt12(t)}
-                        </option>
-                      ));
-                    })()}
-                  </select>
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#2A2A30] border-r border-b border-white/10 rotate-45 -mt-0.5" />
+                  </div>
+
+                  {/* Track */}
+                  <div ref={sliderRef} className="relative w-full h-2 bg-zinc-800 rounded-full">
+                    {/* Active track range */}
+                    <div
+                      className="absolute h-full bg-[#F44A22] rounded-full"
+                      style={{
+                        left: `${fromPercent}%`,
+                        width: `${toPercent - fromPercent}%`,
+                      }}
+                    />
+
+                    {/* From Knob */}
+                    <div
+                      onPointerDown={handlePointerDown('from')}
+                      onPointerMove={handlePointerMove('from')}
+                      onPointerUp={handlePointerUp('from')}
+                      className="absolute w-12 h-8 -ml-6 -mt-3.5 top-1/2 bg-[#E5E5E5] hover:bg-[#F0F0F0] active:bg-white rounded-full flex items-center justify-center text-[11px] font-black text-zinc-800 shadow-md cursor-pointer select-none border border-white transition-colors"
+                      style={{ left: `${fromPercent}%` }}
+                    >
+                      From
+                    </div>
+
+                    {/* To Knob */}
+                    <div
+                      onPointerDown={handlePointerDown('to')}
+                      onPointerMove={handlePointerMove('to')}
+                      onPointerUp={handlePointerUp('to')}
+                      className="absolute w-12 h-8 -ml-6 -mt-3.5 top-1/2 bg-[#E5E5E5] hover:bg-[#F0F0F0] active:bg-white rounded-full flex items-center justify-center text-[11px] font-black text-zinc-800 shadow-md cursor-pointer select-none border border-white transition-colors"
+                      style={{ left: `${toPercent}%` }}
+                    >
+                      To
+                    </div>
+                  </div>
                 </div>
               </div>
 
+              {/* YOUR SELECTED SLOT text */}
+              <div className="text-center pt-2">
+                <p className="text-[13px] font-black text-white uppercase tracking-widest">
+                  YOUR SELECTED SLOT: {fmt12(startTime)} - {fmt12(endTime)}
+                </p>
+              </div>
+
+              {/* Duration badge */}
+              <div className="w-full bg-[#1D1C22] border border-white/5 rounded-xl px-4 py-3 text-left">
+                <span className="text-[11px] font-black uppercase tracking-widest text-zinc-500">
+                  DURATION:{' '}
+                </span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-white ml-1">
+                  {(() => {
+                    const mins = timeToMins(endTime) - timeToMins(startTime);
+                    if (mins <= 0) return '0 Hours';
+                    const hrs = Math.floor(mins / 60);
+                    const remainingMins = mins % 60;
+                    if (remainingMins === 0) {
+                      return `${hrs} Hour${hrs > 1 ? 's' : ''}`;
+                    } else {
+                      return `${hrs} Hour${hrs > 1 ? 's' : ''} ${remainingMins} Mins`;
+                    }
+                  })()}
+                </span>
+              </div>
+
+              {/* Info section header */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500">
+                  INFO:
+                </label>
+
+                {/* Doors open / last entry side-by-side select boxes */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <span className="block text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                      DOORS OPEN:
+                    </span>
+                    <PartsTimePicker value={doorsOpen} onChange={setDoorsOpen} />
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="block text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                      LAST ENTRY:
+                    </span>
+                    <PartsTimePicker value={lastEntry} onChange={setLastEntry} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Overlaps / Invalid alerts */}
               {hasOverlap && (
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[12px] font-black flex items-center gap-2">
-                  <Lock className="w-4 h-4" /> Overlaps with an existing event.
+                <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[12px] font-black flex items-center gap-2">
+                  <Lock className="w-4 h-4 flex-shrink-0" /> Overlaps with an existing event.
                 </div>
               )}
               {isTimeInvalid && (
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[12px] font-black flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" /> End time of event must be after the start
-                  time.
+                <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[12px] font-black flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" /> End time of event must be after
+                  the start time.
                 </div>
               )}
+
+              {/* Redesigned Confirm Time Button */}
               <button
-                onClick={() =>
-                  !hasOverlap && !isTimeInvalid && (setTimeConfirmed(true), setTimeModalOpen(false))
-                }
+                onClick={() => {
+                  if (!hasOverlap && !isTimeInvalid) {
+                    setTimeConfirmed(true);
+                    setTimeModalOpen(false);
+                  }
+                }}
                 disabled={hasOverlap || isTimeInvalid}
-                className="w-full py-4 rounded-2xl bg-orange-600 text-white font-black uppercase tracking-widest hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-20 shadow-xl shadow-orange-600/20"
+                className="w-full py-4 rounded-[20px] text-[13px] font-black uppercase tracking-widest transition-all duration-200 active:scale-[0.98] flex items-center justify-center relative overflow-hidden"
+                style={{
+                  background:
+                    hasOverlap || isTimeInvalid
+                      ? 'rgba(255,255,255,0.06)'
+                      : 'linear-gradient(135deg, #F44A22 0%, #FF6B4A 100%)',
+                  color: hasOverlap || isTimeInvalid ? 'rgba(255,255,255,0.2)' : 'white',
+                  cursor: hasOverlap || isTimeInvalid ? 'not-allowed' : 'pointer',
+                  boxShadow:
+                    hasOverlap || isTimeInvalid
+                      ? 'none'
+                      : '0 4px 24px rgba(244,74,34,0.45), inset 0 1px 0 rgba(255,255,255,0.15)',
+                }}
               >
-                Confirm Time Selection
+                <span className="flex items-center gap-2">
+                  CONFIRM TIME
+                  <svg
+                    className="w-4 h-4 text-current"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </span>
               </button>
             </div>
           </div>
@@ -1235,6 +1410,63 @@ function TimePicker({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function PartsTimePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { hour, minute, period } = useMemo(() => {
+    if (!value) return { hour: 9, minute: '00', period: 'PM' };
+    const [hStr, mStr] = value.split(':');
+    const h24 = parseInt(hStr);
+    const p = h24 >= 12 ? 'PM' : 'AM';
+    const h = h24 % 12 || 12;
+    const m = mStr || '00';
+    return { hour: h, minute: m, period: p };
+  }, [value]);
+
+  const updateTime = (h: number, m: string, p: string) => {
+    let newH = h;
+    if (p === 'PM' && newH < 12) newH += 12;
+    if (p === 'AM' && newH === 12) newH = 0;
+    onChange(`${String(newH).padStart(2, '0')}:${m}`);
+  };
+
+  return (
+    <div className="grid grid-cols-3 gap-1.5">
+      <select
+        value={hour}
+        onChange={(e) => updateTime(parseInt(e.target.value), minute, period)}
+        className="w-full bg-[#1D1C22] border border-white/5 rounded-xl py-2.5 text-[13px] font-black text-white text-center focus:outline-none appearance-none cursor-pointer"
+      >
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => (
+          <option key={h} value={h} className="bg-[#131215] text-white">
+            {h}
+          </option>
+        ))}
+      </select>
+      <select
+        value={minute}
+        onChange={(e) => updateTime(hour, e.target.value, period)}
+        className="w-full bg-[#1D1C22] border border-white/5 rounded-xl py-2.5 text-[13px] font-black text-white text-center focus:outline-none appearance-none cursor-pointer"
+      >
+        {['00', '30'].map((m) => (
+          <option key={m} value={m} className="bg-[#131215] text-white">
+            {m}
+          </option>
+        ))}
+      </select>
+      <select
+        value={period}
+        onChange={(e) => updateTime(hour, minute, e.target.value)}
+        className="w-full bg-[#1D1C22] border border-white/5 rounded-xl py-2.5 text-[13px] font-black text-white text-center focus:outline-none appearance-none cursor-pointer"
+      >
+        {['AM', 'PM'].map((p) => (
+          <option key={p} value={p} className="bg-[#131215] text-white">
+            {p}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

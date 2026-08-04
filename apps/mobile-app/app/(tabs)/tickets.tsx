@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,25 +6,34 @@ import {
   Pressable,
   RefreshControl,
   Modal,
+  Alert,
   StyleSheet,
   Linking,
+  Platform,
+  Share,
   useWindowDimensions,
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useTicketsStore, Order } from '@/store/ticketsStore';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useTicketsStore, Order, OrderTicket } from '@/store/ticketsStore';
 import { useAuthStore } from '@/store/authStore';
+import { selectCoverWalletForTicketSlot } from '@/lib/coverWalletMapping';
 import { useProfileStore } from '@/store/profileStore';
 import { useCartStore } from '@/store/cartStore';
+import { apiFetch, createShareBundle, deduplicateRequest } from '@/lib/api';
 import { cacheUserOrders, getCachedUserOrders } from '@/lib/cache';
+import { resolveEventAccentColor, TICKET_ACCENT } from '@/hooks/useEventAccent';
 import { shareEventLink } from '@/lib/deeplinks';
 import { addToWallet, PassData } from '@/lib/wallet';
 import QRCode from 'react-native-qrcode-svg';
+import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   FadeIn,
@@ -33,13 +42,18 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  runOnJS,
+  interpolate,
+  Extrapolation,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { colors, radii, gradients, typography } from '@/lib/design/theme';
 import { NotificationBell } from '@/components/ui/NotificationBell';
 import { ErrorState, NetworkError } from '@/components/ui/EmptyState';
 import { SkeletonList } from '@/components/ui/Skeleton';
-import { safeDate, formatEventDate, formatEventTime } from '@/lib/utils/date';
+import { ActionSheet, ShareSheetContent } from '@/components/tickets/TicketActionSheets';
+import { safeDate, formatEventTime, formatTicketCardDate } from '@/lib/utils/date';
 import { trackScreen } from '@/lib/analytics';
 import { buildCalendarEventUrl } from '@/lib/calendar';
 import {
@@ -53,13 +67,82 @@ import {
   CreditCard,
   MapPin,
   ScanLine,
+  Clock,
+  ArrowDownUp,
+  Share2,
+  User,
 } from 'lucide-react-native';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const TICKET_FILTER_WIDTH = 204;
 const TICKET_FILTER_HEIGHT = 43;
 const TICKET_FILTER_PADDING = 4;
 const TICKET_FILTER_THUMB_WIDTH = (TICKET_FILTER_WIDTH - TICKET_FILTER_PADDING * 2) / 2;
+const TICKET_TAB_SWIPE_DISTANCE = 52;
+const TICKET_TAB_SWIPE_VELOCITY = 650;
+const TICKET_PERFORATION_DASHES = Array.from({ length: 22 });
+type TicketTab = 'upcoming' | 'past';
+
+function firstNonEmptyString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  }
+  return '';
+}
+
+const PROFILE_PHOTO_FIELDS = [
+  'photoURL',
+  'photos[0]',
+  'datingPhotos[0]',
+  'avatar',
+  'photo',
+  'imageUrl',
+  'profilePicture',
+  'profilePictureUrl',
+] as const;
+
+function resolveField(obj: Record<string, any>, path: string): string | null {
+  if (path.endsWith('[0]')) {
+    const arr = obj[path.slice(0, -3)];
+    return arr?.[0] ?? null;
+  }
+  return obj[path] ?? null;
+}
+
+function resolveCurrentUserPhoto(
+  profile: ReturnType<typeof useProfileStore.getState>['profile'],
+  user: ReturnType<typeof useAuthStore.getState>['user'],
+): string {
+  const rawProfile = (profile ?? {}) as Record<string, any>;
+  for (const field of PROFILE_PHOTO_FIELDS) {
+    const val = resolveField(rawProfile, field);
+    if (val) return val;
+  }
+  return user?.photoURL || '';
+}
+
+function formatRupees(paise: number): string {
+  if (paise === 0) return 'Free';
+  return `₹${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+}
+
+function formatTxnTime(iso: string): string {
+  const d = new Date(iso);
+  const hours = d.getHours();
+  const minutes = d.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${ampm}`;
+}
+
+function formatTxnDate(iso: string): string {
+  const d = new Date(iso);
+  const month = d.toLocaleDateString('en-US', { month: 'short' });
+  const day = d.getDate();
+  return `${month} ${day}`;
+}
+
 const ticketFont = {
   regular: typography.fontFamily.body,
   medium: typography.fontFamily.medium,
@@ -73,19 +156,23 @@ function ActionRow({
   label,
   onPress,
   danger,
+  disabled,
 }: {
   icon: React.ComponentType<any>;
   label: string;
   onPress: () => void;
   danger?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
+      disabled={disabled}
+      accessibilityState={{ disabled: Boolean(disabled) }}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
       }}
-      style={ms.actionRow}
+      style={[ms.actionRow, disabled && { opacity: 0.42 }]}
     >
       <Text style={[ms.actionRowText, danger && { color: colors.error }]} numberOfLines={1}>
         {label}
@@ -97,9 +184,286 @@ function ActionRow({
   );
 }
 
+const DEFAULT_EVENT_DURATION_MS = 12 * 60 * 60 * 1000;
+
+function getOrderEventStartMs(order: Order): number | null {
+  const start = safeDate(order.eventStartDate || order.eventDate);
+  const value = start?.getTime();
+  return value != null && Number.isFinite(value) ? value : null;
+}
+
+function isOrderEventEnded(order: Order, nowMs = Date.now()): boolean {
+  const rawEnd =
+    (order as any).eventEndDate ||
+    (order as any).eventEndAt ||
+    (order as any).endDate ||
+    (order as any).endAt;
+  const end = safeDate(rawEnd);
+  const endMs = end?.getTime();
+  if (endMs != null && Number.isFinite(endMs)) return endMs < nowMs;
+
+  const startMs = getOrderEventStartMs(order);
+  return startMs != null ? startMs + DEFAULT_EVENT_DURATION_MS < nowMs : false;
+}
+
 function hexWithAlpha(color: string | undefined, alpha: string, fallback: string) {
   if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) return fallback;
   return `${color}${alpha}`;
+}
+
+function looksLikeLegacyJwt(value: unknown): boolean {
+  return typeof value === 'string' && value.split('.').length === 3;
+}
+
+function looksLikeTicketDocumentId(value: unknown): boolean {
+  return typeof value === 'string' && /^TKT[-_]/i.test(value.trim());
+}
+
+function resolveWalletQrData(order: Order): string {
+  const activeQr = order.qrCodes?.find((qr) => !qr.isUsed) || order.qrCodes?.[0];
+  if (activeQr) {
+    if (activeQr.qrMode === 'raw_id' && activeQr.qrCode) return String(activeQr.qrCode);
+    if (looksLikeTicketDocumentId(activeQr.ticketId)) return String(activeQr.ticketId);
+    if (activeQr.qrCode && !looksLikeLegacyJwt(activeQr.qrCode)) return String(activeQr.qrCode);
+    if (activeQr.qrCode) return String(activeQr.qrCode);
+  }
+
+  const orderQrData = (order as any).qrData;
+  if (typeof orderQrData === 'string' && orderQrData.trim()) return orderQrData.trim();
+  return order.id;
+}
+
+function normalizeBookingCodeLabel(value: unknown): string | null {
+  const code = String(value || '')
+    .replace(/^#/, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .trim()
+    .toUpperCase();
+  return code.length >= 6 ? code.slice(0, 6) : null;
+}
+
+function resolveBookingCode(order: Order): string {
+  const activeQr = order.qrCodes?.find((qr) => !qr.isUsed) || order.qrCodes?.[0];
+  const realCode =
+    normalizeBookingCodeLabel(order.bookingCode) ||
+    normalizeBookingCodeLabel(activeQr?.bookingCode) ||
+    normalizeBookingCodeLabel(order.bookingCodes?.[0]?.bookingCode) ||
+    normalizeBookingCodeLabel(order.tickets?.find((ticket) => ticket.bookingCode)?.bookingCode);
+
+  if (realCode) return realCode;
+
+  return (
+    normalizeBookingCodeLabel(activeQr?.ticketId) ||
+    normalizeBookingCodeLabel(activeQr?.qrCode) ||
+    normalizeBookingCodeLabel(order.id) ||
+    'TICKET'
+  );
+}
+
+function formatBookingCode(order: Order): string {
+  return `#${resolveBookingCode(order)}`;
+}
+
+type TicketDisplaySlot = OrderTicket & {
+  rowId: string;
+  slotNumber: number;
+  ticketNumber: number;
+  totalInTier: number;
+  qrData: string;
+  transferTicketId: string;
+  bookingLabel: string;
+  isUsed?: boolean;
+  claimName: string;
+  claimPhoto?: string;
+  claimInitials: string;
+  statusTone: 'claimed' | 'host' | 'available' | 'used';
+};
+
+function getInitials(value: string): string {
+  const initials = value
+    .split(/[\s@._-]+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+  return initials || 'TC';
+}
+
+function resolveTicketClaimPerson({
+  ticket,
+  order,
+  qr,
+  profile,
+  user,
+}: {
+  ticket: OrderTicket;
+  order: Order;
+  qr?: any;
+  profile: ReturnType<typeof useProfileStore.getState>['profile'];
+  user: ReturnType<typeof useAuthStore.getState>['user'];
+}) {
+  const currentUserPhoto = resolveCurrentUserPhoto(profile, user);
+  const currentUserName = firstNonEmptyString(
+    profile?.displayName,
+    user?.displayName,
+    order.userName,
+    user?.email,
+    order.userEmail,
+    'You',
+  );
+
+  // 1. Check individual QR code claim status (New structure)
+  if (qr) {
+    if (qr.claimedBy?.uid || qr.claimedBy?.name || qr.claimedBy?.email) {
+      const name = firstNonEmptyString(qr.claimedBy.name, qr.claimedBy.email, 'Claimed');
+      return {
+        name,
+        photo: qr.claimedBy.photoURL,
+        tone: 'claimed' as const,
+      };
+    }
+    if (qr.isClaimed || ticket.isClaimed) {
+      return {
+        name: currentUserName,
+        photo: currentUserPhoto,
+        tone: 'host' as const,
+      };
+    }
+    // If QR exists but is NOT claimed, it's definitely available.
+    return {
+      name: 'Unclaimed',
+      photo: undefined,
+      tone: 'available' as const,
+    };
+  }
+
+  // 2. Fallback to tier-level claim status (Legacy structure)
+  if (ticket.claimedBy?.uid || ticket.claimedBy?.name || ticket.claimedBy?.email) {
+    const name = firstNonEmptyString(ticket.claimedBy.name, ticket.claimedBy.email, 'Claimed');
+    return {
+      name,
+      photo: ticket.claimedBy.photoURL,
+      tone: 'claimed' as const,
+    };
+  }
+
+  if (ticket.isClaimed) {
+    return {
+      name: currentUserName,
+      photo: currentUserPhoto,
+      tone: 'host' as const,
+    };
+  }
+
+  return {
+    name: 'Unclaimed',
+    photo: undefined,
+    tone: 'available' as const,
+  };
+}
+
+function buildTicketDisplaySlots(
+  order: Order,
+  profile: ReturnType<typeof useProfileStore.getState>['profile'],
+  user: ReturnType<typeof useAuthStore.getState>['user'],
+): TicketDisplaySlot[] {
+  const slots: TicketDisplaySlot[] = [];
+  let globalIndex = 0;
+
+  order.tickets?.forEach((ticket, ticketIndex) => {
+    const totalInTier = Math.max(ticket.quantity || 1, 1);
+
+    Array.from({ length: totalInTier }).forEach((_, slotIndex) => {
+      const qr = order.qrCodes?.[globalIndex];
+      const claim = resolveTicketClaimPerson({ ticket, order, qr, profile, user });
+      const assignmentTicketId =
+        ticket.ticketId?.startsWith('CLAIM-') || ticket.ticketId?.startsWith('TRANS-')
+          ? ticket.ticketId
+          : null;
+      const transferTicketId =
+        qr?.ticketId ||
+        assignmentTicketId ||
+        `${order.id}-${ticket.tierId || ticket.ticketId || ticketIndex}-${slotIndex + 1}`;
+      const fallbackQrData =
+        qr?.qrCode ||
+        qr?.ticketId ||
+        ticket.ticketId ||
+        `${order.id}-${ticket.tierId || ticketIndex}-${slotIndex + 1}`;
+      const bookingLabel =
+        normalizeBookingCodeLabel(qr?.bookingCode) ||
+        normalizeBookingCodeLabel(ticket.bookingCode) ||
+        normalizeBookingCodeLabel(qr?.ticketId) ||
+        normalizeBookingCodeLabel(fallbackQrData) ||
+        resolveBookingCode(order);
+
+      slots.push({
+        ...ticket,
+        rowId: `${ticket.ticketId || ticket.tierId || ticketIndex}-${slotIndex}`,
+        slotNumber: slotIndex + 1,
+        ticketNumber: globalIndex + 1,
+        totalInTier,
+        qrData: fallbackQrData,
+        transferTicketId,
+        bookingLabel: `#${bookingLabel}`,
+        isUsed: qr?.isUsed,
+        claimName: claim.name,
+        claimPhoto: claim.photo,
+        claimInitials: getInitials(claim.name),
+        statusTone: qr?.isUsed ? 'used' : claim.tone,
+      });
+
+      globalIndex += 1;
+    });
+  });
+
+  if (slots.length) return slots;
+
+  const claim = resolveTicketClaimPerson({
+    ticket: {
+      tierId: order.id,
+      tierName: 'General Entry',
+      quantity: 1,
+      price: 0,
+      isClaimed: order.isClaimed,
+    },
+    order,
+    profile,
+    user,
+  });
+
+  return [
+    {
+      tierId: order.id,
+      tierName: 'General Entry',
+      quantity: 1,
+      price: 0,
+      rowId: `${order.id}-fallback`,
+      slotNumber: 1,
+      ticketNumber: 1,
+      totalInTier: 1,
+      qrData: resolveWalletQrData(order),
+      transferTicketId: order.qrCodes?.[0]?.ticketId || '',
+      bookingLabel: formatBookingCode(order),
+      claimName: claim.name,
+      claimPhoto: claim.photo,
+      claimInitials: getInitials(claim.name),
+      statusTone: claim.tone,
+    },
+  ];
+}
+
+function WalletQrRefreshCountdown({ expiresAt }: { expiresAt: number }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, [expiresAt]);
+
+  const secondsLeft = expiresAt ? Math.max(0, Math.ceil((expiresAt - now) / 1000)) : 0;
+  return <Text style={ms.walletQrTimerText}>Refreshes in {secondsLeft}s</Text>;
 }
 
 // Ticket Detail Sheet — Posh-style with poster flip + QR
@@ -107,18 +471,111 @@ function QRModal({
   visible,
   order,
   onClose,
+  walletData,
+  walletTransactions,
+  onWalletRefresh,
 }: {
   visible: boolean;
   order: Order | null;
   onClose: () => void;
+  walletData?: any[];
+  walletTransactions?: Record<string, any[]>;
+  onWalletRefresh?: () => Promise<void> | void;
 }) {
   const [showQR, setShowQR] = useState(false);
+  const [activeTicketIndex, setActiveTicketIndex] = useState(0);
+  const [activeSheet, setActiveSheet] = useState<'share' | null>(null);
   const flipProgress = useSharedValue(0);
   const { width, height } = useWindowDimensions();
+  const profile = useProfileStore((state) => state.profile);
+  const user = useAuthStore((state) => state.user);
+  const ticketSlots = useMemo(
+    () => (order ? buildTicketDisplaySlots(order, profile, user) : []),
+    [order, profile, user],
+  );
+  const activeTicketSlot =
+    ticketSlots[Math.min(activeTicketIndex, Math.max(ticketSlots.length - 1, 0))] || ticketSlots[0];
+
+  // Wallet State
+  const [qrJwt, setQrJwt] = useState<string | null>(null);
+  const [qrExpiresAt, setQrExpiresAt] = useState<number>(0);
+  const [qrRefreshError, setQrRefreshError] = useState(false);
+  const qrTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(true);
+
+  // One deterministic wallet exists per purchased cover admission unit.
+  const orderWallets =
+    order && Array.isArray(walletData)
+      ? walletData
+          .filter((wallet) => wallet.orderId === order.id)
+          .sort(
+            (left, right) =>
+              String(left.tierId || '').localeCompare(String(right.tierId || '')) ||
+              Number(left.unitIndex || 1) - Number(right.unitIndex || 1),
+          )
+      : [];
+  const activeWallet = order
+    ? selectCoverWalletForTicketSlot({
+        wallets: orderWallets,
+        orderId: order.id,
+        ticketSlot: activeTicketSlot,
+        totalTicketSlots: ticketSlots.length,
+      })
+    : null;
+  const activeWalletTransactions = activeWallet ? walletTransactions?.[activeWallet.id] || [] : [];
+  const qrRotating = !!qrJwt;
+  const cardWidth = Math.min(width - 48, 380);
+  const cardPageWidth = width - 32;
+  const walletQrSize = 180;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (qrTimerRef.current) clearInterval(qrTimerRef.current);
+    };
+  }, []);
+
+  const fetchQrJwt = async (walletId: string) => {
+    try {
+      const data = await apiFetch(`/api/v1/cover-charge/wallet/${walletId}/qr-jwt`);
+      if (!mountedRef.current) return;
+      setQrJwt(data.jwt);
+      setQrExpiresAt(new Date(data.expiresAt).getTime());
+      setQrRefreshError(false);
+
+      if (qrTimerRef.current) clearInterval(qrTimerRef.current);
+      qrTimerRef.current = setInterval(() => {
+        fetchQrJwt(walletId);
+      }, 12_000);
+    } catch {
+      if (!mountedRef.current) return;
+      setQrRefreshError(true);
+      if (!qrTimerRef.current) {
+        qrTimerRef.current = setInterval(() => {
+          fetchQrJwt(walletId);
+        }, 12_000);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (visible && activeWallet && activeWallet.state === 'ACTIVE') {
+      fetchQrJwt(activeWallet.id);
+    } else {
+      if (qrTimerRef.current) {
+        clearInterval(qrTimerRef.current);
+        qrTimerRef.current = null;
+      }
+      setQrJwt(null);
+    }
+  }, [visible, activeWallet]);
 
   useEffect(() => {
     if (!visible) {
       setShowQR(false);
+      setActiveTicketIndex(0);
+      setActiveSheet(null);
       flipProgress.value = 0;
     }
   }, [visible]);
@@ -137,72 +594,149 @@ function QRModal({
     opacity: flipProgress.value > 0.5 ? 1 : 0,
   }));
 
+  const {
+    qrData,
+    totalGuests,
+    totalRevenue,
+    ticketType,
+    calendarUrl,
+    accentColor,
+    posterSize,
+    miniQrSize,
+    miniQrPadding,
+    fullQrSize,
+    posterTransitionTag,
+  } = useMemo(() => {
+    if (!order) {
+      const _posterSize = Math.min(width - 48, 300, Math.max(260, height * 0.32));
+      return {
+        qrData: '',
+        bookingLabel: '#TICKET',
+        totalGuests: 1,
+        totalRevenue: 0,
+        ticketType: 'General Entry',
+        posterHostName: 'C1RCLE',
+        dateStr: '',
+        shortId: '',
+        calendarUrl: '',
+        accentColor: TICKET_ACCENT,
+        posterSize: _posterSize,
+        miniQrSize: Math.max(126, Math.min(162, _posterSize * 0.38)),
+        miniQrPadding: 12,
+        fullQrSize: Math.min(220, _posterSize - 96),
+        posterTransitionTag: 'ticket-poster-empty',
+      };
+    }
+
+    const _qrData = resolveWalletQrData(order);
+    const _bookingLabel = formatBookingCode(order);
+    const _totalGuests =
+      (order as any).totalGuests ??
+      order.tickets?.reduce((acc, t) => acc + (Number(t.quantity) || 1), 0) ??
+      1;
+    const _totalRevenue = (order as any).totalRevenue ?? 0;
+    const _ticketType = order.tickets?.[0]?.tierName || 'General Entry';
+    const _rawHostName = String((order as any).promoterName || (order as any).hostName || 'C1RCLE');
+    const _posterHostName = _rawHostName.length > 14 ? 'C1RCLE' : _rawHostName;
+    const _dateStr = (() => {
+      const d = safeDate(order.eventDate);
+      if (!d) return '';
+      const month = d.toLocaleDateString('en-US', { month: 'short' });
+      const day = d.getDate();
+      const suffix = (day: number) => {
+        if (day > 3 && day < 21) return 'th';
+        switch (day % 10) {
+          case 1:
+            return 'st';
+          case 2:
+            return 'nd';
+          case 3:
+            return 'rd';
+          default:
+            return 'th';
+        }
+      };
+      const hours = d.getHours();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12;
+      const minutes = d.getMinutes();
+      const displayMinutes = minutes > 0 ? `:${String(minutes).padStart(2, '0')}` : '';
+      return `${month} ${day}${suffix(day)} at ${displayHours}${displayMinutes}${ampm}`;
+    })();
+    const _shortId = order.id.replace(/-/g, '').substring(0, 8).toUpperCase();
+    const _calendarUrl = buildCalendarEventUrl({
+      title: order.eventTitle || 'THE C1RCLE Event',
+      startDate: order.eventStartDate || order.eventDate,
+      location: order.venueLocation,
+      description: `${_ticketType} · ${_totalGuests} ticket${_totalGuests > 1 ? 's' : ''}`,
+    });
+    const _accentColor = resolveEventAccentColor(order as any, 'ticket');
+    const _posterSize = Math.min(width - 48, 300, Math.max(260, height * 0.32));
+    const _miniQrSize = Math.max(126, Math.min(162, _posterSize * 0.38));
+    const _miniQrPadding = 12;
+    const _fullQrSize = Math.min(220, _posterSize - 96);
+    const _posterTransitionTag = `ticket-poster-${order.id}`;
+
+    return {
+      qrData: _qrData,
+      bookingLabel: _bookingLabel,
+      totalGuests: _totalGuests,
+      totalRevenue: _totalRevenue,
+      ticketType: _ticketType,
+      posterHostName: _posterHostName,
+      dateStr: _dateStr,
+      shortId: _shortId,
+      calendarUrl: _calendarUrl,
+      accentColor: _accentColor,
+      posterSize: _posterSize,
+      miniQrSize: _miniQrSize,
+      miniQrPadding: _miniQrPadding,
+      fullQrSize: _fullQrSize,
+      posterTransitionTag: _posterTransitionTag,
+    };
+  }, [order, width, height]);
+
   if (!order) return null;
 
-  const activeQr = order.qrCodes?.[0];
-  const qrData = activeQr?.qrCode || (order as any).qrData || order.id;
-  const totalGuests = (order as any).totalGuests ?? 0;
-  const totalRevenue = (order as any).totalRevenue ?? 0;
-  const ticketType = order.tickets?.[0]?.tierName || 'General Entry';
-  const rawHostName = String((order as any).promoterName || (order as any).hostName || 'C1RCLE');
-  const posterHostName = rawHostName.length > 14 ? 'C1RCLE' : rawHostName;
-  const dateStr = (() => {
-    const d = safeDate(order.eventDate);
-    if (!d) return '';
-    const month = d.toLocaleDateString('en-US', { month: 'short' });
-    const day = d.getDate();
-    const suffix = (day: number) => {
-      if (day > 3 && day < 21) return 'th';
-      switch (day % 10) {
-        case 1:
-          return 'st';
-        case 2:
-          return 'nd';
-        case 3:
-          return 'rd';
-        default:
-          return 'th';
-      }
-    };
-    const hours = d.getHours();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    const minutes = d.getMinutes();
-    const displayMinutes = minutes > 0 ? `:${String(minutes).padStart(2, '0')}` : '';
-    return `${month} ${day}${suffix(day)} at ${displayHours}${displayMinutes}${ampm}`;
-  })();
-  const shortId = order.id.replace(/-/g, '').substring(0, 8).toUpperCase();
-  const calendarUrl = buildCalendarEventUrl({
-    title: order.eventTitle || 'THE C1RCLE Event',
-    startDate: order.eventStartDate || order.eventDate,
-    location: order.venueLocation,
-    description: `${ticketType} · ${totalGuests} ticket${totalGuests > 1 ? 's' : ''}`,
-  });
+  const nowMs = Date.now();
+  const eventStartMs = getOrderEventStartMs(order);
+  const eventEnded = isOrderEventEnded(order, nowMs);
+  const sharingClosed = eventEnded || (eventStartMs != null && eventStartMs <= nowMs);
+  const transferClosed =
+    eventEnded || (eventStartMs != null && eventStartMs - nowMs < 2 * 60 * 60 * 1000);
 
-  // Prefer poster-specific colors; brand orange is a weak fallback for this shelf.
-  const accentColor =
-    (order as any).posterAccentColor ||
-    (order as any).dominantColor ||
-    (order as any).eventAccentColor ||
-    (order.accentColor && order.accentColor.toUpperCase() !== colors.iris.toUpperCase()
-      ? order.accentColor
-      : undefined) ||
-    '#D915A8';
-  const posterSize = Math.min(width - 48, 300, Math.max(260, height * 0.32));
-  const miniQrSize = Math.max(126, Math.min(162, posterSize * 0.38));
-  const miniQrPadding = 12;
-  const fullQrSize = Math.max(220, Math.min(280, posterSize * 0.64));
+  const handleCloseSheet = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onClose();
+  };
 
   const handleFlip = () => {
+    if (eventEnded) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const next = !showQR;
-    setShowQR(next);
-    flipProgress.value = withTiming(next ? 1 : 0, { duration: 500 });
+    const next = flipProgress.value < 0.5;
+    flipProgress.value = withTiming(next ? 1 : 0, { duration: 400 }, (finished) => {
+      if (finished) runOnJS(setShowQR)(next);
+    });
   };
 
   const handleTransfer = () => {
+    if (transferClosed) return;
+    if (!activeTicketSlot?.transferTicketId) {
+      Alert.alert(
+        'Transfer unavailable',
+        'This ticket is missing its individual ticket reference.',
+      );
+      return;
+    }
+    if (activeTicketSlot.isUsed) {
+      Alert.alert('Transfer unavailable', 'A scanned ticket cannot be transferred.');
+      return;
+    }
     onClose();
-    router.push({ pathname: '/transfer', params: { orderId: order.id, ticketName: ticketType } });
+    router.push({
+      pathname: '/transfer',
+      params: { ticketId: activeTicketSlot.transferTicketId, ticketName: ticketType },
+    });
   };
 
   const handleAddToWallet = async () => {
@@ -214,280 +748,652 @@ function QRModal({
       venue: order.venueLocation || 'TBA',
       ticketType,
       ticketCount: totalGuests,
-      qrCodeData: order.id,
+      qrCodeData: activeTicketSlot?.qrData || qrData,
     };
     await addToWallet(passData);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleShareChannel = async (
+    channel: string,
+    tierId?: string,
+    expiresAt?: string,
+    quantity = 1,
+  ) => {
+    if (!order || !tierId) return;
+    if (sharingClosed) return;
+
+    try {
+      const response = await createShareBundle({
+        orderId: order.id,
+        eventId: order.eventId,
+        quantity,
+        tierId,
+        expiresAt,
+      });
+
+      if (!response?.success || !response.bundle?.token) {
+        Alert.alert('Share failed', response?.error || 'Unable to create a claim link.');
+        return;
+      }
+
+      const claimUrl = `https://thec1rcle.com/tickets/claim/${encodeURIComponent(response.bundle.token)}`;
+      const remainingSlots =
+        typeof response.bundle.remainingSlots === 'number' ? response.bundle.remainingSlots : null;
+      const slotCopy =
+        remainingSlots && remainingSlots > 1
+          ? `${remainingSlots} spots can be claimed from this link.`
+          : 'Claim your ticket from this link.';
+      const message = `Ticket for ${order.eventTitle || 'THE C1RCLE'}\n${slotCopy}\n\n${claimUrl}`;
+
+      if (channel === 'copy') {
+        await Clipboard.setStringAsync(claimUrl);
+        Alert.alert('Copied', 'Claim link copied to your clipboard.');
+      } else if (channel === 'whatsapp') {
+        const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
+        const supported = await Linking.canOpenURL(url);
+        if (supported) await Linking.openURL(url);
+        else Alert.alert('WhatsApp unavailable', 'WhatsApp is not installed on this device.');
+      } else if (channel === 'instagram') {
+        await Clipboard.setStringAsync(message);
+        Alert.alert('Copied', 'The claim message was copied. Paste it into Instagram DM.');
+      } else if (channel === 'sms') {
+        const separator = Platform.OS === 'ios' ? '&' : '?';
+        await Linking.openURL(`sms:${separator}body=${encodeURIComponent(message)}`);
+      } else if (channel === 'email') {
+        await Linking.openURL(
+          `mailto:?subject=${encodeURIComponent(`Ticket for ${order.eventTitle || 'THE C1RCLE'}`)}&body=${encodeURIComponent(message)}`,
+        );
+      } else {
+        await Share.share({ message });
+      }
+
+      setActiveSheet(null);
+      await onWalletRefresh?.();
+    } catch (error: any) {
+      Alert.alert('Share failed', error?.message || 'Unable to share this ticket.');
+    }
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
-      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' }}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View
-          style={[
-            ms.container,
-            {
-              flex: 0,
-              height: '87%',
-              borderTopLeftRadius: 40,
-              borderTopRightRadius: 40,
-              overflow: 'hidden',
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={[
-              'rgba(8,8,10,0.98)',
-              hexWithAlpha(accentColor, '24', 'rgba(217, 21, 168, 0.14)'),
-              'rgba(5,5,6,1)',
+    <Fragment>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleCloseSheet}
+      >
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={handleCloseSheet} />
+          <View
+            style={[
+              ms.container,
+              {
+                flex: 0,
+                height: '87%',
+                borderTopLeftRadius: 40,
+                borderTopRightRadius: 40,
+                overflow: 'hidden',
+              },
             ]}
-            locations={[0, 0.45, 1]}
-            style={StyleSheet.absoluteFill}
-          />
-          <SafeAreaView style={ms.safeArea} edges={['left', 'right', 'bottom']}>
-            {/* Header */}
-            <View style={ms.header}>
-              <Pressable onPress={onClose} style={ms.headerBtn}>
-                <Text style={ms.headerCancelText}>Cancel</Text>
-              </Pressable>
-              <Text style={ms.headerTitle}>Your Order</Text>
+          >
+            <LinearGradient
+              colors={[
+                'rgba(8,8,10,0.98)',
+                hexWithAlpha(accentColor, '24', 'rgba(217, 21, 168, 0.14)'),
+                'rgba(5,5,6,1)',
+              ]}
+              locations={[0, 0.45, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+            <SafeAreaView style={ms.safeArea} edges={['left', 'right', 'bottom']}>
+              {/* Header */}
+              <View style={ms.header}>
+                <Pressable onPress={handleCloseSheet} style={ms.headerBtn}>
+                  <Text style={ms.headerCancelText}>Cancel</Text>
+                </Pressable>
+                <Text style={ms.headerTitle}>Your Order</Text>
 
-              <Pressable onPress={onClose} style={[ms.headerBtn, { alignItems: 'flex-end' }]}>
-                <Text style={ms.headerDoneText}>Done</Text>
-              </Pressable>
-            </View>
+                <Pressable
+                  onPress={handleCloseSheet}
+                  style={[ms.headerBtn, { alignItems: 'flex-end' }]}
+                >
+                  <Text style={ms.headerDoneText}>Done</Text>
+                </Pressable>
+              </View>
 
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={ms.scrollContent}
-              bounces={false}
-              overScrollMode="never"
-            >
-              {/* ─── Flip Card ─── */}
-              <View style={[ms.flipContainer, { width: posterSize, height: posterSize }]}>
-                {/* FRONT: Poster with small QR */}
-                <Animated.View style={[ms.cardFace, frontStyle]}>
-                  {order.eventCoverImage ? (
-                    <>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={ms.scrollContent}
+                bounces={false}
+                overScrollMode="never"
+              >
+                {/* ─── Swipeable Ticket Slots ─── */}
+                <FlatList
+                  horizontal
+                  pagingEnabled
+                  data={ticketSlots}
+                  keyExtractor={(item) => item.rowId}
+                  showsHorizontalScrollIndicator={false}
+                  bounces={false}
+                  overScrollMode="never"
+                  snapToInterval={cardPageWidth}
+                  decelerationRate="fast"
+                  style={{ width: cardPageWidth, alignSelf: 'center' }}
+                  onMomentumScrollEnd={(event: NativeSyntheticEvent<NativeScrollEvent>) => {
+                    const nextIndex = Math.round(event.nativeEvent.contentOffset.x / cardPageWidth);
+                    setActiveTicketIndex(nextIndex);
+                    setShowQR(false);
+                    flipProgress.value = 0;
+                  }}
+                  renderItem={({ item }) => (
+                    <View style={[ms.ticketPagerPage, { width: cardPageWidth }]}>
+                      <View style={[ms.flipContainer, { width: posterSize, height: posterSize }]}>
+                        {/* FRONT: Poster with small QR */}
+                        <Animated.View style={[ms.cardFace, frontStyle]}>
+                          {order.eventCoverImage ? (
+                            <>
+                              <AnimatedExpoImage
+                                sharedTransitionTag={posterTransitionTag}
+                                source={{ uri: order.eventCoverImage }}
+                                style={StyleSheet.absoluteFill}
+                                contentFit="cover"
+                              />
+                              <View
+                                style={[
+                                  StyleSheet.absoluteFill,
+                                  { backgroundColor: 'rgba(0, 0, 0, 0.25)' },
+                                ]}
+                              />
+                            </>
+                          ) : (
+                            <View
+                              style={[StyleSheet.absoluteFill, { backgroundColor: accentColor }]}
+                            />
+                          )}
+
+                          <View style={ms.ticketSlotBadge}>
+                            <Text style={ms.ticketSlotBadgeText}>
+                              {item.tierName || ticketType} {item.slotNumber}/{item.totalInTier}
+                            </Text>
+                          </View>
+
+                          <View style={ms.miniQrWrap}>
+                            <View
+                              style={[
+                                ms.miniQrContainer,
+                                {
+                                  padding: miniQrPadding,
+                                  borderRadius: miniQrPadding + 12,
+                                  elevation: 0,
+                                  shadowOpacity: 0,
+                                  overflow: 'hidden',
+                                },
+                              ]}
+                            >
+                              <LinearGradient
+                                colors={['rgba(255,255,255,0.92)', 'rgba(225,225,230,0.86)']}
+                                style={StyleSheet.absoluteFill}
+                              />
+                              <LinearGradient
+                                colors={['rgba(255,255,255,0.6)', 'rgba(255,255,255,0.15)']}
+                                style={StyleSheet.absoluteFill}
+                              />
+                              {eventEnded ? (
+                                <View
+                                  style={{
+                                    width: miniQrSize,
+                                    height: miniQrSize,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
+                                  }}
+                                >
+                                  <Clock size={34} color="#5A5A5F" strokeWidth={1.8} />
+                                  <Text
+                                    style={{
+                                      color: '#343438',
+                                      fontSize: 12,
+                                      fontWeight: '900',
+                                      letterSpacing: 0.8,
+                                    }}
+                                  >
+                                    EVENT ENDED
+                                  </Text>
+                                </View>
+                              ) : (
+                                <QRCode
+                                  value={item.qrData}
+                                  size={miniQrSize}
+                                  color="#161616"
+                                  backgroundColor="transparent"
+                                />
+                              )}
+                            </View>
+                          </View>
+                        </Animated.View>
+
+                        {/* BACK: Full QR code */}
+                        <Animated.View style={[ms.cardFace, ms.cardBack, backStyle]}>
+                          <View
+                            style={[
+                              ms.fullQrWrap,
+                              { elevation: 0, shadowOpacity: 0, overflow: 'hidden' },
+                            ]}
+                          >
+                            <LinearGradient
+                              colors={['rgba(255,255,255,0.92)', 'rgba(225,225,230,0.86)']}
+                              style={StyleSheet.absoluteFill}
+                            />
+                            <LinearGradient
+                              colors={['rgba(255,255,255,0.6)', 'rgba(255,255,255,0.15)']}
+                              style={StyleSheet.absoluteFill}
+                            />
+                            <QRCode
+                              value={item.qrData}
+                              size={fullQrSize}
+                              color="#161616"
+                              backgroundColor="transparent"
+                            />
+                          </View>
+                          <Text style={ms.fullQrLabel}>Entry Pass</Text>
+                          <Text style={ms.fullQrId}>{item.bookingLabel}</Text>
+                        </Animated.View>
+                      </View>
+                    </View>
+                  )}
+                />
+
+                {/* Show QR Code toggle */}
+                <Pressable
+                  disabled={eventEnded}
+                  accessibilityState={{ disabled: eventEnded }}
+                  onPress={handleFlip}
+                  style={[ms.showQrBtn, eventEnded && { opacity: 0.5 }]}
+                >
+                  {eventEnded ? (
+                    <Clock size={25} color="#fff" strokeWidth={2.1} />
+                  ) : (
+                    <ScanLine size={25} color="#fff" strokeWidth={2.1} />
+                  )}
+                  <Text style={ms.showQrText}>
+                    {eventEnded ? 'Event Ended' : showQR ? 'Show Poster' : 'Show QR Code'}
+                  </Text>
+                </Pressable>
+
+                {/* Claim Status Line */}
+                <View style={ms.ticketHolderRow}>
+                  <View style={ms.ticketHolderAvatar}>
+                    {ticketSlots[activeTicketIndex]?.claimPhoto ? (
                       <Image
-                        source={{ uri: order.eventCoverImage }}
-                        style={StyleSheet.absoluteFill}
+                        source={{ uri: ticketSlots[activeTicketIndex].claimPhoto }}
+                        style={ms.ticketHolderAvatarImage}
                         contentFit="cover"
                       />
-                      <View
-                        style={[
-                          StyleSheet.absoluteFill,
-                          { backgroundColor: 'rgba(0, 0, 0, 0.25)' },
-                        ]}
-                      />
-                    </>
-                  ) : (
-                    <View style={[StyleSheet.absoluteFill, { backgroundColor: accentColor }]} />
-                  )}
-
-                  {/* Clean Event Name & Ticket Quantity overlay */}
-
-                  <View style={{ position: 'absolute', bottom: 24, right: 24 }}>
-                    <View
+                    ) : (
+                      <Text style={ms.ticketHolderAvatarText}>
+                        {ticketSlots[activeTicketIndex]?.claimInitials}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={{ marginLeft: 8, marginRight: 6, flex: 1, maxWidth: 172 }}>
+                    <Text
+                      style={[ms.ticketHolderName, { marginLeft: 0, marginRight: 0 }]}
+                      numberOfLines={1}
+                    >
+                      {ticketSlots[activeTicketIndex]?.claimName}
+                    </Text>
+                    <Text
                       style={{
-                        backgroundColor: 'rgba(0,0,0,0.5)',
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                        borderRadius: 16,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 6,
+                        color: 'rgba(255,255,255,0.5)',
+                        fontSize: 11,
+                        fontWeight: '600',
+                        marginTop: 1,
                       }}
                     >
-                      <Text
-                        style={{
-                          fontFamily: ticketFont.bold,
-                          fontSize: 13,
-                          fontWeight: '700',
-                          color: '#fff',
-                        }}
-                      >
-                        {totalGuests}x
-                      </Text>
-                      <TicketIcon size={14} color="#fff" />
-                    </View>
+                      {ticketSlots[activeTicketIndex]?.bookingLabel}
+                    </Text>
                   </View>
+                  <View
+                    style={[
+                      ms.ticketStatusPill,
+                      ticketSlots[activeTicketIndex]?.statusTone === 'available' &&
+                        ms.ticketStatusPillAvailable,
+                      ticketSlots[activeTicketIndex]?.statusTone === 'used' &&
+                        ms.ticketStatusPillUsed,
+                    ]}
+                  >
+                    <Text style={ms.ticketStatusPillText}>
+                      {ticketSlots[activeTicketIndex]?.statusTone === 'available'
+                        ? 'NOT CLAIMED'
+                        : ticketSlots[activeTicketIndex]?.statusTone === 'used'
+                          ? 'USED'
+                          : 'CLAIMED'}
+                    </Text>
+                  </View>
+                </View>
 
-                  {/* Centered mini QR in accent color */}
-                  <View style={ms.miniQrWrap}>
-                    <View
-                      style={[
-                        ms.miniQrContainer,
-                        {
-                          padding: miniQrPadding,
-                          borderRadius: miniQrPadding + 12,
-                          elevation: 0,
-                          shadowOpacity: 0,
-                          overflow: 'hidden',
-                        },
-                      ]}
-                    >
-                      <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFill} />
+                {/* ─── Action Rows ─── */}
+                <View style={ms.actionGroup}>
+                  <ActionRow
+                    icon={Info}
+                    label="View Event"
+                    onPress={() => {
+                      onClose();
+                      if (order.eventId) {
+                        router.push({
+                          pathname: '/event/[id]',
+                          params: {
+                            id: order.eventId,
+                          },
+                        });
+                      }
+                    }}
+                  />
+                  <View style={ms.actionRowDivider} />
+                  <ActionRow
+                    icon={Share2}
+                    label={sharingClosed ? 'Sharing Closed' : 'Share Claim Link'}
+                    disabled={sharingClosed}
+                    onPress={() => setActiveSheet('share')}
+                  />
+                  <View style={ms.actionRowDivider} />
+                  <ActionRow
+                    icon={ArrowRightCircle}
+                    label={transferClosed ? 'Transfers Closed' : 'Transfer Tickets'}
+                    disabled={transferClosed}
+                    onPress={handleTransfer}
+                  />
+                  <View style={ms.actionRowDivider} />
+                  <ActionRow
+                    icon={TicketIcon}
+                    label="View Order Confirmation"
+                    onPress={() => {
+                      onClose();
+                      if (order.eventId) {
+                        router.push({
+                          pathname: '/event/[id]',
+                          params: {
+                            id: order.eventId,
+                            source: 'ticketShelf',
+                            orderId: order.id,
+                            eventTitle: order.eventTitle || '',
+                            eventDate: order.eventDate || '',
+                            eventCoverImage: order.eventCoverImage || '',
+                            venueLocation: order.venueLocation || '',
+                            hostName: (order as any).hostName || (order as any).promoterName || '',
+                            accentColor,
+                          },
+                        });
+                      }
+                    }}
+                  />
+                  <View style={ms.actionRowDivider} />
+                  <ActionRow
+                    icon={CalendarDays}
+                    label="Add to Calendar"
+                    onPress={() => {
+                      if (calendarUrl) Linking.openURL(calendarUrl);
+                    }}
+                  />
+                  <View style={ms.actionRowDivider} />
+                  <ActionRow
+                    icon={CreditCard}
+                    label={Platform.OS === 'ios' ? 'Add to Apple Wallet' : 'Add to Google Wallet'}
+                    onPress={handleAddToWallet}
+                  />
+                  <View style={ms.actionRowDivider} />
+                  <ActionRow
+                    icon={MapPin}
+                    label="Get Directions"
+                    onPress={() => {
+                      const venue = order.venueLocation;
+                      if (venue) Linking.openURL(`maps://search?q=${encodeURIComponent(venue)}`);
+                    }}
+                  />
+                </View>
+
+                {/* ─── Cover Wallet Section ─── */}
+                {activeWallet && (
+                  <View style={[ms.walletCardWrap, { width: cardWidth, alignSelf: 'center' }]}>
+                    <View style={ms.walletGlassCard}>
                       <LinearGradient
-                        colors={['rgba(255,255,255,0.6)', 'rgba(255,255,255,0.15)']}
+                        colors={['rgba(20,20,28,0.88)', 'rgba(10,10,15,0.96)']}
                         style={StyleSheet.absoluteFill}
                       />
-                      <QRCode
-                        value={qrData}
-                        size={miniQrSize}
-                        color="#161616"
-                        backgroundColor="transparent"
+                      <LinearGradient
+                        colors={[
+                          'rgba(255,255,255,0.08)',
+                          'rgba(244,74,34,0.05)',
+                          'rgba(255,255,255,0.02)',
+                        ]}
+                        locations={[0, 0.5, 1]}
+                        style={StyleSheet.absoluteFill}
                       />
+
+                      {/* Wallet State Badge */}
+                      <View style={ms.walletBadgeRow}>
+                        <View
+                          style={[
+                            ms.walletStateBadge,
+                            {
+                              backgroundColor:
+                                activeWallet.state === 'ACTIVE'
+                                  ? 'rgba(0,214,143,0.15)'
+                                  : activeWallet.state === 'PENDING'
+                                    ? 'rgba(255,170,0,0.15)'
+                                    : 'rgba(255,61,113,0.15)',
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              ms.walletStateBadgeText,
+                              {
+                                color:
+                                  activeWallet.state === 'ACTIVE'
+                                    ? colors.success
+                                    : activeWallet.state === 'PENDING'
+                                      ? colors.warning
+                                      : colors.error,
+                              },
+                            ]}
+                          >
+                            {activeWallet.state === 'ACTIVE'
+                              ? 'ACTIVE'
+                              : activeWallet.state === 'PENDING'
+                                ? 'LOCKED'
+                                : activeWallet.state}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Balance */}
+                      <Text style={ms.walletBalanceLabel}>Cover Charge Balance</Text>
+                      {activeWallet.showBalanceToGuest === false ? (
+                        <Text style={ms.walletOpeningBalance}>Balance hidden by venue policy</Text>
+                      ) : (
+                        <>
+                          <Text style={ms.walletBalanceAmount}>
+                            {formatRupees(activeWallet.currentBalancePaise)}
+                          </Text>
+                          <Text style={ms.walletOpeningBalance}>
+                            Opening: {formatRupees(activeWallet.openingBalancePaise)}
+                          </Text>
+                        </>
+                      )}
+
+                      {/* Divider */}
+                      <View style={ms.walletCardDivider} />
+
+                      {/* QR Code Section */}
+                      {activeWallet.state === 'ACTIVE' ? (
+                        <View style={ms.walletQrSection}>
+                          <Text style={ms.walletQrLabel}>Pay at Bar</Text>
+                          <Text style={ms.walletQrHint}>
+                            Show this QR to the bartender to pay from your cover balance
+                          </Text>
+                          <View style={ms.walletQrContainer}>
+                            {qrRotating ? (
+                              <>
+                                <LinearGradient
+                                  colors={['rgba(255,255,255,0.92)', 'rgba(225,225,230,0.86)']}
+                                  style={StyleSheet.absoluteFill}
+                                />
+                                <QRCode
+                                  value={qrJwt}
+                                  size={walletQrSize}
+                                  color="#161616"
+                                  backgroundColor="transparent"
+                                />
+                              </>
+                            ) : (
+                              <View style={ms.walletQrPlaceholder}>
+                                <Text style={ms.walletQrPlaceholderText}>Loading QR...</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={ms.walletQrTimerRow}>
+                            <Clock size={12} color="rgba(255,255,255,0.35)" />
+                            <WalletQrRefreshCountdown expiresAt={qrExpiresAt} />
+                          </View>
+                          {qrRefreshError && (
+                            <Text style={ms.walletQrRetryText}>
+                              Could not refresh — reconnect before presenting this code
+                            </Text>
+                          )}
+                        </View>
+                      ) : activeWallet.state === 'PENDING' ? (
+                        <View style={ms.walletLockedBanner}>
+                          <Text style={ms.walletLockedIcon}>🔒</Text>
+                          <Text style={ms.walletLockedTitle}>Wallet Locked</Text>
+                          <Text style={ms.walletLockedSubtitle}>
+                            Check in at the venue to unlock your cover balance.
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    {/* Transaction History */}
+                    <View style={ms.walletHistorySection}>
+                      <View style={ms.walletHistoryHeader}>
+                        <ArrowDownUp size={16} color="rgba(255,255,255,0.5)" strokeWidth={2} />
+                        <Text style={ms.walletHistoryTitle}>Transaction History</Text>
+                      </View>
+
+                      {activeWallet.showTransactionHistory === false ? (
+                        <View style={ms.walletHistoryEmpty}>
+                          <Text style={ms.walletHistoryEmptyText}>
+                            Transaction history hidden by venue policy
+                          </Text>
+                        </View>
+                      ) : activeWalletTransactions.length === 0 ? (
+                        <View style={ms.walletHistoryEmpty}>
+                          <Text style={ms.walletHistoryEmptyText}>No transactions yet</Text>
+                        </View>
+                      ) : (
+                        activeWalletTransactions.map((txn: any, i: number) => (
+                          <View key={txn.id || i} style={ms.walletHistoryRow}>
+                            <View style={ms.walletHistoryLeft}>
+                              <Text style={ms.walletHistoryItemName}>
+                                {txn.presetItemName ||
+                                  (txn.type === 'TOP_UP'
+                                    ? 'Top Up'
+                                    : txn.type === 'REVERSAL'
+                                      ? 'Reversal'
+                                      : txn.type === 'DEBIT'
+                                        ? 'Charge'
+                                        : txn.type)}
+                              </Text>
+                              <Text style={ms.walletHistoryTime}>
+                                {formatTxnDate(txn.createdAt)} {formatTxnTime(txn.createdAt)}
+                              </Text>
+                            </View>
+                            <Text
+                              style={[
+                                ms.walletHistoryAmount,
+                                {
+                                  color:
+                                    txn.type === 'DEBIT' || txn.type === 'EXPIRY_FORFEIT'
+                                      ? colors.error
+                                      : colors.success,
+                                },
+                              ]}
+                            >
+                              {txn.type === 'DEBIT' || txn.type === 'EXPIRY_FORFEIT' ? '-' : '+'}
+                              {formatRupees(txn.amountPaise)}
+                            </Text>
+                          </View>
+                        ))
+                      )}
                     </View>
                   </View>
+                )}
 
-                  {/* Side notches */}
-                  <View style={ms.notchLeft} />
-                  <View style={ms.notchRight} />
-                </Animated.View>
-
-                {/* BACK: Full QR code */}
-                <Animated.View style={[ms.cardFace, ms.cardBack, backStyle]}>
-                  <View
-                    style={[ms.fullQrWrap, { elevation: 0, shadowOpacity: 0, overflow: 'hidden' }]}
-                  >
-                    <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFill} />
-                    <LinearGradient
-                      colors={['rgba(255,255,255,0.6)', 'rgba(255,255,255,0.15)']}
-                      style={StyleSheet.absoluteFill}
-                    />
-                    <QRCode
-                      value={qrData}
-                      size={fullQrSize}
-                      color="#161616"
-                      backgroundColor="transparent"
-                    />
-                  </View>
-
-                  {/* Side notches */}
-                  <View style={ms.notchLeft} />
-                  <View style={ms.notchRight} />
-                </Animated.View>
-              </View>
-
-              {/* Show QR Code toggle */}
-              <Pressable onPress={handleFlip} style={ms.showQrBtn}>
-                <ScanLine size={25} color="#fff" strokeWidth={2.1} />
-                <Text style={ms.showQrText}>{showQR ? 'Show Poster' : 'Show QR Code'}</Text>
-              </Pressable>
-
-              {/* ─── Action Rows ─── */}
-              <View style={ms.actionGroup}>
-                <ActionRow
-                  icon={Info}
-                  label="View Event"
-                  onPress={() => {
-                    onClose();
-                    if (order.eventId) {
-                      router.push({
-                        pathname: '/event/[id]',
-                        params: {
-                          id: order.eventId,
-                        },
-                      });
-                    }
-                  }}
-                />
-                <View style={ms.actionRowDivider} />
-                <ActionRow
-                  icon={ArrowRightCircle}
-                  label="Transfer Tickets"
-                  onPress={handleTransfer}
-                />
-                <View style={ms.actionRowDivider} />
-                <ActionRow
-                  icon={TicketIcon}
-                  label="View Order Confirmation"
-                  onPress={() => {
-                    onClose();
-                    if (order.eventId) {
-                      router.push({
-                        pathname: '/event/[id]',
-                        params: {
-                          id: order.eventId,
-                          source: 'ticketShelf',
-                          orderId: order.id,
-                          eventTitle: order.eventTitle || '',
-                          eventDate: order.eventDate || '',
-                          eventCoverImage: order.eventCoverImage || '',
-                          venueLocation: order.venueLocation || '',
-                          hostName: (order as any).hostName || (order as any).promoterName || '',
-                          accentColor,
-                        },
-                      });
-                    }
-                  }}
-                />
-                <View style={ms.actionRowDivider} />
-                <ActionRow
-                  icon={CalendarDays}
-                  label="Add to Calendar"
-                  onPress={() => {
-                    if (calendarUrl) Linking.openURL(calendarUrl);
-                  }}
-                />
-                <View style={ms.actionRowDivider} />
-                <ActionRow
-                  icon={CreditCard}
-                  label="Add to Apple Wallet"
-                  onPress={handleAddToWallet}
-                />
-                <View style={ms.actionRowDivider} />
-                <ActionRow
-                  icon={MapPin}
-                  label="Get Directions"
-                  onPress={() => {
-                    const venue = order.venueLocation;
-                    if (venue) Linking.openURL(`maps://search?q=${encodeURIComponent(venue)}`);
-                  }}
-                />
-              </View>
-
-              {/* ─── Ticket Breakdown ─── */}
-              <View style={ms.breakdownCard}>
-                <Text style={ms.breakdownTitle}>Ticket Breakdown</Text>
-                {order.tickets?.map((t, i) => {
-                  const price = t.price ?? 0;
-                  const qty = t.quantity ?? 1;
-                  return (
-                    <View key={i} style={ms.breakdownRow}>
+                {/* ─── Ticket Breakdown ─── */}
+                <View style={ms.breakdownCard}>
+                  <Text style={ms.breakdownTitle}>Ticket Breakdown</Text>
+                  {order.tickets?.map((t, i) => {
+                    const price = t.price ?? 0;
+                    const qty = t.quantity ?? 1;
+                    const genderReq = t.requiredGender || (t as any).genderRestriction;
+                    return (
+                      <View key={i} style={ms.breakdownRow}>
+                        <View style={ms.breakdownLabelRow}>
+                          <Text style={ms.breakdownLabel}>
+                            {t.tierName || 'Ticket'} × {qty}
+                          </Text>
+                          {genderReq && genderReq !== 'any' && genderReq !== 'none' && (
+                            <View
+                              style={[
+                                ms.genderRestrictionPill,
+                                { backgroundColor: genderReq === 'female' ? '#FF1493' : '#4A90D9' },
+                              ]}
+                            >
+                              <Text style={ms.genderRestrictionPillText}>
+                                {genderReq === 'female' ? 'FEMALE' : genderReq.toUpperCase()}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={ms.breakdownValue}>
+                          {price > 0 ? `₹${(price * qty).toLocaleString('en-IN')}` : 'Free'}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                  {(!order.tickets || order.tickets.length === 0) && (
+                    <View style={ms.breakdownRow}>
                       <Text style={ms.breakdownLabel}>
-                        {t.tierName || 'Ticket'} × {qty}
+                        {ticketType} × {totalGuests || 1}
                       </Text>
                       <Text style={ms.breakdownValue}>
-                        {price > 0 ? `₹${(price * qty).toLocaleString('en-IN')}` : 'Free'}
+                        {totalRevenue > 0 ? `₹${totalRevenue.toLocaleString('en-IN')}` : 'Free'}
                       </Text>
                     </View>
-                  );
-                })}
-                {(!order.tickets || order.tickets.length === 0) && (
+                  )}
+                  <View style={ms.breakdownDivider} />
                   <View style={ms.breakdownRow}>
-                    <Text style={ms.breakdownLabel}>
-                      {ticketType} × {totalGuests || 1}
-                    </Text>
-                    <Text style={ms.breakdownValue}>
+                    <Text style={ms.breakdownTotalLabel}>Total</Text>
+                    <Text style={ms.breakdownTotalValue}>
                       {totalRevenue > 0 ? `₹${totalRevenue.toLocaleString('en-IN')}` : 'Free'}
                     </Text>
                   </View>
-                )}
-                <View style={ms.breakdownDivider} />
-                <View style={ms.breakdownRow}>
-                  <Text style={ms.breakdownTotalLabel}>Total</Text>
-                  <Text style={ms.breakdownTotalValue}>
-                    {totalRevenue > 0 ? `₹${totalRevenue.toLocaleString('en-IN')}` : 'Free'}
-                  </Text>
                 </View>
-              </View>
-            </ScrollView>
-          </SafeAreaView>
+              </ScrollView>
+            </SafeAreaView>
+          </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+
+      <ActionSheet
+        isVisible={activeSheet === 'share'}
+        onClose={() => setActiveSheet(null)}
+        title="Share Tickets"
+      >
+        <ShareSheetContent tickets={order.tickets} onShare={handleShareChannel} />
+      </ActionSheet>
+    </Fragment>
   );
 }
 
@@ -541,7 +1447,7 @@ const ms = StyleSheet.create({
     aspectRatio: 1.0,
     width: '100%',
     alignSelf: 'center',
-    marginBottom: 16,
+    marginBottom: 2,
   },
   cardFace: {
     position: 'absolute',
@@ -556,7 +1462,92 @@ const ms = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
+  ticketPagerPage: {
+    alignItems: 'center',
+  },
+  ticketSlotBadge: {
+    position: 'absolute',
+    bottom: 24,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.58)',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.22)',
+    maxWidth: '52%',
+  },
+  ticketSlotBadgeText: {
+    color: '#FFFFFF',
+    fontFamily: ticketFont.bold,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  ticketHolderRow: {
+    maxWidth: 360,
+    minHeight: 36,
+    alignSelf: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 0,
+    marginTop: 0,
+    marginBottom: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ticketHolderAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  ticketHolderAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  ticketHolderAvatarText: {
+    color: '#fff',
+    fontFamily: ticketFont.bold,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  ticketHolderName: {
+    color: '#fff',
+    fontFamily: ticketFont.bold,
+    fontSize: 15,
+    fontWeight: '800',
+    marginLeft: 8,
+    marginRight: 6,
+    maxWidth: 172,
+  },
+  ticketStatusPill: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(0,214,143,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,214,143,0.26)',
+  },
+  ticketStatusPillAvailable: {
+    backgroundColor: 'rgba(255,184,0,0.16)',
+    borderColor: 'rgba(255,184,0,0.26)',
+  },
+  ticketStatusPillUsed: {
+    backgroundColor: 'rgba(255,61,113,0.16)',
+    borderColor: 'rgba(255,61,113,0.26)',
+  },
+  ticketStatusPillText: {
+    color: '#fff',
+    fontFamily: ticketFont.bold,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
   // Host Text Overlay
   posterHostText: {
     position: 'absolute',
@@ -601,6 +1592,25 @@ const ms = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.32)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
+  },
+  posterBookingBadge: {
+    position: 'absolute',
+    bottom: 24,
+    left: 24,
+    backgroundColor: 'rgba(0,0,0,0.58)',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  posterBookingText: {
+    color: '#FFFFFF',
+    fontFamily: ticketFont.black,
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    fontVariant: ['tabular-nums'],
   },
 
   // Mini QR centered on poster
@@ -699,7 +1709,7 @@ const ms = StyleSheet.create({
 
   // Full QR back
   fullQrWrap: {
-    padding: 22,
+    padding: 16,
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
@@ -739,7 +1749,7 @@ const ms = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 2,
     gap: 10,
-    marginBottom: 20,
+    marginBottom: 12,
   },
   showQrText: {
     color: '#fff',
@@ -832,6 +1842,193 @@ const ms = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  breakdownLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  genderRestrictionPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  genderRestrictionPillText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  // ── Wallet UI ──
+  walletCardWrap: {
+    paddingVertical: 16,
+    width: '100%',
+  },
+  walletGlassCard: {
+    borderRadius: 24,
+    padding: 24,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  walletBadgeRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  walletStateBadge: {
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  walletStateBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  walletBalanceLabel: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  walletBalanceAmount: {
+    color: '#fff',
+    fontSize: 42,
+    fontWeight: '900',
+    fontFamily: ticketFont.black,
+    marginTop: 4,
+  },
+  walletOpeningBalance: {
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  walletCardDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginVertical: 20,
+  },
+  walletQrSection: {
+    alignItems: 'center',
+  },
+  walletQrLabel: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  walletQrHint: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 20,
+  },
+  walletQrContainer: {
+    width: 200,
+    height: 200,
+    borderRadius: 20,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  walletQrPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
+  },
+  walletQrPlaceholderText: {
+    color: 'rgba(0,0,0,0.3)',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  walletQrTimerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+  walletQrTimerText: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 11,
+  },
+  walletQrRetryText: {
+    color: 'rgba(255,170,0,0.6)',
+    fontSize: 10,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  walletLockedBanner: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  walletLockedIcon: {
+    fontSize: 36,
+    marginBottom: 8,
+  },
+  walletLockedTitle: {
+    color: '#FFAA00',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  walletLockedSubtitle: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 4,
+    paddingHorizontal: 20,
+  },
+  walletHistorySection: {
+    paddingHorizontal: 12,
+    paddingTop: 16,
+  },
+  walletHistoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  walletHistoryTitle: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  walletHistoryEmpty: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
+  walletHistoryEmptyText: {
+    color: 'rgba(255,255,255,0.25)',
+    fontSize: 13,
+  },
+  walletHistoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+  walletHistoryLeft: {
+    flex: 1,
+  },
+  walletHistoryItemName: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  walletHistoryTime: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  walletHistoryAmount: {
+    fontSize: 15,
+    fontWeight: '700',
+    fontFamily: ticketFont.bold,
+  },
 });
 
 // Full-bleed Boarding-Pass Ticket Card
@@ -849,8 +2046,11 @@ function TicketCard({
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
-  const totalGuests = (order as any).totalGuests ?? 0;
+  const computedQuantity =
+    order.tickets?.reduce((sum: number, t: any) => sum + (t.quantity || 1), 0) || 0;
+  const totalGuests = (order as any).totalGuests ?? computedQuantity;
   const hostName = (order as any).hostName || (order as any).promoterName || '';
+  const bookingLabel = formatBookingCode(order);
 
   const [cardWidth, setCardWidth] = useState(350);
   const shimmerProgress = useSharedValue(0);
@@ -877,43 +2077,19 @@ function TicketCard({
     if (onLayout) onLayout(event);
   };
 
-  // Format date like "Mar 12th • 5 PM"
-  const dateStr = (() => {
-    const d = safeDate(order.eventDate);
-    if (!d) return '';
-
-    const month = d.toLocaleDateString('en-US', { month: 'short' });
-    const day = d.getDate();
-    const time = d
-      .toLocaleTimeString('en-US', { hour: 'numeric', hour12: true })
-      .replace(':00', '');
-
-    // Add ordinal suffix (st, nd, rd, th)
-    const suffix = (day: number) => {
-      if (day > 3 && day < 21) return 'th';
-      switch (day % 10) {
-        case 1:
-          return 'st';
-        case 2:
-          return 'nd';
-        case 3:
-          return 'rd';
-        default:
-          return 'th';
-      }
-    };
-
-    return `${month} ${day}${suffix(day)} • ${time}`;
-  })();
+  const dateStr = formatTicketCardDate(
+    order.eventDate || order.eventStartDate,
+    order.eventTimezone,
+  );
 
   return (
     <AnimatedPressable
       entering={FadeInDown.delay(index * 70).duration(220)}
       onPressIn={() => {
-        scale.value = withTiming(0.97, { duration: 150 });
+        scale.value = withTiming(0.96, { duration: 250 });
       }}
       onPressOut={() => {
-        scale.value = withTiming(1, { duration: 150 });
+        scale.value = withTiming(1, { duration: 250 });
       }}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -927,7 +2103,8 @@ function TicketCard({
       <View style={styles.ticketCardInner}>
         {/* Full-bleed event poster */}
         {order.eventCoverImage ? (
-          <Image
+          <AnimatedExpoImage
+            sharedTransitionTag={`ticket-poster-${order.id}`}
             source={{ uri: order.eventCoverImage }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
@@ -947,9 +2124,27 @@ function TicketCard({
           style={StyleSheet.absoluteFill}
         />
 
+        {/* Solid black bottom section below perforated line */}
+        <View
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 42,
+            backgroundColor: '#000',
+          }}
+        />
+
         {/* Ticket Border Outline (placed behind notches so notches can mask it) */}
         <View style={styles.ticketBorder} collapsable={false}>
           <View style={{ width: 0, height: 0 }} />
+        </View>
+
+        <View pointerEvents="none" style={styles.ticketPerforation}>
+          {TICKET_PERFORATION_DASHES.map((_, dashIndex) => (
+            <View key={dashIndex} style={styles.ticketPerforationDash} />
+          ))}
         </View>
 
         {/* Holographic Specular Shimmer Overlay */}
@@ -968,9 +2163,9 @@ function TicketCard({
           <LinearGradient
             colors={[
               'rgba(255, 255, 255, 0)',
-              'rgba(255, 255, 255, 0.04)',
-              'rgba(255, 255, 255, 0.28)',
-              'rgba(255, 255, 255, 0.04)',
+              'rgba(255, 105, 180, 0.15)',
+              'rgba(0, 255, 255, 0.25)',
+              'rgba(147, 112, 219, 0.15)',
               'rgba(255, 255, 255, 0)',
             ]}
             start={{ x: 0, y: 0 }}
@@ -979,9 +2174,8 @@ function TicketCard({
           />
         </Animated.View>
 
-        {/* Side notches */}
-        <View style={styles.notchLeft} />
-        <View style={styles.notchRight} />
+        <View pointerEvents="none" style={[styles.ticketNotch, styles.ticketNotchLeft]} />
+        <View pointerEvents="none" style={[styles.ticketNotch, styles.ticketNotchRight]} />
 
         {/* content container */}
         <View style={styles.ticketContent}>
@@ -1004,7 +2198,7 @@ function TicketCard({
 
           {/* Bottom Row */}
           <View style={styles.ticketCardBottom}>
-            <View />
+            <Text style={styles.ticketBookingCode}>{bookingLabel}</Text>
             <View style={styles.qtyPill}>
               <Text style={styles.qtyPillText}>{totalGuests}x</Text>
               <TicketIcon size={12} color="#fff" />
@@ -1016,124 +2210,63 @@ function TicketCard({
   );
 }
 
-// Countdown Hero — shown when a ticket event is ≤7 days away
-function CountdownHero({ order, onViewTicket }: { order: Order; onViewTicket: () => void }) {
-  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
-
-  function getLowestPrice(event: any): number {
-    return event.minPrice ?? 0;
-  }
-
-  useEffect(() => {
-    const eventDate = safeDate(order.eventDate);
-    if (!eventDate) return;
-
-    const update = () => {
-      const diff = eventDate.getTime() - Date.now();
-      if (diff <= 0) {
-        setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
-        return;
-      }
-      const hours = Math.floor(diff / 3_600_000);
-      const minutes = Math.floor((diff % 3_600_000) / 60_000);
-      const seconds = Math.floor((diff % 60_000) / 1_000);
-      setTimeLeft({ hours, minutes, seconds });
-    };
-    update();
-    const interval = setInterval(update, 1_000);
-    return () => clearInterval(interval);
-  }, [order.eventDate]);
-
-  const pad = (n: number) => String(n).padStart(2, '0');
-
-  return (
-    <Animated.View entering={FadeInDown.duration(220)} style={styles.countdownHero}>
-      {order.eventCoverImage && (
-        <Image
-          source={{ uri: order.eventCoverImage }}
-          style={StyleSheet.absoluteFill}
-          contentFit="cover"
-        />
-      )}
-      <LinearGradient
-        colors={['rgba(22,22,22,0.3)', 'rgba(22,22,22,0.85)']}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles.countdownContent}>
-        <Text style={styles.countdownLabel}>Up next</Text>
-        <Text style={styles.countdownTitle} numberOfLines={1}>
-          {order.eventTitle}
-        </Text>
-        <Text style={styles.countdownDate}>{formatEventDate(order.eventDate)}</Text>
-        <View style={styles.countdownTimer}>
-          {[
-            { value: pad(timeLeft.hours), unit: 'HRS' },
-            { value: pad(timeLeft.minutes), unit: 'MIN' },
-            { value: pad(timeLeft.seconds), unit: 'SEC' },
-          ].map((item, i) => (
-            <View key={i} style={styles.countdownUnit}>
-              <Text style={styles.countdownDigits}>{item.value}</Text>
-              <Text style={styles.countdownUnitLabel}>{item.unit}</Text>
-            </View>
-          ))}
-        </View>
-        <Pressable onPress={onViewTicket} style={styles.countdownButton}>
-          <LinearGradient
-            colors={gradients.primary as [string, string]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.countdownButtonGradient}
-          >
-            <Text style={styles.countdownButtonText}>View Ticket</Text>
-          </LinearGradient>
-        </Pressable>
-      </View>
-    </Animated.View>
-  );
-}
-
 // Animated Segmented Control Header
 function SegmentedHeader({
   activeTab,
-  setActiveTab,
+  onTabChange,
   upcomingCount,
   pastCount,
+  scrollX,
 }: {
-  activeTab: 'upcoming' | 'past';
-  setActiveTab: (tab: 'upcoming' | 'past') => void;
+  activeTab: TicketTab;
+  onTabChange: (tab: TicketTab) => void;
   upcomingCount: number;
   pastCount: number;
+  scrollX: SharedValue<number>;
 }) {
-  const slideAnim = useSharedValue(activeTab === 'upcoming' ? 0 : 1);
-  const { user } = useAuthStore();
+  const { width: windowWidth } = useWindowDimensions();
+  const user = useAuthStore((state) => state.user);
   const profile = useProfileStore((state) => state.profile);
-  const avatarPhoto = profile?.photoURL || user?.photoURL || '';
-  const avatarInitial = (profile?.displayName || user?.displayName || 'A').charAt(0).toUpperCase();
+  const avatarPhoto = resolveCurrentUserPhoto(profile, user);
+  const avatarInitials = (profile?.displayName || user?.displayName || '')
+    .split(' ')
+    .map((name) => name[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
-  const handleTabPress = (tab: 'upcoming' | 'past') => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setActiveTab(tab);
-    slideAnim.value = withTiming(tab === 'upcoming' ? 0 : 1, { duration: 250 });
+  const handleTabPress = (tab: TicketTab) => {
+    onTabChange(tab);
   };
 
-  const animatedBgStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: slideAnim.value * TICKET_FILTER_THUMB_WIDTH }],
-  }));
+  const animatedBgStyle = useAnimatedStyle(() => {
+    const translateX = interpolate(
+      scrollX.value,
+      [0, windowWidth],
+      [0, TICKET_FILTER_THUMB_WIDTH],
+      Extrapolation.CLAMP,
+    );
+    return {
+      transform: [{ translateX }],
+    };
+  });
 
   return (
     <View style={styles.headerRow}>
       <Pressable
-        onPress={() => router.push('/(tabs)/explore')}
-        style={[
-          styles.headerIconBtn,
-          { borderWidth: 0, backgroundColor: 'transparent', shadowOpacity: 0, elevation: 0 },
-        ]}
+        onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+        style={[styles.avatarCircle, { width: 36, height: 36, borderRadius: 18 }]}
       >
-        <Wallet size={24} color="#fff" strokeWidth={2} />
+        <Wallet size={20} color={colors.gold} strokeWidth={2.5} />
       </Pressable>
 
       <View style={styles.segmentedContainer}>
-        <BlurView intensity={24} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView
+          blurMethod="dimezisBlurView"
+          intensity={24}
+          tint="dark"
+          style={StyleSheet.absoluteFill}
+        />
         <Animated.View style={[styles.segmentedActiveBg, animatedBgStyle]} />
         <Pressable onPress={() => handleTabPress('upcoming')} style={styles.segmentedTab}>
           <Text
@@ -1155,13 +2288,22 @@ function SegmentedHeader({
       </View>
 
       <Pressable
-        onPress={() => router.push('/profile')}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.push('/profile');
+        }}
         style={[styles.avatarCircle, { width: 36, height: 36, borderRadius: 18 }]}
       >
         {avatarPhoto ? (
           <Image source={{ uri: avatarPhoto }} style={styles.avatarImage} contentFit="cover" />
         ) : (
-          <Text style={[styles.avatarInitial, { fontSize: 14 }]}>{avatarInitial}</Text>
+          <View style={styles.avatarFallback}>
+            {avatarInitials ? (
+              <Text style={[styles.avatarInitial, { fontSize: 14 }]}>{avatarInitials}</Text>
+            ) : (
+              <User size={18} color={colors.gold} strokeWidth={2.5} />
+            )}
+          </View>
         )}
       </Pressable>
     </View>
@@ -1181,8 +2323,14 @@ function getOrderGroupLabel(order: Order): string {
 }
 
 export default function TicketsScreen() {
-  const { orders: storeOrders, loading: storeLoading, error, fetchUserOrders } = useTicketsStore();
-  const { user } = useAuthStore();
+  const storeOrders = useTicketsStore((state) => state.orders);
+  const storeLoading = useTicketsStore((state) => state.loading);
+  const error = useTicketsStore((state) => state.error);
+  const fetchUserOrders = useTicketsStore((state) => state.fetchUserOrders);
+  const user = useAuthStore((state) => state.user);
+  const authLoading = useAuthStore((state) => state.loading);
+  const authInitialized = useAuthStore((state) => state.initialized);
+  const authSyncFailed = useAuthStore((state) => state.authSyncFailed);
   const stats = (user as any)?.stats ?? {};
   const kpiActiveLinks = stats.activeLinks ?? 0;
   const kpiClicks = stats.totalClicks ?? 0;
@@ -1195,260 +2343,495 @@ export default function TicketsScreen() {
   const insets = useSafeAreaInsets();
   const { orderId } = useLocalSearchParams<{ orderId?: string }>();
 
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
+  const [activeTab, setActiveTab] = useState<TicketTab>('upcoming');
+  const activeTabRef = useRef<TicketTab>('upcoming');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
   const [cachedOrders, setCachedOrders] = useState<Order[]>([]);
+  const [storeOrdersUserId, setStoreOrdersUserId] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+  const [globalWalletData, setGlobalWalletData] = useState<any[]>([]);
+  const [globalWalletTxns, setGlobalWalletTxns] = useState<Record<string, any[]>>({});
+
+  const fetchWallet = useCallback(async (requestedUserId: string) => {
+    try {
+      const data = await deduplicateRequest<any>(
+        `tickets:cover-charge-wallet:${requestedUserId}`,
+        () => apiFetch('/api/v1/cover-charge/me'),
+      );
+      if (useAuthStore.getState().user?.uid !== requestedUserId) return;
+      if (Array.isArray(data.wallets)) {
+        setGlobalWalletData(data.wallets);
+        setGlobalWalletTxns(data.transactionsByWallet || {});
+      } else if (data.wallet) {
+        setGlobalWalletData([data.wallet]);
+        setGlobalWalletTxns({ [data.wallet.id]: data.transactions || [] });
+      } else {
+        setGlobalWalletData([]);
+        setGlobalWalletTxns({});
+      }
+    } catch {
+      if (useAuthStore.getState().user?.uid !== requestedUserId) return;
+      setGlobalWalletData([]);
+      setGlobalWalletTxns({});
+    }
+  }, []);
+  const loadCountRef = useRef(0);
+  const scrollX = useSharedValue(0);
+  const { width: windowWidth } = useWindowDimensions();
 
   useEffect(() => {
-    trackScreen('Tickets');
-    loadData();
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  const changeTicketTab = useCallback((tab: TicketTab) => {
+    if (activeTabRef.current === tab) return;
+    activeTabRef.current = tab;
+    setActiveTab(tab);
+    void Haptics.selectionAsync();
+  }, []);
+
+  useEffect(() => {
+    scrollX.value = withTiming(activeTab === 'upcoming' ? 0 : windowWidth, { duration: 180 });
+  }, [activeTab, scrollX, windowWidth]);
+
+  const ticketTabSwipeGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-24, 24])
+        .failOffsetY([-18, 18])
+        .onEnd((event) => {
+          const shouldSwitch =
+            Math.abs(event.translationX) >= TICKET_TAB_SWIPE_DISTANCE ||
+            Math.abs(event.velocityX) >= TICKET_TAB_SWIPE_VELOCITY;
+          if (!shouldSwitch) return;
+          runOnJS(changeTicketTab)(event.translationX < 0 ? 'past' : 'upcoming');
+        }),
+    [changeTicketTab],
+  );
+
+  useEffect(() => {
+    loadCountRef.current += 1;
+    setCachedOrders([]);
+    setStoreOrdersUserId(null);
+    setIsOffline(false);
+    setGlobalWalletData([]);
+    setGlobalWalletTxns({});
+    setSelectedOrder(null);
+    setShowQRModal(false);
   }, [user?.uid]);
 
-  const loadData = async () => {
-    if (!user?.uid) return;
+  const loadData = useCallback(
+    async (requestedUserId?: string) => {
+      const activeUserId = requestedUserId || useAuthStore.getState().user?.uid;
+      if (!activeUserId || activeUserId !== useAuthStore.getState().user?.uid) return;
+      void fetchWallet(activeUserId);
 
-    const cached = await getCachedUserOrders();
-    if (cached.data && cached.data.length > 0) {
-      setCachedOrders(cached.data);
-    }
-
-    try {
-      await fetchUserOrders(user.uid);
-      const store = useTicketsStore.getState();
-      if (store.orders.length > 0) {
-        await cacheUserOrders(store.orders);
-        setIsOffline(false);
-      } else {
-        setIsOffline(false);
+      const loadId = ++loadCountRef.current;
+      const cached = await getCachedUserOrders(activeUserId);
+      if (loadId !== loadCountRef.current || useAuthStore.getState().user?.uid !== activeUserId) {
+        return;
       }
-    } catch (err) {
-      setIsOffline(true);
-    }
-  };
+      if (cached.data && cached.data.length > 0) {
+        setCachedOrders(cached.data);
+      }
+
+      try {
+        await fetchUserOrders();
+        if (loadId !== loadCountRef.current || useAuthStore.getState().user?.uid !== activeUserId) {
+          return;
+        }
+        const store = useTicketsStore.getState();
+        if (store.error) {
+          setIsOffline(true);
+        } else {
+          setStoreOrdersUserId(activeUserId);
+          await cacheUserOrders(activeUserId, store.orders);
+          if (
+            loadId !== loadCountRef.current ||
+            useAuthStore.getState().user?.uid !== activeUserId
+          ) {
+            return;
+          }
+          setIsOffline(false);
+        }
+      } catch {
+        if (loadId === loadCountRef.current) setIsOffline(true);
+      }
+    },
+    [fetchUserOrders, fetchWallet],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      trackScreen('Tickets');
+      const requestedUserId = user?.uid;
+      if (requestedUserId) void loadData(requestedUserId);
+      return () => {
+        loadCountRef.current += 1;
+      };
+    }, [loadData, user?.uid]),
+  );
+
+  useEffect(() => {
+    const requestedUserId = user?.uid;
+    if (!isOffline || !requestedUserId) return;
+
+    let cancelled = false;
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRetry = () => {
+      if (cancelled) return;
+      const delay = Math.min(2_000 * 2 ** attempt, 30_000);
+      retryTimer = setTimeout(async () => {
+        await loadData(requestedUserId);
+        attempt += 1;
+        scheduleRetry();
+      }, delay);
+    };
+    scheduleRetry();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [isOffline, loadData, user?.uid]);
+
+  useEffect(() => {
+    const requestedUserId = user?.uid;
+    if (!showQRModal || !requestedUserId) return;
+    void fetchWallet(requestedUserId);
+    const refreshId = setInterval(() => {
+      void fetchWallet(requestedUserId);
+    }, 3_000);
+    return () => clearInterval(refreshId);
+  }, [fetchWallet, showQRModal, user?.uid]);
 
   const onRefresh = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     loadData();
   };
 
-  const orders = storeOrders;
+  const orders = storeOrdersUserId === user?.uid ? storeOrders : [];
   const loading = storeLoading;
-  const displayOrders = orders.length > 0 ? orders : cachedOrders;
+  const displayOrders = user?.uid
+    ? (loading || isOffline) && orders.length === 0
+      ? cachedOrders
+      : orders
+    : [];
   const nowMs = Date.now();
 
-  // Find the soonest upcoming event within 7 days for CountdownHero
-  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-  const nextEvent =
-    displayOrders
-      .filter((o) => {
-        const t = safeDate(o.eventDate)?.getTime() ?? 0;
-        return t > nowMs && t <= nowMs + sevenDaysMs;
-      })
-      .sort(
-        (a, b) => (safeDate(a.eventDate)?.getTime() ?? 0) - (safeDate(b.eventDate)?.getTime() ?? 0),
-      )[0] ?? null;
-  const upcomingOrders = displayOrders.filter((o) => {
-    if (!o.eventDate) return true;
-    return (safeDate(o.eventDate)?.getTime() ?? 0) >= nowMs;
-  });
-  const pastOrders = displayOrders.filter((o) => {
-    if (!o.eventDate) return false;
-    return (safeDate(o.eventDate)?.getTime() ?? 0) < nowMs;
-  });
+  const upcomingOrders = displayOrders.filter((order) => !isOrderEventEnded(order, nowMs));
+  const pastOrders = displayOrders.filter((order) => isOrderEventEnded(order, nowMs));
   const displayedOrders = activeTab === 'upcoming' ? upcomingOrders : pastOrders;
+  const walletIsEmpty = upcomingOrders.length === 0 && pastOrders.length === 0;
   const showPendingReservationBanner =
-    Boolean(pendingReservation) &&
-    Boolean(pendingPaymentOrderId) &&
-    new Date(pendingReservation!.expiresAt).getTime() > Date.now();
-  const groupedDisplayedOrders = useMemo(() => {
+    Boolean(pendingReservation) && Boolean(pendingPaymentOrderId);
+  const pendingReservationExpired =
+    showPendingReservationBanner && new Date(pendingReservation!.expiresAt).getTime() <= Date.now();
+  const getFlattened = useCallback((ordersList: Order[], isUpcoming: boolean) => {
     const groups = new Map<string, Order[]>();
-
-    displayedOrders.forEach((order) => {
+    ordersList.forEach((order) => {
       const label = getOrderGroupLabel(order);
       const current = groups.get(label) || [];
       current.push(order);
       groups.set(label, current);
     });
+    return [...groups.entries()]
+      .map(([label, groupedOrders]) => ({
+        label,
+        orders: groupedOrders.sort((left, right) => {
+          const leftTime =
+            safeDate(left.eventDate || left.eventStartDate || left.createdAt)?.getTime() ?? 0;
+          const rightTime =
+            safeDate(right.eventDate || right.eventStartDate || right.createdAt)?.getTime() ?? 0;
+          return isUpcoming ? leftTime - rightTime : rightTime - leftTime;
+        }),
+      }))
+      .flatMap((g) => g.orders);
+  }, []);
 
-    return [...groups.entries()].map(([label, groupedOrders]) => ({
-      label,
-      orders: groupedOrders.sort((left, right) => {
-        const leftTime =
-          safeDate(left.eventDate || left.eventStartDate || left.createdAt)?.getTime() ?? 0;
-        const rightTime =
-          safeDate(right.eventDate || right.eventStartDate || right.createdAt)?.getTime() ?? 0;
-        return activeTab === 'upcoming' ? leftTime - rightTime : rightTime - leftTime;
-      }),
-    }));
-  }, [activeTab, displayedOrders]);
+  const upcomingFlattened = useMemo(
+    () => getFlattened(upcomingOrders, true),
+    [getFlattened, upcomingOrders],
+  );
+  const pastFlattened = useMemo(() => getFlattened(pastOrders, false), [getFlattened, pastOrders]);
 
   // If opened via deep link, auto-open the order sheet.
   useEffect(() => {
-    if (!orderId) return;
+    if (!user?.uid || !orderId) return;
     const linkedOrder = displayedOrders.find((o) => o.id === orderId);
     if (linkedOrder) {
       setSelectedOrder(linkedOrder);
       setShowQRModal(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId, orders, cachedOrders]);
+  }, [orderId, orders, cachedOrders, user?.uid]);
 
   useEffect(() => {
     if (!selectedOrder) return;
     const refreshedOrder = displayOrders.find((order) => order.id === selectedOrder.id);
-    if (refreshedOrder && refreshedOrder !== selectedOrder) {
-      setSelectedOrder(refreshedOrder);
+    if (refreshedOrder) {
+      if (refreshedOrder !== selectedOrder) {
+        setSelectedOrder(refreshedOrder);
+      }
+    } else {
+      // Order was removed from wallet — close modal and clear selection
+      setShowQRModal(false);
+      setSelectedOrder(null);
     }
   }, [displayOrders, selectedOrder]);
 
-  useEffect(() => {
-    if (!showQRModal || !user?.uid) return;
-    const refreshTimer = setInterval(() => {
-      void fetchUserOrders(user.uid);
-    }, 45_000);
-    return () => clearInterval(refreshTimer);
-  }, [fetchUserOrders, showQRModal, user?.uid]);
+  const authPending = authLoading || !authInitialized;
+  if (authPending || !user?.uid) {
+    const sessionUnavailable = !authPending && authSyncFailed;
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyEmoji}>{authPending ? '🎟️' : '🔒'}</Text>
+          <Text style={styles.emptyTitle}>
+            {authPending
+              ? 'Loading your wallet…'
+              : sessionUnavailable
+                ? 'We could not verify your session.'
+                : 'Sign in to view your tickets'}
+          </Text>
+          <Text style={styles.emptyText}>
+            {authPending
+              ? 'Your tickets will appear as soon as your session is ready.'
+              : sessionUnavailable
+                ? 'Sign in again to securely reload your ticket wallet.'
+                : 'Your purchased, shared, and claimed tickets are kept private to your account.'}
+          </Text>
+          {!authPending ? (
+            <Pressable
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({
+                  pathname: '/(auth)/login',
+                  params: { returnTo: '/(tabs)/tickets' },
+                });
+              }}
+              style={styles.emptyButton}
+            >
+              <LinearGradient
+                colors={gradients.primary as [string, string]}
+                style={styles.emptyButtonGradient}
+              >
+                <Text style={styles.emptyButtonText}>Sign In</Text>
+              </LinearGradient>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Constant Orange Atmosphere Background */}
-      <View style={StyleSheet.absoluteFill}>
-        <LinearGradient
-          colors={[hexWithAlpha(colors.iris, '55', 'rgba(244, 74, 34, 0.33)'), 'rgba(5,5,6,0)']}
-          locations={[0, 0.85]}
-          style={StyleSheet.absoluteFill}
+      {/* QR Modal */}
+      {selectedOrder ? (
+        <QRModal
+          visible={showQRModal}
+          order={selectedOrder}
+          onClose={() => setShowQRModal(false)}
+          walletData={globalWalletData}
+          walletTransactions={globalWalletTxns}
+          onWalletRefresh={loadData}
         />
+      ) : null}
+
+      <View style={styles.header}>
+        <SegmentedHeader
+          activeTab={activeTab}
+          onTabChange={changeTicketTab}
+          upcomingCount={upcomingOrders.length}
+          pastCount={pastOrders.length}
+          scrollX={scrollX}
+        />
+
+        {showPendingReservationBanner && pendingReservation ? (
+          <View style={styles.pendingReservationCard}>
+            <View style={styles.pendingReservationCopy}>
+              <Text style={styles.pendingReservationEyebrow}>
+                {pendingReservationExpired ? 'Reservation Expired' : 'Incomplete Payment'}
+              </Text>
+              <Text style={styles.pendingReservationTitle}>
+                {pendingReservationExpired
+                  ? 'Your ticket reservation has expired. You can still try to complete payment.'
+                  : pendingReservation.eventTitle || 'Your reserved tickets are waiting'}
+              </Text>
+            </View>
+            <View style={styles.pendingReservationActions}>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  clearPendingReservation();
+                }}
+              >
+                <Text style={styles.pendingReservationDismiss}>Dismiss</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push('/checkout');
+                }}
+                style={styles.pendingReservationButton}
+              >
+                <Text style={styles.pendingReservationButtonText}>Resume</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
       </View>
 
-      {/* QR Modal */}
-      <QRModal visible={showQRModal} order={selectedOrder} onClose={() => setShowQRModal(false)} />
-
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-        overScrollMode="never"
-        contentContainerStyle={{ paddingBottom: 120 }}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.iris} />
-        }
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <SegmentedHeader
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            upcomingCount={upcomingOrders.length}
-            pastCount={pastOrders.length}
-          />
-
-          {showPendingReservationBanner && pendingReservation ? (
-            <View style={styles.pendingReservationCard}>
-              <View style={styles.pendingReservationCopy}>
-                <Text style={styles.pendingReservationEyebrow}>Incomplete Payment</Text>
-                <Text style={styles.pendingReservationTitle}>
-                  {pendingReservation.eventTitle || 'Your reserved tickets are waiting'}
-                </Text>
-              </View>
-              <View style={styles.pendingReservationActions}>
-                <Pressable onPress={clearPendingReservation}>
-                  <Text style={styles.pendingReservationDismiss}>Dismiss</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => router.push('/checkout')}
-                  style={styles.pendingReservationButton}
-                >
-                  <Text style={styles.pendingReservationButtonText}>Resume</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : null}
+      {error && !loading && displayOrders.length > 0 && (
+        <View style={styles.walletSyncBanner}>
+          <Text style={styles.walletSyncText} numberOfLines={2}>
+            Wallet sync failed. Showing saved tickets.
+          </Text>
+          <Pressable onPress={onRefresh} style={styles.walletSyncRetry}>
+            <Text style={styles.walletSyncRetryText}>Retry</Text>
+          </Pressable>
         </View>
+      )}
 
-        {/* Countdown Hero — next event ≤ 7 days away */}
-        {nextEvent && (
-          <CountdownHero
-            order={nextEvent}
-            onViewTicket={() => {
-              setSelectedOrder(nextEvent);
-              setShowQRModal(true);
-            }}
-          />
-        )}
+      {loading && displayOrders.length === 0 && <SkeletonList count={3} />}
 
-        {/* Loading with skeleton */}
-        {loading && displayOrders.length === 0 && <SkeletonList type="ticket" count={3} />}
+      {error && !loading && displayOrders.length === 0 && !isOffline && (
+        <ErrorState message="Failed to load your tickets. Please try again." onRetry={onRefresh} />
+      )}
 
-        {/* Error - No cached data */}
-        {error && !loading && displayOrders.length === 0 && !isOffline && (
-          <ErrorState
-            message="Failed to load your tickets. Please try again."
-            onRetry={onRefresh}
-          />
-        )}
+      {isOffline && displayOrders.length === 0 && !loading && <NetworkError onRetry={onRefresh} />}
 
-        {/* Offline with no cache */}
-        {isOffline && displayOrders.length === 0 && !loading && (
-          <NetworkError onRetry={onRefresh} />
-        )}
-
-        {/* Tickets */}
-        <Animated.View
-          key={activeTab}
-          entering={FadeIn.duration(400)}
-          exiting={FadeOut.duration(300)}
-          style={[styles.ticketsList, { paddingBottom: 100 }]} // Extra padding so the bottom card isn't flush
-        >
-          {(() => {
-            let globalIndex = 0;
-            return groupedDisplayedOrders.map((group) => (
-              <Fragment key={group.label}>
-                {group.orders.map((order) => {
-                  const currentIndex = globalIndex++;
-                  return (
-                    <TicketCard
-                      key={order.id}
-                      order={order}
-                      onShowQR={() => {
-                        setSelectedOrder(order);
-                        setShowQRModal(true);
+      <GestureDetector gesture={ticketTabSwipeGesture}>
+        <View style={{ flex: 1 }}>
+          {activeTab === 'upcoming' ? (
+            <FlatList
+              data={upcomingFlattened}
+              keyExtractor={(item: any) => item.id}
+              renderItem={({ item, index }: any) => (
+                <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
+                  <TicketCard
+                    order={item}
+                    onShowQR={() => {
+                      setSelectedOrder(item);
+                      setShowQRModal(true);
+                    }}
+                    index={index}
+                  />
+                </View>
+              )}
+              style={styles.scrollView}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              overScrollMode="never"
+              contentContainerStyle={[
+                { paddingBottom: 120 },
+                upcomingFlattened.length === 0 && { flexGrow: 1 },
+              ]}
+              refreshControl={
+                <RefreshControl
+                  refreshing={loading}
+                  onRefresh={onRefresh}
+                  tintColor={colors.iris}
+                />
+              }
+              ListEmptyComponent={
+                !loading && upcomingFlattened.length === 0 && !error ? (
+                  <Animated.View entering={FadeIn.delay(200)} style={styles.emptyContainer}>
+                    <Text style={styles.emptyEmoji}>🎟️</Text>
+                    <Text style={styles.emptyTitle}>
+                      {walletIsEmpty ? 'Your wallet is empty.' : 'No Upcoming Tickets'}
+                    </Text>
+                    <Text style={styles.emptyText}>
+                      {walletIsEmpty
+                        ? 'Find your next party and grab a ticket.'
+                        : 'Your purchased tickets will appear here'}
+                    </Text>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push('/(tabs)/explore');
                       }}
-                      index={currentIndex}
-                    />
-                  );
-                })}
-              </Fragment>
-            ));
-          })()}
-        </Animated.View>
-
-        {/* Empty State */}
-        {!loading && displayedOrders.length === 0 && !error && (
-          <Animated.View entering={FadeIn.delay(200)} style={styles.emptyContainer}>
-            <Text style={styles.emptyEmoji}>🎟️</Text>
-            <Text style={styles.emptyTitle}>
-              {activeTab === 'upcoming' ? 'No Upcoming Tickets' : 'No Past Tickets'}
-            </Text>
-            <Text style={styles.emptyText}>
-              {activeTab === 'upcoming'
-                ? 'Your purchased tickets will appear here'
-                : 'Your attended events will appear here'}
-            </Text>
-            {activeTab === 'upcoming' && (
-              <Pressable onPress={() => router.push('/(tabs)/explore')} style={styles.emptyButton}>
-                <LinearGradient
-                  colors={gradients.primary as [string, string]}
-                  style={styles.emptyButtonGradient}
-                >
-                  <Text style={styles.emptyButtonText}>Explore Events</Text>
-                </LinearGradient>
-              </Pressable>
-            )}
-          </Animated.View>
-        )}
-      </ScrollView>
+                      style={styles.emptyButton}
+                    >
+                      <LinearGradient
+                        colors={gradients.primary as [string, string]}
+                        style={styles.emptyButtonGradient}
+                      >
+                        <Text style={styles.emptyButtonText}>Explore Events</Text>
+                      </LinearGradient>
+                    </Pressable>
+                  </Animated.View>
+                ) : null
+              }
+            />
+          ) : (
+            <FlatList
+              data={pastFlattened}
+              keyExtractor={(item: any) => item.id}
+              renderItem={({ item, index }: any) => (
+                <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
+                  <TicketCard
+                    order={item}
+                    onShowQR={() => {
+                      setSelectedOrder(item);
+                      setShowQRModal(true);
+                    }}
+                    index={index}
+                  />
+                </View>
+              )}
+              style={styles.scrollView}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              overScrollMode="never"
+              contentContainerStyle={[
+                { paddingBottom: 120 },
+                pastFlattened.length === 0 && { flexGrow: 1 },
+              ]}
+              refreshControl={
+                <RefreshControl
+                  refreshing={loading}
+                  onRefresh={onRefresh}
+                  tintColor={colors.iris}
+                />
+              }
+              ListEmptyComponent={
+                !loading && pastFlattened.length === 0 && !error ? (
+                  <Animated.View entering={FadeIn.delay(200)} style={styles.emptyContainer}>
+                    <Text style={styles.emptyEmoji}>🎟️</Text>
+                    <Text style={styles.emptyTitle}>
+                      {walletIsEmpty ? 'Your wallet is empty.' : 'No Past Tickets'}
+                    </Text>
+                    <Text style={styles.emptyText}>
+                      {walletIsEmpty
+                        ? 'Find your next party and grab a ticket.'
+                        : 'Your attended events will appear here'}
+                    </Text>
+                    {walletIsEmpty && (
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          router.push('/(tabs)/explore');
+                        }}
+                        style={styles.emptyButton}
+                      >
+                        <LinearGradient
+                          colors={gradients.primary as [string, string]}
+                          style={styles.emptyButtonGradient}
+                        >
+                          <Text style={styles.emptyButtonText}>Explore Events</Text>
+                        </LinearGradient>
+                      </Pressable>
+                    )}
+                  </Animated.View>
+                ) : null
+              }
+            />
+          )}
+        </View>
+      </GestureDetector>
     </View>
   );
 }
@@ -1465,7 +2848,7 @@ const styles = StyleSheet.create({
   // Header
   header: {
     paddingHorizontal: 17,
-    paddingTop: 8,
+    paddingTop: 24,
     paddingBottom: 14,
   },
   headerRow: {
@@ -1560,10 +2943,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  avatarFallback: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.base[100],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   avatarInitial: {
-    color: '#fff',
+    color: colors.gold,
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   offlineBadge: {
     backgroundColor: 'rgba(255, 170, 0, 0.15)',
@@ -1577,74 +2967,6 @@ const styles = StyleSheet.create({
     color: colors.warning,
     fontSize: 12,
     fontWeight: '600',
-  },
-
-  // Countdown hero
-  countdownHero: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: radii['2xl'],
-    overflow: 'hidden',
-    height: 220,
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
-  },
-  countdownContent: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'flex-end',
-  },
-  countdownLabel: {
-    color: colors.iris,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  countdownTitle: {
-    color: colors.gold,
-    fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  countdownDate: {
-    color: colors.goldMetallic,
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  countdownTimer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  countdownUnit: {
-    alignItems: 'center',
-  },
-  countdownDigits: {
-    color: colors.gold,
-    fontSize: 28,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  countdownUnitLabel: {
-    color: colors.goldMetallic,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 1,
-  },
-  countdownButton: {
-    alignSelf: 'flex-start',
-  },
-  countdownButtonGradient: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: radii.pill,
-  },
-  countdownButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
   },
 
   // Hidden Receive Card (relying on design mockup)
@@ -1696,9 +3018,44 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     zIndex: 1,
   },
+  ticketPerforation: {
+    position: 'absolute',
+    left: 26,
+    right: 26,
+    bottom: 42,
+    zIndex: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  ticketPerforationDash: {
+    width: 7,
+    height: 1,
+    borderRadius: 1,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  ticketNotch: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -8,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#070708',
+    borderWidth: 1.2,
+    borderColor: 'rgba(255,255,255,0.18)',
+    zIndex: 6,
+  },
+  ticketNotchLeft: {
+    left: -8,
+  },
+  ticketNotchRight: {
+    right: -8,
+  },
   ticketContent: {
     flex: 1,
     padding: 20,
+    paddingBottom: 14,
     justifyContent: 'space-between',
   },
   ticketTopRow: {
@@ -1729,6 +3086,19 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
+  },
+  ticketBookingCode: {
+    overflow: 'hidden',
+    color: '#161616',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    fontFamily: ticketFont.black,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 10,
+    fontVariant: ['tabular-nums'],
   },
   ticketLeftDate: {
     color: 'rgba(255,255,255,0.85)',
@@ -1762,32 +3132,6 @@ const styles = StyleSheet.create({
     fontFamily: ticketFont.bold,
     fontSize: 13,
     fontWeight: '700',
-  },
-  notchLeft: {
-    position: 'absolute',
-    left: -12,
-    top: '50%',
-    marginTop: -12,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#000000',
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
-    zIndex: 5,
-  },
-  notchRight: {
-    position: 'absolute',
-    right: -12,
-    top: '50%',
-    marginTop: -12,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#000000',
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
-    zIndex: 5,
   },
   ticketCardQtyText: {
     color: '#fff',
@@ -2071,9 +3415,42 @@ const styles = StyleSheet.create({
     color: colors.error,
     textAlign: 'center',
   },
-  emptyContainer: {
+  walletSyncBanner: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 14,
+    backgroundColor: 'rgba(255, 61, 113, 0.13)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 61, 113, 0.28)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 60,
+    gap: 12,
+  },
+  walletSyncText: {
+    flex: 1,
+    color: colors.gold,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  walletSyncRetry: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  walletSyncRetryText: {
+    color: colors.goldLight,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 40,
   },
   emptyEmoji: {
@@ -2082,14 +3459,18 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     color: colors.gold,
-    fontSize: 22,
-    fontWeight: '700',
+    fontFamily: ticketFont.black,
+    fontSize: 28,
+    fontWeight: '900',
     marginBottom: 8,
+    textAlign: 'center',
+    letterSpacing: 0,
   },
   emptyText: {
     color: colors.goldMetallic,
     fontSize: 15,
     textAlign: 'center',
+    lineHeight: 22,
     marginBottom: 24,
   },
   emptyButton: {},

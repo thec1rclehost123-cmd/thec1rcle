@@ -34,6 +34,7 @@ export default async function socialLikesRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/social/likes/received',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -68,6 +69,7 @@ export default async function socialLikesRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/likes/:id/respond',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: LikeRequestParams, body: LikeRequestActionBody }),

@@ -1,14 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowDownToLine, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { VenuePageShell, VenueActionButton } from '@/components/venue-layout/VenuePageShell';
+import { useQuery } from '@tanstack/react-query';
+import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { VenuePageShell } from '@/components/venue-layout/VenuePageShell';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Button } from '@/components/ui/Button';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import type { PayoutRequest } from '@/lib/types/splitFinance';
-import { randomUUID } from '@/lib/utils/uuid';
 import { formatINRFromPaise } from '@/lib/utils/format';
 
 const STATUS_CONFIG: Record<
@@ -161,16 +158,17 @@ function PayoutPillRow({ payout }: { payout: PayoutRequest }) {
 }
 
 export function VenuePayoutsClient() {
-  const { profile } = useDashboardAuth();
+  const { profile, getIdToken } = useDashboardAuth();
   const venueId = profile?.activeMembership?.partnerId;
-  const qc = useQueryClient();
-  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['finance-venue-payouts', venueId],
     queryFn: async () => {
-      const res = await fetch(`/api/partners/venues/finance/venue-payouts?venueId=${venueId}`);
-      if (!res.ok) throw new Error('Failed');
+      const token = await getIdToken();
+      const res = await fetch(`/api/partners/venues/finance/venue-payouts?venueId=${venueId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Canonical payout data is unavailable');
       return res.json();
     },
     enabled: !!venueId,
@@ -183,17 +181,25 @@ export function VenuePayoutsClient() {
   return (
     <VenuePageShell
       title="Venue Payouts"
-      subtitle="Your withdrawable balance and payout history"
+      subtitle="Ledger-backed balance and payout history"
       actions={
-        <VenueActionButton
-          icon={ArrowDownToLine}
-          onClick={() => setShowWithdrawModal(true)}
-          disabled={!balance || balance.withdrawablePaise < 100}
-        >
-          Withdraw
-        </VenueActionButton>
+        <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-xs font-bold text-amber-200">
+          Withdrawals unavailable during launch verification
+        </span>
       }
     >
+      {error ? (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-red-400/20 bg-red-400/10 px-5 py-4">
+          <p className="text-sm text-red-200">{error.message}</p>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="rounded-xl border border-red-300/30 px-3 py-2 text-xs font-bold text-red-100"
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
       {/* Balance cards — glassmorphism */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         {[

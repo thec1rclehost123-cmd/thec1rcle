@@ -44,7 +44,7 @@ const WaitingRoom = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="w-full max-w-xl relative z-10"
           >
-            <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[32px] p-5 sm:p-8 mb-6 overflow-hidden relative">
+            <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-[32px] p-5 sm:p-8 mb-6 overflow-hidden relative">
               <div className="flex items-center gap-6">
                 <div className="h-20 w-20 rounded-2xl bg-white/10 overflow-hidden">
                   <img
@@ -70,7 +70,7 @@ const WaitingRoom = () => {
               </div>
             </div>
 
-            <div className="bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[40px] p-6 sm:p-10 text-center shadow-2xl">
+            <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-[40px] p-6 sm:p-10 text-center shadow-2xl">
               {errorMessage && (
                 <div className="mb-6 rounded-3xl border border-red-500/20 bg-red-500/10 p-4 text-left">
                   <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-300">

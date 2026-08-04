@@ -1,0 +1,864 @@
+{
+  "passed": true,
+  "role": "promoter",
+  "email": "qa_promoter_2026@test.c1rcle.com",
+  "loginStatus": 200,
+  "elapsedMs": 130565,
+  "routeResults": [
+    {
+      "route": "/promoter",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter",
+      "elapsedMs": 4461,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:16 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Overview Analytics Payout settings · ₹0 Performance CLICKS — CLICKS REVENUE 28 Jun 4 Jul 10 Jul 16 Jul 22 Jul 28 Jul 1D 1W 1M ALL Latest Orders VIEW MORE Upcoming Events Open events",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1085
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1103
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/overview",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/overview",
+          "status": 200,
+          "elapsedMs": 1168
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/guests",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/guests?promoterId=promoter_ACKUnmLK&limit=6",
+          "status": 200,
+          "elapsedMs": 1609
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 2321
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/analytics",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/analytics",
+      "elapsedMs": 5352,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:16 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Analytics All Events 7D 30D YTD ALL TOTAL CLICKS TICKETS SOLD CONVERSION RATE TOTAL EARNINGS REVENUE CLICKS SALES DATE-WISE BREAKDOWN TOP PERFORMING LINKS 0 active of 0 total links BY CLICKS RECENT ACTIVITY Latest promoter link activity from the backend",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1388
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1466
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/links",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/links?limit=200",
+          "status": 200,
+          "elapsedMs": 1512
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/analytics/overview",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/analytics/overview",
+      "elapsedMs": 3153,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:16 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Analytics All Events 7D 30D YTD ALL TOTAL CLICKS TICKETS SOLD CONVERSION RATE TOTAL EARNINGS REVENUE CLICKS SALES DATE-WISE BREAKDOWN TOP PERFORMING LINKS 0 active of 0 total links BY CLICKS RECENT ACTIVITY Latest promoter link activity from the backend",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 851
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1185
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/links",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/links?limit=200",
+          "status": 200,
+          "elapsedMs": 1108
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/connections",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/connections",
+      "elapsedMs": 3450,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:17 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q PARTNER NETWORK Connections Build your professional network and unlock exclusive commissions. Discover Pending Connected Rejected HOST VENUES All Cities Pune Mumbai Goa Bengaluru",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 885
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1268
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/connections",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/connections",
+          "status": 200,
+          "elapsedMs": 1503
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1530
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/events",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/events",
+      "elapsedMs": 4462,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:17 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Events Refresh Discover0 Linked Events0 All Cities Pune, IN Mumbai, IN Bengaluru, IN Goa, IN Delhi NCR, IN Hyderabad, IN Chennai, IN Kolkata, IN Jaipur, IN Chandigarh, IN",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1180
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1786
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/links",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/links?limit=100",
+          "status": 200,
+          "elapsedMs": 1925
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 2208
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/finance",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/finance",
+      "elapsedMs": 3436,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:17 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Finance ₹0 Refresh Withdrawals unavailable during launch verification AVAILABLE WALLET BALANCE ₹0 Pending Commissions clear after event settlement. ₹0 Instant Available Instant transfers are not enabled for promoters yet. ₹0 SETTINGS Country India Currency INR Statement Descriptor C1RCLE Payout Schedule Weekly BANKS & DEBIT CARDS + Add Bank Account Link a payout destination from the payouts page when you are ready to withdraw. PAYOUTS Last updated 02:47 am No earnings yet. Commission rows will appear here once tickets are sold through your promoter links.",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 927
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1629
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/finance",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/finance",
+          "status": 200,
+          "elapsedMs": 1595
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/finance/bank-accounts",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/finance/bank-accounts",
+          "status": 200,
+          "elapsedMs": 1613
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/finance/commissions",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/finance/commissions",
+      "elapsedMs": 4173,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:17 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Commissions Per-event commission breakdown across all your assignments. LIFETIME ₹0 CLEARED ₹0 PENDING ₹0 ALL PENDING CLEARED PAID Commission Ledger 0 records EVENT TICKETS REVENUE RATE STATUS COMMISSION No commissions found.",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 885
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1475
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/commissions",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/commissions?promoterId=promoter_ACKUnmLK&limit=100",
+          "status": 200,
+          "elapsedMs": 1463
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1966
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/finance/payouts",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/payouts",
+      "elapsedMs": 5077,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:17 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Earnings & Payouts Withdrawals unavailable during launch verification TOTAL EARNED — ₹0 available · ₹0 pending TOTAL EARNED — AVAILABLE — PENDING — TOTAL PAID OUT — Configure Bank Account Set up payouts to receive your earnings directly to your bank PAYOUT HISTORY Payout Requests 0 total",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 873
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 2018
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 2785
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/payouts",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/payouts?promoterId=promoter_ACKUnmLK",
+          "status": 200,
+          "elapsedMs": 1693
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/guests",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/guests",
+      "elapsedMs": 8472,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:17 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Guest Stream Add Guest Live Refresh TOTAL GUESTS 0 CHECKED IN 0/0 REVENUE GENERATED ₹0 YOUR COMMISSION ₹0 All Status Checked In Pending No Guests Yet Get Your Links",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1593
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/guests",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/guests?limit=20",
+          "status": 200,
+          "elapsedMs": 1917
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 2729
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 3540
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/leaderboard",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/leaderboard",
+      "elapsedMs": 3912,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:17 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1387
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1311
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/links",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/links",
+      "elapsedMs": 2951,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:17 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Get Links Create trackable event links, keep an eye on conversion flow, and manage every active campaign from one place. Refresh New Link ACTIVE LINKS 0 TOTAL CLICKS 0 SALES 0 EARNINGS ₹0 All0 Active0 Off0 Expired0 LOADING LINKS",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 800
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1337
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/links",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/links?limit=100",
+          "status": 200,
+          "elapsedMs": 1242
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/notifications",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/notifications",
+      "elapsedMs": 3149,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:17 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Notifications All caught up Refresh",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1136
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1128
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/partners",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/partners",
+      "elapsedMs": 4158,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:17 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Partners 0 ACTIVE 0 PENDING 0 VENUES 0 HOSTS Discover Active Incoming Pending Declined All Venues Hosts All Cities Pune Mumbai Goa Bengaluru Delhi A HOST ANONYMOUS 0 events | 0 followers Send Request HOST PLAYBOY CLUB DELHI 0 events | 410 followers Send Request HOST D.O.T PUNE 0 events | 220 followers Send Request HOST QUANTIKA 0 events | 880 followers Send Request HOST CREATIVE CONF 0 events | 69 followers Send Request HOST NOWL 0 events | 1.8K followers Send Request HOST KLTV BENGALURU 0 events | 330 followers Send Request HOST BASS STATION INDIA 0 events | 280 followers Send Request HOST THE BUND 0 events | 167 followers Send Request HOST SHIVA VALLEY GOA 0 events | 620 followers Send Request HOST KLTV BENGALURU 0 events | 310 followers Send Request HOST BEACHSIDE EVENTS 0 events | 280 followers Send Request HOST TUNING FORK 0 events | 150 followers Send Request HOST RITZ 0 events | 220 followers Send Request D HOST DEEPAK PAWAR 0 events | 0 followers Send Request D HOST DEEPAK PAWAR 0 events | 0 followers Send Request A HOST AAYUSH ENTERTAINMENT 0 events | 0 followers Send Request Q HOST QA HOST 2026 0 events | 0 followers Send Request C HOST CHRIS GAYLE 0 events | 0 followers Send Request S HOST SWAE 0 events | 0 followers Send Request H HOST HOST 0 events | 0 followers Send Request S HOST SHRUTI 0 events | 0 followers Send Request T VENUE THE C1RCLE CLUB (DEMO) 0 events | 1 followers Send Request VENUE ATHARVA ENTERTAINMENT CLUB 0 events | 2.5K followers Send Request VENUE AGUADA FORT, GOA 0 events | 620 followers Send Request VENUE CREATIVE CONF PUNE 0 events | 69 followers Send Request VENUE D.O.T PUNE 0 events | 220 followers Send Request VENUE KLTV, BENGALURU 0 events | 330 followers Send Request VENUE NOWL 0 events | 1.8K followers Send Request VENUE PLAYBOY CLUB DELHI 0 events | 410 followers Send Request",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 755
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1163
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/connections",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/connections",
+          "status": 200,
+          "elapsedMs": 1206
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1701
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/discovery",
+          "requestUrl": "http://127.0.0.1:3001/api/discovery?partnerId=promoter_ACKUnmLK&role=promoter&action=discover&limit=30",
+          "status": 200,
+          "elapsedMs": 2077
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/partners/venue_tEnPagMv",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/partners/venue_tEnPagMv",
+      "elapsedMs": 5739,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:17 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Partner Profile",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1617
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/partnerships",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/partners",
+      "elapsedMs": 4005,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:17 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Partners 0 ACTIVE 0 PENDING 0 VENUES 0 HOSTS Discover Active Incoming Pending Declined All Venues Hosts All Cities Pune Mumbai Goa Bengaluru Delhi A HOST ANONYMOUS 0 events | 0 followers Send Request HOST PLAYBOY CLUB DELHI 0 events | 410 followers Send Request HOST D.O.T PUNE 0 events | 220 followers Send Request HOST QUANTIKA 0 events | 880 followers Send Request HOST CREATIVE CONF 0 events | 69 followers Send Request HOST NOWL 0 events | 1.8K followers Send Request HOST KLTV BENGALURU 0 events | 330 followers Send Request HOST BASS STATION INDIA 0 events | 280 followers Send Request HOST THE BUND 0 events | 167 followers Send Request HOST SHIVA VALLEY GOA 0 events | 620 followers Send Request HOST KLTV BENGALURU 0 events | 310 followers Send Request HOST BEACHSIDE EVENTS 0 events | 280 followers Send Request HOST TUNING FORK 0 events | 150 followers Send Request HOST RITZ 0 events | 220 followers Send Request D HOST DEEPAK PAWAR 0 events | 0 followers Send Request D HOST DEEPAK PAWAR 0 events | 0 followers Send Request A HOST AAYUSH ENTERTAINMENT 0 events | 0 followers Send Request Q HOST QA HOST 2026 0 events | 0 followers Send Request C HOST CHRIS GAYLE 0 events | 0 followers Send Request S HOST SWAE 0 events | 0 followers Send Request H HOST HOST 0 events | 0 followers Send Request S HOST SHRUTI 0 events | 0 followers Send Request T VENUE THE C1RCLE CLUB (DEMO) 0 events | 1 followers Send Request VENUE ATHARVA ENTERTAINMENT CLUB 0 events | 2.5K followers Send Request VENUE AGUADA FORT, GOA 0 events | 620 followers Send Request VENUE CREATIVE CONF PUNE 0 events | 69 followers Send Request VENUE D.O.T PUNE 0 events | 220 followers Send Request VENUE KLTV, BENGALURU 0 events | 330 followers Send Request VENUE NOWL 0 events | 1.8K followers Send Request VENUE PLAYBOY CLUB DELHI 0 events | 410 followers Send Request",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 782
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1384
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/discovery",
+          "requestUrl": "http://127.0.0.1:3001/api/discovery?partnerId=promoter_ACKUnmLK&role=promoter&action=discover&limit=30",
+          "status": 200,
+          "elapsedMs": 519
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/connections",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/connections",
+          "status": 200,
+          "elapsedMs": 1319
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 2300
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/payouts",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/payouts",
+      "elapsedMs": 4053,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:18 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Earnings & Payouts Withdrawals unavailable during launch verification TOTAL EARNED ₹0 ₹0 available · ₹0 pending Provider verification in progress Earnings remain visible while withdrawal mutations are disabled. TOTAL EARNED ₹0 AVAILABLE ₹0 PENDING ₹0 TOTAL PAID OUT ₹0 Configure Bank Account Set up payouts to receive your earnings directly to your bank PAYOUT HISTORY Payout Requests 0 total No payouts yet",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1212
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1604
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/payouts",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/payouts?promoterId=promoter_ACKUnmLK",
+          "status": 200,
+          "elapsedMs": 1585
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1901
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/persona",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/settings?tab=persona",
+      "elapsedMs": 3367,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:18 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 901
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1826
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1818
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/profile",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/profile",
+      "elapsedMs": 2992,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:18 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q QA Promoter 2026 Verified Promoter — Since 2026 Edit Profile CONTACT & PROFILE INFO USERNAME / HANDLE qa_promoter_2026 EMAIL ADDRESS Set your email address CONTACT NUMBER Set your contact number INSTAGRAM HANDLE Set your instagram handle WEBSITE URL Set your website url PRIMARY CITY Pune ABOUT / BACKGROUND \"No biography provided. Tell venues and hosts about your impact!\" REPUTATION SHIELD Your verified status and connection stats are automatically included in partnership requests.",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 911
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 852
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/profile",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/profile",
+          "status": 200,
+          "elapsedMs": 919
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1266
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/settings",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/settings",
+      "elapsedMs": 3417,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:18 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Promoter Settings Global configuration for your promoter identity and performance GENERAL PERSONA NOTIFICATIONS SECURITY Identity & Profile Manage your professional branding and legal information. LEGAL NAME BRAND NAME PHONE NUMBER BASE CITY",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 848
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/settings",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/settings?promoterId=promoter_ACKUnmLK",
+          "status": 200,
+          "elapsedMs": 1367
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1609
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 1801
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/stats",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/analytics/overview",
+      "elapsedMs": 6737,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:18 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Analytics All Events 7D 30D YTD ALL TOTAL CLICKS TICKETS SOLD CONVERSION RATE TOTAL EARNINGS REVENUE CLICKS SALES DATE-WISE BREAKDOWN TOP PERFORMING LINKS 0 active of 0 total links BY CLICKS RECENT ACTIVITY Latest promoter link activity from the backend",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 1344
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 3170
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 3385
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/links",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/links?limit=200",
+          "status": 200,
+          "elapsedMs": 1266
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    },
+    {
+      "route": "/promoter/wallet",
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3001/promoter/finance",
+      "elapsedMs": 4538,
+      "navigationError": null,
+      "bodyText": "C THE C1RCLE PROMOTER Overview Events Guests Analytics Finance Partners Q QA Promoter 2026 LIVE 03:18 pm TUE, 28 JUL + New Link Leaderboard ₹0 Q Finance ₹0 Refresh Withdrawals unavailable during launch verification AVAILABLE WALLET BALANCE ... Pending Commissions clear after event settlement. ... Instant Available Instant transfers are not enabled for promoters yet. ... SETTINGS Country India Currency INR Statement Descriptor C1RCLE Payout Schedule Weekly BANKS & DEBIT CARDS + Add Bank Account Link a payout destination from the payouts page when you are ready to withdraw. PAYOUTS",
+      "contentReady": true,
+      "consoleEvents": [],
+      "pageErrors": [],
+      "networkResponses": [
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/me",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/me",
+          "status": 200,
+          "elapsedMs": 965
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/auth/partner-context",
+          "requestUrl": "http://127.0.0.1:3001/api/auth/partner-context",
+          "status": 200,
+          "elapsedMs": 1948
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/promoter/notifications",
+          "requestUrl": "http://127.0.0.1:3001/api/promoter/notifications?limit=20",
+          "status": 200,
+          "elapsedMs": 2093
+        },
+        {
+          "method": "GET",
+          "url": "http://127.0.0.1:3001/api/partners/promoters/finance",
+          "requestUrl": "http://127.0.0.1:3001/api/partners/promoters/finance",
+          "status": 200,
+          "elapsedMs": 1085
+        }
+      ],
+      "duplicateApiCalls": [],
+      "brokenImages": []
+    }
+  ],
+  "skippedDynamicRoutes": [
+    {
+      "route": "/promoter/events/[assignmentId]",
+      "reason": "No authoritative QA fixture exists for this dynamic segment"
+    }
+  ],
+  "consoleEvents": [],
+  "pageErrors": []
+}

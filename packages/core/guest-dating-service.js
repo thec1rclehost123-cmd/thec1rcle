@@ -1,3 +1,10 @@
+import {
+  FREE_SUBSCRIPTION_LIMITS,
+  getDailyUsageDocumentId,
+  resolveGuestSubscription,
+} from './guest-subscription-service.js';
+import { FieldPath } from 'firebase-admin/firestore';
+
 const USER_LIKES_COLLECTION = 'userLikes';
 const USER_MATCHES_COLLECTION = 'userMatches';
 const PRIVATE_CONVERSATIONS_COLLECTION = 'privateConversations';
@@ -20,18 +27,7 @@ function toMillis(value) {
 }
 
 function isPremiumProfile(profile = {}) {
-  const subscription = profile.subscription || profile.membership || {};
-  const status = String(
-    profile.subscriptionStatus || profile.membershipStatus || subscription.status || '',
-  ).toLowerCase();
-
-  return (
-    profile.isPremium === true ||
-    profile.c1rclePlus === true ||
-    subscription.isPremium === true ||
-    status === 'active' ||
-    status === 'trialing'
-  );
+  return resolveGuestSubscription(profile).isPremium;
 }
 
 function displayNameFromProfile(profile = {}, fallback = 'C1RCLE member') {
@@ -280,20 +276,21 @@ export async function getDiscoverProfiles(db, userId) {
   const myEvents = Array.isArray(currentUser.upcomingEvents) ? currentUser.upcomingEvents : [];
 
   const swipesSnap = await db.collection('userSwipes').where('fromUserId', '==', userId).get();
-  const swipedUserIds = new Set(swipesSnap.docs.map(doc => doc.data().toUserId));
+  const swipedUserIds = new Set(swipesSnap.docs.map((doc) => doc.data().toUserId));
   swipedUserIds.add(userId);
 
   const fourteenDaysAgo = new Date();
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
 
-  const profilesSnap = await db.collection('users')
+  const profilesSnap = await db
+    .collection('users')
     .where('datingActive', '==', true)
     .limit(100)
     .get();
 
   let candidates = [];
 
-  profilesSnap.forEach(doc => {
+  profilesSnap.forEach((doc) => {
     const profileId = doc.id;
     if (swipedUserIds.has(profileId)) return;
 
@@ -303,22 +300,22 @@ export async function getDiscoverProfiles(db, userId) {
     if (lastActive < fourteenDaysAgo) return;
 
     const theirEvents = Array.isArray(data.upcomingEvents) ? data.upcomingEvents : [];
-    const overlapCount = theirEvents.filter(e => myEvents.includes(e)).length;
+    const overlapCount = theirEvents.filter((e) => myEvents.includes(e)).length;
 
     candidates.push({
       id: profileId,
       firstName: firstNameOnly(data.name || data.displayName || data.fullName),
       age: data.age || null,
-      photos: Array.isArray(data.photos) ? data.photos : (data.photoURL ? [data.photoURL] : []),
+      photos: Array.isArray(data.photos) ? data.photos : data.photoURL ? [data.photoURL] : [],
       prompts: Array.isArray(data.prompts) ? data.prompts : [],
       upcomingEvents: theirEvents,
-      _overlapScore: overlapCount
+      _overlapScore: overlapCount,
     });
   });
 
   candidates.sort((a, b) => b._overlapScore - a._overlapScore);
 
-  return candidates.slice(0, 15).map(c => {
+  return candidates.slice(0, 15).map((c) => {
     delete c._overlapScore;
     return c;
   });
@@ -347,18 +344,27 @@ export async function processSwipeAction(db, userId, targetUserId, action) {
 
   // Paywall Limit check
   if (action === 'like' && !isPremium) {
-    const today = new Date().toISOString().split('T')[0];
-    const dailyLimitRef = db.collection('userDailyLimits').doc(`${userId}_${today}`);
-    
+    const dailyLimitRef = db.collection('userDailyLimits').doc(getDailyUsageDocumentId(userId));
+
     await db.runTransaction(async (transaction) => {
       const dailyDoc = await transaction.get(dailyLimitRef);
       const data = dailyDoc.exists ? dailyDoc.data() : { likes: 0 };
-      
-      if (data.likes >= 50) {
+      const likesUsed = Math.max(0, Number(data.likesUsed ?? data.likes ?? 0) || 0);
+
+      if (likesUsed >= FREE_SUBSCRIPTION_LIMITS.likesPerDay) {
         throw new Error('Daily like limit exceeded');
       }
-      
-      transaction.set(dailyLimitRef, { likes: data.likes + 1 }, { merge: true });
+
+      transaction.set(
+        dailyLimitRef,
+        {
+          likes: likesUsed + 1,
+          likesUsed: likesUsed + 1,
+          date: getDailyUsageDocumentId(userId).slice(userId.length + 1),
+          updatedAt: nowIso(),
+        },
+        { merge: true },
+      );
     });
   }
 
@@ -369,7 +375,7 @@ export async function processSwipeAction(db, userId, targetUserId, action) {
     fromUserId: userId,
     toUserId: targetUserId,
     action,
-    createdAt: now
+    createdAt: now,
   });
 
   if (action === 'pass') {
@@ -384,20 +390,20 @@ export async function processSwipeAction(db, userId, targetUserId, action) {
     status: 'pending',
     isDeleted: false,
     createdAt: now,
-    updatedAt: now
+    updatedAt: now,
   });
 
   // Mutual Match Check
   // Has the target already swiped right on the current user?
   const mutualSwipeDoc = await db.collection('userSwipes').doc(`${targetUserId}_${userId}`).get();
-  
+
   if (mutualSwipeDoc.exists && mutualSwipeDoc.data().action === 'like') {
     // Create match and DM
     const deterministicPair = pairKey(userId, targetUserId);
     const eventKey = 'global'; // Or try to find overlapping event, but 'global' is safe
     const matchId = `match_${eventKey}_${deterministicPair}`;
     const conversationId = `dm_${eventKey}_${deterministicPair}`;
-    
+
     const participants = [userId, targetUserId];
 
     const match = {
@@ -426,15 +432,25 @@ export async function processSwipeAction(db, userId, targetUserId, action) {
     };
 
     const batch = db.batch();
-    
+
     // Update both like documents to accepted
-    batch.set(likeRef, { status: 'accepted', matchId, conversationId, updatedAt: now }, { merge: true });
-    batch.set(db.collection(USER_LIKES_COLLECTION).doc(`${targetUserId}_${userId}`), { status: 'accepted', matchId, conversationId, updatedAt: now }, { merge: true });
-    
+    batch.set(
+      likeRef,
+      { status: 'accepted', matchId, conversationId, updatedAt: now },
+      { merge: true },
+    );
+    batch.set(
+      db.collection(USER_LIKES_COLLECTION).doc(`${targetUserId}_${userId}`),
+      { status: 'accepted', matchId, conversationId, updatedAt: now },
+      { merge: true },
+    );
+
     // Create match and conversation
     batch.set(db.collection(USER_MATCHES_COLLECTION).doc(matchId), match, { merge: true });
-    batch.set(db.collection(PRIVATE_CONVERSATIONS_COLLECTION).doc(conversationId), conversation, { merge: true });
-    
+    batch.set(db.collection(PRIVATE_CONVERSATIONS_COLLECTION).doc(conversationId), conversation, {
+      merge: true,
+    });
+
     await batch.commit();
 
     return { match: true, conversationId };
@@ -457,10 +473,10 @@ export async function getPublicUserProfile(db, targetUserId) {
     id: doc.id,
     firstName: firstNameOnly(data.name || data.displayName || data.fullName),
     age: data.age || null,
-    photos: Array.isArray(data.photos) ? data.photos : (data.photoURL ? [data.photoURL] : []),
+    photos: Array.isArray(data.photos) ? data.photos : data.photoURL ? [data.photoURL] : [],
     prompts: Array.isArray(data.prompts) ? data.prompts : [],
     upcomingEvents: Array.isArray(data.upcomingEvents) ? data.upcomingEvents : [],
-    datingActive: Boolean(data.datingActive)
+    datingActive: Boolean(data.datingActive),
   };
 }
 
@@ -469,53 +485,92 @@ function firstNameOnly(nameStr) {
   return nameStr.trim().split(' ')[0];
 }
 
-export async function getUserMatches(db, userId) {
+export async function getUserMatches(db, userId, options = {}) {
   if (!userId) throw new Error('userId is required');
+  const pageSize = Math.min(Math.max(Number(options.limit) || 20, 1), 100);
+  const cursor = typeof options.cursor === 'string' ? options.cursor : '';
+  let cursorValues = null;
+  if (cursor) {
+    const cursorDocument = await db.collection(USER_MATCHES_COLLECTION).doc(cursor).get();
+    const cursorData = cursorDocument.data?.() || {};
+    if (
+      !cursorDocument.exists ||
+      (cursorData.user1Id !== userId && cursorData.user2Id !== userId) ||
+      !cursorData.matchedAt
+    ) {
+      throw new Error('Invalid matches cursor');
+    }
+    cursorValues = [cursorData.matchedAt, cursorDocument.id];
+  }
 
-  // Firestore requires a composite index for OR queries or we can run two parallel queries
-  // since userMatches has user1Id and user2Id
+  const buildQuery = (participantField) => {
+    let query = db
+      .collection(USER_MATCHES_COLLECTION)
+      .where(participantField, '==', userId)
+      .orderBy('matchedAt', 'desc')
+      .orderBy(FieldPath.documentId(), 'desc');
+    if (cursorValues) query = query.startAfter(...cursorValues);
+    return query.limit(pageSize + 1);
+  };
   const [snap1, snap2] = await Promise.all([
-    db.collection('userMatches').where('user1Id', '==', userId).get(),
-    db.collection('userMatches').where('user2Id', '==', userId).get()
+    buildQuery('user1Id').get(),
+    buildQuery('user2Id').get(),
   ]);
 
-  const matchDocs = [...snap1.docs, ...snap2.docs];
-  
-  // Sort by matchedAt descending
-  const matches = matchDocs.map(doc => ({ id: doc.id, ...doc.data() }));
-  matches.sort((a, b) => {
-    const timeA = a.matchedAt ? new Date(a.matchedAt).getTime() : 0;
-    const timeB = b.matchedAt ? new Date(b.matchedAt).getTime() : 0;
-    return timeB - timeA;
+  const matchesById = new Map(
+    [...snap1.docs, ...snap2.docs].map((doc) => [doc.id, { id: doc.id, ...doc.data() }]),
+  );
+  const matches = [...matchesById.values()].sort((left, right) => {
+    const timeDelta = toMillis(right.matchedAt) - toMillis(left.matchedAt);
+    return timeDelta || right.id.localeCompare(left.id);
   });
+  const hasMore = matches.length > pageSize;
+  const page = matches.slice(0, pageSize);
 
-  // Enrich with public profile of the other user
-  const enrichedMatches = await Promise.all(matches.map(async (match) => {
-    const otherUserId = match.user1Id === userId ? match.user2Id : match.user1Id;
-    let otherProfile = null;
-    
-    try {
-      const doc = await db.collection('users').doc(otherUserId).get();
-      if (doc.exists) {
-        const data = doc.data();
-        otherProfile = {
-          id: otherUserId,
-          firstName: firstNameOnly(data.name || data.displayName || data.fullName),
-          age: data.age || null,
-          photo: Array.isArray(data.photos) && data.photos.length > 0 ? data.photos[0] : (data.photoURL || null)
-        };
-      }
-    } catch (e) {
-      console.warn('Failed to fetch profile for match', otherUserId);
+  const otherUserIds = [
+    ...new Set(
+      page
+        .map((match) => (match.user1Id === userId ? match.user2Id : match.user1Id))
+        .filter(Boolean),
+    ),
+  ];
+  const profileSnapshots = await Promise.all(
+    Array.from({ length: Math.ceil(otherUserIds.length / 30) }, (_, index) =>
+      db
+        .collection('users')
+        .where(FieldPath.documentId(), 'in', otherUserIds.slice(index * 30, index * 30 + 30))
+        .get(),
+    ),
+  );
+  const profiles = new Map();
+  for (const snapshot of profileSnapshots) {
+    for (const document of snapshot.docs || []) {
+      const data = document.data() || {};
+      profiles.set(document.id, {
+        id: document.id,
+        firstName: firstNameOnly(data.name || data.displayName || data.fullName),
+        age: data.age || null,
+        photo:
+          Array.isArray(data.photos) && data.photos.length > 0
+            ? data.photos[0]
+            : data.photoURL || null,
+      });
     }
+  }
 
+  const data = page.map((match) => {
+    const otherUserId = match.user1Id === userId ? match.user2Id : match.user1Id;
     return {
       matchId: match.id,
       conversationId: match.conversationId,
       matchedAt: match.matchedAt,
-      profile: otherProfile
+      profile: profiles.get(otherUserId) || null,
     };
-  }));
+  });
 
-  return enrichedMatches;
+  return {
+    data,
+    hasMore,
+    nextCursor: hasMore ? page[page.length - 1]?.id || null : null,
+  };
 }

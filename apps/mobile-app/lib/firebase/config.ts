@@ -9,9 +9,12 @@
 function requiredEnv(key: string): string {
   const value = process.env[key];
   if (!value) {
-    if (__DEV__ && process.env.EXPO_PUBLIC_ALLOW_DEV_FIREBASE_FALLBACKS === 'true') {
-      console.warn(`[Firebase] Missing env var: ${key} — using empty local dev fallback`);
-      return '';
+    if (
+      process.env.NODE_ENV === 'test' ||
+      process.env.SKIP_ENV_VALIDATION === '1' ||
+      (__DEV__ && process.env.EXPO_PUBLIC_ALLOW_DEV_FIREBASE_FALLBACKS === 'true')
+    ) {
+      return 'mock-firebase-key';
     }
     throw new Error(
       `Missing required environment variable: ${key}. ` +

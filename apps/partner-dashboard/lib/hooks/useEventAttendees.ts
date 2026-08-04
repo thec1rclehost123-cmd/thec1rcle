@@ -30,6 +30,8 @@ export interface Attendee {
   lastPurchase: string;
   /** Where the record came from */
   source: 'online' | 'door' | 'manual';
+  status: 'checked_in' | 'paid' | 'not_arrived';
+  checkedInAt?: string | null;
 }
 
 export interface UseEventAttendeesReturn {
@@ -98,6 +100,8 @@ export function useEventAttendees(eventId: string, venueId?: string): UseEventAt
       tags,
       lastPurchase: raw.purchasedAt || new Date().toISOString(),
       source,
+      status: raw.status || (raw.checkedInAt ? 'checked_in' : 'paid'),
+      checkedInAt: raw.checkedInAt || undefined,
     };
   }
 
@@ -121,6 +125,8 @@ export function useEventAttendees(eventId: string, venueId?: string): UseEventAt
       tags,
       lastPurchase: raw.addedAt || raw.createdAt || new Date().toISOString(),
       source: 'door',
+      status: 'checked_in',
+      checkedInAt: raw.addedAt || raw.createdAt || new Date().toISOString(),
     };
   }
 

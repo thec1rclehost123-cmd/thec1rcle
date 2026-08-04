@@ -336,6 +336,9 @@ export default function VenueCrossEventClient() {
   const rawOverview = (overviewQuery.data as any)?.analytics ?? overviewQuery.data ?? {};
   const normOverview = normalizeAnalyticsV2(rawOverview);
 
+  const ticketsSoldPaid = Number(rawOverview.ticketsSoldPaid ?? rawOverview.tickets?.paid ?? 0);
+  const ticketsSoldRsvp = Number(rawOverview.ticketsSoldRsvp ?? rawOverview.tickets?.rsvp ?? 0);
+
   const revSeries = (tsRevenueQuery.data as any)?.series ?? [];
   const tickSeries = (tsTicketsQuery.data as any)?.series ?? [];
   const revTotal = (tsRevenueQuery.data as any)?.total ?? 0;
@@ -416,6 +419,7 @@ export default function VenueCrossEventClient() {
                 icon={Ticket}
                 accent="#818cf8"
                 loading={overviewQuery.isLoading}
+                tooltip={`${ticketsSoldRsvp.toLocaleString('en-IN')} RSVP · ${ticketsSoldPaid.toLocaleString('en-IN')} paid`}
               />
               <KpiCard
                 label="Check-ins"
@@ -1239,22 +1243,49 @@ function KpiCard({
   icon: Icon,
   accent,
   loading,
+  tooltip,
 }: {
   label: string;
   value: string;
   icon: any;
   accent: string;
   loading?: boolean;
+  tooltip?: string;
 }) {
   return (
     <div
-      className="p-4 rounded-2xl relative overflow-hidden"
+      className="p-4 rounded-2xl relative overflow-visible group"
       style={{ background: 'var(--v-card)', border: '1px solid var(--v-border)' }}
     >
-      <div
-        className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-[0.06]"
-        style={{ background: accent, filter: 'blur(30px)', transform: 'translate(30%,-30%)' }}
-      />
+      {tooltip && (
+        <div className="absolute left-1/2 -top-2 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-30 whitespace-nowrap">
+          <div
+            className="px-3 py-2 rounded-xl text-[11px] font-bold"
+            style={{
+              background: '#18181b',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: 'var(--v-text-primary)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+            }}
+          >
+            {tooltip}
+          </div>
+          <div
+            className="w-2 h-2 mx-auto -mt-1 rotate-45"
+            style={{
+              background: '#18181b',
+              borderRight: '1px solid rgba(255,255,255,0.1)',
+              borderBottom: '1px solid rgba(255,255,255,0.1)',
+            }}
+          />
+        </div>
+      )}
+      <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+        <div
+          className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-[0.06]"
+          style={{ background: accent, filter: 'blur(30px)', transform: 'translate(30%,-30%)' }}
+        />
+      </div>
       <Icon className="w-4 h-4 mb-3" style={{ color: accent }} />
       {loading ? (
         <div

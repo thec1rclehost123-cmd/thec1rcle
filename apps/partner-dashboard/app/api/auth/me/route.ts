@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { proxyToGateway, GATEWAY_URL } from '@/lib/server/apiGateway';
 
 export async function GET(req: NextRequest) {

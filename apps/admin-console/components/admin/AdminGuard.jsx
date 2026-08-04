@@ -12,8 +12,8 @@ export default function AdminGuard({ children }) {
   const [mounted, setMounted] = useState(false);
   const [verifying, setVerifying] = useState(true);
 
-  // Skip all auth gating on the login page — show it immediately
-  const isLoginRoute = pathname?.startsWith('/login');
+  // Skip all auth gating on the login and accept-invite pages — show them immediately
+  const isBypassRoute = pathname?.startsWith('/login') || pathname?.startsWith('/accept-invite');
 
   useEffect(() => {
     setMounted(true);
@@ -64,50 +64,65 @@ export default function AdminGuard({ children }) {
     async function verifyAdmin() {
       if (loading) return;
 
-      // 0. Dev-mode bypass: auto-authorize any logged-in user in development
+      // 0. Bypass routes
+      if (isBypassRoute) {
+        setVerifying(false);
+        return;
+      }
+
+      // 1. Ensure user is authenticated
+      if (!user) {
+        setVerifying(false);
+        router.replace('/login');
+        return;
+      }
+
+      // 2. Enforce password change redirect if mustChangePassword claim is set
+      if (profile?.mustChangePassword && pathname !== '/change-password') {
+        router.replace('/change-password');
+        setVerifying(false);
+        return;
+      }
+
+      // 3. Dev-mode bypass: auto-authorize any logged-in user in development
       //    Mirrors the server-side verifyAuth() pattern in lib/server/auth.js
-      if (process.env.NODE_ENV === 'development' && user) {
+      if (process.env.NODE_ENV === 'development') {
         setAuthorized(true);
         setVerifying(false);
         return;
       }
 
-      // 1. Check local profile first (fastest)
+      // 4. Check local profile first (fastest)
       if (profile?.role === 'admin' || profile?.admin_role) {
         setAuthorized(true);
         setVerifying(false);
         return;
       }
 
-      // 2. Check Cryptographic Custom Claims (Source of Truth)
-      if (user) {
-        try {
-          const idTokenResult = await user.getIdTokenResult();
-          if (idTokenResult.claims.admin || idTokenResult.claims.role === 'admin') {
-            setAuthorized(true);
-            setVerifying(false);
-            return;
-          }
-        } catch (err) {
-          console.error('Token verification failed', err);
+      // 5. Check Cryptographic Custom Claims (Source of Truth)
+      try {
+        const idTokenResult = await user.getIdTokenResult();
+        if (idTokenResult.claims.admin || idTokenResult.claims.role === 'admin') {
+          setAuthorized(true);
+          setVerifying(false);
+          return;
         }
+      } catch (err) {
+        console.error('Token verification failed', err);
       }
 
-      // 3. If everything fails, redirect to login
+      // 6. If everything fails, redirect to login
       setVerifying(false);
-      if (!user) {
-        router.replace('/login');
-      } else if (user && !authorized) {
-        // Logged in but not an admin — redirect to login
+      if (!authorized) {
         router.replace('/login');
       }
     }
 
     verifyAdmin();
-  }, [user, profile, loading, router, authorized]);
+  }, [user, profile, loading, router, authorized, pathname, isBypassRoute]);
 
-  // Login page bypasses all auth gating — render immediately (no spinner, no redirect)
-  if (isLoginRoute) {
+  // Bypass routes render immediately (no spinner, no redirect)
+  if (isBypassRoute) {
     return <>{children}</>;
   }
 

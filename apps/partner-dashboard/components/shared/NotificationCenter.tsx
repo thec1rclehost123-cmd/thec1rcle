@@ -88,6 +88,56 @@ export function formatNotificationTimestamp(value: unknown) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+export function getFriendlyNotificationTitle(type: string, title?: string): string {
+  if (title && title.trim()) return title;
+  switch (type) {
+    case 'promoter_assignment':
+      return 'New Event Assignment';
+    case 'connection_request':
+      return 'New Connection Request';
+    case 'promoter_request':
+      return 'Promoter Connection Request';
+    case 'event_submitted':
+      return 'Event Submitted';
+    case 'payout':
+      return 'Payout Update';
+    case 'commission':
+      return 'Commission Update';
+    default:
+      return type
+        ? type
+            .split('_')
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' ')
+        : 'Notification';
+  }
+}
+
+export function getFriendlyNotificationMessage(
+  type: string,
+  description?: string,
+  message?: string,
+): string {
+  const current = description || message;
+  if (current && current.trim()) return current;
+  switch (type) {
+    case 'promoter_assignment':
+      return 'You have been assigned to a new event. Start promoting to earn commission!';
+    case 'connection_request':
+      return 'A partner has requested to connect with your profile.';
+    case 'promoter_request':
+      return 'A promoter wants to connect with your venue.';
+    case 'event_submitted':
+      return 'A new event has been submitted and is awaiting approval.';
+    case 'payout':
+      return 'A payout has been updated or processed.';
+    case 'commission':
+      return 'Your commission details have been updated.';
+    default:
+      return 'You have a new update. Open the dashboard to view details.';
+  }
+}
+
 export function normalizeNotification(
   raw: any,
   partnerType: NotificationPartnerType,
@@ -96,8 +146,8 @@ export function normalizeNotification(
   return {
     id: String(raw?.id || ''),
     type,
-    title: raw?.title || 'Notification',
-    description: raw?.description || raw?.message || '',
+    title: getFriendlyNotificationTitle(type, raw?.title),
+    description: getFriendlyNotificationMessage(type, raw?.description, raw?.message),
     timestamp:
       raw?.timestamp ||
       formatNotificationTimestamp(raw?.createdAt || raw?.submittedAt || raw?.requestedAt),

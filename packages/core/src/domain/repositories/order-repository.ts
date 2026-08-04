@@ -3,6 +3,9 @@ export interface Order {
   eventId: string;
   eventName: string;
   venueId?: string | null;
+  hostId?: string | null;
+  promoterLinkId?: string | null;
+  sourceChannel?: string;
   workspaceId?: string | null;
   queueId?: string | null;
   userId: string;
@@ -21,6 +24,17 @@ export interface Order {
   discountTotal: number;
   fees: any[];
   totalAmount: number;
+  currency?: string;
+  subtotalPaise?: number;
+  discountPaise?: number;
+  taxPaise?: number;
+  platformFeePaise?: number;
+  venueSharePaise?: number;
+  promoterCommissionPaise?: number;
+  hostPayoutPaise?: number;
+  totalPaise?: number;
+  financialSchemaVersion?: number;
+  splitRuleSnapshot?: Record<string, unknown>;
   status: 'payment_pending' | 'confirmed' | 'cancelled';
   reservationId?: string;
   promoterCode?: string | null;
@@ -61,8 +75,11 @@ export interface PaymentRecord {
   orderId: string;
   razorpayOrderId: string;
   workspaceId?: string | null;
+  /** @deprecated Read-only compatibility for payment records created before schema v2. */
   amount: number;
-  status: 'initiated' | 'verified' | 'failed';
+  amountPaise?: number;
+  currency?: string;
+  status: 'initiated' | 'verified' | 'failed' | 'captured_finalization_pending';
   userId: string;
   createdAt: string;
   razorpayPaymentId?: string;
@@ -73,6 +90,15 @@ export interface PaymentRecord {
 export interface OrderIdentityLookup {
   userId?: string | null;
   email?: string | null;
+}
+
+export interface FreeTicketClaim {
+  eventId: string;
+  tierId: string;
+  userId: string;
+  orderId: string;
+  status: 'confirmed' | 'cancelled';
+  createdAt: string;
 }
 
 export interface IOrderRepository {
@@ -91,6 +117,13 @@ export interface IOrderRepository {
     transaction?: any,
   ): Promise<boolean>;
   getUserTicketCountForEvent(eventId: string, lookup: OrderIdentityLookup): Promise<number>;
+  checkExistingFreeTicketClaim(
+    eventId: string,
+    tierId: string,
+    userId: string,
+    transaction?: any,
+  ): Promise<boolean>;
+  createFreeTicketClaim(claim: FreeTicketClaim, transaction?: any): Promise<void>;
 
   getReservationById(id: string, transaction?: any): Promise<Reservation | null>;
   createReservation(reservation: Reservation): Promise<void>;

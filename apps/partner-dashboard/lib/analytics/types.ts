@@ -109,6 +109,7 @@ export interface RevenueSeries {
   revenueByHour: { hour: string; revenue: number }[];
   revenueByEvent: { id: string; title: string; revenue: number; net: number }[];
   revenueByTicketType: { type: string; revenue: number; pct: number }[];
+  revenueByPhase: { phase: string; revenue: number; ticketsSold: number; pct: number }[];
   revenueBySource: { source: string; revenue: number; pct: number }[];
   revenueByPromoter: { id: string; name: string; revenue: number; pct: number }[];
   revenuePaceCurve: { daysBefore: number; cumulative: number }[];

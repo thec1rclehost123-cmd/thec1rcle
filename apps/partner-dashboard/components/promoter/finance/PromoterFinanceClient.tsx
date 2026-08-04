@@ -12,19 +12,24 @@ import {
   RefreshCw,
   Receipt,
 } from 'lucide-react';
+import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 
 function formatCurrencyInline(amount: number) {
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'INR',
   }).format(amount);
 }
 
 export function PromoterFinanceClient() {
+  const { getIdToken } = useDashboardAuth();
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['promoter', 'finance'],
     queryFn: async () => {
-      const res = await fetch(`/api/partners/promoters/finance`);
+      const token = await getIdToken();
+      const res = await fetch(`/api/partners/promoters/finance`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error('Failed to fetch finance data');
       return res.json();
     },
@@ -39,7 +44,10 @@ export function PromoterFinanceClient() {
     queryKey: ['promoter', 'commissions'],
     queryFn: async ({ pageParam }) => {
       const cursorQuery = pageParam ? `?cursor=${pageParam}` : '';
-      const res = await fetch(`/api/partners/promoters/commissions${cursorQuery}`);
+      const token = await getIdToken();
+      const res = await fetch(`/api/partners/promoters/commissions${cursorQuery}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error('Failed to fetch commissions');
       return res.json();
     },
@@ -61,13 +69,12 @@ export function PromoterFinanceClient() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => {}}
-            className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-semibold transition-colors text-sm shadow-sm flex items-center gap-2"
+          <span
+            className="border border-amber-400/25 bg-amber-400/10 text-amber-200 px-4 py-2.5 rounded-xl font-semibold text-sm"
+            role="status"
           >
-            <Banknote className="h-4 w-4" />
-            Withdraw Funds
-          </button>
+            Withdrawals unavailable during launch verification
+          </span>
           <button
             onClick={() => refetch()}
             disabled={isRefetching || isLoading}

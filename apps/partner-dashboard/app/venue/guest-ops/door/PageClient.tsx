@@ -136,7 +136,9 @@ export default function DoorSearchPageClient() {
     if (!eventId) return;
     setCodesLoading(true);
     try {
-      const res = await fetch(`/api/event-codes?eventId=${eventId}`, { headers: authHeaders() });
+      const res = await fetch(`/api/event-codes?eventId=${eventId}`, {
+        headers: await authHeaders(),
+      });
       if (res.ok) {
         const data = await res.json();
         setCodes((Array.isArray(data) ? data : []).filter((c: ScannerCode) => !c.isRevoked));
@@ -156,7 +158,7 @@ export default function DoorSearchPageClient() {
     try {
       const res = await fetch('/api/event-codes', {
         method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventId, type: newCodeType, gate: newCodeGate.trim() || null }),
       });
       if (res.ok) {
@@ -179,7 +181,10 @@ export default function DoorSearchPageClient() {
     async (id: string) => {
       setRevokingId(id);
       try {
-        await fetch(`/api/event-codes?id=${id}`, { method: 'DELETE', headers: authHeaders() });
+        await fetch(`/api/event-codes?id=${id}`, {
+          method: 'DELETE',
+          headers: await authHeaders(),
+        });
         setCodes((prev) => prev.filter((c) => c.id !== id));
       } finally {
         setRevokingId(null);
@@ -221,7 +226,7 @@ export default function DoorSearchPageClient() {
       try {
         const res = await fetch(
           `/api/partners/venues/guest-ops/${eventId}/guests/search?venueId=${venueId}&q=${encodeURIComponent(q.trim())}&field=${field}`,
-          { headers: authHeaders() },
+          { headers: await authHeaders() },
         );
         if (!res.ok) throw new Error('Search failed');
         const data = await res.json();
@@ -262,7 +267,7 @@ export default function DoorSearchPageClient() {
       try {
         const res = await fetch(
           `/api/partners/venues/guest-ops/${eventId}/guests/${guestId}/${action}?venueId=${venueId}`,
-          { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) },
+          { method: 'POST', headers: await authHeaders(), body: JSON.stringify(body) },
         );
         const data = await res.json().catch(() => ({}));
         if (res.ok) {

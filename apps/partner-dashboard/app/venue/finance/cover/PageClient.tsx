@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Wallet, TrendingUp, Zap, Users, AlertTriangle, RefreshCw } from 'lucide-react';
 import { VenuePageShell } from '@/components/venue-layout/VenuePageShell';
@@ -24,16 +24,17 @@ interface Reconciliation {
   exceptionList: Array<{ type: string; walletId: string; description: string }>;
   isLive: boolean;
   ticketRevenuePaise?: number;
+  canonicalVenueSharePaise?: number;
   payoutTotal?: number;
-  venueTicketSplitPct?: number;
+  reconciliationDifferencePaise?: number;
 }
 
 export function CoverReconClient() {
-  const { profile } = useDashboardAuth();
+  const { profile, getIdToken } = useDashboardAuth();
   const venueId = profile?.activeMembership?.partnerId;
   const [selectedEventId, setSelectedEventId] = useState<string>('');
 
-  const { data, isLoading, refetch, isFetching } = useQuery<{
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<{
     events: EventOption[];
     reconciliation?: Reconciliation;
   }>({
@@ -41,7 +42,10 @@ export function CoverReconClient() {
     queryFn: async () => {
       const params = new URLSearchParams({ venueId: venueId! });
       if (selectedEventId) params.set('eventId', selectedEventId);
-      const res = await fetch(`/api/partners/venues/finance/cover-recon?${params}`);
+      const token = await getIdToken();
+      const res = await fetch(`/api/venue/finance/cover-recon?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error('Failed to load cover reconciliation');
       return res.json();
     },
@@ -52,10 +56,11 @@ export function CoverReconClient() {
   const events = data?.events || [];
   const recon = data?.reconciliation;
 
-  // Auto-select first event when events load
-  if (events.length > 0 && !selectedEventId) {
-    setSelectedEventId(events[0].id);
-  }
+  useEffect(() => {
+    if (events.length > 0 && !selectedEventId) {
+      setSelectedEventId(events[0].id);
+    }
+  }, [events, selectedEventId]);
 
   if (isLoading) {
     return (
@@ -70,9 +75,32 @@ export function CoverReconClient() {
     );
   }
 
-  const totalRedeemable = recon ? recon.grossCollection - recon.totalRedeemed : 0;
-  const payoutTotal = recon?.payoutTotal ?? 0;
-  const splitPct = recon?.venueTicketSplitPct ?? 70;
+  if (isError) {
+    return (
+      <VenuePageShell title="Cover Charge" subtitle="Wallet reconciliation and breakage revenue">
+        <div
+          role="alert"
+          className="rounded-xl border border-red-500/25 bg-red-500/10 p-5 text-sm text-red-300"
+        >
+          <p className="font-semibold">Cover Charge finance data is unavailable.</p>
+          <p className="mt-1 text-red-300/80">
+            {error instanceof Error ? error.message : 'Unable to load canonical reconciliation.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg border border-red-400/30 px-3 py-2 text-xs font-semibold hover:bg-red-400/10 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            Retry
+          </button>
+        </div>
+      </VenuePageShell>
+    );
+  }
+
+  const canonicalVenueSharePaise = recon?.canonicalVenueSharePaise ?? recon?.payoutTotal ?? 0;
 
   return (
     <VenuePageShell
@@ -156,29 +184,32 @@ export function CoverReconClient() {
             />
           </div>
 
-          {/* Payout calculation */}
+          {/* Canonical finance boundary */}
           <div className="rounded-xl border border-border-subtle bg-surface-secondary p-5 mb-4">
             <h3 className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest mb-4">
-              Available for Transfer
+              Canonical Ledger Venue Share
             </h3>
             <div className="flex flex-wrap items-center gap-2 text-[13px] text-text-secondary">
               <span className="font-semibold text-text-primary">
                 {recon.ticketRevenuePaise
-                  ? `${formatINRFromPaise(recon.ticketRevenuePaise)} ticket rev. × ${splitPct}%`
-                  : `Ticket Revenue × ${splitPct}%`}
+                  ? `${formatINRFromPaise(recon.ticketRevenuePaise)} net ticket revenue`
+                  : 'Net ticket revenue'}
               </span>
-              <span className="text-text-tertiary">+</span>
-              <span className="font-semibold text-emerald-400">
-                {formatINRFromPaise(recon.breakageRevenue)} breakage × 100%
-              </span>
-              <span className="text-text-tertiary">=</span>
+              <span className="text-text-tertiary">→ ledger venue_share =</span>
               <span className="text-xl font-black text-text-primary tabular-nums">
-                {formatINRFromPaise(payoutTotal)}
+                {formatINRFromPaise(canonicalVenueSharePaise)}
               </span>
             </div>
             <p className="text-[11px] text-text-tertiary mt-2">
-              Venues keep 100% of cover charge breakage (unspent credit at closure).
+              Cover consumption and forfeiture are reconciled operationally below. They are not
+              added to payout totals unless an immutable partner_ledger entry authorizes the value.
             </p>
+            {recon.reconciliationDifferencePaise !== 0 && (
+              <p className="text-[11px] text-red-400 mt-2">
+                Reconciliation is out of balance by{' '}
+                {formatINRFromPaise(Math.abs(recon.reconciliationDifferencePaise || 0))}.
+              </p>
+            )}
           </div>
 
           {/* Item distribution */}

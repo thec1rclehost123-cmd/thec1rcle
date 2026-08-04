@@ -32,13 +32,34 @@ declare module '@c1rcle/core/ticket-checkout-wallet-service' {
     qrExpiresAt: string;
     qrExpiresInSeconds: number;
   };
+  export function createTicketQrForEntitlement(params: {
+    db?: any;
+    userId: string;
+    entitlementId: string;
+  }): Promise<{
+    qrPayload: string;
+    qrExpiresAt: string;
+    qrExpiresInSeconds: number;
+  }>;
   export function generateTicketsForOrder(params: { db?: any; orderId: string }): Promise<any>;
   export function finalizeRazorpayTicketPurchase(params: {
     db?: any;
-    checkoutService: any;
     razorpayOrderId: string;
     razorpayPaymentId: string;
     paymentGatewayConfig?: any;
+    providerPayment?: any;
+    requestId?: string | null;
+  }): Promise<any>;
+  export function verifyTicketQrJwt(
+    token: string,
+    secret?: string,
+  ): { valid: boolean; error?: string; payload?: any };
+  export function processTicketJwtScan(params: {
+    db?: any;
+    token: string;
+    eventId: string;
+    scannerId: string;
+    gate?: string | null;
   }): Promise<any>;
   export function getUserTicketWallet(params: { db?: any; userId: string }): Promise<any>;
 }
@@ -171,6 +192,12 @@ declare module '@c1rcle/core/finance-engine' {
   export function getFinancialSummary(entityId: string, type?: string): Promise<any>;
   export function getTransactionHistory(entityId: string, options?: any): Promise<any[]>;
   export function processRefund(orderId: string, amount: number, reason: string): Promise<any>;
+}
+
+declare module '@c1rcle/core/partner-ledger-service' {
+  export function buildPartnerLedgerEntries(params: any): any;
+  export function writePartnerLedgerInTransaction(params: any): any;
+  export function writePartnerRefundInTransaction(params: any): any;
 }
 
 declare module '@c1rcle/core/promoter-engine' {

@@ -1,16 +1,27 @@
 import { scannerFetch } from './client';
 import { getActiveCode } from './eventCode';
+import { getOrCreateScannerDeviceId } from '../deviceIdentity';
 
 export interface ScanRequest {
   qrData: string;
   eventId: string;
   eventCode: string;
+  venueId: string;
   gate?: string;
 }
 
 export interface ScanResponse {
   success: boolean;
-  result?: 'valid' | 'already_scanned' | 'invalid' | 'wrong_event' | 'not_confirmed';
+  result?:
+    | 'valid'
+    | 'already_scanned'
+    | 'invalid'
+    | 'wrong_event'
+    | 'not_confirmed'
+    | 'revoked'
+    | 'expired'
+    | 'device_invalid'
+    | 'confirmation_required';
   message?: string;
   ticket?: {
     orderId: string;
@@ -25,6 +36,8 @@ export interface ScanResponse {
     by: string;
   };
   error?: string;
+  requiresConfirmation?: boolean;
+  confirmationToken?: string;
 }
 
 /**
@@ -34,6 +47,18 @@ export interface ScanResponse {
  */
 export async function processQRScan(request: ScanRequest): Promise<ScanResponse> {
   const code = (await getActiveCode()) || request.eventCode;
+  const deviceId = await getOrCreateScannerDeviceId();
+  const reasonMap: Record<string, ScanResponse['result']> = {
+    already_used: 'already_scanned',
+    event_mismatch: 'wrong_event',
+    order_not_confirmed: 'not_confirmed',
+    wrong_event: 'wrong_event',
+    already_scanned: 'already_scanned',
+    revoked: 'revoked',
+    expired: 'expired',
+    device_invalid: 'device_invalid',
+    confirmation_required: 'confirmation_required',
+  };
 
   try {
     const data = await scannerFetch('/scan', {
@@ -41,14 +66,20 @@ export async function processQRScan(request: ScanRequest): Promise<ScanResponse>
       body: JSON.stringify({
         qrData: request.qrData,
         eventId: request.eventId,
+        eventCode: code,
+        venueId: request.venueId,
+        deviceId,
+        gate: request.gate,
       }),
     });
 
-    if (data.status === 'approved') {
+    if (data.success === true) {
       return {
         success: true,
-        result: 'valid',
+        result: data.result || 'valid',
         message: data.message || 'Entry approved!',
+        requiresConfirmation: data.requiresConfirmation === true,
+        confirmationToken: data.confirmationToken,
         ticket: data.ticket
           ? {
               orderId: data.ticket.orderId || '',
@@ -63,16 +94,10 @@ export async function processQRScan(request: ScanRequest): Promise<ScanResponse>
     }
 
     // Denied — map reason to a result type the UI understands
-    const reasonMap: Record<string, ScanResponse['result']> = {
-      already_used: 'already_scanned',
-      event_mismatch: 'wrong_event',
-      order_not_confirmed: 'not_confirmed',
-    };
-
     const prev = data.previousScan;
     return {
       success: false,
-      result: reasonMap[data.reason] || 'invalid',
+      result: data.result || reasonMap[data.reason] || 'invalid',
       error: data.message || 'Ticket denied',
       previousScan: prev
         ? { time: prev.scannedAt || prev.time || '', by: prev.scannedBy || prev.by || '' }
@@ -85,7 +110,10 @@ export async function processQRScan(request: ScanRequest): Promise<ScanResponse>
       const prev = error.data?.previousScan;
       return {
         success: false,
-        result: 'invalid',
+        result:
+          error.data?.result ||
+          reasonMap[error.data?.reason] ||
+          (error.status === 403 ? 'device_invalid' : 'invalid'),
         error: error.data?.message || error.message || 'Scan failed',
         previousScan: prev
           ? { time: prev.scannedAt || prev.time || '', by: prev.scannedBy || prev.by || '' }
@@ -93,49 +121,27 @@ export async function processQRScan(request: ScanRequest): Promise<ScanResponse>
       };
     }
 
-    if (__DEV__) {
-      return simulateScan(request.qrData);
-    }
-
-    throw new Error('Unable to connect to server');
+    throw new Error('Scanner is offline. Entry is denied until connectivity is restored.');
   }
 }
 
-function simulateScan(qrData: string): ScanResponse {
-  try {
-    const parsed = JSON.parse(qrData);
-    const random = Math.random();
-
-    if (random < 0.7) {
-      return {
-        success: true,
-        result: 'valid',
-        message: 'Entry approved!',
-        ticket: {
-          orderId: parsed.o || 'demo_order',
-          eventId: parsed.e || 'demo_event',
-          userName: 'Demo Guest',
-          ticketName: parsed.n || 'General Entry',
-          quantity: parsed.q || 1,
-          entryType: parsed.et || 'general',
-        },
-      };
-    } else if (random < 0.85) {
-      return {
-        success: false,
-        result: 'already_scanned',
-        error: 'Ticket already scanned',
-        previousScan: {
-          time: new Date(Date.now() - 3600000).toLocaleTimeString(),
-          by: 'Staff Member',
-        },
-      };
-    } else {
-      return { success: false, result: 'invalid', error: 'Invalid QR code' };
-    }
-  } catch {
-    return { success: false, result: 'invalid', error: 'Could not parse QR code' };
-  }
+export async function confirmCoupleScan(
+  confirmationToken: string,
+  request: Omit<ScanRequest, 'qrData'>,
+): Promise<ScanResponse> {
+  const deviceId = await getOrCreateScannerDeviceId();
+  const data = await scannerFetch('/scan/confirm-couple', {
+    method: 'POST',
+    body: JSON.stringify({
+      confirmationToken,
+      eventId: request.eventId,
+      eventCode: request.eventCode,
+      venueId: request.venueId,
+      deviceId,
+      gate: request.gate,
+    }),
+  });
+  return data as ScanResponse;
 }
 
 /**

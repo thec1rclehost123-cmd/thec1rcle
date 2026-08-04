@@ -6,6 +6,16 @@ import {
   enrichVenueProfileWithSignedUrls,
   cleanVenueProfilePatch,
 } from '../../lib/signed-urls.js';
+import { decrypt } from '../../lib/encryption.js';
+import {
+  getEventCommerceMetrics,
+  getPartnerCommerceRows,
+} from '../../lib/canonicalCommerceMetrics';
+import { isBlockingCalendarEvent } from '../../lib/calendar-visibility.js';
+import { aggregateAudience } from '../../lib/analyticsAudience.js';
+import { generateReconciliation } from '@c1rcle/core/cover-charge-engine';
+import { loadVenueScopedEvent } from '../../lib/venueEventScope.js';
+import { getPermissionsForRole } from '../../lib/rbac-permissions.js';
 
 const VenueIdQuery = z.object({ venueId: z.string() });
 const VenueCrmQuery = z.object({
@@ -138,6 +148,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -155,6 +166,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: VenueProfilePatch })],
     },
     async (request: any, reply) => {
@@ -185,6 +197,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/partnerships',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -208,6 +221,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/partnerships/:partnershipId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -235,6 +249,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/notifications',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -242,6 +257,19 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       await fastify.verifyPartnerAccess(request, venueId).catch(() => {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
+      await fastify.enrichAuthContext(request);
+      const membership = request.authContext?.memberships?.find(
+        (candidate: any) =>
+          String(candidate.partnerId) === String(venueId) &&
+          (candidate.isActive === true || candidate.status === 'active'),
+      );
+      const permissions = getPermissionsForRole(
+        membership?.partnerType || 'venue',
+        membership?.role || '',
+      );
+      if (!permissions.includes('VIEW_FINANCIALS')) {
+        return reply.status(403).send({ error: 'VIEW_FINANCIALS permission is required' });
+      }
 
       try {
         // Remove orderBy to avoid indexing requirements, sort in memory
@@ -268,6 +296,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/notifications/read',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: NotificationsReadBody })],
     },
     async (request: any, reply) => {
@@ -299,6 +328,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/orders',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueOrdersQuery })],
     },
     async (request: any, reply) => {
@@ -306,6 +336,19 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       await fastify.verifyPartnerAccess(request, venueId).catch(() => {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
+      await fastify.enrichAuthContext(request);
+      const membership = request.authContext?.memberships?.find(
+        (candidate: any) =>
+          String(candidate.partnerId) === String(venueId) &&
+          (candidate.isActive === true || candidate.status === 'active'),
+      );
+      const permissions = getPermissionsForRole(
+        membership?.partnerType || 'venue',
+        membership?.role || '',
+      );
+      if (!permissions.includes('VIEW_FINANCIALS')) {
+        return reply.status(403).send({ error: 'VIEW_FINANCIALS permission is required' });
+      }
 
       try {
         const pageSize = Math.min(parseInt(limit), 100);
@@ -338,6 +381,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/analytics/time-series',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: TimeSeriesSchema })],
     },
     async (request: any, reply) => {
@@ -366,13 +410,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           points = 12;
         } // 'all' → 12 months
 
-        // Fetch all orders for this venue (handles old orders without venueId field)
-        const allOrders = await fetchVenueOrders(fastify.db, venueId);
-        const orders = allOrders.filter((o: any) => {
-          if (o.status !== 'confirmed' && o.status !== 'paid') return false;
-          const ts = new Date(o.confirmedAt || o.createdAt || 0);
-          return range === 'all' ? true : ts >= cutoff;
-        });
+        const commerce = await getPartnerCommerceRows(fastify.db, venueId, 'venueId');
 
         // Build bucket map keyed by bucket identifier
         const buckets = new Map<string, { date: Date; tickets: number; revenue: number }>();
@@ -401,9 +439,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           }
         }
 
-        // Accumulate order values into buckets
-        for (const order of orders) {
-          const ts = new Date(order.confirmedAt || order.createdAt || 0);
+        for (const entry of commerce.ledger.filter((row) => row.type === 'venue_share')) {
+          const ts = new Date(entry.createdAtIso || 0);
+          if (range !== 'all' && ts < cutoff) continue;
           let key: string;
           if (range === '1d')
             key = `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}-${ts.getHours()}`;
@@ -412,17 +450,20 @@ export default async function venueRoutes(fastify: FastifyInstance) {
 
           const bucket = buckets.get(key);
           if (!bucket) continue;
+          bucket.revenue += Number(entry.amountPaise || 0) / 100;
+        }
 
-          const ticketCount =
-            order.ticketCount ||
-            (Array.isArray(order.tickets)
-              ? order.tickets.reduce((s: number, t: any) => s + (t.quantity || 1), 0)
-              : 0) ||
-            1;
-          const revenue = order.totalAmount || (order.totalPaise ? order.totalPaise / 100 : 0);
+        for (const ticket of commerce.tickets) {
+          const ts = new Date(ticket.createdAtIso || 0);
+          if (range !== 'all' && ts < cutoff) continue;
+          let key: string;
+          if (range === '1d')
+            key = `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}-${ts.getHours()}`;
+          else if (range === 'all') key = `${ts.getFullYear()}-${ts.getMonth()}`;
+          else key = `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}`;
 
-          bucket.tickets += ticketCount;
-          bucket.revenue += revenue;
+          const bucket = buckets.get(key);
+          if (bucket) bucket.tickets += 1;
         }
 
         // Serialise into series array
@@ -454,6 +495,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/analytics/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -463,48 +505,59 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const [eventsSnap, ordersSnap, checkinsSnap] = await Promise.all([
+      const [eventsSnap, commerceRows, checkinsSnap, rsvpsSnap, audience] = await Promise.all([
         fastify.db
           .collection('events')
           .where('venueId', '==', venueId)
           .get()
           .catch(() => ({ docs: [] as any[], size: 0 })),
-        fastify.db
-          .collection('orders')
-          .where('venueId', '==', venueId)
-          .where('status', 'in', ['confirmed', 'paid'])
-          .where('createdAt', '>=', thirtyDaysAgo)
-          .get()
-          .catch(() => ({ docs: [] as any[] })),
+        getPartnerCommerceRows(fastify.db, venueId, 'venueId'),
         fastify.db
           .collection('check_ins')
           .where('venueId', '==', venueId)
           .where('checkedInAt', '>=', thirtyDaysAgo)
           .get()
           .catch(() => ({ size: 0 })),
+        fastify.db
+          .collection('rsvp_orders')
+          .where('venueId', '==', venueId)
+          .orderBy('createdAt', 'desc')
+          .limit(2000)
+          .get()
+          .catch(() => ({ docs: [] as any[] })),
+        aggregateAudience(fastify.db, { venueId }, thirtyDaysAgo),
       ]);
-      const orderDocs = (ordersSnap as any).docs || [];
-      const totalRevenuePaise = orderDocs.reduce(
-        (sum: number, doc: any) =>
-          sum + (doc.data().totalPaise || Math.round((doc.data().amount || 0) * 100)),
-        0,
-      );
-      const totalTickets = orderDocs.reduce(
-        (sum: number, doc: any) => sum + (doc.data().ticketCount || 0),
-        0,
-      );
+      const totalRevenuePaise = commerceRows.ledger
+        .filter((entry) => !entry.createdAtIso || entry.createdAtIso >= thirtyDaysAgo)
+        .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0);
+      const totalTickets = commerceRows.tickets.filter(
+        (ticket) => !ticket.createdAtIso || ticket.createdAtIso >= thirtyDaysAgo,
+      ).length;
+      const rsvpTickets = ((rsvpsSnap as any).docs || []).reduce((count: number, doc: any) => {
+        const rsvp = doc.data() || {};
+        const created = rsvp.createdAt?.toDate?.()
+          ? rsvp.createdAt.toDate().toISOString()
+          : rsvp.createdAt;
+        if (rsvp.status !== 'confirmed') return count;
+        if (created && created < thirtyDaysAgo) return count;
+        return count + (Number(rsvp.ticketCount || rsvp.quantity || 1) || 1);
+      }, 0);
       const totalCheckIns = (checkinsSnap as any).size || 0;
       const eventCount = (eventsSnap as any).size || ((eventsSnap as any).docs || []).length;
       return reply.send({
         period: '30d',
         totalRevenue: totalRevenuePaise / 100,
-        totalTicketsSold: totalTickets,
+        totalTicketsSold: totalTickets + rsvpTickets,
+        ticketsSoldPaid: totalTickets,
+        ticketsSoldRsvp: rsvpTickets,
         totalCheckIns,
         totalEvents: eventCount,
         events: { total: eventCount },
         revenue: { totalPaise: totalRevenuePaise, total: totalRevenuePaise / 100 },
-        tickets: { sold: totalTickets },
+        tickets: { sold: totalTickets + rsvpTickets, paid: totalTickets, rsvp: rsvpTickets },
         attendance: { checkedIn: totalCheckIns },
+        genderRatio: audience.genderRatio,
+        ageBands: audience.ageBands,
       });
     },
   );
@@ -512,6 +565,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/overview/summary',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -530,9 +584,10 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-      const [eventsSnap, allOrders] = await Promise.all([
+      const [eventsSnap, allOrders, commerce] = await Promise.all([
         fastify.db.collection('events').where('venueId', '==', venueId).get(),
         fetchVenueOrders(fastify.db, venueId),
+        getPartnerCommerceRows(fastify.db, venueId, 'venueId'),
       ]);
 
       const recentEvents = eventsSnap.docs
@@ -550,11 +605,18 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return ts >= twoWeeksAgo.getTime() && ts < weekAgo.getTime();
       });
 
-      const weekendRevenue = thisWeekOrders.reduce(
-        (s: number, o: any) => s + (o.totalAmount || 0),
-        0,
-      );
-      const prevRevenue = prevWeekOrders.reduce((s: number, o: any) => s + (o.totalAmount || 0), 0);
+      const venueRevenueEntries = commerce.ledger.filter((entry) => entry.type === 'venue_share');
+      const weekendRevenue =
+        venueRevenueEntries
+          .filter((entry) => new Date(entry.createdAtIso || 0).getTime() >= weekAgo.getTime())
+          .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
+      const prevRevenue =
+        venueRevenueEntries
+          .filter((entry) => {
+            const timestamp = new Date(entry.createdAtIso || 0).getTime();
+            return timestamp >= twoWeeksAgo.getTime() && timestamp < weekAgo.getTime();
+          })
+          .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0) / 100;
       const revenueTrendPct =
         prevRevenue === 0
           ? weekendRevenue > 0
@@ -583,6 +645,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -600,6 +663,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/overview/tonight',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -614,30 +678,13 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
 
-      const [ordersSnap, checkinsSnap] = await Promise.all([
-        fastify.db
-          .collection('orders')
-          .where('eventId', '==', eventId)
-          .where('status', '==', 'confirmed')
-          .get(),
+      const [commerce, checkinsSnap] = await Promise.all([
+        getEventCommerceMetrics(fastify.db, eventId),
         fastify.db.collection('check_ins').where('eventId', '==', eventId).get(),
       ]);
 
-      const revenue = ordersSnap.docs.reduce(
-        (sum: number, d: any) => sum + (d.data().totalAmount || 0),
-        0,
-      );
-      const ticketsSold = ordersSnap.docs.reduce((sum: number, d: any) => {
-        const o = d.data();
-        return (
-          sum +
-          (o.ticketCount ||
-            (Array.isArray(o.tickets)
-              ? o.tickets.reduce((s: number, t: any) => s + (t.quantity || 1), 0)
-              : 0) ||
-            1)
-        );
-      }, 0);
+      const revenue = commerce.netRevenue;
+      const ticketsSold = commerce.ticketsSold;
 
       return {
         id: eventId,
@@ -655,6 +702,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/page',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -680,6 +728,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/page',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -708,6 +757,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/crm/online',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueCrmQuery })],
     },
     async (request: any, reply) => {
@@ -757,6 +807,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueEventsSchema })],
     },
     async (request: any, reply) => {
@@ -797,6 +848,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -820,14 +872,24 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       const newStatus = statusMap[action];
       if (!newStatus) return reply.status(400).send({ error: 'Invalid action' });
 
-      await fastify.db
-        .collection('events')
-        .doc(eventId)
-        .update({
-          lifecycle: newStatus,
-          updatedAt: now,
-          ...(action === 'approve' ? { approvedAt: now } : {}),
-        });
+      const eventUpdatePayload: Record<string, any> = {
+        lifecycle: newStatus,
+        updatedAt: now,
+      };
+
+      if (action === 'approve') {
+        eventUpdatePayload.approvedAt = now;
+        eventUpdatePayload.visibility = 'public';
+      }
+
+      await fastify.db.collection('events').doc(eventId).update(eventUpdatePayload);
+
+      // Keep public discovery search and index in sync, invalidate caching, and trigger guest revalidation
+      await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
+      await fastify.invalidatePublicDiscovery('all').catch(() => {});
+      await fastify
+        .revalidateGuestEvent(eventId, action === 'approve' ? 'approved' : action)
+        .catch(() => {});
 
       return { success: true, status: newStatus };
     },
@@ -836,6 +898,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/events/requests',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -867,6 +930,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/orders/latest',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -899,6 +963,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/staff',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })],
     },
     async (request: any, reply) => {
@@ -919,6 +984,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/staff-profiles',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -937,6 +1003,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/staff-profiles/assignments',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -955,6 +1022,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/staff-profiles/assign',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -973,6 +1041,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/staff',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1001,6 +1070,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/staff',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1034,6 +1104,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/venue/staff',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1060,6 +1131,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/staff/:memberId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1083,6 +1155,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/venue/staff/:memberId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1106,6 +1179,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/events/:id/tickets',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1135,6 +1209,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/slots',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1166,6 +1241,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/slots/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1184,6 +1260,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/slots/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1274,6 +1351,11 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           }
         }
 
+        const linkedEventRef = liveSlot.eventId
+          ? fastify.db.collection('events').doc(liveSlot.eventId)
+          : null;
+        const linkedEventDoc = linkedEventRef ? await transaction.get(linkedEventRef) : null;
+
         const updates: Record<string, any> = {
           status: nextStatus,
           updatedAt: now,
@@ -1292,23 +1374,19 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         if (message || notes) updates.responseMessage = message || notes;
         transaction.update(ref, updates);
 
-        if (liveSlot.eventId) {
-          const eventRef = fastify.db.collection('events').doc(liveSlot.eventId);
-          const eventDoc = await transaction.get(eventRef);
-          if (eventDoc.exists) {
-            const eventUpdates: Record<string, any> = {
-              slotStatus: nextStatus,
-              slotRespondedAt: now,
-              updatedAt: now,
-            };
-            if (action === 'approve') {
-              eventUpdates.lifecycle = 'scheduled';
-              eventUpdates.approvedAt = now;
-            } else if (action === 'reject') {
-              eventUpdates.lifecycle = 'denied';
-            }
-            transaction.update(eventRef, eventUpdates);
+        if (linkedEventRef && linkedEventDoc?.exists) {
+          const eventUpdates: Record<string, any> = {
+            slotStatus: nextStatus,
+            slotRespondedAt: now,
+            updatedAt: now,
+          };
+          if (action === 'approve') {
+            eventUpdates.lifecycle = 'scheduled';
+            eventUpdates.approvedAt = now;
+          } else if (action === 'reject') {
+            eventUpdates.lifecycle = 'denied';
           }
+          transaction.update(linkedEventRef, eventUpdates);
         }
 
         return {
@@ -1361,10 +1439,6 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     eventId: z.string().optional(),
   });
 
-  // Venue keeps this fraction of ticket revenue from cover-charge events.
-  // Backend is the single source of truth — never derived on the frontend.
-  const VENUE_TICKET_SPLIT_RATE = 0.7;
-
   /**
    * GET /api/v1/venue/finance/cover-recon
    * Returns cover-charge wallet reconciliation for an event plus the
@@ -1373,6 +1447,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/cover-recon',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: CoverReconQuery })],
     },
     async (request: any, reply) => {
@@ -1380,6 +1455,19 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       await fastify.verifyPartnerAccess(request, venueId).catch(() => {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
+      await fastify.enrichAuthContext(request);
+      const membership = request.authContext?.memberships?.find(
+        (candidate: any) =>
+          String(candidate.partnerId) === String(venueId) &&
+          (candidate.isActive === true || candidate.status === 'active'),
+      );
+      const permissions = getPermissionsForRole(
+        membership?.partnerType || 'venue',
+        membership?.role || '',
+      );
+      if (!permissions.includes('VIEW_FINANCIALS')) {
+        return reply.status(403).send({ error: 'VIEW_FINANCIALS permission is required' });
+      }
 
       try {
         // Fetch events for this venue
@@ -1405,16 +1493,12 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           return { events, reconciliation: null };
         }
 
-        // Fetch persisted reconciliation (may not exist if not yet generated)
-        const reconDoc = await fastify.db
-          .collection('cover_wallet_reconciliations')
-          .doc(eventId)
-          .get();
-        if (!reconDoc.exists) {
-          return { events, reconciliation: null };
+        const scopedEvent = await loadVenueScopedEvent(fastify.db, eventId, venueId);
+        if (!scopedEvent) {
+          return reply.status(404).send({ error: 'Reconciliation not found' });
         }
 
-        const raw = reconDoc.data() as any;
+        const raw = (await generateReconciliation(eventId, venueId)) as any;
         const summary = raw.summary ?? raw;
 
         const grossCollection = Number(summary.openingBalancePaise ?? 0);
@@ -1426,23 +1510,16 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         );
         const walletsIssued = Number(summary.walletsIssued ?? 0);
 
-        // Compute ticket revenue from confirmed orders for this event
-        const ordersSnap = await fastify.db
-          .collection('orders')
-          .where('eventId', '==', eventId)
-          .where('status', '==', 'confirmed')
-          .get();
-        const ticketRevenuePaise = ordersSnap.docs.reduce((sum: number, d: any) => {
-          return sum + Math.round((Number(d.data().totalAmount) || 0) * 100);
-        }, 0);
+        const commerce = await getEventCommerceMetrics(fastify.db, eventId);
+        const ticketRevenuePaise = commerce.netRevenuePaise;
+        const canonicalVenueSharePaise = commerce.ledgerEntries
+          .filter(
+            (entry: any) =>
+              entry.type === 'venue_share' && String(entry.toPartnerId) === String(venueId),
+          )
+          .reduce((sum: number, entry: any) => sum + Number(entry.amountPaise || 0), 0);
 
-        // Payout computed here — never on the frontend
-        const payoutTotal =
-          Math.round(ticketRevenuePaise * VENUE_TICKET_SPLIT_RATE) + breakageRevenue;
-
-        const now = new Date().toISOString();
-        const isLive =
-          eventsSnap.docs.find((d: any) => d.id === eventId)?.data()?.status === 'live';
+        const isLive = scopedEvent.data.status === 'live';
 
         return {
           events,
@@ -1453,11 +1530,12 @@ export default async function venueRoutes(fastify: FastifyInstance) {
             breakageRevenue,
             walletsIssued,
             ticketRevenuePaise,
-            payoutTotal,
-            venueTicketSplitPct: Math.round(VENUE_TICKET_SPLIT_RATE * 100),
+            canonicalVenueSharePaise,
+            payoutTotal: canonicalVenueSharePaise,
             isLive: Boolean(isLive),
             itemDistribution: Array.isArray(raw.itemDistribution) ? raw.itemDistribution : [],
             exceptionList: Array.isArray(summary.exceptionList) ? summary.exceptionList : [],
+            reconciliationDifferencePaise: Number(summary.reconciliationDifferencePaise || 0),
           },
         };
       } catch (err: any) {
@@ -1472,6 +1550,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/calendar',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1493,7 +1572,10 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       const events = eventsSnap.docs
         .map((d) => ({ id: d.id, ...(d.data() as any) }))
         .filter(
-          (e) => (!startDate || e.startDate >= startDate) && (!endDate || e.startDate <= endDate),
+          (e) =>
+            isBlockingCalendarEvent(e) &&
+            (!startDate || e.startDate >= startDate) &&
+            (!endDate || e.startDate <= endDate),
         );
       const slots = slotsSnap.docs
         .map((doc: any) => normalizeSlotRecord(doc))
@@ -1543,6 +1625,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/calendar',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1608,6 +1691,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/venue/calendar',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1715,10 +1799,20 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       }
 
       if (staffData.status === 'active') {
+        let customToken = '';
+        try {
+          const userRecord = await fastify.auth.getUserByEmail(staffData.email);
+          customToken = await fastify.auth.createCustomToken(userRecord.uid);
+        } catch (tokenErr) {
+          fastify.log.error(
+            { err: tokenErr },
+            'Failed to generate custom token for already active staff',
+          );
+        }
         return {
           success: true,
           email: staffData.email,
-          tempPassword: staffData.tempPassword,
+          customToken,
           alreadyAccepted: true,
         };
       }
@@ -1730,7 +1824,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       const email = staffData.email;
       const name = staffData.name;
       const role = staffData.role;
-      const tempPassword = staffData.tempPassword;
+      const tempPassword = decrypt(staffData.tempPassword);
 
       // 1. Create the user in Firebase Auth if they don't exist
       let userRecord;
@@ -1815,7 +1909,8 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         updatedAt: new Date().toISOString(),
       });
 
-      return { success: true, email, tempPassword };
+      const customToken = await fastify.auth.createCustomToken(uid);
+      return { success: true, email, customToken };
     } catch (error: any) {
       fastify.log.error({ error: error.message }, 'POST /venue/staff/accept failed');
       return reply.status(500).send({ error: 'Internal Server Error' });
@@ -1825,6 +1920,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/upload',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1862,6 +1958,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/presence',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1899,6 +1996,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venues',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: VenueDirectoryQuery })],
     },
     async (request: any, reply: any) => {
@@ -1916,6 +2014,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venues/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: VenuePublicIdParam })],
     },
     async (request: any, reply: any) => {
@@ -1936,6 +2035,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venues/:id/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: VenuePublicIdParam })],
     },
     async (request: any, reply: any) => {

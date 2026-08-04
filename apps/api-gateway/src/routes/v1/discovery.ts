@@ -41,6 +41,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: DiscoveryQuerySchema })],
     },
     async (request: any, reply) => {
@@ -471,6 +472,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: DiscoveryPostSchema })],
     },
     async (request: any, reply) => {

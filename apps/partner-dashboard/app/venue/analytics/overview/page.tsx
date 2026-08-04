@@ -1,12 +1,15 @@
 import { redirect } from 'next/navigation';
 
-export default function Page({
+export default async function Page({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const eventId = searchParams?.eventId;
+  const eventId = (await searchParams).eventId;
+  const selectedEventId = Array.isArray(eventId) ? eventId[0] : eventId;
   redirect(
-    eventId ? `/venue/analytics?tab=overview&eventId=${eventId}` : '/venue/analytics?tab=overview',
+    selectedEventId
+      ? `/venue/analytics?tab=overview&eventId=${encodeURIComponent(selectedEventId)}`
+      : '/venue/analytics?tab=overview',
   );
 }

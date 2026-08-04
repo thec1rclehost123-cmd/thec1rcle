@@ -1,9 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import type { Firestore } from 'firebase-admin/firestore';
-import { getFinancialSummary, processRefund } from '@c1rcle/core/finance-engine';
 import { z } from 'zod';
 import { FinanceService } from '../../services/unified/finance-service.js';
 import { buildPayoutAccountRecord } from '../../lib/partner-hardening.js';
+import { getEventCommerceMetrics } from '../../lib/canonicalCommerceMetrics.js';
 
 // ── Existing schemas ──────────────────────────────────────────────────────────
 
@@ -237,6 +237,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/summary',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: SummaryQuery })],
     },
     async (request, reply) => {
@@ -245,7 +246,29 @@ export default async function financeRoutes(fastify: FastifyInstance) {
         if (!entityId) return reply.status(400).send({ error: 'entityId required' });
         await fastify.verifyPartnerAccess(request, entityId);
         if (String(type).toLowerCase() === 'event') {
-          return await getFinancialSummary(entityId, type);
+          const metrics = await getEventCommerceMetrics(fastify.db, entityId);
+          const sumType = (entryType: string) =>
+            metrics.ledgerEntries
+              .filter((entry) => entry.type === entryType)
+              .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0);
+          return {
+            entityId,
+            type: 'event',
+            gross: metrics.grossRevenue,
+            grossPaise: metrics.grossRevenuePaise,
+            net: metrics.netRevenue,
+            netPaise: metrics.netRevenuePaise,
+            commissions: sumType('promoter_commission') / 100,
+            commissionsPaise: sumType('promoter_commission'),
+            fees: sumType('platform_fee') / 100,
+            feesPaise: sumType('platform_fee'),
+            refunds: metrics.refundAmount,
+            refundPaise: metrics.refundPaise,
+            ticketsSold: metrics.ticketsSold,
+            orderCount: metrics.orderCount,
+            currency: 'INR',
+            source: 'partner_ledger',
+          };
         }
 
         const ctx = buildFinanceContext(
@@ -280,6 +303,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/history',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: HistoryQuery })],
     },
     async (request, reply) => {
@@ -333,6 +357,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/refund',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: RefundBody })],
     },
     async (request, reply) => {
@@ -346,8 +371,11 @@ export default async function financeRoutes(fastify: FastifyInstance) {
         if (!exists) return reply.status(404).send({ error: 'Order not found' });
         if (!partnerId) return reply.status(403).send({ error: 'Forbidden' });
         await fastify.verifyPartnerAccess(request, partnerId);
-        const result = await processRefund(orderId, amount, reason, (request as any).user?.uid);
-        return result;
+        return reply.status(503).send({
+          code: 'LEGACY_REFUND_ROUTE_DISABLED',
+          error:
+            'This legacy refund route is disabled. Use POST /api/v1/refunds/request with amountPaise.',
+        });
       } catch (error: any) {
         fastify.log.error(`Refund failed for orderId=${orderId}: ${error.message}`);
         reply.status(400).send({ error: 'Failed to process refund' });
@@ -361,6 +389,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/promoter/balance/:promoterId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: PromoterIdParam })],
     },
     async (request, reply) => {
@@ -382,6 +411,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/promoter/payout',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: PayoutBody })],
     },
     async (request, reply) => {
@@ -389,8 +419,10 @@ export default async function financeRoutes(fastify: FastifyInstance) {
       try {
         if (!data.promoterId) return reply.status(400).send({ error: 'promoterId required' });
         await fastify.verifyPartnerAccess(request, data.promoterId);
-        const { requestPromoterPayout } = await import('@c1rcle/core/payout-engine');
-        return await requestPromoterPayout(data);
+        return reply.status(503).send({
+          code: 'PAYOUTS_NOT_LAUNCH_ENABLED',
+          error: 'Payout withdrawals are unavailable during launch verification',
+        });
       } catch (error: any) {
         fastify.log.error(`Payout request failed: ${error.message}`);
         reply.status(400).send({ error: 'Failed to request payout' });
@@ -404,6 +436,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/promoter/payouts/:promoterId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ params: PromoterIdParam })],
     },
     async (request, reply) => {
@@ -421,6 +454,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/promoter/payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -446,6 +480,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/promoter/payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: PayoutBody })],
     },
     async (request: any, reply) => {
@@ -453,8 +488,10 @@ export default async function financeRoutes(fastify: FastifyInstance) {
       try {
         if (!data.promoterId) return reply.status(400).send({ error: 'promoterId required' });
         await fastify.verifyPartnerAccess(request, data.promoterId);
-        const { requestPromoterPayout } = await import('@c1rcle/core/payout-engine');
-        return await requestPromoterPayout(data);
+        return reply.status(503).send({
+          code: 'PAYOUTS_NOT_LAUNCH_ENABLED',
+          error: 'Payout withdrawals are unavailable during launch verification',
+        });
       } catch (error: any) {
         fastify.log.error(
           `Promoter payout request failed for promoterId=${data.promoterId}: ${error.message}`,
@@ -467,6 +504,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/promoter/payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -476,24 +514,10 @@ export default async function financeRoutes(fastify: FastifyInstance) {
           return reply.status(400).send({ error: 'promoterId and payoutId required' });
         await fastify.verifyPartnerAccess(request, promoterId);
 
-        const ref = fastify.db.collection('payouts').doc(payoutId);
-        const doc = await ref.get();
-        if (!doc.exists) return reply.status(404).send({ error: 'Payout not found' });
-
-        const payout = doc.data() as Record<string, any>;
-        if (String(payout.partnerId || '') !== promoterId)
-          return reply.status(403).send({ error: 'Forbidden' });
-        if (!['pending', 'processing'].includes(String(payout.status || '').toLowerCase())) {
-          return reply.status(409).send({ error: 'Only pending payouts can be cancelled' });
-        }
-
-        await ref.update({
-          status: 'cancelled',
-          cancelledAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+        return reply.status(503).send({
+          code: 'PAYOUTS_NOT_LAUNCH_ENABLED',
+          error: 'Payout withdrawals are unavailable during launch verification',
         });
-
-        return { success: true };
       } catch (error: any) {
         fastify.log.error(
           `Promoter payout cancel failed for payoutId=${payoutId}: ${error.message}`,
@@ -512,6 +536,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/promoter/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -548,6 +573,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/promoter/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -581,6 +607,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/promoter/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -621,6 +648,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partner/promoter/finance',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -653,7 +681,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
    * availablePaise  = sum of PAYABLE ledger entries (ready to withdraw)
    * pendingPaise    = sum of HELD + SETTLED entries (in-flight, not yet payable)
    *
-   * Ledger amounts are stored in INR rupees; multiply × 100 for paise.
+   * Ledger amounts are stored and reconciled as integer paise.
    */
   /**
    * GET /api/v1/venue/finance/overview
@@ -662,6 +690,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -698,6 +727,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/wallet',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -715,9 +745,9 @@ export default async function financeRoutes(fastify: FastifyInstance) {
         const balances = await financeService.getBalances(ctx);
 
         return {
-          availablePaise: Math.max(0, Math.round((Number(balances.available) || 0) * 100)),
-          pendingPaise: Math.max(0, Math.round((Number(balances.pending) || 0) * 100)),
-          heldPaise: Math.max(0, Math.round((Number(balances.pending) || 0) * 100)),
+          availablePaise: Math.max(0, balances.availablePaise),
+          pendingPaise: Math.max(0, balances.pendingPaise),
+          heldPaise: Math.max(0, balances.pendingPaise),
           currency: balances.currency || 'INR',
         };
       } catch (error: any) {
@@ -743,6 +773,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/payout-balance',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -760,8 +791,8 @@ export default async function financeRoutes(fastify: FastifyInstance) {
         const balances = await financeService.getBalances(ctx);
 
         return {
-          withdrawablePaise: Math.max(0, Math.round((Number(balances.available) || 0) * 100)),
-          pendingSettlementPaise: Math.max(0, Math.round((Number(balances.pending) || 0) * 100)),
+          withdrawablePaise: Math.max(0, balances.availablePaise),
+          pendingSettlementPaise: Math.max(0, balances.pendingPaise),
           currency: balances.currency || 'INR',
         };
       } catch (error: any) {
@@ -783,6 +814,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: PayoutHistoryQuery })],
     },
     async (request) => {
@@ -835,6 +867,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/payout-history',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: PayoutHistoryQuery })],
     },
     async (request, reply) => {
@@ -964,6 +997,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/subscription',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -994,6 +1028,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/billing-methods',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -1025,6 +1060,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/invoices',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: InvoicesQuery })],
     },
     async (request, reply) => {
@@ -1053,6 +1089,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -1090,6 +1127,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/disputes',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request) => {
@@ -1118,6 +1156,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/finance/payout-config',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (_request, _reply) => {
@@ -1132,6 +1171,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/ledger',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1165,6 +1205,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/host-payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {
@@ -1188,6 +1229,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/finance/promoter-payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })],
     },
     async (request, reply) => {

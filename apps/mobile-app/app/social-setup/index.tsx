@@ -7,10 +7,12 @@ import { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, StatusBar } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ShieldCheck, Camera, Heart, Users, ChevronRight, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/hooks/useAuth';
+import { markSocialSetupSkipped, clearSocialSetupSkipped } from '@/lib/onboardingFlow';
+import { useProfileStore } from '@/store/profileStore';
 import { useSocialProfileStore } from '@/store/socialProfileStore';
 import { colors } from '@/lib/design/theme';
 
@@ -49,21 +51,32 @@ const STEPS = ['Photos', 'Preferences', 'Review'];
 
 export default function SocialSetupIndex() {
   const { user } = useAuth();
-  const { socialState, loadSocialProfile } = useSocialProfileStore();
+  const socialState = useSocialProfileStore((state) => state.socialState);
+  const loadSocialProfile = useSocialProfileStore((state) => state.loadSocialProfile);
+  const updateProfile = useProfileStore((state) => state.updateProfile);
 
   useEffect(() => {
     if (user?.uid) loadSocialProfile(user.uid);
-  }, [user?.uid]);
+  }, [loadSocialProfile, user?.uid]);
 
   useEffect(() => {
-    if (socialState === 'complete' || socialState === 'verified') {
-      router.replace('/social-setup/photos');
+    if ((socialState === 'complete' || socialState === 'verified') && user?.uid) {
+      clearSocialSetupSkipped(user.uid).catch(() => undefined);
+      updateProfile(user.uid, { socialSetupComplete: true }).finally(() => {
+        router.replace('/(tabs)/explore');
+      });
     }
-  }, [socialState]);
+  }, [socialState, updateProfile, user?.uid]);
 
   const handleStart = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/social-setup/photos');
+  };
+
+  const handleSkip = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await markSocialSetupSkipped(user?.uid);
+    router.replace('/(tabs)/explore');
   };
 
   return (
@@ -72,13 +85,13 @@ export default function SocialSetupIndex() {
 
       {/* Close button */}
       <View style={styles.topBar}>
-        <Pressable style={styles.closeBtn} onPress={() => router.back()}>
+        <Pressable style={styles.closeBtn} onPress={handleSkip}>
           <X size={16} color="rgba(255,255,255,0.5)" strokeWidth={2} />
         </Pressable>
       </View>
 
       {/* Hero */}
-      <Animated.View entering={FadeInDown.delay(60).springify().damping(20)} style={styles.hero}>
+      <Animated.View entering={FadeInDown.delay(60)} style={styles.hero}>
         <View style={styles.heroIcon}>
           <Heart size={36} color={colors.iris} strokeWidth={1.5} fill="rgba(244,74,34,0.2)" />
         </View>
@@ -93,9 +106,7 @@ export default function SocialSetupIndex() {
         {PERKS.map(({ icon: Icon, color, bg, label, desc }, i) => (
           <Animated.View
             key={label}
-            entering={FadeInDown.delay(120 + i * 55)
-              .springify()
-              .damping(18)}
+            entering={FadeInDown.delay(120 + i * 55)}
             style={styles.perkRow}
           >
             <View style={[styles.perkIcon, { backgroundColor: bg }]}>
@@ -110,10 +121,7 @@ export default function SocialSetupIndex() {
       </View>
 
       {/* Steps preview */}
-      <Animated.View
-        entering={FadeInDown.delay(360).springify().damping(18)}
-        style={styles.stepsContainer}
-      >
+      <Animated.View entering={FadeInDown.delay(360)} style={styles.stepsContainer}>
         <Text style={styles.stepsHeading}>Takes 2 minutes</Text>
         <View style={styles.stepsRow}>
           {STEPS.map((step, i) => (
@@ -131,7 +139,7 @@ export default function SocialSetupIndex() {
       </Animated.View>
 
       {/* CTA */}
-      <Animated.View entering={FadeInDown.delay(420).springify().damping(18)} style={styles.footer}>
+      <Animated.View entering={FadeInDown.delay(420)} style={styles.footer}>
         <Pressable style={styles.ctaBtn} onPress={handleStart}>
           <Text style={styles.ctaBtnText}>Get Started</Text>
           <ChevronRight size={18} color="#fff" strokeWidth={2.5} />
@@ -139,6 +147,9 @@ export default function SocialSetupIndex() {
         <Text style={styles.disclaimer}>
           Only visible to people attending the same events as you
         </Text>
+        <Pressable onPress={handleSkip} style={styles.skipBtn}>
+          <Text style={styles.skipText}>Skip for now</Text>
+        </Pressable>
       </Animated.View>
     </SafeAreaView>
   );
@@ -331,5 +342,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     lineHeight: 16,
+  },
+  skipBtn: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  skipText: {
+    color: 'rgba(255,255,255,0.38)',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

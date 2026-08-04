@@ -1,4 +1,6 @@
-require('dotenv').config({ path: '.env.local' });
+import { config } from 'dotenv';
+
+config({ path: '.env.local' });
 
 async function testHomepage() {
   const { loadHomepageContent } = await import('../features/discovery/homepageData.js');

@@ -8,17 +8,17 @@ import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, Image } 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeft, Bell, CalendarDays, MessageCircle } from 'lucide-react-native';
+import { ChevronLeft, Bell } from 'lucide-react-native';
 import Animated, {
   FadeIn,
   FadeInDown,
   SlideOutRight,
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  withTiming,
   Layout,
 } from 'react-native-reanimated';
-import { Swipeable } from 'react-native-gesture-handler';
+import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '@/store/authStore';
 import {
@@ -36,7 +36,7 @@ import { formatRelativeTime } from '@/lib/utils/date';
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // Notification Item Component
-function NotificationItem({
+export function NotificationItem({
   notification,
   index,
   onPress,
@@ -54,11 +54,11 @@ function NotificationItem({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(0.98, { duration: 250 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+    scale.value = withTiming(1, { duration: 250 });
   };
 
   const handlePress = () => {
@@ -76,11 +76,7 @@ function NotificationItem({
   );
 
   return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 50).springify()}
-      exiting={SlideOutRight.springify()}
-      layout={Layout.springify()}
-    >
+    <Animated.View entering={FadeInDown.delay(index * 50)} exiting={SlideOutRight} layout={Layout}>
       <View>
         <Swipeable renderRightActions={renderRightActions}>
           <View collapsable={false}>
@@ -128,22 +124,10 @@ function NotificationItem({
   );
 }
 
-// Section header
-function SectionHeader({
-  title,
-  action,
-}: {
-  title: string;
-  action?: { label: string; onPress: () => void };
-}) {
+function SectionHeader({ title }: { title: string }) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      {action && (
-        <Pressable onPress={action.onPress}>
-          <Text style={styles.sectionAction}>{action.label}</Text>
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -153,106 +137,75 @@ function DittoNotificationEmptyState() {
     <Animated.View entering={FadeIn.delay(120)} style={styles.emptyState}>
       <Animated.View entering={FadeInDown.delay(180)} style={styles.emptyIllustration}>
         <View style={styles.phoneFrame}>
+          {/* Mock Row 1 */}
           <View style={styles.listRow}>
-            <View style={styles.avatarWrap}>
+            <View
+              style={[
+                styles.avatarOrb,
+                { borderRadius: 12, backgroundColor: '#8B5CF6', overflow: 'hidden' },
+              ]}
+            >
               <Image
-                source={{ uri: 'https://i.pravatar.cc/150?img=47' }}
-                style={[styles.avatarOrb, { backgroundColor: '#333' }]}
+                source={require('../assets/images/attendees/riya.png')}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
               />
-              <View style={[styles.miniBadge, { backgroundColor: '#713DFF' }]}>
-                <MessageCircle size={10} color="#fff" fill="#fff" strokeWidth={2.5} />
-              </View>
             </View>
             <View style={styles.rowCopy}>
               <View style={styles.copyLineWide} />
               <View style={styles.copyLineShort} />
             </View>
-            <View style={styles.rowThumb} />
           </View>
+
+          {/* Mock Row 2 */}
           <View style={styles.listRow}>
-            <View style={styles.avatarWrap}>
-              <View style={[styles.avatarOrb, { backgroundColor: '#FFE66B' }]}>
-                <MessageCircle size={22} color="#020202" fill="#020202" strokeWidth={0} />
-              </View>
-              <View style={[styles.miniBadge, { backgroundColor: '#EF783B' }]}>
-                <CalendarDays size={10} color="#fff" strokeWidth={2.8} />
+            <View style={[styles.avatarOrb, { borderRadius: 22, backgroundColor: '#F59E0B' }]}>
+              <View style={{ width: 44, height: 44, borderRadius: 22, overflow: 'hidden' }}>
+                <Image
+                  source={require('../assets/images/attendees/sam.png')}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
               </View>
             </View>
             <View style={styles.rowCopy}>
               <View style={styles.copyLineWide} />
               <View style={[styles.copyLineShort, { width: '80%' }]} />
             </View>
-            <View style={styles.rowThumb} />
           </View>
+
+          {/* Mock Row 3 */}
           <View style={styles.listRow}>
-            <View style={styles.avatarWrap}>
+            <View
+              style={[
+                styles.avatarOrb,
+                { borderRadius: 22, backgroundColor: '#EAB308', overflow: 'hidden' },
+              ]}
+            >
               <Image
-                source={{ uri: 'https://i.pravatar.cc/150?img=68' }}
-                style={[styles.avatarOrb, { backgroundColor: '#333' }]}
+                source={require('../assets/images/attendees/neil.png')}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
               />
-              <View style={[styles.miniBadge, { backgroundColor: '#713DFF' }]}>
-                <MessageCircle size={10} color="#fff" fill="#fff" strokeWidth={2.5} />
-              </View>
             </View>
             <View style={styles.rowCopy}>
               <View style={styles.copyLineWide} />
-              <View style={styles.copyLineShort} />
-            </View>
-            <View style={styles.rowThumb} />
-          </View>
-        </View>
-
-        <LinearGradient
-          pointerEvents="none"
-          colors={['rgba(0,0,0,0)', colors.base.DEFAULT, colors.base.DEFAULT]}
-          locations={[0, 0.75, 1]}
-          style={styles.illustrationFade}
-        />
-
-        <View style={styles.notificationPreview}>
-          <View style={styles.avatarWrap}>
-            <Image
-              source={{ uri: 'https://i.pravatar.cc/150?img=11' }}
-              style={[styles.avatarOrb, styles.previewAvatar]}
-            />
-            <View style={styles.previewBadge}>
-              <MessageCircle size={10} color="#fff" fill="#fff" strokeWidth={2.5} />
+              <View style={[styles.copyLineShort, { width: '60%' }]} />
             </View>
           </View>
-          <View style={styles.previewCopy}>
-            <Text style={styles.previewText} numberOfLines={1}>
-              <Text style={styles.previewName}>David Miller</Text>
-              <Text style={styles.previewAction}> invited you to</Text>
-            </Text>
-            <Text style={styles.previewText} numberOfLines={1}>
-              <Text style={styles.previewName}>Coffee Crawl </Text>
-              <Text style={styles.previewTime}>4h ago</Text>
-            </Text>
-          </View>
-          <View style={styles.previewThumb}>
-            <Image
-              source={{
-                uri: 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=100&q=80',
-              }}
-              style={[StyleSheet.absoluteFill, { borderRadius: 8 }]}
-            />
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 8 },
-              ]}
-            />
-            <Text style={styles.previewThumbText}>
-              A COFFEE{'\n'}MEETUP{'\n'}FOR{'\n'}CREATIVES
-            </Text>
-          </View>
+
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(10,10,10,0)', 'rgba(0,0,0,1)']}
+            style={styles.illustrationFade}
+          />
         </View>
       </Animated.View>
 
       <Animated.Text entering={FadeInDown.delay(260)} style={styles.emptyTitle}>
         No Notifications
       </Animated.Text>
-      <Animated.Text entering={FadeInDown.delay(320)} style={styles.emptyMessage}>
+      <Animated.Text entering={FadeInDown.delay(320)} style={styles.emptyBody}>
         Notifications about your events and friends{'\n'}will show up here.
       </Animated.Text>
     </Animated.View>
@@ -260,22 +213,18 @@ function DittoNotificationEmptyState() {
 }
 
 export default function NotificationsScreen() {
-  const { user } = useAuthStore();
-  const {
-    notifications,
-    unreadCount,
-    loading,
-    error,
-    fetchNotifications,
-    markAsRead,
-    markAllAsRead,
-    clearNotification,
-  } = useNotificationsStore();
+  const user = useAuthStore((state) => state.user);
+  const notifications = useNotificationsStore((state) => state.notifications);
+  const unreadCount = useNotificationsStore((state) => state.unreadCount);
+  const loading = useNotificationsStore((state) => state.loading);
+  const error = useNotificationsStore((state) => state.error);
+  const fetchNotifications = useNotificationsStore((state) => state.fetchNotifications);
+  const subscribeToNotifications = useNotificationsStore((state) => state.subscribeToNotifications);
+  const markAsRead = useNotificationsStore((state) => state.markAsRead);
+  const markAllAsRead = useNotificationsStore((state) => state.markAllAsRead);
+  const clearNotification = useNotificationsStore((state) => state.clearNotification);
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
-
-  // Toggle this to instantly view the DITTO replica Empty State from the design
-  const forceShowEmptyState = true;
 
   // Hooks must precede any early return to satisfy rules-of-hooks
   useEffect(() => {
@@ -283,9 +232,10 @@ export default function NotificationsScreen() {
   }, []);
 
   useEffect(() => {
-    if (user?.uid) {
-      fetchNotifications(user.uid);
-    }
+    if (!user?.uid) return;
+    fetchNotifications(user.uid);
+    const unsubscribe = subscribeToNotifications(user.uid);
+    return () => unsubscribe();
   }, [user?.uid]);
 
   const onRefresh = useCallback(async () => {
@@ -296,42 +246,6 @@ export default function NotificationsScreen() {
     }
     setRefreshing(false);
   }, [user?.uid]);
-
-  if (forceShowEmptyState) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        {/* Header */}
-        <Animated.View entering={FadeIn} style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Pressable
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.replace('/');
-                }
-              }}
-              style={styles.backButton}
-            >
-              <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2} />
-            </Pressable>
-          </View>
-          <Text style={styles.headerTitle}>Notifications</Text>
-          <View style={styles.headerRight} />
-        </Animated.View>
-
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={styles.scrollView}
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
-          showsVerticalScrollIndicator={false}
-        >
-          <DittoNotificationEmptyState />
-        </ScrollView>
-      </View>
-    );
-  }
 
   const handleNotificationPress = (notification: Notification) => {
     markAsRead(notification.id);
@@ -397,7 +311,7 @@ export default function NotificationsScreen() {
         }
       >
         {/* Loading skeleton */}
-        {loading && notifications.length === 0 && <SkeletonList type="notification" count={5} />}
+        {loading && notifications.length === 0 && <SkeletonList count={5} />}
 
         {/* Error state */}
         {error && !loading && notifications.length === 0 && (
@@ -527,36 +441,32 @@ const styles = StyleSheet.create({
   },
   emptyIllustration: {
     width: 380,
-    height: 360,
+    height: 280,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: -60,
+    marginBottom: -40,
     position: 'relative',
   },
   phoneFrame: {
     position: 'absolute',
-    top: 40,
     bottom: 0,
-    width: 280,
-    borderTopLeftRadius: 44,
-    borderTopRightRadius: 44,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-    borderWidth: 1.5,
+    width: 220,
+    height: 240,
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
+    borderWidth: 2,
     borderBottomWidth: 0,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.1)',
     backgroundColor: '#0A0A0A',
-    paddingTop: 40,
-    paddingHorizontal: 20,
+    paddingTop: 32,
+    paddingHorizontal: 16,
     overflow: 'hidden',
   },
   listRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  avatarWrap: {
-    position: 'relative',
+    marginBottom: 20,
+    gap: 12,
   },
   avatarOrb: {
     width: 44,
@@ -565,162 +475,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarLavender: {
-    backgroundColor: '#C8E7EE',
-  },
-  avatarYellow: {
-    backgroundColor: '#FFE66B',
-  },
-  avatarGold: {
-    backgroundColor: '#F2DC55',
-  },
-  avatarInitial: {
-    color: '#F7F7F7',
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  avatarInitialDark: {
-    color: '#151515',
-    fontSize: 18,
-    fontWeight: '800',
-  },
   rowCopy: {
     flex: 1,
-    marginLeft: 14,
-    gap: 8,
+    justifyContent: 'center',
+    gap: 6,
   },
   copyLineWide: {
-    width: '100%',
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#2A2A2C',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 60,
   },
   copyLineShort: {
-    width: '60%',
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#222224',
-  },
-  rowThumb: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: '#1C1C1E',
-    marginLeft: 14,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    width: 100,
   },
   illustrationFade: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 180,
+    height: 60,
     zIndex: 10,
   },
-  notificationPreview: {
-    position: 'absolute',
-    top: 10,
-    width: 340,
-    alignSelf: 'center',
-    borderRadius: 20,
-    backgroundColor: 'rgba(42,42,44,0.98)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.8,
-    shadowRadius: 30,
-    elevation: 12,
-  },
-  previewAvatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#8E629B',
-  },
-  previewBadge: {
-    position: 'absolute',
-    right: -4,
-    bottom: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#713DFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#2A2A2C',
-  },
-  previewCopy: {
-    flex: 1,
-    marginLeft: 14,
-    marginRight: 14,
-    justifyContent: 'center',
-    gap: 4,
-  },
-  previewText: {
-    color: '#E5E5E5',
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  previewName: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  previewAction: {
-    color: '#A0A0A0',
-    fontWeight: '400',
-  },
-  previewTime: {
-    color: '#808080',
-    fontWeight: '400',
-  },
-  previewThumb: {
-    width: 46,
-    height: 46,
-    borderRadius: 10,
-    backgroundColor: '#9B6A3D',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  previewThumbText: {
-    color: '#FFFFFF',
-    fontSize: 5,
-    lineHeight: 7,
-    fontWeight: '900',
-    textAlign: 'center',
-    zIndex: 2,
-  },
-  miniBadge: {
-    position: 'absolute',
-    right: -4,
-    bottom: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#0A0A0A',
-  },
   emptyTitle: {
-    color: '#9E9E9E',
-    fontSize: 20,
-    lineHeight: 26,
-    fontWeight: '600',
+    color: '#FFF',
+    fontSize: 26,
+    fontWeight: '800',
+    marginBottom: 12,
     textAlign: 'center',
-    marginBottom: 8,
   },
-  emptyMessage: {
+  emptyBody: {
     color: 'rgba(255,255,255,0.5)',
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: '400',
+    fontSize: 15,
     textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+    paddingHorizontal: 40,
   },
   unreadBanner: {
     marginHorizontal: 20,

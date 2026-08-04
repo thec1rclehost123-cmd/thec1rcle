@@ -106,7 +106,7 @@ export default function ExceptionsPageClient() {
       const params = new URLSearchParams({ venueId });
       if (statusFilter !== 'all') params.set('status', statusFilter);
       const res = await fetch(`/api/partners/venues/guest-ops/${eventId}/exceptions?${params}`, {
-        headers: authHeaders(),
+        headers: await authHeaders(),
       });
       if (res.ok) {
         const d = await res.json();
@@ -137,7 +137,7 @@ export default function ExceptionsPageClient() {
         };
         const res = await fetch(
           `/api/partners/venues/guest-ops/${eventId}/exceptions/${exceptionId}/resolve?venueId=${venueId}`,
-          { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) },
+          { method: 'POST', headers: await authHeaders(), body: JSON.stringify(body) },
         );
         if (!res.ok) {
           const d = await res.json().catch(() => ({}));

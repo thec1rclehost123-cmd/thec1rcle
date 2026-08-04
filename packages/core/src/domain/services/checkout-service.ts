@@ -19,6 +19,24 @@ import {
 import { telemetry } from '@c1rcle/core/telemetry';
 // @ts-ignore
 import { getAdminDb } from '@c1rcle/core/admin';
+// @ts-ignore
+import { verifyPromoterAttribution } from '@c1rcle/core/promoter-attribution';
+
+export function calculatePromoterCommissionPaise({
+  commissionBasePaise,
+  commissionType,
+  rate,
+}: {
+  commissionBasePaise: number;
+  commissionType: string;
+  rate: number;
+}): number {
+  if (!Number.isSafeInteger(commissionBasePaise) || commissionBasePaise <= 0) return 0;
+
+  return commissionType === 'percentage' || commissionType === 'percent'
+    ? Math.round((commissionBasePaise * rate) / 100)
+    : Math.round(rate * 100);
+}
 
 /**
  * Optimized Checkout Orchestrator
@@ -88,6 +106,7 @@ export class CheckoutService {
       keyId?: string;
       keySecret?: string;
       allowMockPayment?: boolean;
+      forceMockPayment?: boolean;
     };
   }): Promise<any> {
     const { eventId, tierId, quantity, user, workspaceId = null } = params;
@@ -108,7 +127,7 @@ export class CheckoutService {
         deviceId: params.deviceId || null,
         items: [item],
         workspaceId,
-        reservationMinutes: params.reservationMinutes || 5,
+        reservationMinutes: params.reservationMinutes || 10,
         strictMode: true,
       });
 
@@ -208,6 +227,7 @@ export class CheckoutService {
           keyId: params.paymentGatewayConfig.keyId || '',
           keySecret: params.paymentGatewayConfig.keySecret || '',
           allowMockPayment: params.paymentGatewayConfig.allowMockPayment,
+          forceMockPayment: params.paymentGatewayConfig.forceMockPayment,
         },
       });
 
@@ -262,19 +282,42 @@ export class CheckoutService {
       userPhone: string;
       promoCode?: string;
       promoterCode?: string;
+      linkId?: string | null;
+      sourceChannel?: string;
+      hostUpdatesOptIn?: boolean;
     },
     workspaceId?: string | null,
   ): Promise<any> {
-    const { reservationId, userId, userName, userEmail, userPhone, promoCode, promoterCode } =
-      params;
+    const {
+      reservationId,
+      userId,
+      userName,
+      userEmail,
+      userPhone,
+      promoCode,
+      promoterCode,
+      linkId,
+      sourceChannel,
+      hostUpdatesOptIn,
+    } = params;
     const startTime = Date.now();
 
     try {
-      // 1. Validate Reservation
-      const reservation = await this.inventory.validateAndExpire(reservationId);
-
-      const existingOrder = await this.orderRepo.getOrderByReservationId(reservationId);
+      // 1. Validate reservation and resolve an idempotent replay in parallel.
+      // They are independent reads; serializing them adds a full Firestore RTT
+      // to every payment initialization.
+      const [reservation, existingOrder] = await Promise.all([
+        this.inventory.validateAndExpire(reservationId),
+        this.orderRepo.getOrderByReservationId(reservationId),
+      ]);
       if (existingOrder && reservation.status !== 'active') {
+        if (
+          existingOrder.status === 'confirmed' &&
+          !existingOrder.isRSVP &&
+          Number((existingOrder as any).totalPaise ?? existingOrder.totalAmount ?? 0) === 0
+        ) {
+          await this.fulfillment.processFulfillment(existingOrder, null);
+        }
         return this.buildExistingOrderResponse(existingOrder, reservationId);
       }
 
@@ -298,8 +341,27 @@ export class CheckoutService {
 
       if (!pricingResult.success) throw new Error(pricingResult.error);
       const pricing = pricingResult.pricing;
+      const freeTierItems = (pricing.items || []).filter(
+        (item: any) => Number(item.unitPrice || 0) <= 0,
+      );
+
+      for (const item of freeTierItems) {
+        if (Number(item.quantity || 0) !== 1) {
+          throw this.withCode(
+            new Error(`${item.tierName || 'Free ticket'} is limited to one per account`),
+            'FREE_TICKET_LIMIT_EXCEEDED',
+          );
+        }
+      }
 
       if (existingOrder) {
+        if (
+          existingOrder.status === 'confirmed' &&
+          !existingOrder.isRSVP &&
+          Number((existingOrder as any).totalPaise ?? existingOrder.totalAmount ?? 0) === 0
+        ) {
+          await this.fulfillment.processFulfillment(existingOrder, null);
+        }
         return this.buildExistingOrderResponse(
           existingOrder,
           reservationId,
@@ -308,40 +370,260 @@ export class CheckoutService {
         );
       }
 
-      // 3. Build Authoritative Payload (Logic moved to Engine)
-      const orderPayload = buildOrderPayload({
-        reservation,
-        event,
-        pricing,
-        user: { id: userId, name: userName, email: userEmail, phone: userPhone },
-        promoterCode,
-        workspaceId: resolvedWorkspaceId,
-      });
-
       // Phase 1: Atomic Commit — RSVP uniqueness check runs inside the transaction
       // so concurrent requests cannot both pass the check before either writes.
       const db = await getAdminDb();
+      let orderPayload: any = null;
       await db.runTransaction(async (transaction: any) => {
-        if ((event as any).isRSVP) {
+        const eventRef = db.collection('events').doc(reservation.eventId);
+        const eventSnapshot = await transaction.get(eventRef);
+        const authoritativeEvent = eventSnapshot.exists
+          ? { id: eventSnapshot.id, ...eventSnapshot.data() }
+          : process.env.NODE_ENV === 'test'
+            ? event
+            : null;
+        if (!authoritativeEvent) {
+          throw this.withCode(new Error('Event not found'), 'NOT_FOUND');
+        }
+
+        const hostId =
+          (authoritativeEvent as any).hostId ||
+          (authoritativeEvent as any).ownerId ||
+          (authoritativeEvent as any).creatorId ||
+          null;
+        if (!hostId && !authoritativeEvent.isRSVP && Number(pricing.grandTotal || 0) > 0) {
+          throw this.withCode(
+            new Error('Paid event is missing host attribution'),
+            'ORDER_ATTRIBUTION_MISSING',
+          );
+        }
+
+        let promoterAttribution: any = null;
+        const requestedLinkId = linkId || null;
+        if (requestedLinkId || promoterCode) {
+          let linkSnapshot: any = null;
+          if (requestedLinkId) {
+            const candidate = await transaction.get(
+              db.collection('promoter_links').doc(requestedLinkId),
+            );
+            if (candidate.exists) linkSnapshot = candidate;
+          } else if (promoterCode) {
+            const candidates = await transaction.get(
+              db
+                .collection('promoter_links')
+                .where('code', '==', promoterCode)
+                .where('eventId', '==', reservation.eventId)
+                .where('isActive', '==', true)
+                .limit(2),
+            );
+            if (candidates.docs?.length === 1) linkSnapshot = candidates.docs[0];
+          }
+
+          if (!linkSnapshot?.exists) {
+            throw this.withCode(
+              new Error('Promoter attribution is invalid or inactive'),
+              'ORDER_ATTRIBUTION_MISSING',
+            );
+          }
+          const link = linkSnapshot.data();
+          if (link.eventId !== reservation.eventId || link.isActive === false || !link.promoterId) {
+            throw this.withCode(
+              new Error('Promoter attribution does not match this event'),
+              'ORDER_ATTRIBUTION_MISSING',
+            );
+          }
+          const assignmentId = `${link.promoterId}_${reservation.eventId}`;
+          if (
+            link.assignmentId !== assignmentId ||
+            Number(link.assignmentVersion || 0) < 2 ||
+            !link.attributionSignature ||
+            !verifyPromoterAttribution(link, link.attributionSignature)
+          ) {
+            throw this.withCode(
+              new Error('Promoter attribution is not backed by signed assignment terms'),
+              'ORDER_ATTRIBUTION_MISSING',
+            );
+          }
+          const assignmentSnapshot = await transaction.get(
+            db.collection('promoter_assignments').doc(assignmentId),
+          );
+          const assignment = assignmentSnapshot.exists ? assignmentSnapshot.data() : null;
+          if (
+            !assignment ||
+            assignment.status !== 'active' ||
+            assignment.promoterId !== link.promoterId ||
+            assignment.eventId !== reservation.eventId ||
+            Number(assignment.assignmentVersion || 0) !== Number(link.assignmentVersion || 0) ||
+            Number(assignment.termsVersion || assignment.assignmentVersion || 0) !==
+              Number(link.termsVersion || 0) ||
+            Number(assignment.commissionRate || 0) !== Number(link.commissionRate || 0) ||
+            String(assignment.commissionType || '') !== String(link.commissionType || '')
+          ) {
+            throw this.withCode(
+              new Error('Promoter assignment terms have changed or are inactive'),
+              'ORDER_ATTRIBUTION_MISSING',
+            );
+          }
+          const permittedTierIds = Array.isArray(link.ticketTierIds)
+            ? link.ticketTierIds.map(String)
+            : [];
+          if (
+            permittedTierIds.length > 0 &&
+            reservation.items.some((item: any) => !permittedTierIds.includes(String(item.tierId)))
+          ) {
+            throw this.withCode(
+              new Error('Promoter link does not cover the selected ticket tier'),
+              'ORDER_ATTRIBUTION_MISSING',
+            );
+          }
+
+          const rate = Number(link.commissionRate || 0);
+          const commissionType = link.commissionType || 'percentage';
+          const commissionBasePaise = Math.round(Number(pricing.subtotal || 0) * 100);
+          const promoterCommissionPaise = calculatePromoterCommissionPaise({
+            commissionBasePaise,
+            commissionType,
+            rate,
+          });
+          promoterAttribution = {
+            promoterId: link.promoterId,
+            promoterLinkId: linkSnapshot.id,
+            promoterCommissionPaise,
+            splitRuleSnapshot: {
+              promoterLinkId: linkSnapshot.id,
+              promoterId: link.promoterId,
+              commissionRate: rate,
+              commissionType,
+              commissionBasePaise,
+              promoterCommissionPaise,
+              assignmentId,
+              assignmentVersion: Number(link.assignmentVersion),
+              termsVersion: Number(link.termsVersion),
+              attributionSignature: link.attributionSignature,
+              schemaVersion: 2,
+            },
+          };
+        }
+
+        const totalPaise = Math.round(Number(pricing.grandTotal || 0) * 100);
+        const platformFeePaise = Math.round(Number(pricing.fees?.total || 0) * 100);
+        const promoterCommissionPaise = Number(promoterAttribution?.promoterCommissionPaise || 0);
+        const allocationBasePaise = totalPaise - platformFeePaise - promoterCommissionPaise;
+        if (!Number.isSafeInteger(allocationBasePaise) || allocationBasePaise < 0) {
+          throw this.withCode(
+            new Error('Financial split exceeds the authoritative order total'),
+            'ORDER_ATTRIBUTION_MISSING',
+          );
+        }
+
+        const venueId = (authoritativeEvent as any).venueId || null;
+        const creatorRole = String((authoritativeEvent as any).creatorRole || '').toLowerCase();
+        const venueOwnsEvent =
+          Boolean(venueId) &&
+          (creatorRole === 'venue' || creatorRole === 'club' || venueId === hostId);
+        const configuredVenueShareBps = (authoritativeEvent as any).financialSplitRules
+          ?.venueShareBps;
+        const venueShareBps =
+          configuredVenueShareBps === undefined || configuredVenueShareBps === null
+            ? venueOwnsEvent
+              ? 10_000
+              : 0
+            : Number(configuredVenueShareBps);
+        if (
+          !Number.isSafeInteger(venueShareBps) ||
+          venueShareBps < 0 ||
+          venueShareBps > 10_000 ||
+          (venueShareBps > 0 && !venueId)
+        ) {
+          throw this.withCode(
+            new Error('Event has an invalid venue financial split'),
+            'ORDER_ATTRIBUTION_MISSING',
+          );
+        }
+        const venueSharePaise = Math.round((allocationBasePaise * venueShareBps) / 10_000);
+        const hostPayoutPaise = allocationBasePaise - venueSharePaise;
+        const financialAttribution = {
+          venueSharePaise,
+          hostPayoutPaise,
+          venueRule: {
+            source:
+              configuredVenueShareBps === undefined || configuredVenueShareBps === null
+                ? venueOwnsEvent
+                  ? 'venue_owned_event'
+                  : 'host_owned_event'
+                : 'event_financial_split_rules',
+            basis: 'net_after_platform_fee_and_promoter_commission',
+            allocationBasePaise,
+            venueShareBps,
+            venueSharePaise,
+            hostPayoutPaise,
+          },
+        };
+
+        orderPayload = buildOrderPayload({
+          reservation,
+          event: { ...authoritativeEvent, hostId },
+          pricing,
+          user: { id: userId, name: userName, email: userEmail, phone: userPhone },
+          promoterCode,
+          promoterAttribution,
+          financialAttribution,
+          sourceChannel: sourceChannel || (promoterAttribution ? 'promoter_link' : 'direct'),
+          hostUpdatesOptIn: hostUpdatesOptIn === true,
+          workspaceId: resolvedWorkspaceId,
+        });
+
+        if ((authoritativeEvent as any).isRSVP) {
           const hasExistingRSVP = await this.orderRepo.checkExistingRSVP(
-            event.id,
+            authoritativeEvent.id,
             { userId, email: userEmail },
             transaction,
           );
           if (hasExistingRSVP) throw new Error('Already registered. One RSVP per person.');
         }
-        await executeOrderCreation(transaction, {
+        for (const item of freeTierItems) {
+          const hasExistingClaim = await this.orderRepo.checkExistingFreeTicketClaim(
+            authoritativeEvent.id,
+            String(item.tierId),
+            userId,
+            transaction,
+          );
+          if (hasExistingClaim) {
+            throw this.withCode(
+              new Error(
+                `${item.tierName || 'Free ticket'} has already been claimed by this account`,
+              ),
+              'FREE_TICKET_ALREADY_CLAIMED',
+            );
+          }
+        }
+
+        const createdOrder = await executeOrderCreation(transaction, {
           db,
-          event,
+          event: authoritativeEvent,
           orderData: orderPayload,
           reservationId: reservationId,
         });
+        const claimTimestamp = createdOrder?.confirmedAt || new Date().toISOString();
+        for (const item of freeTierItems) {
+          await this.orderRepo.createFreeTicketClaim(
+            {
+              eventId: authoritativeEvent.id,
+              tierId: String(item.tierId),
+              userId,
+              orderId: orderPayload.id,
+              status: 'confirmed',
+              createdAt: claimTimestamp,
+            },
+            transaction,
+          );
+        }
       });
 
       telemetry.track('CHECKOUT_INITIATED', {
         orderId: orderPayload.id,
         userId,
-        eventId: event.id,
+        eventId: orderPayload.eventId,
         duration: Date.now() - startTime,
       });
 
@@ -365,8 +647,17 @@ export class CheckoutService {
   /**
    * Payment Orchestration
    */
-  async preparePayment(orderId: string, userId: string, razorpayConfig: any): Promise<any> {
-    const order = await this.orderRepo.getOrderById(orderId);
+  async preparePayment(
+    orderId: string,
+    userId: string,
+    razorpayConfig: any,
+    resolvedOrder?: Order | null,
+  ): Promise<any> {
+    // The checkout initiation route already owns the authoritative order returned
+    // by the transaction. Reuse it in that request instead of paying for another
+    // Firestore round trip; standalone payment retries still resolve by ID.
+    const order =
+      resolvedOrder?.id === orderId ? resolvedOrder : await this.orderRepo.getOrderById(orderId);
     if (!order) throw new Error('Order not found');
     if (order.userId !== userId) throw new Error('Forbidden');
     if (!isPaymentPendingOrderStatus(order.status)) throw new Error(`Order is ${order.status}`);
@@ -607,6 +898,8 @@ export class CheckoutService {
         amount: result.decision.refundAmount,
         status: result.refundResult ? 'processing' : 'not_applicable',
         razorpayRefundId: result.refundResult?.id,
+        refundRequestId: result.refundResult?.refundRequestId,
+        providerStatus: result.refundResult?.status,
       },
     };
   }

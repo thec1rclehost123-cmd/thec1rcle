@@ -17,6 +17,7 @@ const ORDER_STATUSES = [
   'payment_pending',
   'confirmed',
   'checked_in',
+  'partially_checked_in',
   'refund_requested',
   'refunded',
   'cancelled',
@@ -33,6 +34,7 @@ const ORDER_EVENTS = [
   'EXPIRE',
   'CANCEL',
   'CHECK_IN',
+  'CHECK_IN_PARTIAL',
   'REQUEST_REFUND',
   'APPROVE_REFUND',
   'REJECT_REFUND',
@@ -57,8 +59,14 @@ const STATE_MACHINE = {
   },
   confirmed: {
     CHECK_IN: 'checked_in',
+    CHECK_IN_PARTIAL: 'partially_checked_in',
     REQUEST_REFUND: 'refund_requested',
     CANCEL: 'cancelled', // Admin only
+  },
+  partially_checked_in: {
+    CHECK_IN: 'checked_in',
+    CHECK_IN_PARTIAL: 'partially_checked_in',
+    REQUEST_REFUND: 'refund_requested',
   },
   checked_in: {
     REQUEST_REFUND: 'refund_requested', // Post-entry refund possible with admin approval

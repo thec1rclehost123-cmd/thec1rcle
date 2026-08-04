@@ -16,6 +16,7 @@ export default async function inventoryRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/:eventId/summary',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: EventIdParam })],
     },
     async (request: any, reply) => {

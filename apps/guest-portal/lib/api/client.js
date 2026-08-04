@@ -203,7 +203,6 @@ export const guestApi = Object.freeze({
     login: (body, options) => guestApiOperationJson('loginGuest', { body, ...options }),
     register: (body, options) => guestApiOperationJson('registerGuest', { body, ...options }),
     logout: (options) => guestApiOperationJson('logoutGuest', options),
-    check: (body, options) => guestApiOperationJson('checkGuestEmail', { body, ...options }),
     changePassword: (body, options) =>
       guestApiOperationJson('changeGuestPassword', { body, ...options }),
     passwordReset: (body, options) =>
@@ -219,6 +218,7 @@ export const guestApi = Object.freeze({
     bio: (body, options) => guestApiOperationJson('updateGuestBioProfile', { body, ...options }),
     avatarUpdate: (body, options) =>
       guestApiOperationJson('updateGuestAvatarProfile', { body, ...options }),
+    update: (body, options) => guestApiOperationJson('updateGuestProfile', { body, ...options }),
     create: (body, options) => guestApiOperationJson('createGuestProfile', { body, ...options }),
     get: (id, options) =>
       guestApiOperationJson('getGuestPublicProfile', { params: { id }, ...options }),
@@ -296,6 +296,8 @@ export const guestApi = Object.freeze({
     wallet: (options) => guestApiOperationJson('getGuestTickets', options),
     get: (ticketId, options) =>
       guestApiOperationJson('getGuestTicket', { params: { ticketId }, ...options }),
+    getPublic: (entitlementId, options) =>
+      guestApiOperationJson('getPublicTicket', { params: { entitlementId }, ...options }),
     share: (body, options) =>
       guestApiOperationJson('createTicketShareBundle', { body, ...options }),
     shareBundle: (query = '', options) =>

@@ -243,26 +243,44 @@ export const sendEventReminders = onSchedule('every 1 hours', async () => {
     const eventData = eventDoc.data();
     const eventId = eventDoc.id;
 
-    const ordersSnapshot = await db
-      .collection('orders')
-      .where('eventId', '==', eventId)
-      .where('status', '==', 'confirmed')
-      .limit(500)
-      .get();
+    let lastDoc = null;
+    let hasMore = true;
+    while (hasMore) {
+      let query = db
+        .collection('orders')
+        .where('eventId', '==', eventId)
+        .where('status', '==', 'confirmed')
+        .limit(500);
 
-    for (const orderDoc of ordersSnapshot.docs) {
-      const order = orderDoc.data();
+      if (lastDoc) {
+        query = query.startAfter(lastDoc);
+      }
 
-      await sendPushNotification(order.userId, 'event_reminder', {
-        title: 'Event Starting Soon',
-        body: `${eventData.title} starts in about 1 hour. Do not forget your tickets.`,
-        data: {
-          eventId,
-          orderId: orderDoc.id,
-          navigateTo: 'tickets',
-        },
-        imageUrl: eventData.coverImage,
-      });
+      const ordersSnapshot = await query.get();
+      if (ordersSnapshot.empty) {
+        hasMore = false;
+        break;
+      }
+
+      for (const orderDoc of ordersSnapshot.docs) {
+        const order = orderDoc.data();
+
+        await sendPushNotification(order.userId, 'event_reminder', {
+          title: 'Event Starting Soon',
+          body: `${eventData.title} starts in about 1 hour. Do not forget your tickets.`,
+          data: {
+            eventId,
+            orderId: orderDoc.id,
+            navigateTo: 'tickets',
+          },
+          imageUrl: eventData.coverImage,
+        });
+      }
+
+      lastDoc = ordersSnapshot.docs[ordersSnapshot.docs.length - 1];
+      if (ordersSnapshot.docs.length < 500) {
+        hasMore = false;
+      }
     }
   }
 });
@@ -278,22 +296,17 @@ export const notifyEventUpdated = onDocumentUpdated('events/{eventId}', async (e
     before.startDate !== after.startDate ||
     before.venue !== after.venue ||
     before.location !== after.location ||
-    after.lifecycle === CANCELLED || after.status === CANCELLED;
+    after.lifecycle === CANCELLED ||
+    after.status === CANCELLED;
 
   if (!significantChange) return;
 
   const eventId = event.params.eventId;
   const eventTitle = after.title;
 
-  const ordersSnapshot = await db
-    .collection('orders')
-    .where('eventId', '==', eventId)
-    .where('status', '==', 'confirmed')
-    .get();
-
   let notificationPayload: NotificationPayload;
 
-  if (after.status === 'cancelled') {
+  if (after.lifecycle === 'cancelled') {
     notificationPayload = {
       title: 'Event Cancelled',
       body: `${eventTitle} has been cancelled. Refund will be processed.`,
@@ -313,9 +326,34 @@ export const notifyEventUpdated = onDocumentUpdated('events/{eventId}', async (e
     };
   }
 
-  for (const orderDoc of ordersSnapshot.docs) {
-    const order = orderDoc.data();
-    await sendPushNotification(order.userId, 'event_update', notificationPayload);
+  let lastDoc = null;
+  let hasMore = true;
+  while (hasMore) {
+    let query = db
+      .collection('orders')
+      .where('eventId', '==', eventId)
+      .where('status', '==', 'confirmed')
+      .limit(500);
+
+    if (lastDoc) {
+      query = query.startAfter(lastDoc);
+    }
+
+    const ordersSnapshot = await query.get();
+    if (ordersSnapshot.empty) {
+      hasMore = false;
+      break;
+    }
+
+    for (const orderDoc of ordersSnapshot.docs) {
+      const order = orderDoc.data();
+      await sendPushNotification(order.userId, 'event_update', notificationPayload);
+    }
+
+    lastDoc = ordersSnapshot.docs[ordersSnapshot.docs.length - 1];
+    if (ordersSnapshot.docs.length < 500) {
+      hasMore = false;
+    }
   }
 });
 

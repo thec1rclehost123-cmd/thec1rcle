@@ -1,44 +1,38 @@
 'use client';
-import dynamic from 'next/dynamic';
-import Footer from '../../components/Footer';
 
-const CreateEventForm = dynamic(() => import('../../components/CreateEventForm'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex justify-center py-20">
-      <div className="w-8 h-8 border-2 border-[var(--c1rcle-orange)] border-t-transparent rounded-full animate-spin" />
-    </div>
-  ),
-});
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useDashboardAuth } from '../../components/providers/DashboardAuthProvider';
 
-export default function CreatePage() {
+export default function CreatePageRedirect() {
+  const router = useRouter();
+  const { loading, profile, user } = useDashboardAuth();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      router.replace('/login?next=%2Fcreate');
+      return;
+    }
+
+    const partnerType = profile?.activeMembership?.partnerType;
+    if (partnerType === 'venue' || partnerType === 'club') {
+      router.replace('/venue/create');
+      return;
+    }
+    if (partnerType === 'host') {
+      router.replace('/host/create');
+      return;
+    }
+    router.replace('/promoter/events');
+  }, [loading, profile, router, user]);
+
   return (
-    <div className="relative isolate min-h-screen overflow-hidden bg-white dark:bg-black">
-      <main className="px-4 pb-10 sm:px-6">
-        {/* Subtle grid background */}
-        <div className="create-grid absolute inset-0 -z-10 opacity-20" aria-hidden="true" />
-
-        {/* Gradient glow */}
-        <div className="absolute inset-x-0 top-0 -z-10 mx-auto h-[520px] w-full bg-gradient-to-b from-iris/10 via-transparent to-transparent blur-[100px] dark:opacity-100 opacity-50" />
-
-        {/* Header */}
-        <div className="relative mx-auto mb-12 max-w-4xl text-center">
-          <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-iris">Studio</p>
-          <h1 className="mt-4 text-5xl font-heading font-bold uppercase tracking-tight text-black dark:text-white sm:text-6xl md:text-7xl">
-            Create Event
-          </h1>
-          <p className="mt-4 text-lg text-black/60 dark:text-white/60 max-w-2xl mx-auto">
-            Build your event in minutes. Every detail you add shows up beautifully on your event
-            page.
-          </p>
-        </div>
-
-        {/* Form */}
-        <div className="mx-auto max-w-5xl">
-          <CreateEventForm />
-        </div>
-      </main>
-      <Footer />
-    </div>
+    <main
+      className="grid min-h-screen place-items-center bg-white text-black dark:bg-black dark:text-white"
+      aria-live="polite"
+    >
+      <p className="text-xs font-black uppercase tracking-[0.3em]">Opening event studio…</p>
+    </main>
   );
 }

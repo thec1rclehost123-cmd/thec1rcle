@@ -1,6 +1,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import type { FastifyRequest } from 'fastify';
 import type { PartnerContext, PartnerRole, PartnerType } from '../services/unified/types.js';
+import { normalizePartnerRole } from './rbac-permissions.js';
 
 // ─── Resolution ───────────────────────────────────────────────────────────────
 //
@@ -23,17 +24,16 @@ function pickDisplayName(source: RawUser): string {
 
 function membershipToRoles(partnerType: string, role: string): PartnerRole[] {
   const t = partnerType.toLowerCase();
-  const r = role.toLowerCase();
+  const r = normalizePartnerRole(role);
 
   if (t === 'venue') {
-    if (r === 'owner') return ['venue_owner'];
-    if (r === 'manager') return ['venue_manager'];
-    if (r === 'door') return ['venue_staff'];
+    if (r === 'OWNER') return ['venue_owner'];
+    if (r === 'MANAGER') return ['venue_manager'];
     return ['venue_staff'];
   }
   if (t === 'host') return ['host_owner'];
   if (t === 'promoter') {
-    if (r === 'owner' || r === 'promoter') return ['promoter_owner'];
+    if (r === 'OWNER' || r === 'PROMOTER') return ['promoter_owner'];
     return ['promoter_staff'];
   }
   return [];

@@ -75,6 +75,7 @@ interface TicketTier {
     walletAmountPaise: number;
     terminationHour: number;
     terminationPolicy: 'forfeit' | 'partial_refund';
+    partialRefundPercent?: number;
     presetItems: Array<{ id: string; name: string; amountPaise: number; isAvailable: boolean }>;
   };
 }
@@ -211,6 +212,7 @@ function CoverChargeConfig({
     walletAmountPaise: 0,
     terminationHour: 5,
     terminationPolicy: 'forfeit',
+    partialRefundPercent: 0,
     presetItems: [],
   });
 
@@ -340,12 +342,21 @@ function CoverChargeConfig({
                   {(
                     [
                       { value: 'forfeit', label: 'Forfeit', desc: 'Club keeps remainder' },
-                      { value: 'partial_refund', label: 'Refund', desc: 'Return to guest' },
+                      {
+                        value: 'partial_refund',
+                        label: 'Refund',
+                        desc: 'Return all unspent balance',
+                      },
                     ] as const
                   ).map((opt) => (
                     <button
                       key={opt.value}
-                      onClick={() => update({ terminationPolicy: opt.value })}
+                      onClick={() =>
+                        update({
+                          terminationPolicy: opt.value,
+                          partialRefundPercent: opt.value === 'partial_refund' ? 100 : 0,
+                        })
+                      }
                       className={`flex-1 px-3 py-2.5 rounded-xl border text-left transition-all ${
                         cfg.terminationPolicy === opt.value
                           ? 'border-violet-500 bg-violet-500/10'
@@ -847,16 +858,16 @@ const TicketTierCard = forwardRef<
                           className={`text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest ${
                             tier.overrideScheduledPricing
                               ? 'bg-orange-500 text-white'
-                              : 'bg-surface-tertiary text-text-tertiary border border-border-subtle'
+                              : 'bg-emerald-500 text-white'
                           }`}
                         >
-                          {tier.overrideScheduledPricing ? 'CUSTOM' : 'DEFAULT'}
+                          {tier.overrideScheduledPricing ? 'CUSTOM' : 'ACTIVE'}
                         </span>
                       </div>
                       <span className="text-[11px] text-text-tertiary font-bold uppercase tracking-widest">
                         {tier.overrideScheduledPricing
                           ? `${(tier.scheduledPrices || []).length} custom`
-                          : `${(defaultScheduledPrices || []).length} default`}
+                          : `${(defaultScheduledPrices || []).length} active (default)`}
                       </span>
                     </button>
                     {tier.overrideScheduledPricing && (

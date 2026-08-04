@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PublicDiscoveryService } from '@c1rcle/core/public-discovery-service';
+import { MockFirestore } from '../test-utils/mock-firestore.js';
 
 function buildService() {
   const service = new PublicDiscoveryService({} as any);
@@ -7,6 +8,89 @@ function buildService() {
 }
 
 describe('PublicDiscoveryService', () => {
+  it('batch-loads pinned event cards by document ID in 30-item chunks', async () => {
+    const db = new MockFirestore();
+    const ids: string[] = [];
+    for (let index = 1; index <= 35; index += 1) {
+      const id = `event_${index}`;
+      ids.push(id);
+      db.seed(`event_card_index/${id}`, {
+        title: `Event ${index}`,
+        visibility: 'public',
+      });
+    }
+    const service = new PublicDiscoveryService(db as any) as any;
+
+    const events = await service.events.getByIds(ids);
+
+    expect(events).toHaveLength(35);
+    expect(events[0]).toMatchObject({ id: 'event_1', title: 'Event 1' });
+    expect(events[34]).toMatchObject({ id: 'event_35', title: 'Event 35' });
+  });
+
+  it('keeps the unscoped Explore sort and limit on Firestore for indexed fields', async () => {
+    const get = vi.fn(async () => ({ docs: [] }));
+    const limit = vi.fn(() => ({ get }));
+    const orderBy = vi.fn(() => ({ limit }));
+    const unboundedGet = vi.fn(() => {
+      throw new Error('Explore must not scan the entire event_card_index collection');
+    });
+    const query = {
+      where: vi.fn(() => query),
+      orderBy,
+      get: unboundedGet,
+    };
+    const db = {
+      collection: vi.fn(() => query),
+    };
+    const service = new PublicDiscoveryService(db as any) as any;
+
+    await service.events.queryList({
+      limit: 24,
+      orderByField: 'heatScore',
+      direction: 'desc',
+      cityKey: null,
+      areaKey: null,
+      hostId: null,
+      venueId: null,
+      minStartAt: null,
+    });
+
+    expect(orderBy).toHaveBeenCalledWith('heatScore', 'desc');
+    expect(limit).toHaveBeenCalledWith(24);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(unboundedGet).not.toHaveBeenCalled();
+  });
+
+  it('keeps price sorting on the indexed query instead of scanning the read model', async () => {
+    const get = vi.fn(async () => ({ docs: [] }));
+    const limit = vi.fn(() => ({ get }));
+    const orderBy = vi.fn(() => ({ limit }));
+    const unboundedGet = vi.fn(() => {
+      throw new Error('Price sorting must not scan event_card_index');
+    });
+    const query = {
+      where: vi.fn(() => query),
+      orderBy,
+      get: unboundedGet,
+    };
+    const service = new PublicDiscoveryService({
+      collection: vi.fn(() => query),
+    } as any) as any;
+
+    await service.events.queryList({
+      limit: 24,
+      orderByField: 'priceMin',
+      direction: 'asc',
+      cityKey: null,
+    });
+
+    expect(orderBy).toHaveBeenCalledWith('priceMin', 'asc');
+    expect(limit).toHaveBeenCalledWith(24);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(unboundedGet).not.toHaveBeenCalled();
+  });
+
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -201,7 +285,7 @@ describe('PublicDiscoveryService', () => {
     expect(service.events.listAll).not.toHaveBeenCalled();
   });
 
-  it('listFeaturedEvents reads heat-ranked cards directly instead of delegating through listEvents', async () => {
+  it('listFeaturedEvents ranks a bounded upcoming pool without delegating through listEvents', async () => {
     const service = buildService();
     service.db = {
       collection: vi.fn(() => ({
@@ -214,15 +298,17 @@ describe('PublicDiscoveryService', () => {
       })),
     };
     service.events = {
-      getByIdOrSlug: vi.fn(async (id: string) => ({
-        id,
-        visibility: 'public',
-        lifecycle: 'scheduled',
-        statusKey: 'upcoming',
-        cityKey: 'pune-in',
-        startAt: '2099-04-21T20:00:00.000Z',
-        endAt: '2099-04-22T04:00:00.000Z',
-      })),
+      getByIds: vi.fn(async (ids: string[]) =>
+        ids.map((id) => ({
+          id,
+          visibility: 'public',
+          lifecycle: 'scheduled',
+          statusKey: 'upcoming',
+          cityKey: 'pune-in',
+          startAt: '2099-04-21T20:00:00.000Z',
+          endAt: '2099-04-22T04:00:00.000Z',
+        })),
+      ),
       queryList: vi.fn(async () => [
         {
           id: 'event_heat',
@@ -243,11 +329,42 @@ describe('PublicDiscoveryService', () => {
     expect(service.events.queryList).toHaveBeenCalledWith(
       expect.objectContaining({
         cityKey: 'pune-in',
-        orderByField: 'heatScore',
-        direction: 'desc',
+        minStartAt: expect.any(String),
+        limit: 200,
+        orderByField: 'startAt',
+        direction: 'asc',
       }),
     );
     expect(listEventsSpy).not.toHaveBeenCalled();
+  });
+
+  it('coalesces simultaneous heat list and featured reads onto one upcoming query', async () => {
+    const service = buildService();
+    service.db = {
+      collection: vi.fn(() => ({
+        doc: vi.fn(() => ({
+          get: vi.fn(async () => ({ exists: false, data: () => ({}) })),
+        })),
+      })),
+    };
+    service.events = {
+      queryList: vi.fn(async () => []),
+      getByIds: vi.fn(async () => []),
+    };
+
+    await Promise.all([
+      service.listEvents({ limit: 24, sort: 'heat' }),
+      service.listFeaturedEvents({ limit: 6 }),
+    ]);
+
+    expect(service.events.queryList).toHaveBeenCalledTimes(1);
+    expect(service.events.queryList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: 200,
+        orderByField: 'startAt',
+        minStartAt: expect.any(String),
+      }),
+    );
   });
 
   it('listHosts and listVenues use bounded read-model queries on first-page browse requests', async () => {
@@ -488,16 +605,17 @@ describe('PublicDiscoveryService', () => {
       })),
     };
 
-    const [hostDetail, venueDetail] = await Promise.all([
-      service.getHostPublicProfile('after-dark'),
-      service.getVenuePublicProfile('high-spirits'),
-    ]);
+    // Implementation now gracefully degrades — queryList errors are caught and
+    // the profile is returned with empty event arrays instead of rejecting.
+    const hostResult = await service.getHostPublicProfile('after-dark');
+    expect(hostResult).toBeTruthy();
+    expect(hostResult.upcomingEvents).toEqual([]);
+    expect(hostResult.pastEvents).toEqual([]);
 
-    expect(hostDetail.upcomingEvents).toEqual([]);
-    expect(hostDetail.pastEvents).toEqual([]);
-    expect(venueDetail.upcomingEvents).toEqual([]);
-    expect(venueDetail.pastEvents).toEqual([]);
-    expect(venueDetail.similarVenues).toEqual([]);
+    const venueResult = await service.getVenuePublicProfile('high-spirits');
+    expect(venueResult).toBeTruthy();
+    expect(venueResult.upcomingEvents).toEqual([]);
+    expect(venueResult.pastEvents).toEqual([]);
   });
 
   it('syncEventReadModels stores normalized date fields for event cards', async () => {

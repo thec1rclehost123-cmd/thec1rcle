@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@c1rcle/core": "*",
@@ -17,6 +18,7 @@
     "@next/bundle-analyzer": "^16.2.7",
     "@opentelemetry/api": "^1.9.0",
     "@sentry/nextjs": "^10.58.0",
+    "@tanstack/react-virtual": "^3.14.8",
     "algoliasearch": "^5.47.0",
     "axios": "^1.13.3",
     "clsx": "^2.1.1",

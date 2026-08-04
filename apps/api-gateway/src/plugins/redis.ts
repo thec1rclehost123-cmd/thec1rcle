@@ -10,49 +10,51 @@ import { FastifyInstance } from 'fastify';
  */
 export default fp(async (fastify: FastifyInstance) => {
   const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+  let redis: Redis | null = null;
 
   try {
-    const redis = new Redis(redisUrl, {
+    redis = new Redis(redisUrl, {
       maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
       connectTimeout: 2000,
-      lazyConnect: true, // ⚡ Optimization: Don't connect immediately
-      retryStrategy: (times) => {
-        return null; // Stop retrying immediately in dev
-      },
+      lazyConnect: true,
+      retryStrategy: () => null,
     });
 
-    // 🛡️ Resilience: Handle connection errors without crashing the process
     redis.on('error', (err) => {
-      fastify.log.warn(`Redis unavailable: ${err.message}. Using mock fallback.`);
+      fastify.log.warn(`Redis unavailable: ${err.message}`);
     });
 
-    // Decorate with a proxy that avoids crashing if redis is called while disconnected
-    const redisProxy = new Proxy(redis, {
-      get(target, prop) {
-        const val = target[prop as keyof Redis];
-        if (redis.status !== 'ready' && typeof val === 'function') {
-          // Return a no-op function that logs a warning
-          return (...args: any[]) => {
-            fastify.log.debug(`Redis [${String(prop)}] skipped - client not ready`);
-            return Promise.resolve(null);
-          };
-        }
-        return val;
-      },
-    });
+    // `lazyConnect` prevents import-time network work, but the plugin must
+    // establish and prove the connection before advertising Redis as usable.
+    await redis.connect();
+    await redis.ping();
 
-    fastify.decorate('redis', redisProxy as any);
+    fastify.decorate('redis', redis);
+    fastify.log.info('Redis connection established and verified');
 
     fastify.addHook('onClose', async () => {
-      if (redis.status !== 'end') await redis.quit();
+      if (redis?.status !== 'end') await redis?.quit();
     });
   } catch (err) {
-    fastify.log.error(`Critical Redis Plugin Error: ${err}`);
-    // Fallback to a bare-bones mock if even the constructor fails
+    redis?.disconnect(false);
+    const unavailable = () => Promise.reject(new Error('REDIS_UNAVAILABLE'));
+    const unavailableSync = () => {
+      throw new Error('REDIS_UNAVAILABLE');
+    };
+
+    fastify.log.error(`Critical Redis Plugin Error: ${err}. Redis commands will fail closed.`);
     fastify.decorate('redis', {
-      get: () => Promise.resolve(null),
-      set: () => Promise.resolve(null),
-      del: () => Promise.resolve(null),
+      get: unavailable,
+      set: unavailable,
+      del: unavailable,
+      incr: unavailable,
+      expire: unavailable,
+      publish: unavailable,
+      scan: unavailable,
+      flushdb: unavailable,
+      info: unavailable,
+      multi: unavailableSync,
       status: 'end',
     } as any);
   }

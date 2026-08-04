@@ -273,7 +273,7 @@ export default function HostPartnersPage() {
 
   const TABS: { id: Tab; label: string; count?: number }[] = [
     { id: 'discover', label: 'Discover' },
-    { id: 'active', label: 'Active', count: activeVenues.length + activePromoters.length },
+    { id: 'active', label: 'Active' },
     { id: 'incoming', label: 'Incoming Requests', count: pendingIncoming.length },
     { id: 'pending', label: 'Sent Requests', count: pendingOutgoing.length },
     { id: 'declined', label: 'Declined', count: declined.length },

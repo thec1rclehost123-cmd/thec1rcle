@@ -327,8 +327,6 @@ export default function HostProfileClient({
         body: formData,
       });
       const data = await res.json().catch(() => null);
-      // Log response for debugging upload issues
-      // eslint-disable-next-line no-console
       console.debug('host upload response', { ok: res.ok, status: res.status, data });
       if (!res.ok) throw new Error(data?.error || data?.message || 'Upload failed');
 
@@ -374,8 +372,6 @@ export default function HostProfileClient({
           twitter: form.twitter,
         },
       };
-      // Debug log payload so we can inspect if photoURL/backdropURL are present
-      // eslint-disable-next-line no-console
       console.debug('HostProfile save updates (before photo fields)', updates, {
         photoUrl,
         backdropUrl,

@@ -1,0 +1,306 @@
+/* global jest, describe, beforeEach, it, expect */
+declare const fetchMock: any;
+
+jest.mock('../../lib/firebase', () => ({
+  getFirebaseAuth: jest.fn(),
+}));
+
+jest.mock('../../lib/demo', () => ({
+  DEMO_MODE: false,
+}));
+
+jest.mock('../../lib/api-mock', () => ({
+  apiFetchMock: jest.fn(),
+}));
+
+import { getFirebaseAuth } from '../../lib/firebase';
+import {
+  apiFetch,
+  API_BASE,
+  deduplicateRequest,
+  getAuthToken,
+  syncAuthSession,
+  reserveTickets,
+  calculatePricing,
+  initiateCheckout,
+  verifyPayment,
+  cancelOrder,
+  validatePromoCode,
+  getOrders,
+  getOrder,
+  cancelUserOrder,
+  fetchEvents,
+  fetchPublicVenues,
+  searchEvents,
+  getNotifications,
+  getShareBundle,
+  claimShareTicket,
+  createShareBundle,
+  getTransferDetails,
+  initiateFormalTransfer,
+  acceptFormalTransfer,
+  cancelFormalTransfer,
+  getPendingFormalTransfers,
+  getTicketShares,
+  reclaimSharedTicket,
+  cancelShareBundle,
+} from '../../lib/api';
+
+const mockFirebaseAuth = getFirebaseAuth as jest.Mock;
+const mockUser = {
+  uid: 'user_1',
+  getIdToken: jest.fn().mockResolvedValue('mock-token'),
+};
+
+describe('api', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFirebaseAuth.mockReturnValue({ currentUser: mockUser });
+    fetchMock.resetMocks();
+  });
+
+  describe('apiFetch', () => {
+    it('makes a GET request with auth headers', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ data: 'ok' }));
+
+      const result = await apiFetch('/api/v1/test');
+
+      expect(result).toEqual({ data: 'ok' });
+      const call = fetchMock.mock.calls[0];
+      expect(call[0]).toContain('/api/v1/test');
+      expect(call[1]?.headers).toMatchObject({
+        Authorization: 'Bearer mock-token',
+      });
+      expect(call[1]?.headers).not.toHaveProperty('Content-Type');
+    });
+
+    it('does not label a bodyless POST as JSON', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ data: 'ok' }));
+
+      await apiFetch('/api/v1/test', { method: 'POST' });
+
+      expect(fetchMock.mock.calls[0][1]?.headers).not.toHaveProperty('Content-Type');
+    });
+
+    it('labels a JSON request body as JSON', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ data: 'ok' }));
+
+      await apiFetch('/api/v1/test', { method: 'POST', body: JSON.stringify({}) });
+
+      expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject({
+        'Content-Type': 'application/json',
+      });
+    });
+
+    it('throws when auth is required but no user', async () => {
+      mockFirebaseAuth.mockReturnValueOnce({ currentUser: null });
+
+      await expect(apiFetch('/api/v1/test')).rejects.toThrow('Authentication required');
+    });
+
+    it('retries on 401 with _retry flag', async () => {
+      fetchMock.mockResponses(
+        [JSON.stringify({ error: 'Unauthorized' }), { status: 401 }],
+        [JSON.stringify({ data: 'retried' }), { status: 200 }],
+      );
+
+      const result = await apiFetch('/api/v1/test');
+      expect(result).toEqual({ data: 'retried' });
+      expect(fetchMock.mock.calls.length).toBe(2);
+    });
+
+    it('handles 429 rate limiting', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Rate limited' }), {
+        status: 429,
+        headers: { 'Retry-After': '30' },
+      });
+
+      try {
+        await apiFetch('/api/v1/test');
+        fail('Expected error');
+      } catch (e: any) {
+        expect(e.code).toBe('RATE_LIMITED');
+        expect(e.retryAfter).toBe(30);
+        expect(e.status).toBe(429);
+      }
+    });
+
+    it('handles timeout', async () => {
+      jest.useFakeTimers();
+      fetchMock.mockAbortOnce();
+
+      try {
+        const promise = apiFetch('/api/v1/test');
+        jest.advanceTimersByTime(15000);
+        await promise;
+      } catch (e: any) {
+        expect(e.isTimeout).toBe(true);
+      }
+
+      jest.useRealTimers();
+    });
+  });
+
+  describe('deduplicateRequest', () => {
+    it('shares one in-flight request and releases the key after settlement', async () => {
+      let resolveRequest!: (value: string) => void;
+      const fetcher = jest.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveRequest = resolve;
+          }),
+      );
+
+      const first = deduplicateRequest('tickets:cover-charge-wallet:user_1', fetcher);
+      const second = deduplicateRequest('tickets:cover-charge-wallet:user_1', fetcher);
+
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(second).toBe(first);
+
+      resolveRequest('wallet');
+      await expect(Promise.all([first, second])).resolves.toEqual(['wallet', 'wallet']);
+
+      const thirdFetcher = jest.fn(async () => 'refreshed-wallet');
+      await expect(
+        deduplicateRequest('tickets:cover-charge-wallet:user_1', thirdFetcher),
+      ).resolves.toBe('refreshed-wallet');
+      expect(thirdFetcher).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getAuthToken', () => {
+    it('returns token for authenticated user', async () => {
+      const token = await getAuthToken();
+      expect(token).toBe('mock-token');
+    });
+
+    it('returns null when no user', async () => {
+      mockFirebaseAuth.mockReturnValueOnce({ currentUser: null });
+      const token = await getAuthToken();
+      expect(token).toBeNull();
+    });
+  });
+
+  describe('syncAuthSession', () => {
+    it('calls auth sync endpoint and marks user synced', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ profile: { uid: 'user_1' } }));
+
+      const result = await syncAuthSession();
+      expect(result).toEqual({ profile: { uid: 'user_1' } });
+      expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/auth/sync');
+    });
+
+    it('throws when no user', async () => {
+      mockFirebaseAuth.mockReturnValueOnce({ currentUser: null });
+      await expect(syncAuthSession()).rejects.toThrow('Authentication required');
+    });
+  });
+
+  describe('checkout APIs', () => {
+    it('reserveTickets calls POST /api/v1/checkout/reserve', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          success: true,
+          reservationId: 'r_1',
+          items: [],
+          expiresAt: '',
+          expiresInSeconds: 300,
+        }),
+      );
+
+      const result = await reserveTickets({
+        eventId: 'evt_1',
+        items: [{ tierId: 't1', quantity: 2 }],
+      });
+      expect(result.success).toBe(true);
+      expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/checkout/reserve');
+    });
+
+    it('calculatePricing calls POST /api/v1/checkout/calculate', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ success: true, pricing: { subtotal: 100, grandTotal: 118 } }),
+      );
+
+      const result = await calculatePricing({ eventId: 'evt_1' });
+      expect(result.pricing.grandTotal).toBe(118);
+    });
+
+    it('initiateCheckout calls POST /api/v1/checkout/initiate', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          success: true,
+          requiresPayment: true,
+          order: { id: 'ord_1' },
+          razorpay: { orderId: 'rp_1', amount: 100, currency: 'INR' },
+        }),
+      );
+
+      const result = await initiateCheckout({
+        reservationId: 'r_1',
+        userName: 'User',
+        userEmail: 'u@t.com',
+        hostUpdatesOptIn: true,
+      });
+      expect(result.order.id).toBe('ord_1');
+      expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
+        reservationId: 'r_1',
+        hostUpdatesOptIn: true,
+      });
+    });
+  });
+
+  describe('events and search APIs', () => {
+    it('fetchEvents builds query params', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ events: [] }));
+      await fetchEvents({ category: 'music', city: 'mumbai', limit: 10 });
+      expect(fetchMock.mock.calls[0][0]).toContain('category=music');
+      expect(fetchMock.mock.calls[0][0]).toContain('city=mumbai');
+    });
+
+    it('fetchPublicVenues sends the selected city to discovery', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ items: [] }));
+      await fetchPublicVenues({ city: 'Pune', limit: 24 });
+      expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/public/venues?');
+      expect(fetchMock.mock.calls[0][0]).toContain('city=Pune');
+      expect(fetchMock.mock.calls[0][0]).toContain('limit=24');
+    });
+
+    it('searchEvents encodes query', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ results: [] }));
+      await searchEvents('house music');
+      expect(fetchMock.mock.calls[0][0]).toContain('q=house%20music');
+    });
+  });
+
+  describe('ticket APIs', () => {
+    it('getShareBundle calls GET with token', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({}));
+      await getShareBundle('tok_abc');
+      expect(fetchMock.mock.calls[0][0]).toContain('token=tok_abc');
+    });
+
+    it('initiateFormalTransfer calls POST', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({}));
+      await initiateFormalTransfer({ ticketId: 't_1', recipientEmail: 'a@b.com' });
+      expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/tickets/transfer');
+    });
+  });
+
+  describe('orders API', () => {
+    it('getOrders calls GET /api/v1/orders', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ orders: [] }));
+      const result = await getOrders();
+      expect(result).toEqual({ orders: [] });
+    });
+  });
+
+  describe('validatePromoCode', () => {
+    it('calls POST /api/v1/checkout/promo without auth', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ valid: true, discountAmount: 50 }));
+
+      const result = await validatePromoCode({ eventId: 'evt_1', code: 'SAVE50' });
+      expect(result.valid).toBe(true);
+      expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/checkout/promo');
+    });
+  });
+});

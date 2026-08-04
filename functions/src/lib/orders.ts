@@ -21,7 +21,7 @@ export async function createOrder(payload: any) {
   // Atomic transaction
   return await db.runTransaction(async (transaction: any) => {
     const orderId = reservationId ? `ORD-${reservationId}` : `ORD-${Date.now()}`;
-
+    // Inject dependencies for core engine
     const orderData: any = {
       ...payload,
       id: orderId,
@@ -30,6 +30,15 @@ export async function createOrder(payload: any) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+
+    // Determine up front whether this order already exists, before any
+    // writes happen in this transaction (Firestore requires all reads
+    // first). A retried call -- network timeout, duplicate webhook, etc. --
+    // must not re-run one-time side effects (promo redemption, public
+    // attendee sync) against an order that was already fully processed.
+    const orderRef = db.collection(orderData.isRSVP ? 'rsvp_orders' : 'orders').doc(orderId);
+    const preExistingOrderDoc = await transaction.get(orderRef);
+    const isNewOrder = !preExistingOrderDoc.exists;
 
     // 1. Execute unified order creation and inventory commitment
     const finalOrder = await coreExecuteOrderCreation(transaction, {
@@ -40,17 +49,25 @@ export async function createOrder(payload: any) {
       inventoryEngine,
     });
 
-    // 2. Generate QR codes if confirmed
-    if (finalOrder.status === 'confirmed') {
+    // 2. Generate QR codes if confirmed (only for a genuinely new order --
+    // a retry resolves to the already-processed order without re-running
+    // redemption/discovery-sync side effects a second time)
+    if (finalOrder.status === 'confirmed' && isNewOrder) {
       finalOrder.qrCodes = generateOrderQRCodes(finalOrder, event);
       finalOrder.confirmedAt = new Date().toISOString();
 
       // Record promo redemption if applicable
       if (finalOrder.promoCodeId) {
         const { recordRedemption } = await import('./promos');
-        await recordRedemption(finalOrder.promoCodeId, orderId, finalOrder.userId, {
-          discountAmount: finalOrder.discountAmount || 0,
-        });
+        await recordRedemption(
+          finalOrder.promoCodeId,
+          orderId,
+          finalOrder.userId,
+          {
+            discountAmount: finalOrder.discountAmount || 0,
+          },
+          transaction,
+        );
       }
 
       // --- PUBLIC DISCOVERY SYNC ---
@@ -174,6 +191,20 @@ export async function confirmOrderPayment(
     };
 
     updatedOrder.qrCodes = generateOrderQRCodes(updatedOrder, event);
+
+    // Record promo redemption if applicable
+    if (updatedOrder.promoCodeId) {
+      const { recordRedemption } = await import('./promos');
+      await recordRedemption(
+        updatedOrder.promoCodeId,
+        orderId,
+        updatedOrder.userId,
+        {
+          discountAmount: updatedOrder.discountAmount || 0,
+        },
+        transaction,
+      );
+    }
 
     transaction.update(orderRef, updatedOrder);
 

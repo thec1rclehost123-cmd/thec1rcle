@@ -109,6 +109,7 @@ describe('Inventory Engine', () => {
         {
           id: 'tier-1',
           name: 'Early Bird',
+          price: 100,
           quantity: 10,
           sold: 0,
           inventory: { totalQuantity: 10, soldQuantity: 0 },
@@ -153,6 +154,29 @@ describe('Inventory Engine', () => {
       const result = await validatePurchase(mockEvent, items, { timestamp: now });
       expect(result.success).toBe(false);
       expect(result.items[0].error).toContain('left');
+    });
+
+    it('defaults zero-priced tiers to one ticket per order', async () => {
+      const freeEvent = {
+        ...mockEvent,
+        tickets: [
+          {
+            ...mockEvent.tickets[0],
+            id: 'free-ga',
+            price: 0,
+          },
+        ],
+      };
+
+      const result = await validatePurchase(freeEvent, [{ tierId: 'free-ga', quantity: 2 }], {
+        timestamp: new Date('2024-01-15T00:00:00Z'),
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.items[0]).toMatchObject({
+        tierId: 'free-ga',
+        error: 'Max 1 per order',
+      });
     });
   });
 });

@@ -5,13 +5,13 @@ import {
   TextInput,
   Pressable,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Animated,
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useScannerStore } from '@/store/scannerStore';
@@ -22,7 +22,7 @@ export default function ScannerCodeScreen() {
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { setEventData } = useScannerStore();
+  const setEventData = useScannerStore((state) => state.setEventData);
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
@@ -52,7 +52,11 @@ export default function ScannerCodeScreen() {
       if (result.valid) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await setEventData(result);
-        if (result.permissions.canScan && result.sessionToken && result.event.venueId) {
+        if (
+          (result.permissions.canScan || result.permissions.canCharge) &&
+          result.sessionToken &&
+          result.event.venueId
+        ) {
           const registration = await registerScannerDevice(
             result.event.venueId,
             result.sessionToken,
@@ -96,9 +100,12 @@ export default function ScannerCodeScreen() {
         end={{ x: 0.5, y: 1 }}
       />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
         style={styles.content}
+        enableOnAndroid={true}
+        extraScrollHeight={20}
+        bounces={false}
       >
         {/* Back Button */}
         <Pressable onPress={() => router.back()} style={styles.backButton}>
@@ -184,7 +191,7 @@ export default function ScannerCodeScreen() {
             </Text>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

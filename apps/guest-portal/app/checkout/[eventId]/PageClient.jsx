@@ -6,25 +6,6 @@ import CheckoutContainer from '../../../features/checkout/CheckoutContainer';
 import { normalizeCheckoutEventDetail } from '../../../features/checkout/checkoutEventModel.js';
 import FunnelShell from '../../../components/FunnelShell';
 import { fetchPublicEvent } from '../../../features/discovery/publicDiscovery';
-import { fetchGuestBffCheckoutSummary } from '../../../lib/bff/fetchers.js';
-import { isGuestBffEnabled } from '../../../lib/bff/flags.js';
-
-function readSelectedTicketsFromQuery(searchParams) {
-  const items = [];
-  if (!searchParams) return items;
-
-  for (const [key, value] of searchParams.entries()) {
-    if (!key.startsWith('t_')) continue;
-    const quantity = Number.parseInt(String(value || '0'), 10);
-    if (!Number.isFinite(quantity) || quantity <= 0) continue;
-    items.push({
-      id: key.slice(2),
-      quantity,
-    });
-  }
-
-  return items;
-}
 
 function buildInitialTickets(event, searchParams) {
   if (!event?.tickets?.length) return [];
@@ -65,20 +46,6 @@ export default function CheckoutPageClient({
     async function loadEvent() {
       setStatus('loading');
       try {
-        if (isGuestBffEnabled('checkout')) {
-          const payload = await fetchGuestBffCheckoutSummary({
-            eventId,
-            promoterCode: searchParams?.get('ref') || null,
-            selectedTickets: readSelectedTicketsFromQuery(searchParams),
-          });
-          if (cancelled) return;
-          const nextEvent = normalizeCheckoutEventDetail(payload?.event);
-          setEvent(nextEvent);
-          setSummary(payload);
-          setStatus(nextEvent ? 'ready' : 'missing');
-          return;
-        }
-
         const detail = await fetchPublicEvent(eventId);
         if (cancelled) return;
         const nextEvent = normalizeCheckoutEventDetail(detail);
@@ -113,8 +80,8 @@ export default function CheckoutPageClient({
   ]);
 
   const initialTickets = useMemo(() => {
-    return buildInitialTickets(event, searchParams);
-  }, [event, searchKey, searchParams]);
+    return buildInitialTickets(event, new URLSearchParams(searchKey));
+  }, [event, searchKey]);
 
   if (status === 'loading') {
     return (

@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-import { processRefund } from '@c1rcle/core/finance-engine';
 import { z } from 'zod';
 import { resolvePartnerContext } from '../../../lib/partner-context.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
 import { buildPayoutAccountRecord } from '../../../lib/partner-hardening.js';
+import { getPermissionsForRole, type Permission } from '../../../lib/rbac-permissions.js';
 
 const LedgerQuerySchema = z
   .object({
@@ -38,22 +38,89 @@ const PayoutsQuerySchema = z
 const DisputesQuerySchema = z
   .object({
     status: z.string().optional(),
+    cursor: z.string().optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
   })
   .strict();
 
-const BankAccountSchema = z.object({
-  accountNumber: z.string(),
-  ifscCode: z.string(),
-  bankName: z.string(),
-  accountHolderName: z.string(),
-  isDefault: z.boolean().optional(),
-});
+const BankAccountSchema = z
+  .object({
+    accountNumber: z.string().regex(/^\d{6,20}$/),
+    ifscCode: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/i),
+    bankName: z.string().trim().min(2).max(120),
+    accountHolderName: z.string().trim().min(2).max(120),
+    isDefault: z.boolean().optional(),
+  })
+  .strict();
 
 export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   const financeService = new FinanceService({
     db: fastify.db,
     log: fastify.log,
     redis: fastify.redis,
+  });
+
+  const resolveAuthorizedFinanceContext = async (request: any, permission: Permission) => {
+    await fastify.enrichAuthContext(request);
+    const ctx = await resolvePartnerContext(fastify.db, request);
+    if (!ctx) return null;
+
+    const membership = request.authContext?.memberships?.find(
+      (candidate: any) =>
+        candidate.partnerId === ctx.partnerId &&
+        candidate.isActive === true &&
+        String(candidate.status || 'active').toLowerCase() !== 'removed',
+    );
+
+    let role = membership?.role ? String(membership.role) : '';
+    const partnerType = membership?.partnerType ? String(membership.partnerType) : String(ctx.type);
+
+    if (!role) {
+      if (ctx.roles.includes('venue_owner') || ctx.roles.includes('host_owner')) {
+        role = 'owner';
+      } else if (ctx.roles.includes('promoter_owner')) {
+        role = 'promoter';
+      }
+    }
+
+    const permissions = getPermissionsForRole(partnerType, role);
+    if (!permissions.includes(permission)) return null;
+    return ctx;
+  };
+
+  fastify.addHook('preHandler', async (request: any, reply: any) => {
+    if (!request.user) {
+      return reply.status(401).send(
+        buildErrorResponse({
+          code: 'AUTH_REQUIRED',
+          message: 'Authentication required',
+          requestId: request.id,
+        }),
+      );
+    }
+
+    const requiredPermission: Permission =
+      request.method === 'GET' || request.method === 'HEAD' ? 'VIEW_FINANCIALS' : 'MANAGE_PAYOUTS';
+    const ctx = await resolveAuthorizedFinanceContext(request, requiredPermission);
+    if (!ctx) {
+      request.log.warn(
+        {
+          uid: request.user.uid,
+          permission: requiredPermission,
+          route: `${request.method} ${request.url}`,
+          requestId: request.id,
+        },
+        'Partner finance permission denied',
+      );
+      return reply.status(403).send(
+        buildErrorResponse({
+          code: 'PERMISSION_REQUIRED',
+          message: `${requiredPermission} permission is required`,
+          requestId: request.id,
+        }),
+      );
+    }
+    request.financePartnerContext = ctx;
   });
 
   const resolveFinanceContext = async (request: any, reply: any) => {
@@ -215,6 +282,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/finance/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -260,6 +328,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/finance/ledger',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: LedgerQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -294,6 +363,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/finance/payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: PayoutsQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -327,6 +397,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/finance/balances',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -360,6 +431,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -391,6 +463,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/partners/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: BankAccountSchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -450,6 +523,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/partners/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -494,6 +568,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partners/finance/disputes',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: DisputesQuerySchema }), fastify.requireAuth],
     },
     async (request: any, reply: any) => {
@@ -508,7 +583,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
         );
 
       try {
-        const result = await financeService.getDisputes(ctx, request.query.status);
+        const result = await financeService.getDisputes(ctx, request.query);
         return reply.header('Cache-Control', 'private, max-age=60').send(result);
       } catch (err: any) {
         return reply.status(500).send(
@@ -617,15 +692,22 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
               requestId: request.id,
             }),
           );
-        return reply.send(await processRefund(orderId, amount, reason, request.user?.uid));
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'LEGACY_REFUND_ROUTE_DISABLED',
+            message:
+              'This legacy refund route is disabled. Use POST /api/v1/refunds/request with amountPaise.',
+            requestId: request.id,
+          }),
+        );
       }
 
       if (rest === 'wallet' && request.method === 'GET') {
         const balances = await financeService.getBalances(ctx);
         return reply.send({
-          availablePaise: Math.max(0, Math.round(toNumber(balances.available) * 100)),
-          pendingPaise: Math.max(0, Math.round(toNumber(balances.pending) * 100)),
-          heldPaise: Math.max(0, Math.round(toNumber(balances.pending) * 100)),
+          availablePaise: Math.max(0, balances.availablePaise),
+          pendingPaise: Math.max(0, balances.pendingPaise),
+          heldPaise: Math.max(0, balances.pendingPaise),
           currency: balances.currency || 'INR',
         });
       }
@@ -633,8 +715,8 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
       if (rest === 'payout-balance' && request.method === 'GET') {
         const balances = await financeService.getBalances(ctx);
         return reply.send({
-          withdrawablePaise: Math.max(0, Math.round(toNumber(balances.available) * 100)),
-          pendingSettlementPaise: Math.max(0, Math.round(toNumber(balances.pending) * 100)),
+          withdrawablePaise: Math.max(0, balances.availablePaise),
+          pendingSettlementPaise: Math.max(0, balances.pendingPaise),
           currency: balances.currency || 'INR',
         });
       }
@@ -670,8 +752,13 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
               requestId: request.id,
             }),
           );
-        const { requestPromoterPayout } = await import('@c1rcle/core/payout-engine');
-        return reply.send(await requestPromoterPayout({ ...body, promoterId: ctx.partnerId }));
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'PAYOUTS_NOT_LAUNCH_ENABLED',
+            message: 'Payout withdrawals are unavailable during launch verification',
+            requestId: request.id,
+          }),
+        );
       }
 
       if (rest === 'promoter/payouts' && request.method === 'GET') {
@@ -695,8 +782,13 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
               requestId: request.id,
             }),
           );
-        const { requestPromoterPayout } = await import('@c1rcle/core/payout-engine');
-        return reply.send(await requestPromoterPayout({ ...body, promoterId: ctx.partnerId }));
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'PAYOUTS_NOT_LAUNCH_ENABLED',
+            message: 'Payout withdrawals are unavailable during launch verification',
+            requestId: request.id,
+          }),
+        );
       }
 
       if (rest === 'promoter/payouts' && request.method === 'DELETE') {
@@ -708,41 +800,13 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
               requestId: request.id,
             }),
           );
-        const payoutId = String(query.payoutId || body.payoutId || '');
-        const ref = fastify.db.collection('payouts').doc(payoutId);
-        const doc = await ref.get();
-        if (!doc.exists)
-          return reply.status(404).send(
-            buildErrorResponse({
-              code: 'NOT_FOUND',
-              message: 'Payout not found',
-              requestId: request.id,
-            }),
-          );
-        const payout = doc.data() as Record<string, any>;
-        if (String(payout.partnerId || '') !== ctx.partnerId)
-          return reply.status(403).send(
-            buildErrorResponse({
-              code: 'FORBIDDEN',
-              message: 'Forbidden',
-              requestId: request.id,
-            }),
-          );
-        if (!['pending', 'processing'].includes(String(payout.status || '').toLowerCase())) {
-          return reply.status(409).send(
-            buildErrorResponse({
-              code: 'CONFLICT',
-              message: 'Only pending payouts can be cancelled',
-              requestId: request.id,
-            }),
-          );
-        }
-        await ref.update({
-          status: 'cancelled',
-          cancelledAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-        return reply.send({ success: true });
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'PAYOUTS_NOT_LAUNCH_ENABLED',
+            message: 'Payout withdrawals are unavailable during launch verification',
+            requestId: request.id,
+          }),
+        );
       }
 
       if (rest === 'promoter/bank-accounts' && request.method === 'GET') {
@@ -817,14 +881,20 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
         });
         const items = asArray(payouts.data).map((payout: Record<string, any>) => ({
           id: payout.payoutId,
-          arrivalDate: payout.requestedAt ?? payout.completedAt ?? null,
+          requestedAt: payout.requestedAt ?? null,
+          completedAt: payout.completedAt ?? null,
+          arrivalDate: payout.completedAt ?? payout.requestedAt ?? null,
+          amountPaise: toNumber(payout.amountPaise),
           amount: toNumber(payout.amount),
           currency: payout.currency || 'INR',
-          status: payout.status || 'paid',
-          eventName: null,
-          description: 'Event Revenue',
+          status: payout.status || 'pending',
+          paymentMethod: payout.paymentMethod ?? null,
         }));
-        return reply.send({ payouts: items, hasMore: Boolean(payouts.hasMore) });
+        return reply.send({
+          payouts: items,
+          hasMore: Boolean(payouts.hasMore),
+          nextCursor: payouts.nextCursor || null,
+        });
       }
 
       if (rest === 'venue/bank-accounts' && request.method === 'GET') {

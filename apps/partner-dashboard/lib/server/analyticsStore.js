@@ -181,7 +181,7 @@ function getGuestListDate(entry) {
 function getGuestAge(order) {
   const directAge = toNumber(order?.age ?? order?.guestAge);
   if (directAge > 0) return directAge;
-  const dob = toDate(order?.dob || order?.birthDate);
+  const dob = toDate(order?.dob || order?.birthDate || order?.dateOfBirth);
   if (!dob) return 0;
   const now = new Date();
   let age = now.getFullYear() - dob.getFullYear();
@@ -292,6 +292,28 @@ function normalizeEvent(doc) {
   };
 }
 
+async function getTicketScansForEventIds(db, eventIds) {
+  if (!eventIds.length) return [];
+
+  const chunks = [];
+  for (let i = 0; i < eventIds.length; i += 30) {
+    chunks.push(eventIds.slice(i, i + 30));
+  }
+
+  const snapshots = await Promise.all(
+    chunks.map((batch) =>
+      safeGet(() => db.collection('ticket_scans').where('eventId', 'in', batch).get()),
+    ),
+  );
+
+  return dedupeDocs(snapshots)
+    .map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }))
+    .filter((record) => !isSeededRecord(record, record.id));
+}
+
 async function getOrdersForEventIds(db, eventIds) {
   if (!eventIds.length) return [];
 
@@ -332,7 +354,7 @@ async function getGuestListsForEventIds(db, eventIds) {
     .filter((record) => !isSeededRecord(record, record.id));
 }
 
-function enrichEventsWithBackendData(events, orders, guestLists) {
+function enrichEventsWithBackendData(events, orders, guestLists, ticketScans = []) {
   const metricsByEventId = new Map(
     events.map((event) => [event.id, { revenue: 0, tickets: 0, checkIns: 0, guestlistSignups: 0 }]),
   );
@@ -345,7 +367,13 @@ function enrichEventsWithBackendData(events, orders, guestLists) {
     const quantity = Math.max(getOrderQuantity(order), 1);
     metrics.revenue += getOrderAmount(order);
     metrics.tickets += quantity;
-    if (isCheckedIn(order)) metrics.checkIns += quantity;
+  }
+
+  for (const scan of ticketScans) {
+    const eventId = String(scan?.eventId || '');
+    if (!metricsByEventId.has(eventId)) continue;
+    const metrics = metricsByEventId.get(eventId);
+    metrics.checkIns += 1;
   }
 
   for (const entry of guestLists) {
@@ -425,14 +453,16 @@ function buildFunnel(orders, guestLists, totals) {
 async function hydrateGuestProfiles(db, guestMap) {
   const missingGenderIds = [];
   const missingAgeIds = [];
+  const missingCityIds = [];
 
   for (const [guestId, guest] of guestMap.entries()) {
     if (!guestId || guestId.includes('@')) continue;
     if (!guest.gender) missingGenderIds.push(guestId);
     if (!guest.age) missingAgeIds.push(guestId);
+    if (!guest.city) missingCityIds.push(guestId);
   }
 
-  const lookupIds = [...new Set([...missingGenderIds, ...missingAgeIds])];
+  const lookupIds = [...new Set([...missingGenderIds, ...missingAgeIds, ...missingCityIds])];
   if (!lookupIds.length) return;
 
   const userSnapshots = await Promise.all(
@@ -440,7 +470,7 @@ async function hydrateGuestProfiles(db, guestMap) {
       db
         .collection('users')
         .where(FieldPath.documentId(), 'in', batch)
-        .select('gender', 'sex', 'age', 'dob', 'birthDate')
+        .select('gender', 'sex', 'age', 'dob', 'birthDate', 'dateOfBirth', 'city')
         .get(),
     ),
   );
@@ -452,6 +482,7 @@ async function hydrateGuestProfiles(db, guestMap) {
       if (!guest) continue;
       guest.gender = guest.gender || getGender(user);
       guest.age = guest.age || getGuestAge(user);
+      guest.city = guest.city || getCity(user);
     }
   }
 }
@@ -541,7 +572,7 @@ async function aggregateAudience(db, orders, guestLists = []) {
   };
 }
 
-function aggregateOps(events, orders, guestLists = []) {
+function aggregateOps(events, orders, guestLists = [], ticketScans = []) {
   const hourlyCounts = Array.from({ length: 24 }, (_, hour) => ({
     hour: formatHour(hour),
     count: 0,
@@ -562,23 +593,31 @@ function aggregateOps(events, orders, guestLists = []) {
     if (!isActiveOrder(order)) continue;
     const quantity = Math.max(getOrderQuantity(order), 1);
     const source = String(order?.source || order?.entrySource || '').toLowerCase();
-    const checkedIn = isCheckedIn(order);
-
-    if (checkedIn) {
-      totalScans += quantity;
-      successfulScans += quantity;
-      const date = getOrderDate(order);
-      if (date) {
-        const hour = date.getHours();
-        hourlyCounts[hour].count += quantity;
-        hourlyCounts[hour].scans += quantity;
-      }
-    }
-
     if (source.includes('walk')) {
       walkInEntries += quantity;
+    }
+  }
+
+  for (const scan of ticketScans) {
+    totalScans += 1;
+    successfulScans += 1;
+    const isWalk =
+      String(scan.source || '')
+        .toLowerCase()
+        .includes('walk') ||
+      String(scan.entryType || '')
+        .toLowerCase()
+        .includes('walk');
+    if (isWalk) {
+      walkInEntries += 1;
     } else {
-      onlineEntries += quantity;
+      onlineEntries += 1;
+    }
+    const scanDate = scan.scannedAt ? new Date(scan.scannedAt) : null;
+    if (scanDate && !Number.isNaN(scanDate.getTime())) {
+      const hour = scanDate.getHours();
+      hourlyCounts[hour].count += 1;
+      hourlyCounts[hour].scans += 1;
     }
   }
 
@@ -843,7 +882,7 @@ function buildTopEvents(events) {
     }));
 }
 
-async function buildOverviewPayload(role, events, orders, guestLists, range, db) {
+async function buildOverviewPayload(role, events, orders, guestLists, range, db, ticketScans = []) {
   const topEvents = buildTopEvents(events);
   const eventRevenue = events.reduce((sum, event) => sum + event.revenue, 0);
   const eventTickets = events.reduce((sum, event) => sum + event.tickets, 0);
@@ -856,13 +895,24 @@ async function buildOverviewPayload(role, events, orders, guestLists, range, db)
 
   let orderRevenue = 0;
   let orderTickets = 0;
-  let orderCheckIns = 0;
+  let grossAmt = 0;
+  let refundAmt = 0;
   for (const order of orders) {
-    if (!isActiveOrder(order)) continue;
-    orderRevenue += getOrderAmount(order);
-    orderTickets += getOrderQuantity(order);
-    if (isCheckedIn(order)) orderCheckIns += getOrderQuantity(order);
+    const amount = getOrderAmount(order);
+    const status = String(order?.status || '')
+      .trim()
+      .toLowerCase();
+    if (status === 'refunded') {
+      refundAmt += amount;
+      grossAmt += amount;
+    } else if (isActiveOrder(order)) {
+      grossAmt += amount;
+      orderRevenue += amount;
+      orderTickets += getOrderQuantity(order);
+    }
   }
+  const orderCheckIns = ticketScans.length;
+  const refundRate = grossAmt > 0 ? (refundAmt / grossAmt) * 100 : 0;
 
   const guestlistCheckIns = guestLists.reduce((sum, entry) => sum + (entry?.checkedIn ? 1 : 0), 0);
   const totalRevenue = eventRevenue || orderRevenue;
@@ -872,9 +922,11 @@ async function buildOverviewPayload(role, events, orders, guestLists, range, db)
   const occupancyRate = totalCapacity > 0 ? (totalCheckIns / totalCapacity) * 100 : 0;
   const sellThroughRate = totalCapacity > 0 ? (totalTicketsSold / totalCapacity) * 100 : 0;
   const noShowRate =
-    totalTicketsSold > 0 ? ((totalTicketsSold - orderCheckIns) / totalTicketsSold) * 100 : 0;
+    totalTicketsSold > 0
+      ? (Math.max(totalTicketsSold - orderCheckIns, 0) / totalTicketsSold) * 100
+      : 0;
   const audience = await aggregateAudience(db, orders, guestLists);
-  const ops = aggregateOps(events, orders, guestLists);
+  const ops = aggregateOps(events, orders, guestLists, ticketScans);
   const partners =
     role === 'venue'
       ? aggregateVenuePartners(events, orders)
@@ -905,7 +957,7 @@ async function buildOverviewPayload(role, events, orders, guestLists, range, db)
     occupancyRate,
     sellThroughRate,
     avgTicketPrice,
-    refundRate: 0,
+    refundRate,
     noShowRate,
     repeatGuestRate: audience.repeatGuestPct,
     firstTimeGuestRate:
@@ -953,18 +1005,22 @@ async function buildOverviewPayload(role, events, orders, guestLists, range, db)
 async function buildVenueAnalyticsBundle(venueId, range = '30d') {
   const db = getAdminDb();
   const baseEvents = await getVenueEvents(db, venueId, range);
-  const orders = await getOrdersForEventIds(
-    db,
-    baseEvents.map((event) => event.id),
-  );
-  const guestLists = await getGuestListsForEventIds(
-    db,
-    baseEvents.map((event) => event.id),
-  );
-  const events = enrichEventsWithBackendData(baseEvents, orders, guestLists);
+  const eventIds = baseEvents.map((event) => event.id);
+  const orders = await getOrdersForEventIds(db, eventIds);
+  const guestLists = await getGuestListsForEventIds(db, eventIds);
+  const ticketScans = await getTicketScansForEventIds(db, eventIds);
+  const events = enrichEventsWithBackendData(baseEvents, orders, guestLists, ticketScans);
   const audience = await aggregateAudience(db, orders, guestLists);
-  const overview = await buildOverviewPayload('venue', events, orders, guestLists, range, db);
-  const ops = aggregateOps(events, orders, guestLists);
+  const overview = await buildOverviewPayload(
+    'venue',
+    events,
+    orders,
+    guestLists,
+    range,
+    db,
+    ticketScans,
+  );
+  const ops = aggregateOps(events, orders, guestLists, ticketScans);
   const partners = aggregateVenuePartners(events, orders);
   return {
     overview,
@@ -981,18 +1037,22 @@ async function buildVenueAnalyticsBundle(venueId, range = '30d') {
 async function buildHostAnalyticsBundle(hostId, range = '30d') {
   const db = getAdminDb();
   const baseEvents = await getHostEvents(db, hostId, range);
-  const orders = await getOrdersForEventIds(
-    db,
-    baseEvents.map((event) => event.id),
-  );
-  const guestLists = await getGuestListsForEventIds(
-    db,
-    baseEvents.map((event) => event.id),
-  );
-  const events = enrichEventsWithBackendData(baseEvents, orders, guestLists);
+  const eventIds = baseEvents.map((event) => event.id);
+  const orders = await getOrdersForEventIds(db, eventIds);
+  const guestLists = await getGuestListsForEventIds(db, eventIds);
+  const ticketScans = await getTicketScansForEventIds(db, eventIds);
+  const events = enrichEventsWithBackendData(baseEvents, orders, guestLists, ticketScans);
   const audience = await aggregateAudience(db, orders, guestLists);
-  const overview = await buildOverviewPayload('host', events, orders, guestLists, range, db);
-  const ops = aggregateOps(events, orders, guestLists);
+  const overview = await buildOverviewPayload(
+    'host',
+    events,
+    orders,
+    guestLists,
+    range,
+    db,
+    ticketScans,
+  );
+  const ops = aggregateOps(events, orders, guestLists, ticketScans);
   const partners = aggregateHostPartners(events, orders);
   const recommendations = buildRecommendations('host', overview, audience, ops, partners);
 

@@ -7,15 +7,7 @@ export const EMPTY_TICKETS = Object.freeze({
 });
 
 export function groupTickets(list = []) {
-  const groups = {};
-  list.forEach((ticket) => {
-    const key = ticket.orderId || ticket.eventId || ticket.id;
-    if (!groups[key]) {
-      groups[key] = { ...ticket, isGroup: true, tickets: [] };
-    }
-    groups[key].tickets.push(ticket);
-  });
-  return Object.values(groups);
+  return list;
 }
 
 export function normalizeTicketsWallet(data = {}) {

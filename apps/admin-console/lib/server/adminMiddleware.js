@@ -49,15 +49,19 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
       return genericNotFound();
     }
 
-    // Hybrid fail strategy: admin routes are critical — 5 req/min/IP in degraded mode
-    const reqIp =
-      req.headers.get('x-real-ip') ||
-      req.headers.get('x-forwarded-for')?.split(',').pop()?.trim() ||
-      computeClientFingerprint(req);
-    const critical = checkCriticalEndpoint(`admin:ip:${reqIp}`, 5, 60_000);
-    if (!critical.allowed) {
-      logAuthEvent('REDIS_DEGRADED_RATE_LIMITED', { ip: reqIp, path: req.nextUrl?.pathname });
-      return genericNotFound();
+    const isDev = process.env.NODE_ENV === 'development';
+
+    if (!isDev) {
+      // Hybrid fail strategy: admin routes are critical — 5 req/min/IP in degraded mode
+      const reqIp =
+        req.headers.get('x-real-ip') ||
+        req.headers.get('x-forwarded-for')?.split(',').pop()?.trim() ||
+        computeClientFingerprint(req);
+      const critical = checkCriticalEndpoint(`admin:ip:${reqIp}`, 5, 60_000);
+      if (!critical.allowed) {
+        logAuthEvent('REDIS_DEGRADED_RATE_LIMITED', { ip: reqIp, path: req.nextUrl?.pathname });
+        return genericNotFound();
+      }
     }
 
     const token = authHeader.split('Bearer ')[1];
@@ -68,7 +72,6 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
       // Task 1: Strict Token Verification
       // checkRevoked=true makes a roundtrip to Firebase to confirm the token hasn't been
       // revoked. In dev this extra call frequently fails/times out → false 404s.
-      const isDev = process.env.NODE_ENV === 'development';
       const decodedToken = await auth.verifyIdToken(token, !isDev);
 
       const { role, admin_role, admin: isAdminClaim } = decodedToken;
@@ -96,7 +99,23 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
           readonly: 10,
         };
 
-        const userRoleValue = hierarchy[admin_role] || hierarchy['admin'] || 0;
+        // Reject missing or unrecognized role claims immediately
+        if (!admin_role || !hierarchy.hasOwnProperty(admin_role)) {
+          logAuthEvent('INVALID_ADMIN_ROLE_CLAIM', {
+            uid: decodedToken.uid,
+            admin_role,
+            path: req.nextUrl?.pathname,
+          });
+          return genericNotFound();
+        }
+
+        // Validate endpoint's requiredRole configuration
+        if (requiredRole && !hierarchy.hasOwnProperty(requiredRole)) {
+          console.error(`[Admin Auth] Invalid required role configuration: ${requiredRole}`);
+          return genericNotFound();
+        }
+
+        const userRoleValue = hierarchy[admin_role];
         const requiredRoleValue = hierarchy[requiredRole] || 100;
 
         if (userRoleValue < requiredRoleValue) {
@@ -116,15 +135,6 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
           logAuthEvent('STALE_ADMIN_SESSION', {
             uid: decodedToken.uid,
             authTime: new Date(authTime).toISOString(),
-            path: req.nextUrl?.pathname,
-          });
-          return genericNotFound();
-        }
-
-        // Reject tokens missing admin_role claim — do not silently downgrade
-        if (!admin_role) {
-          logAuthEvent('MISSING_ADMIN_ROLE_CLAIM', {
-            uid: decodedToken.uid,
             path: req.nextUrl?.pathname,
           });
           return genericNotFound();
@@ -153,13 +163,39 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
       const requestId = req.headers.get('x-request-id') || randomUUID();
 
       // Active defense: reject suspended admins — checked AFTER token verify
-      // so we know the UID before consulting Redis
-      const suspensionStatus = await isAdminSuspended(decodedToken.uid);
-      if (suspensionStatus.suspended) {
+      // so we know the UID before consulting Redis.
+      //
+      // isAdminSuspended resolves against Redis first and falls back to the
+      // Firestore `security_blocks` mirror, so a Redis-only outage still answers
+      // authoritatively. It reports `unavailable: true` only when BOTH stores are
+      // unreachable — at that point we cannot prove this admin isn't suspended,
+      // so we deny rather than fail open. Admin privileges are the highest-blast-
+      // radius credential in the system; a brief lockout during a total data-plane
+      // outage (when the console is largely non-functional anyway) is strictly
+      // preferable to admitting a suspended admin.
+      let suspensionStatus = { suspended: false };
+      try {
+        suspensionStatus = await isAdminSuspended(decodedToken.uid);
+      } catch (stateErr) {
+        console.error('[SECURITY] Admin suspension check threw:', stateErr.message);
+        suspensionStatus = { suspended: false, unavailable: true };
+      }
+
+      if (suspensionStatus && suspensionStatus.suspended) {
         logAuthEvent('SUSPENDED_ADMIN_REJECTED', {
           uid: decodedToken.uid,
           admin_role,
           reason: suspensionStatus.reason,
+          path: req.nextUrl?.pathname,
+          requestId,
+        });
+        return genericNotFound();
+      }
+
+      if (suspensionStatus && suspensionStatus.unavailable) {
+        logAuthEvent('ADMIN_SUSPENSION_STATE_UNKNOWN', {
+          uid: decodedToken.uid,
+          admin_role,
           path: req.nextUrl?.pathname,
           requestId,
         });
@@ -172,7 +208,7 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
         ipAddress,
         userAgent,
         requestId,
-        admin_role: admin_role || 'super',
+        admin_role: admin_role || (isDev ? 'super' : 'readonly'),
       };
 
       return handler(req, ...args);

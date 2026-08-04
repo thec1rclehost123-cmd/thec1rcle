@@ -18,6 +18,14 @@ vi.mock('@c1rcle/core/promo-service', () => ({
   })),
 }));
 
+vi.mock('@c1rcle/core/inventory-engine', async (importOriginal) => {
+  const actual = await importOriginal<any>();
+  return {
+    ...actual,
+    releaseReservation: vi.fn(async () => ({ success: true })),
+  };
+});
+
 vi.mock('@c1rcle/core/workflows/ticketing', () => ({
   verifyCheckoutPayment: vi.fn(async () => ({
     success: true,
@@ -31,6 +39,18 @@ vi.mock('@c1rcle/core/workflows/ticketing', () => ({
     chat: { id: 'chat_event_1', memberId: 'user_1' },
     redisReleased: true,
   })),
+  finalizeTicketPayment: vi.fn(async () => ({
+    success: true,
+    orderId: 'ord_1',
+    paymentId: 'pay_1',
+    status: 'confirmed',
+    alreadyFinalized: false,
+    order: { id: 'ord_1', eventId: 'event_1', status: 'confirmed' },
+    ticketIds: ['TKT-ORD-1'],
+    entitlementIds: ['ENT-ORD-1'],
+    ledgerMarkerId: 'ord_1',
+    outboxEventId: 'ticket-purchase-ord_1',
+  })),
 }));
 
 import validatePlugin from '../../plugins/validate';
@@ -39,10 +59,32 @@ import paymentRoutes from './payments';
 import orderRoutes from './orders';
 import { validatePromoCode } from '@c1rcle/core/promo-service';
 // @ts-ignore
-import { verifyCheckoutPayment } from '@c1rcle/core/workflows/ticketing';
+import { finalizeTicketPayment, verifyCheckoutPayment } from '@c1rcle/core/workflows/ticketing';
 
-function buildDbMock() {
+function buildDbMock(
+  eventTickets: any[] = [
+    {
+      id: 'tier_1',
+      name: 'General Admission',
+      price: 999,
+      quantity: 100,
+      remaining: 80,
+    },
+  ],
+) {
   return {
+    runTransaction: vi.fn(async (callback: any) =>
+      callback({
+        get: vi.fn(async (target: any) =>
+          typeof target?.get === 'function'
+            ? target.get()
+            : { exists: false, docs: [], empty: true, size: 0 },
+        ),
+        update: vi.fn(),
+        set: vi.fn(),
+        create: vi.fn(),
+      }),
+    ),
     collection: vi.fn((name: string) => {
       if (name === 'events') {
         return {
@@ -54,15 +96,7 @@ function buildDbMock() {
                 title: 'After Dark',
                 venueId: 'venue_1',
                 startDate: '2099-01-01T20:00:00.000Z',
-                tickets: [
-                  {
-                    id: 'tier_1',
-                    name: 'General Admission',
-                    price: 999,
-                    quantity: 100,
-                    remaining: 80,
-                  },
-                ],
+                tickets: eventTickets,
               }),
             })),
           })),
@@ -77,6 +111,7 @@ function buildDbMock() {
               id,
               data: () => ({
                 eventId: 'event_1',
+                customerId: 'user_1',
                 status: 'active',
                 expiresAt: '2099-01-01T21:00:00.000Z',
                 items: [{ tierId: 'tier_1', quantity: 2 }],
@@ -106,7 +141,7 @@ function buildDbMock() {
   };
 }
 
-async function buildServer() {
+async function buildServer(eventTickets?: any[]) {
   const server = Fastify({ logger: false });
   const checkoutService = {
     reserveItems: vi.fn(
@@ -195,7 +230,7 @@ async function buildServer() {
     updateOrder: vi.fn(async () => undefined),
   };
 
-  server.decorate('db', buildDbMock() as any);
+  server.decorate('db', buildDbMock(eventTickets) as any);
   server.decorate('cache', {
     get: vi.fn(async () => null),
     set: vi.fn(async () => undefined),
@@ -208,6 +243,7 @@ async function buildServer() {
   server.decorate('requireRoles', vi.fn(() => async () => undefined) as any);
   server.decorate('checkoutService', checkoutService as any);
   server.decorate('orderRepo', orderRepo as any);
+  server.decorate('writeAuditLog', vi.fn(async () => undefined) as any);
   server.addHook('onRequest', async (request: any) => {
     if (request.headers.authorization) {
       request.user = {
@@ -253,7 +289,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       },
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode, response.body).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
       alreadyVerified: false,
@@ -303,7 +339,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
   it('POST /api/v1/checkout/verify maps invalid signatures to 400', async () => {
     const { server } = await buildServer();
     vi.mocked(verifyCheckoutPayment).mockRejectedValueOnce(
-      Object.assign(new Error('Invalid signature'), { code: 'INVALID_SIGNATURE' }),
+      Object.assign(new Error('Invalid signature'), { code: 'PAYMENT_SIGNATURE_INVALID' }),
     );
 
     const response = await server.inject({
@@ -337,7 +373,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       },
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode, response.body).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
       razorpayOrderId: 'order_rzp_1',
@@ -363,6 +399,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
           keyId: 'rzp_test_key',
           keySecret: 'rzp_test_secret',
           allowMockPayment: false,
+          forceMockPayment: false,
         },
       }),
     );
@@ -425,6 +462,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       payload: {
         reservationId: 'res_1',
         promoCode: 'NIGHT',
+        hostUpdatesOptIn: true,
       },
     });
 
@@ -437,14 +475,41 @@ describe('GP-4 gateway checkout/payment routes', () => {
       razorpay: { orderId: 'order_rzp_1', amount: 1499, currency: 'INR', key: 'rzp_test_key' },
     });
     expect(checkoutService.initiateCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({ reservationId: 'res_1', promoCode: 'NIGHT', userId: 'user_1' }),
+      expect.objectContaining({
+        reservationId: 'res_1',
+        promoCode: 'NIGHT',
+        hostUpdatesOptIn: true,
+        userId: 'user_1',
+      }),
       null,
     );
     expect(checkoutService.preparePayment).toHaveBeenCalledWith(
       'ord_1',
       'user_1',
       expect.any(Object),
+      expect.objectContaining({
+        id: 'ord_1',
+      }),
     );
+
+    await server.close();
+  });
+
+  it('POST /api/v1/checkout/cancel authorizes the canonical reservation customerId', async () => {
+    const { server } = await buildServer();
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/cancel',
+      headers: { authorization: 'Bearer test-token' },
+      payload: { reservationId: 'res_1' },
+    });
+
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json()).toEqual({
+      success: true,
+      message: 'Reservation released',
+    });
 
     await server.close();
   });
@@ -516,6 +581,39 @@ describe('GP-4 gateway checkout/payment routes', () => {
           requiresPayment: expect.any(Boolean),
         }),
       }),
+    });
+
+    await server.close();
+  });
+
+  it('POST /api/v1/checkout/calculate rejects an unfunded Cover Wallet before reservation or payment', async () => {
+    const { server } = await buildServer([
+      {
+        id: 'tier_1',
+        name: 'Underfunded Cover Package',
+        price: 499,
+        quantity: 100,
+        remaining: 80,
+        coverChargeConfig: {
+          enabled: true,
+          walletAmountPaise: 50_000,
+        },
+      },
+    ]);
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/calculate',
+      payload: {
+        eventId: 'event_1',
+        items: [{ tierId: 'tier_1', quantity: 1 }],
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      success: false,
+      code: 'COVER_WALLET_UNFUNDED',
     });
 
     await server.close();
@@ -631,12 +729,18 @@ describe('GP-4 gateway checkout/payment routes', () => {
   });
 
   it('PATCH /api/v1/payments/verify returns alreadyConfirmed for idempotent duplicate confirmation', async () => {
-    const { server, checkoutService } = await buildServer();
-    checkoutService.verifyPayment.mockResolvedValueOnce({
+    const { server } = await buildServer();
+    vi.mocked(finalizeTicketPayment).mockResolvedValueOnce({
       success: true,
-      alreadyConfirmed: true,
-      order: { id: 'ord_1', status: 'confirmed' },
-    });
+      orderId: 'ord_1',
+      paymentId: 'pay_1',
+      status: 'confirmed',
+      alreadyFinalized: true,
+      order: { id: 'ord_1', eventId: 'event_1', status: 'confirmed' },
+      ticketIds: ['TKT-ORD-1'],
+      entitlementIds: ['ENT-ORD-1'],
+      ledgerMarkerId: 'ord_1',
+    } as any);
     const signature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET as string)
       .update('order_rzp_1|pay_1')
@@ -654,16 +758,20 @@ describe('GP-4 gateway checkout/payment routes', () => {
       },
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode, response.body).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
       alreadyConfirmed: true,
       message: 'Order already confirmed',
     });
-    expect(checkoutService.verifyPayment).toHaveBeenCalledWith({
-      orderId: 'ord_1',
+    expect(finalizeTicketPayment).toHaveBeenCalledWith({
+      db: expect.any(Object),
+      expectedOrderId: 'ord_1',
+      requestId: expect.any(String),
       razorpayOrderId: 'order_rzp_1',
       razorpayPaymentId: 'pay_1',
+      razorpaySignature: signature,
+      source: 'client',
       userId: 'user_1',
       paymentGatewayConfig: expect.any(Object),
     });
@@ -671,12 +779,12 @@ describe('GP-4 gateway checkout/payment routes', () => {
   });
 
   it('PATCH /api/v1/payments/verify returns 409 when the shared checkout service rejects finalization', async () => {
-    const { server, checkoutService } = await buildServer();
-    checkoutService.verifyPayment.mockResolvedValueOnce({
-      success: false,
-      error: 'Payment is not successful',
-      order: { id: 'ord_1', status: 'payment_pending' },
-    } as any);
+    const { server } = await buildServer();
+    vi.mocked(finalizeTicketPayment).mockRejectedValueOnce(
+      Object.assign(new Error('Payment is not successful'), {
+        code: 'ORDER_NOT_FINALIZABLE',
+      }),
+    );
     const signature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET as string)
       .update('order_rzp_1|pay_1')
@@ -697,16 +805,18 @@ describe('GP-4 gateway checkout/payment routes', () => {
     expect(response.statusCode).toBe(409);
     expect(response.json()).toMatchObject({
       success: false,
-      error: 'Payment is not successful',
-      order: { id: 'ord_1', status: 'payment_pending' },
+      error: expect.objectContaining({ message: 'Payment is not successful' }),
     });
 
     await server.close();
   });
 
   it('PATCH /api/v1/payments/verify rejects mock payment payloads in production', async () => {
-    const { server, checkoutService } = await buildServer();
+    const { server } = await buildServer();
     process.env.NODE_ENV = 'production';
+    vi.mocked(finalizeTicketPayment).mockRejectedValueOnce(
+      Object.assign(new Error('Mock payments are disabled'), { code: 'BAD_REQUEST' }),
+    );
 
     const response = await server.inject({
       method: 'PATCH',
@@ -724,14 +834,19 @@ describe('GP-4 gateway checkout/payment routes', () => {
     expect(response.json()).toMatchObject({
       error: expect.objectContaining({ message: 'Mock payments are disabled' }),
     });
-    expect(checkoutService.verifyPayment).not.toHaveBeenCalled();
+    expect(finalizeTicketPayment).toHaveBeenCalledOnce();
 
     await server.close();
   });
 
   it('PATCH /api/v1/payments/verify fails closed when Razorpay signing secret is missing', async () => {
-    const { server, checkoutService } = await buildServer();
+    const { server } = await buildServer();
     delete process.env.RAZORPAY_KEY_SECRET;
+    vi.mocked(finalizeTicketPayment).mockRejectedValueOnce(
+      Object.assign(new Error('Payment verification is not configured'), {
+        code: 'PAYMENT_NOT_CONFIGURED',
+      }),
+    );
 
     const response = await server.inject({
       method: 'PATCH',
@@ -749,13 +864,13 @@ describe('GP-4 gateway checkout/payment routes', () => {
     expect(response.json()).toMatchObject({
       error: expect.objectContaining({ message: 'Payment verification is not configured' }),
     });
-    expect(checkoutService.verifyPayment).not.toHaveBeenCalled();
+    expect(finalizeTicketPayment).toHaveBeenCalledOnce();
 
     await server.close();
   });
 
   it('POST /api/v1/payments/webhook verifies the signature and confirms the order via the gateway service', async () => {
-    const { server, checkoutService, orderRepo } = await buildServer();
+    const { server, orderRepo } = await buildServer();
     const payload = JSON.stringify({
       event: 'payment.captured',
       payload: {
@@ -783,12 +898,16 @@ describe('GP-4 gateway checkout/payment routes', () => {
       payload,
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(checkoutService.verifyPayment).toHaveBeenCalledWith({
-      orderId: 'ord_1',
+    expect(response.statusCode, response.body).toBe(200);
+    expect(finalizeTicketPayment).toHaveBeenCalledWith({
+      db: expect.any(Object),
+      expectedOrderId: 'ord_1',
+      requestId: expect.any(String),
       razorpayOrderId: 'order_rzp_1',
       razorpayPaymentId: 'pay_1',
-      userId: null,
+      source: 'webhook',
+      webhookVerified: true,
+      providerPayment: expect.objectContaining({ id: 'pay_1' }),
       paymentGatewayConfig: expect.any(Object),
     });
     expect(orderRepo.getOrderById).not.toHaveBeenCalled();

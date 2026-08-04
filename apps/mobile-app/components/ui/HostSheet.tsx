@@ -4,7 +4,15 @@
  */
 
 import { useEffect, useState } from 'react';
-import { View, Text, Modal, Pressable, ScrollView, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
@@ -13,6 +21,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { apiFetch } from '@/lib/api';
 import { colors, radii, gradients } from '@/lib/design/theme';
 import { safeDate } from '@/lib/utils/date';
+import { fetchPublicHostPage } from '@/lib/publicDetailRequests';
 
 interface HostEvent {
   id: string;
@@ -47,25 +56,89 @@ export function HostSheet({ visible, onClose, hostName, hostId, hostAvatar }: Ho
   const [host, setHost] = useState<HostInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [following, setFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     if (!visible || !hostId) return;
+    let active = true;
     setLoading(true);
-    // Try the host overview endpoint (authenticated host) or a public profile endpoint
-    apiFetch(`/api/v1/hosts/${hostId}`)
-      .then((data: any) => setHost(data?.host ?? data ?? null))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [visible, hostId]);
+    setError(null);
+    Promise.allSettled([
+      fetchPublicHostPage(hostId, { bypassCache: true }),
+      apiFetch(`/api/v1/follow?targetId=${encodeURIComponent(hostId)}`),
+    ])
+      .then(([profileResult, followResult]) => {
+        if (!active) return;
+        if (profileResult.status === 'rejected') throw profileResult.reason;
+        const profile: any = profileResult.value;
+        const publicHost = profile?.host || {};
+        setHost({
+          id: publicHost.id || publicHost.hostId || hostId,
+          name: publicHost.displayName || publicHost.name || hostName,
+          bio: publicHost.bio || publicHost.description,
+          photoURL:
+            publicHost.avatarUrl || publicHost.avatar || publicHost.photoURL || publicHost.image,
+          coverImage: publicHost.coverUrl || publicHost.coverURL || publicHost.cover,
+          followerCount: profile?.stats?.followersCount ?? publicHost.followersCount ?? 0,
+          eventsHosted: profile?.stats?.upcomingEventsCount ?? publicHost.upcomingEventsCount ?? 0,
+          city: publicHost.city || publicHost.location,
+          upcomingEvents: (profile?.upcomingEvents || []).map((event: any) => ({
+            id: event.id || event.eventId,
+            title: event.title || 'Event',
+            startDate: event.startDate || event.startAt,
+            coverImage: event.image || event.poster || event.posterUrl,
+          })),
+        });
+        if (followResult.status === 'fulfilled') {
+          const follow: any = followResult.value;
+          setFollowing(Boolean(follow?.data?.isFollowing ?? follow?.isFollowing));
+        } else {
+          setError('Host loaded, but follow status could not be refreshed.');
+        }
+      })
+      .catch((cause) => {
+        if (active) {
+          setError(cause instanceof Error ? cause.message : 'Unable to load this host.');
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [visible, hostId, hostName, reloadNonce]);
 
   const displayName = host?.name ?? hostName;
   const followerCount = host?.followerCount ?? 0;
   const eventsHosted = host?.eventsHosted ?? 0;
 
-  const handleFollow = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setFollowing((f) => !f);
-    // TODO: call /api/v1/social/follow with hostId
+  const handleFollow = async () => {
+    if (!hostId || followBusy) return;
+    const previous = following;
+    setFollowBusy(true);
+    setError(null);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setFollowing(!previous);
+    try {
+      if (previous) {
+        await apiFetch(`/api/v1/follow?targetId=${encodeURIComponent(hostId)}&targetType=host`, {
+          method: 'DELETE',
+        });
+      } else {
+        await apiFetch('/api/v1/follow', {
+          method: 'POST',
+          body: JSON.stringify({ targetId: hostId, targetType: 'host' }),
+        });
+      }
+    } catch (cause) {
+      setFollowing(previous);
+      setError(cause instanceof Error ? cause.message : 'Unable to update follow status.');
+    } finally {
+      setFollowBusy(false);
+    }
   };
 
   return (
@@ -93,7 +166,7 @@ export function HostSheet({ visible, onClose, hostName, hostId, hostAvatar }: Ho
             contentContainerStyle={styles.content}
           >
             {/* Cover + Avatar hero */}
-            <Animated.View entering={FadeInDown.springify()} style={styles.hero}>
+            <Animated.View entering={FadeInDown} style={styles.hero}>
               {host?.coverImage ? (
                 <Image
                   source={{ uri: host.coverImage }}
@@ -127,7 +200,7 @@ export function HostSheet({ visible, onClose, hostName, hostId, hostAvatar }: Ho
             </Animated.View>
 
             {/* Name + verified */}
-            <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.nameRow}>
+            <Animated.View entering={FadeInDown.delay(80)} style={styles.nameRow}>
               <View style={styles.nameBlock}>
                 <Text style={styles.hostName}>{displayName}</Text>
                 {(host?.isVerified ?? true) && (
@@ -138,16 +211,27 @@ export function HostSheet({ visible, onClose, hostName, hostId, hostAvatar }: Ho
               </View>
               <Pressable
                 onPress={handleFollow}
+                disabled={!hostId || followBusy}
                 style={[styles.followBtn, following && styles.followBtnActive]}
               >
                 <Text style={[styles.followBtnText, following && styles.followBtnTextActive]}>
-                  {following ? 'Following' : 'Follow'}
+                  {followBusy ? 'Saving…' : following ? 'Following' : 'Follow'}
                 </Text>
               </Pressable>
             </Animated.View>
 
+            {loading ? <ActivityIndicator color={colors.iris} style={styles.feedback} /> : null}
+            {error ? (
+              <View style={styles.feedback}>
+                <Text style={styles.errorText}>{error}</Text>
+                <Pressable onPress={() => setReloadNonce((value) => value + 1)}>
+                  <Text style={styles.retryText}>Retry</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             {/* Stats */}
-            <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.statsRow}>
+            <Animated.View entering={FadeInDown.delay(100)} style={styles.statsRow}>
               <View style={styles.stat}>
                 <Text style={styles.statValue}>{eventsHosted}</Text>
                 <Text style={styles.statLabel}>Events</Text>
@@ -172,7 +256,7 @@ export function HostSheet({ visible, onClose, hostName, hostId, hostAvatar }: Ho
 
             {/* Bio */}
             {host?.bio && (
-              <Animated.View entering={FadeInDown.delay(120).springify()} style={styles.section}>
+              <Animated.View entering={FadeInDown.delay(120)} style={styles.section}>
                 <Text style={styles.sectionTitle}>About</Text>
                 <Text style={styles.bioText}>{host.bio}</Text>
               </Animated.View>
@@ -180,7 +264,7 @@ export function HostSheet({ visible, onClose, hostName, hostId, hostAvatar }: Ho
 
             {/* Upcoming events */}
             {(host?.upcomingEvents?.length ?? 0) > 0 && (
-              <Animated.View entering={FadeInDown.delay(160).springify()} style={styles.section}>
+              <Animated.View entering={FadeInDown.delay(160)} style={styles.section}>
                 <Text style={styles.sectionTitle}>Upcoming Events</Text>
                 {host!.upcomingEvents!.map((ev) => (
                   <View key={ev.id} style={styles.eventRow}>
@@ -341,6 +425,21 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
+  },
+  feedback: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#ff8a70',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  retryText: {
+    color: colors.iris,
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 6,
   },
   stat: {
     flex: 1,

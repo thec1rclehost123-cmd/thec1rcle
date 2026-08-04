@@ -96,6 +96,8 @@ interface Form {
   venueType: string;
   city: string;
   website: string;
+  contactEmail: string;
+  contactPhone: string;
   instagram: string;
   twitter: string;
 }
@@ -150,6 +152,8 @@ export default function VenueProfileClient({
     venueType: '',
     city: '',
     website: '',
+    contactEmail: '',
+    contactPhone: '',
     instagram: '',
     twitter: '',
   });
@@ -177,6 +181,8 @@ export default function VenueProfileClient({
           venueType: v.venueType || '',
           city: v.city || '',
           website: v.website || '',
+          contactEmail: v.contactEmail || v.email || '',
+          contactPhone: v.contactPhone || v.phone || '',
           instagram: v.socialLinks?.instagram || '',
           twitter: v.socialLinks?.twitter || '',
         });
@@ -360,6 +366,8 @@ export default function VenueProfileClient({
         venueType: form.venueType,
         city: form.city,
         website: form.website,
+        contactEmail: form.contactEmail,
+        contactPhone: form.contactPhone,
         socialLinks: {
           instagram: form.instagram,
           twitter: form.twitter,
@@ -754,6 +762,34 @@ export default function VenueProfileClient({
                         className="focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10"
                       />
                     </div>
+                  </FormGroup>
+
+                  <FormGroup
+                    label="Contact Email"
+                    description="Shared with approved and active partners"
+                  >
+                    <input
+                      type="email"
+                      value={form.contactEmail}
+                      placeholder="contact@venue.com"
+                      style={inputStyle}
+                      onChange={(e) => handleFieldChange('contactEmail', e.target.value)}
+                      className="focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10"
+                    />
+                  </FormGroup>
+
+                  <FormGroup
+                    label="Contact Phone"
+                    description="Shared with approved and active partners"
+                  >
+                    <input
+                      type="tel"
+                      value={form.contactPhone}
+                      placeholder="+91 98000 00000"
+                      style={inputStyle}
+                      onChange={(e) => handleFieldChange('contactPhone', e.target.value)}
+                      className="focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10"
+                    />
                   </FormGroup>
                 </div>
 

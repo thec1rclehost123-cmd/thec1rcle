@@ -1,0 +1,767 @@
+{
+  "generatedAt": "2026-07-28T09:53:06.092Z",
+  "baseUrl": "http://127.0.0.1:4000",
+  "eventId": "d6b896a2-9f8c-4c27-89f1-33930aab64bd",
+  "sampleCount": 10,
+  "timeoutMs": 15000,
+  "slaMs": 3000,
+  "passed": false,
+  "results": [
+    {
+      "name": "auth-sync",
+      "method": "POST",
+      "path": "/api/v1/auth/sync",
+      "sampleCount": 10,
+      "successfulSamples": 10,
+      "p50Ms": 859.09,
+      "p95Ms": 994.96,
+      "maxMs": 994.96,
+      "slaMs": 3000,
+      "passed": true,
+      "samples": [
+        {
+          "sample": 1,
+          "status": 200,
+          "elapsedMs": 978.66,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 2,
+          "status": 200,
+          "elapsedMs": 932.27,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 3,
+          "status": 200,
+          "elapsedMs": 994.96,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 4,
+          "status": 200,
+          "elapsedMs": 854.98,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 5,
+          "status": 200,
+          "elapsedMs": 859.18,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 6,
+          "status": 200,
+          "elapsedMs": 784.65,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 7,
+          "status": 200,
+          "elapsedMs": 953.4,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 8,
+          "status": 200,
+          "elapsedMs": 796.49,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 9,
+          "status": 200,
+          "elapsedMs": 806.91,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 10,
+          "status": 200,
+          "elapsedMs": 859.09,
+          "responseCode": null,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "onboarding",
+      "method": "GET",
+      "path": "/api/v1/users/me/onboarding",
+      "sampleCount": 10,
+      "successfulSamples": 10,
+      "p50Ms": 408.54,
+      "p95Ms": 487.37,
+      "maxMs": 487.37,
+      "slaMs": 3000,
+      "passed": true,
+      "samples": [
+        {
+          "sample": 1,
+          "status": 200,
+          "elapsedMs": 444.89,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 2,
+          "status": 200,
+          "elapsedMs": 434.14,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 3,
+          "status": 200,
+          "elapsedMs": 376.89,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 4,
+          "status": 200,
+          "elapsedMs": 487.37,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 5,
+          "status": 200,
+          "elapsedMs": 384.12,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 6,
+          "status": 200,
+          "elapsedMs": 408.54,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 7,
+          "status": 200,
+          "elapsedMs": 448.96,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 8,
+          "status": 200,
+          "elapsedMs": 376.12,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 9,
+          "status": 200,
+          "elapsedMs": 479.01,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 10,
+          "status": 200,
+          "elapsedMs": 385.64,
+          "responseCode": null,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "subscription",
+      "method": "GET",
+      "path": "/api/v1/users/me/subscription",
+      "sampleCount": 10,
+      "successfulSamples": 10,
+      "p50Ms": 459.22,
+      "p95Ms": 689.83,
+      "maxMs": 689.83,
+      "slaMs": 3000,
+      "passed": true,
+      "samples": [
+        {
+          "sample": 1,
+          "status": 200,
+          "elapsedMs": 616.67,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 2,
+          "status": 200,
+          "elapsedMs": 427.81,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 3,
+          "status": 200,
+          "elapsedMs": 417.17,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 4,
+          "status": 200,
+          "elapsedMs": 434.01,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 5,
+          "status": 200,
+          "elapsedMs": 378.14,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 6,
+          "status": 200,
+          "elapsedMs": 689.83,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 7,
+          "status": 200,
+          "elapsedMs": 521.91,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 8,
+          "status": 200,
+          "elapsedMs": 462.2,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 9,
+          "status": 200,
+          "elapsedMs": 478.89,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 10,
+          "status": 200,
+          "elapsedMs": 459.22,
+          "responseCode": null,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "recommendations-v2",
+      "method": "GET",
+      "path": "/api/v1/recommendations?limit=10&contract=v2",
+      "sampleCount": 10,
+      "successfulSamples": 10,
+      "p50Ms": 396.54,
+      "p95Ms": 7724.07,
+      "maxMs": 7724.07,
+      "slaMs": 3000,
+      "passed": false,
+      "samples": [
+        {
+          "sample": 1,
+          "status": 200,
+          "elapsedMs": 7724.07,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 2,
+          "status": 200,
+          "elapsedMs": 614.69,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 3,
+          "status": 200,
+          "elapsedMs": 259.13,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 4,
+          "status": 200,
+          "elapsedMs": 396.54,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 5,
+          "status": 200,
+          "elapsedMs": 349.32,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 6,
+          "status": 200,
+          "elapsedMs": 250.96,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 7,
+          "status": 200,
+          "elapsedMs": 291.85,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 8,
+          "status": 200,
+          "elapsedMs": 483.34,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 9,
+          "status": 200,
+          "elapsedMs": 485.3,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 10,
+          "status": 200,
+          "elapsedMs": 634.86,
+          "responseCode": null,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "follows",
+      "method": "GET",
+      "path": "/api/v1/users/me/follows",
+      "sampleCount": 10,
+      "successfulSamples": 10,
+      "p50Ms": 433.4,
+      "p95Ms": 679.49,
+      "maxMs": 679.49,
+      "slaMs": 3000,
+      "passed": true,
+      "samples": [
+        {
+          "sample": 1,
+          "status": 200,
+          "elapsedMs": 399.86,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 2,
+          "status": 200,
+          "elapsedMs": 427.79,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 3,
+          "status": 200,
+          "elapsedMs": 431.07,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 4,
+          "status": 200,
+          "elapsedMs": 546.5,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 5,
+          "status": 200,
+          "elapsedMs": 487.85,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 6,
+          "status": 200,
+          "elapsedMs": 433.4,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 7,
+          "status": 200,
+          "elapsedMs": 510.83,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 8,
+          "status": 200,
+          "elapsedMs": 651.07,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 9,
+          "status": 200,
+          "elapsedMs": 679.49,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 10,
+          "status": 200,
+          "elapsedMs": 374.36,
+          "responseCode": null,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "ticket-wallet",
+      "method": "GET",
+      "path": "/api/v1/tickets/my-wallet",
+      "sampleCount": 10,
+      "successfulSamples": 10,
+      "p50Ms": 414.67,
+      "p95Ms": 710.36,
+      "maxMs": 710.36,
+      "slaMs": 3000,
+      "passed": true,
+      "samples": [
+        {
+          "sample": 1,
+          "status": 200,
+          "elapsedMs": 372.69,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 2,
+          "status": 200,
+          "elapsedMs": 475.35,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 3,
+          "status": 200,
+          "elapsedMs": 407.45,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 4,
+          "status": 200,
+          "elapsedMs": 417.69,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 5,
+          "status": 200,
+          "elapsedMs": 414.67,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 6,
+          "status": 200,
+          "elapsedMs": 406.16,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 7,
+          "status": 200,
+          "elapsedMs": 440.79,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 8,
+          "status": 200,
+          "elapsedMs": 710.36,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 9,
+          "status": 200,
+          "elapsedMs": 392.98,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 10,
+          "status": 200,
+          "elapsedMs": 432.74,
+          "responseCode": null,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "event-detail",
+      "method": "GET",
+      "path": "/api/v1/events/d6b896a2-9f8c-4c27-89f1-33930aab64bd",
+      "sampleCount": 10,
+      "successfulSamples": 10,
+      "p50Ms": 74.28,
+      "p95Ms": 1510.56,
+      "maxMs": 1510.56,
+      "slaMs": 3000,
+      "passed": true,
+      "samples": [
+        {
+          "sample": 1,
+          "status": 200,
+          "elapsedMs": 1510.56,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 2,
+          "status": 200,
+          "elapsedMs": 54.55,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 3,
+          "status": 200,
+          "elapsedMs": 62.11,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 4,
+          "status": 200,
+          "elapsedMs": 70.8,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 5,
+          "status": 200,
+          "elapsedMs": 107.6,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 6,
+          "status": 200,
+          "elapsedMs": 74.28,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 7,
+          "status": 200,
+          "elapsedMs": 77.37,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 8,
+          "status": 200,
+          "elapsedMs": 80.51,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 9,
+          "status": 200,
+          "elapsedMs": 83.78,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 10,
+          "status": 200,
+          "elapsedMs": 72.21,
+          "responseCode": null,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "event-interested",
+      "method": "GET",
+      "path": "/api/v1/events/d6b896a2-9f8c-4c27-89f1-33930aab64bd/interested?limit=24",
+      "sampleCount": 10,
+      "successfulSamples": 10,
+      "p50Ms": 809.21,
+      "p95Ms": 1048.43,
+      "maxMs": 1048.43,
+      "slaMs": 3000,
+      "passed": true,
+      "samples": [
+        {
+          "sample": 1,
+          "status": 200,
+          "elapsedMs": 847.14,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 2,
+          "status": 200,
+          "elapsedMs": 746.75,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 3,
+          "status": 200,
+          "elapsedMs": 809.21,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 4,
+          "status": 200,
+          "elapsedMs": 903.65,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 5,
+          "status": 200,
+          "elapsedMs": 867.33,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 6,
+          "status": 200,
+          "elapsedMs": 766.26,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 7,
+          "status": 200,
+          "elapsedMs": 1027.49,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 8,
+          "status": 200,
+          "elapsedMs": 753.55,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 9,
+          "status": 200,
+          "elapsedMs": 743.81,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 10,
+          "status": 200,
+          "elapsedMs": 1048.43,
+          "responseCode": null,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "realtime-session",
+      "method": "POST",
+      "path": "/api/v1/realtime/session",
+      "sampleCount": 10,
+      "successfulSamples": 10,
+      "p50Ms": 64.51,
+      "p95Ms": 128.92,
+      "maxMs": 128.92,
+      "slaMs": 3000,
+      "passed": true,
+      "samples": [
+        {
+          "sample": 1,
+          "status": 200,
+          "elapsedMs": 78.02,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 2,
+          "status": 200,
+          "elapsedMs": 58.06,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 3,
+          "status": 200,
+          "elapsedMs": 74.66,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 4,
+          "status": 200,
+          "elapsedMs": 67.12,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 5,
+          "status": 200,
+          "elapsedMs": 58.8,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 6,
+          "status": 200,
+          "elapsedMs": 59.5,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 7,
+          "status": 200,
+          "elapsedMs": 128.92,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 8,
+          "status": 200,
+          "elapsedMs": 55.97,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 9,
+          "status": 200,
+          "elapsedMs": 64.51,
+          "responseCode": null,
+          "error": null
+        },
+        {
+          "sample": 10,
+          "status": 200,
+          "elapsedMs": 65.4,
+          "responseCode": null,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

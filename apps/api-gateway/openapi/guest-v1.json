@@ -89,14 +89,6 @@
         ]
       }
     },
-    "/auth/check": {
-      "post": {
-        "operationId": "checkGuestEmail",
-        "tags": [
-          "auth"
-        ]
-      }
-    },
     "/auth/change-password": {
       "post": {
         "operationId": "changeGuestPassword",
@@ -126,6 +118,14 @@
         "operationId": "verifyGuestOtp",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/profiles": {
+      "patch": {
+        "operationId": "updateGuestProfile",
+        "tags": [
+          "profiles"
         ]
       }
     },
@@ -410,6 +410,14 @@
     "/tickets/{ticketId}": {
       "get": {
         "operationId": "getGuestTicket",
+        "tags": [
+          "tickets"
+        ]
+      }
+    },
+    "/tickets/public/{entitlementId}": {
+      "get": {
+        "operationId": "getPublicTicket",
         "tags": [
           "tickets"
         ]

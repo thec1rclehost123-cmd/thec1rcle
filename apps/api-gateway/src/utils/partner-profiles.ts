@@ -1,4 +1,5 @@
 import { signStorageUrl } from '../lib/signed-urls.js';
+import { FieldPath } from 'firebase-admin/firestore';
 
 export type PartnerEntityType = 'venue' | 'host' | 'promoter';
 
@@ -27,6 +28,31 @@ function pickString(...values: any[]) {
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return '';
+}
+
+const ACTIVE_CONNECTION_STATUSES = new Set([
+  'active',
+  'approved',
+  'accepted',
+  'connected',
+  'verified',
+]);
+
+export function isActivePartnerConnectionStatus(value: unknown) {
+  return ACTIVE_CONNECTION_STATUSES.has(
+    String(value || '')
+      .trim()
+      .toLowerCase(),
+  );
+}
+
+function selectPreferredConnection(snapshot: any) {
+  const documents = snapshot?.docs || [];
+  return (
+    documents.find((document: any) => isActivePartnerConnectionStatus(document.data()?.status)) ||
+    documents[0] ||
+    null
+  );
 }
 
 function pickNumber(...values: any[]) {
@@ -313,7 +339,7 @@ export async function resolvePartnerDocument(db: any, id: string) {
   return null;
 }
 
-export async function getPartnerProfileSummary(db: any, id: string) {
+async function getPartnerProfileSummaryInternal(db: any, id: string) {
   let resolved = await resolvePartnerDocument(db, id);
   let isUserFallback = false;
   let userData: Record<string, any> = {};
@@ -338,7 +364,7 @@ export async function getPartnerProfileSummary(db: any, id: string) {
   }
 
   const { type, doc } = resolved;
-  const ownerUid = pickString(doc.uid, doc.userId, doc.ownerId, resolved.id);
+  const ownerUid = pickString(doc.uid, doc.userId, doc.ownerUid, doc.ownerId, resolved.id);
 
   const [userSnap, onboarding, eventDocs] = await Promise.all([
     isUserFallback
@@ -382,8 +408,6 @@ export async function getPartnerProfileSummary(db: any, id: string) {
     x: pickString(doc.x, doc.twitter, doc.twitterHandle, onboardingData.twitter),
     website: pickString(doc.website, onboardingData.website),
     spotify: pickString(doc.spotify, onboardingData.spotify),
-    phone: resolvedPhone || '',
-    email: resolvedEmail || '',
   });
 
   const normalizedEvents = eventDocs
@@ -434,71 +458,209 @@ export async function getPartnerProfileSummary(db: any, id: string) {
     normalizedEvents.length || manualUpcomingEvents.length + manualPastEvents.length;
 
   return {
-    id: resolved.id,
-    type,
-    name: pickString(
-      doc.displayName,
-      doc.name,
-      doc.brandName,
-      doc.venueName,
-      onboardingData.name,
-      resolvedUserData.displayName,
-      'Unknown Partner',
-    ),
-    legalName: pickString(
-      doc.legalName,
-      doc.name,
-      onboardingData.contactPerson,
-      onboardingData.name,
-    ),
-    bio: pickString(doc.bio, doc.description, doc.summary, onboardingData.bio),
-    city: pickString(doc.city, onboardingData.city),
-    area: pickString(doc.area, onboardingData.area),
-    locationLabel: compactLocation(
-      pickString(doc.city, onboardingData.city),
-      pickString(doc.area, onboardingData.area),
-    ),
-    // SEC-8 fix: phone and email are PII — omitted from the public profile response.
-    // Expose them only after verifying an active mutual connection at the call site.
-    _pii: {
-      email: resolvedEmail,
-      phone: resolvedPhone,
-    },
-    avatarUrl: await signStorageUrl(
-      pickString(
-        doc.profileImage,
-        doc.avatar,
-        doc.avatarUrl,
-        doc.photoURL,
-        doc.photoUrl,
-        doc.logoUrl,
-        doc.logoImage,
-        doc.logo,
+    profile: {
+      id: resolved.id,
+      type,
+      name: pickString(
+        doc.displayName,
+        doc.name,
+        doc.brandName,
+        doc.venueName,
+        onboardingData.name,
+        resolvedUserData.displayName,
+        'Unknown Partner',
       ),
-    ),
-    coverImageUrl: await signStorageUrl(pickString(doc.coverImage, doc.bannerImage, doc.heroImage)),
-    website: pickString(doc.website, onboardingData.website),
-    socialLinks,
-    isVerified: Boolean(
-      doc.isVerified ||
-      doc.isApproved ||
-      resolvedUserData.isApproved ||
-      onboarding?.status === 'approved' ||
-      onboarding?.status === 'verified' ||
-      doc.status === 'active',
-    ),
-    memberSinceLabel: createdAt
-      ? createdAt.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-      : '',
-    stats: {
-      totalEvents: pickNumber(doc.eventsCount, totalEvents),
-      upcomingEvents: upcomingEvents.length,
-      pastEvents: pastEvents.length,
-      contactPoints,
+      legalName: pickString(
+        doc.legalName,
+        doc.name,
+        onboardingData.contactPerson,
+        onboardingData.name,
+      ),
+      bio: pickString(doc.bio, doc.description, doc.summary, onboardingData.bio),
+      city: pickString(doc.city, onboardingData.city),
+      area: pickString(doc.area, onboardingData.area),
+      locationLabel: compactLocation(
+        pickString(doc.city, onboardingData.city),
+        pickString(doc.area, onboardingData.area),
+      ),
+      avatarUrl: await signStorageUrl(
+        pickString(
+          doc.profileImage,
+          doc.avatar,
+          doc.avatarUrl,
+          doc.photoURL,
+          doc.photoUrl,
+          doc.logoUrl,
+          doc.logoImage,
+          doc.logo,
+        ),
+      ),
+      coverImageUrl: await signStorageUrl(
+        pickString(doc.coverImage, doc.bannerImage, doc.heroImage),
+      ),
+      website: pickString(doc.website, onboardingData.website),
+      handle: pickString(doc.handle, doc.username, onboardingData.handle, onboardingData.username),
+      username: pickString(
+        doc.username,
+        doc.handle,
+        onboardingData.username,
+        onboardingData.handle,
+      ),
+      instagram: pickString(doc.instagram, doc.instagramHandle, onboardingData.instagram),
+      instagramHandle: pickString(doc.instagramHandle, doc.instagram, onboardingData.instagram),
+      socialLinks,
+      isVerified: Boolean(
+        doc.isVerified ||
+        doc.isApproved ||
+        resolvedUserData.isApproved ||
+        onboarding?.status === 'approved' ||
+        onboarding?.status === 'verified' ||
+        doc.status === 'active',
+      ),
+      memberSinceLabel: createdAt
+        ? createdAt.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+        : '',
+      stats: {
+        totalEvents: pickNumber(doc.eventsCount, totalEvents),
+        upcomingEvents: upcomingEvents.length,
+        pastEvents: pastEvents.length,
+        contactPoints,
+      },
+      upcomingEvents,
+      pastEvents,
     },
-    upcomingEvents,
-    pastEvents,
+    resolvedEmail,
+    resolvedPhone,
   };
+}
+
+export async function getPartnerProfileSummary(db: any, id: string) {
+  const result = await getPartnerProfileSummaryInternal(db, id);
+  if (!result) return null;
+  return result.profile;
+}
+
+export async function getPartnerProfileSummariesById(db: any, partnerIds: string[]) {
+  const ids = [...new Set(partnerIds.map(String).filter(Boolean))];
+  const profiles = new Map<string, Record<string, any>>();
+  const collections: Array<{ name: string; type: PartnerEntityType }> = [
+    { name: 'venues', type: 'venue' },
+    { name: 'hosts', type: 'host' },
+    { name: 'promoters', type: 'promoter' },
+  ];
+
+  for (let start = 0; start < ids.length; start += 30) {
+    const chunk = ids.slice(start, start + 30);
+    const snapshots = await Promise.all(
+      collections.map(({ name }) =>
+        db.collection(name).where(FieldPath.documentId(), 'in', chunk).get(),
+      ),
+    );
+    const resolvedProfiles = await Promise.all(
+      snapshots.flatMap((snapshot: any, collectionIndex: number) =>
+        (snapshot.docs || []).map(async (document: any) => {
+          const data = document.data() || {};
+          const type = collections[collectionIndex].type;
+          return {
+            id: document.id,
+            type,
+            name: pickString(
+              data.displayName,
+              data.name,
+              data.brandName,
+              data.venueName,
+              'Unknown Partner',
+            ),
+            city: pickString(data.city),
+            avatarUrl: await signStorageUrl(
+              pickString(
+                data.profileImage,
+                data.avatar,
+                data.avatarUrl,
+                data.photoURL,
+                data.logoUrl,
+                data.logo,
+              ),
+            ),
+            isVerified: Boolean(
+              data.isVerified ||
+              data.isApproved ||
+              data.status === 'active' ||
+              data.verificationStatus === 'verified',
+            ),
+          };
+        }),
+      ),
+    );
+    for (const profile of resolvedProfiles) {
+      if (!profiles.has(profile.id)) profiles.set(profile.id, profile);
+    }
+  }
+
+  const unresolvedIds = ids.filter((id) => !profiles.has(id));
+  for (let start = 0; start < unresolvedIds.length; start += 30) {
+    const chunk = unresolvedIds.slice(start, start + 30);
+    const snapshot = await db.collection('users').where(FieldPath.documentId(), 'in', chunk).get();
+    for (const document of snapshot.docs || []) {
+      const data = document.data() || {};
+      profiles.set(document.id, {
+        id: document.id,
+        type: (['venue', 'host', 'promoter'].includes(data.role)
+          ? data.role
+          : 'host') as PartnerEntityType,
+        name: pickString(data.displayName, data.name, 'Unknown Partner'),
+        city: pickString(data.city),
+        avatarUrl: await signStorageUrl(
+          pickString(data.profileImage, data.avatar, data.avatarUrl, data.photoURL),
+        ),
+        isVerified: Boolean(data.isVerified || data.isApproved || data.status === 'active'),
+      });
+    }
+  }
+
+  return profiles;
+}
+
+export async function getPartnerProfileWithPii(
+  db: any,
+  params: {
+    viewerRole?: string;
+    viewerId?: string;
+    partnerId: string;
+  },
+) {
+  const { viewerRole, viewerId, partnerId } = params;
+  const result = await getPartnerProfileSummaryInternal(db, partnerId);
+  if (!result) return null;
+
+  const { profile, resolvedEmail, resolvedPhone } = result;
+
+  const connection = await getConnectionForViewer(db, {
+    viewerRole,
+    viewerId,
+    partnerId,
+    partnerType: profile.type,
+  });
+
+  const isSelf = viewerId === partnerId;
+  const hasPermission = isSelf || isActivePartnerConnectionStatus(connection?.status);
+
+  // Clone profile and nested socialLinks to avoid mutating shared/cached references
+  const clonedProfile = {
+    ...profile,
+    socialLinks: profile.socialLinks ? { ...profile.socialLinks } : undefined,
+  };
+
+  if (hasPermission) {
+    (clonedProfile as any).email = resolvedEmail;
+    (clonedProfile as any).phone = resolvedPhone;
+    if (clonedProfile.socialLinks) {
+      if (resolvedEmail) clonedProfile.socialLinks.email = resolvedEmail;
+      if (resolvedPhone) clonedProfile.socialLinks.phone = resolvedPhone;
+    }
+  }
+
+  return { profile: clonedProfile, connection };
 }
 
 export async function getConnectionForViewer(
@@ -523,14 +685,15 @@ export async function getConnectionForViewer(
       .collection('partnerships')
       .where('venueId', '==', venueId)
       .where('hostId', '==', hostId)
-      .limit(1)
+      .limit(10)
       .get()
       .catch(() => null);
     if (snapshot && !snapshot.empty) {
-      const data = snapshot.docs[0].data();
+      const selected = selectPreferredConnection(snapshot);
+      const data = selected.data();
       return {
-        id: snapshot.docs[0].id,
-        status: data.status || null,
+        id: selected.id,
+        status: isActivePartnerConnectionStatus(data.status) ? 'active' : data.status || null,
         type: 'partnership',
         initiatedBy: data.initiatedBy || null,
       };
@@ -554,15 +717,16 @@ export async function getConnectionForViewer(
     }
 
     const snapshot = await query
-      .limit(1)
+      .limit(10)
       .get()
       .catch(() => null);
 
     if (snapshot && !snapshot.empty) {
-      const data = snapshot.docs[0].data();
+      const selected = selectPreferredConnection(snapshot);
+      const data = selected.data();
       return {
-        id: snapshot.docs[0].id,
-        status: data.status || null,
+        id: selected.id,
+        status: isActivePartnerConnectionStatus(data.status) ? 'active' : data.status || null,
         type: 'promoter_connection',
         initiatedBy: data.initiatedBy || null,
       };

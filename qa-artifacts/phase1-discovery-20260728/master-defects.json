@@ -1,0 +1,77 @@
+{
+  "generatedAt": "2026-07-28T09:58:00.000Z",
+  "phase": "Phase 1 discovery",
+  "sourceSha": "12ac2e9b44bbdfe079503cd86a69dbc88e6c0cf3",
+  "functionalPasses": [
+    {
+      "surface": "Host Dashboard",
+      "result": "28/28 renderable routes passed",
+      "evidence": "qa-artifacts/partner-login-host-phase1-discovery-20260728/result.json"
+    },
+    {
+      "surface": "Promoter Dashboard",
+      "result": "21/21 renderable routes passed",
+      "evidence": "qa-artifacts/partner-login-promoter-phase1-discovery-20260728/result.json"
+    },
+    {
+      "surface": "Direct commerce APIs",
+      "result": "Quote, reservation replay, Razorpay initialization, order replay, confirmed order, and two-ticket wallet projection passed",
+      "evidence": "qa-artifacts/commerce-api-phase1-discovery-20260728-owner-proof/results.json"
+    },
+    {
+      "surface": "Guest session",
+      "result": "Login, reload persistence, ticket wallet, logout, and protected redirect passed",
+      "evidence": "qa-artifacts/phase1-discovery-20260728/guest-login-session/result.json"
+    }
+  ],
+  "defects": [
+    {
+      "id": "PH1-PERF-GUEST-EXPLORE",
+      "severity": "P1",
+      "surface": "Guest Portal",
+      "finding": "Cold /explore navigation exceeded the 20000ms crawler timeout. Gateway telemetry measured both public events and featured-event reads at approximately 20800ms.",
+      "requiredRemediation": "Make the public discovery cold path cache-ready and bounded so the first route load meets the sub-3-second target.",
+      "evidence": "qa-artifacts/phase1-discovery-20260728/guest-high-speed-matrix/result.json"
+    },
+    {
+      "id": "PH1-PERF-GUEST-CHECKOUT",
+      "severity": "P0",
+      "surface": "Guest checkout",
+      "finding": "The browser surfaced SIGNAL TIMED OUT during reservation. Gateway authentication consumed approximately 10225ms and the reservation completed only after the UI had failed, preventing Razorpay initialization.",
+      "requiredRemediation": "Remove repeated cold authentication/provider work from the checkout mutation path and preserve deterministic request recovery.",
+      "evidence": "qa-artifacts/phase1-discovery-20260728/guest-commerce-journey/result.json"
+    },
+    {
+      "id": "PH1-PERF-COMMERCE-INITIATE",
+      "severity": "P1",
+      "surface": "Gateway checkout",
+      "finding": "Direct commerce behavior was correct, but cold Razorpay/order initiation took 6054.92ms.",
+      "requiredRemediation": "Keep idempotency and atomic order semantics while reducing the initiation critical path below 3000ms.",
+      "evidence": "qa-artifacts/commerce-api-phase1-discovery-20260728/results.json"
+    },
+    {
+      "id": "PH1-PERF-PROMOTER-ANALYTICS",
+      "severity": "P1",
+      "surface": "Promoter Dashboard",
+      "finding": "Promoter analytics rendered correctly but took 5352ms and the canonical analytics endpoint recomputed Firestore link, daily-bucket, overview, and ledger projections without the Host/Venue Redis response cache.",
+      "requiredRemediation": "Add bounded Redis caching and mutation invalidation for promoter analytics and link option reads.",
+      "evidence": "qa-artifacts/partner-login-promoter-phase1-discovery-20260728/result.json"
+    },
+    {
+      "id": "PH1-PERF-MOBILE-RECOMMENDATIONS",
+      "severity": "P1",
+      "surface": "Mobile API",
+      "finding": "Recommendations v2 returned ten HTTP 200 responses but failed the sub-3-second SLA at p95 7724.07ms; the other eight sampled endpoint groups passed.",
+      "requiredRemediation": "Make recommendation cache bootstrap and cold computation bounded while retaining per-user invalidation after recommendation signals.",
+      "evidence": "qa-artifacts/mobile-api-latency-phase1-discovery-20260728/results.json"
+    },
+    {
+      "id": "PH1-CACHE-BOOTSTRAP",
+      "severity": "P1",
+      "surface": "Core Redis client",
+      "finding": "Core cache reads and writes can run while ioredis is still connecting with enableOfflineQueue disabled, producing Stream isn't writeable misses before the connection-ready event.",
+      "requiredRemediation": "Centralize a bounded readiness wait for cache operations so cold requests can use Redis without enabling an unbounded offline queue.",
+      "evidence": "Gateway runtime telemetry during Phase 1"
+    }
+  ]
+}

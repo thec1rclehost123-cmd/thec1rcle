@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   ChevronDown,
   RefreshCw,
@@ -23,7 +22,6 @@ import {
   type FinanceSettingRow,
 } from '@/components/finance/PartnerFinanceSurface';
 import { ConnectPayoutMethodModal } from '@/components/finance/ConnectPayoutMethodModal';
-import { TransferConfirmationModal } from '@/components/finance/TransferConfirmationModal';
 import { formatINR } from '@/lib/finance/definitions';
 
 interface PromoterBalance {
@@ -79,7 +77,6 @@ interface PromoterFinanceResponse {
 
 export default function PromoterFinancePageClient() {
   const { profile, getIdToken } = useDashboardAuth();
-  const router = useRouter();
   const promoterId = profile?.activeMembership?.partnerId;
 
   const [loading, setLoading] = useState(true);
@@ -91,7 +88,6 @@ export default function PromoterFinancePageClient() {
   >([]);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const [showAddBankModal, setShowAddBankModal] = useState(false);
-  const [showTransferModal, setShowTransferModal] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!promoterId) return;
@@ -206,9 +202,9 @@ export default function PromoterFinancePageClient() {
           <VenueActionButton variant="secondary" onClick={fetchData}>
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </VenueActionButton>
-          <Link href="/promoter/payouts">
-            <VenueActionButton variant="primary">Request Payout</VenueActionButton>
-          </Link>
+          <span className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-xs font-semibold text-amber-700 dark:text-amber-200">
+            Withdrawals unavailable during launch verification
+          </span>
         </div>
       }
     >
@@ -219,8 +215,6 @@ export default function PromoterFinancePageClient() {
         payouts={payoutRows}
         balanceVariant="wallet"
         payoutsVariant="pill"
-        balanceActionLabel="Transfer"
-        onBalanceAction={() => setShowTransferModal(true)}
         onRefresh={fetchData}
         refreshing={loading}
         lastUpdatedLabel={
@@ -241,41 +235,6 @@ export default function PromoterFinancePageClient() {
           ) : null
         }
       />
-
-      {showTransferModal ? (
-        <TransferConfirmationModal
-          available={balance?.available || 0}
-          pending={balance?.pending || 0}
-          instantAvailable={balance?.instantAvailable || 0}
-          payoutAccount={accounts.find((account) => account.isDefault) || accounts[0] || null}
-          onClose={() => setShowTransferModal(false)}
-          onSubmit={async (amount, accountId) => {
-            const token = typeof getIdToken === 'function' ? await getIdToken() : '';
-            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-            if (token) headers['Authorization'] = `Bearer ${token}`;
-
-            const amountPaise = Math.round(amount * 100);
-
-            const res = await fetch('/api/partners/promoters/payouts', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ amountPaise, bankAccountId: accountId }),
-            });
-
-            const data = await res.json();
-            if (!res.ok)
-              throw new Error(data.error?.message || data.error || 'Failed to process transfer.');
-
-            setShowTransferModal(false);
-            fetchData();
-            router.push('/promoter/payouts');
-          }}
-          onAddPayoutMethod={() => {
-            setShowTransferModal(false);
-            setShowAddBankModal(true);
-          }}
-        />
-      ) : null}
 
       {showAddBankModal ? (
         <ConnectPayoutMethodModal

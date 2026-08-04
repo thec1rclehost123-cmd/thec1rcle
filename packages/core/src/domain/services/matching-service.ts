@@ -246,7 +246,14 @@ export class MatchingService {
   }
 
   private calculateProximityScore(lat?: number, lng?: number, target?: any): number {
-    if (!lat || !lng || !target.coordinates) return 0.5;
+    if (
+      lat == null ||
+      lng == null ||
+      !target.coordinates ||
+      target.coordinates.latitude == null ||
+      target.coordinates.longitude == null
+    )
+      return 0.5;
 
     // Simple linear falloff: 1.0 at 0km, 0.0 at 50km
     const distance = this.haversine(

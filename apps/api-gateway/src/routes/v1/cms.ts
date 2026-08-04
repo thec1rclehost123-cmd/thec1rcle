@@ -43,6 +43,7 @@ export default async function cmsRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/highlights',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: HighlightBody })],
     },
     async (request: any, reply) => {
@@ -63,6 +64,7 @@ export default async function cmsRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/highlights/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: HighlightIdParam, body: HighlightBody })],
     },
     async (request: any, reply) => {
@@ -84,6 +86,7 @@ export default async function cmsRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/gallery',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: GalleryBody })],
     },
     async (request: any, reply) => {
@@ -104,6 +107,7 @@ export default async function cmsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/:venueId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: VenueIdParam })],
     },
     async (request: any, reply) => {
@@ -157,6 +161,7 @@ export default async function cmsRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/facilities/init',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: FacilitiesInitBody })],
     },
     async (request: any, reply) => {

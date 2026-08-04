@@ -2,41 +2,39 @@ import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-  followEntityMock,
-  unfollowEntityMock,
-  isFollowingMock,
-  followVenueMock,
-  unfollowVenueMock,
+  followGuestEntityMock,
+  unfollowGuestEntityMock,
+  isGuestFollowingMock,
+  listGuestFollowsMock,
 } = vi.hoisted(() => ({
-  followEntityMock: vi.fn(async (followerId: string, targetId: string, targetType: string) => ({
-    id: `${followerId}_${targetId}`,
-    followerId,
-    targetId,
-    targetType,
-  })),
-  unfollowEntityMock: vi.fn(async () => ({ unfollowed: true })),
-  isFollowingMock: vi.fn(async () => true),
-  followVenueMock: vi.fn(async (_db: any, userId: string, venueId: string) => ({
-    following: true,
-    userId,
-    venueId,
-  })),
-  unfollowVenueMock: vi.fn(async (_db: any, userId: string, venueId: string) => ({
-    following: false,
-    userId,
-    venueId,
+  followGuestEntityMock: vi.fn(
+    async (_db: any, userId: string, entityType: string, entityId: string) => ({
+      following: true,
+      userId,
+      entityId,
+      entityType,
+    }),
+  ),
+  unfollowGuestEntityMock: vi.fn(
+    async (_db: any, userId: string, entityType: string, entityId: string) => ({
+      following: false,
+      userId,
+      entityId,
+      entityType,
+    }),
+  ),
+  isGuestFollowingMock: vi.fn(async () => true),
+  listGuestFollowsMock: vi.fn(async () => ({
+    venueIds: ['venue_1'],
+    hostIds: ['host_1'],
   })),
 }));
 
-vi.mock('@c1rcle/core/follow-graph-engine', () => ({
-  followEntity: followEntityMock,
-  unfollowEntity: unfollowEntityMock,
-  isFollowing: isFollowingMock,
-}));
-
-vi.mock('@c1rcle/core/venues-service', () => ({
-  followVenue: followVenueMock,
-  unfollowVenue: unfollowVenueMock,
+vi.mock('@c1rcle/core/guest-follow-service', () => ({
+  followGuestEntity: followGuestEntityMock,
+  unfollowGuestEntity: unfollowGuestEntityMock,
+  isGuestFollowing: isGuestFollowingMock,
+  listGuestFollows: listGuestFollowsMock,
 }));
 
 import socialRoutes from './social';
@@ -79,7 +77,7 @@ describe('guest follow routes', () => {
 
     const response = await server.inject({
       method: 'GET',
-      url: '/api/v1/follow?targetId=host_1',
+      url: '/api/v1/follow?targetId=host_1&targetType=host',
       headers: { authorization: 'Bearer test-token' },
     });
 
@@ -89,7 +87,12 @@ describe('guest follow routes', () => {
       data: { following: true, isFollowing: true },
       following: true,
     });
-    expect(isFollowingMock).toHaveBeenCalledWith('user_1', 'host_1');
+    expect(isGuestFollowingMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      'user_1',
+      'host',
+      'host_1',
+    );
 
     await server.close();
   });
@@ -108,7 +111,7 @@ describe('guest follow routes', () => {
       data: { following: false, isFollowing: false },
       following: false,
     });
-    expect(isFollowingMock).not.toHaveBeenCalled();
+    expect(isGuestFollowingMock).not.toHaveBeenCalled();
 
     await server.close();
   });
@@ -127,12 +130,17 @@ describe('guest follow routes', () => {
     expect(response.json()).toMatchObject({
       success: true,
       follow: {
-        followerId: 'user_1',
-        targetId: 'host_1',
-        targetType: 'host',
+        userId: 'user_1',
+        entityId: 'host_1',
+        entityType: 'host',
       },
     });
-    expect(followEntityMock).toHaveBeenCalledWith('user_1', 'host_1', 'host');
+    expect(followGuestEntityMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      'user_1',
+      'host',
+      'host_1',
+    );
 
     await server.close();
   });
@@ -147,14 +155,19 @@ describe('guest follow routes', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
+    expect(response.json()).toMatchObject({
       success: true,
       following: false,
       userId: 'user_1',
-      venueId: 'venue_1',
+      entityId: 'venue_1',
+      entityType: 'venue',
     });
-    expect(unfollowVenueMock).toHaveBeenCalledWith(expect.any(Object), 'user_1', 'venue_1');
-    expect(unfollowEntityMock).not.toHaveBeenCalled();
+    expect(unfollowGuestEntityMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      'user_1',
+      'venue',
+      'venue_1',
+    );
 
     await server.close();
   });
@@ -173,7 +186,48 @@ describe('guest follow routes', () => {
       data: { isFollowing: false },
       isFollowing: false,
     });
-    expect(isFollowingMock).not.toHaveBeenCalled();
+    expect(isGuestFollowingMock).not.toHaveBeenCalled();
+
+    await server.close();
+  });
+
+  it('GET /api/v1/users/me/follows returns the canonical user-scoped graph', async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/users/me/follows',
+      headers: { authorization: 'Bearer test-token' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      success: true,
+      data: { follows: { venueIds: ['venue_1'], hostIds: ['host_1'] } },
+    });
+    expect(listGuestFollowsMock).toHaveBeenCalledWith(expect.any(Object), 'user_1');
+
+    await server.close();
+  });
+
+  it('POST /api/v1/hosts/:hostId/follow uses the canonical bidirectional graph', async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/hosts/host_1/follow',
+      headers: { authorization: 'Bearer test-token' },
+      payload: { hostName: 'QA Host' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(followGuestEntityMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      'user_1',
+      'host',
+      'host_1',
+      { displayName: 'QA Host' },
+    );
 
     await server.close();
   });

@@ -9,7 +9,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "eslint app components",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "node --test __tests__/*.test.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -17,9 +18,11 @@
     "expo": "~55.0.26",
     "expo-camera": "~55.0.19",
     "expo-constants": "~55.0.16",
+    "expo-crypto": "~55.0.17",
     "expo-font": "~55.0.8",
     "expo-haptics": "~55.0.14",
     "expo-linking": "~55.0.15",
+    "expo-network": "~55.0.16",
     "expo-router": "~55.0.16",
     "expo-secure-store": "~55.0.14",
     "expo-splash-screen": "~55.0.21",
@@ -42,8 +45,9 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "^19.1.1",
+    "at-least-node": "^1.0.0",
     "eslint": "^8.57.1",
     "eslint-config-universe": "^14.0.0",
-    "typescript": "~5.9.2"
+    "typescript": "5.9.3"
   }
 }

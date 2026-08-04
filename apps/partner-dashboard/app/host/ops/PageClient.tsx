@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Users,
   Ticket,
@@ -18,39 +18,24 @@ import { ErrorState } from '@/components/ui/ErrorState';
 
 export default function HostOpsPage() {
   const { profile, user } = useDashboardAuth();
-  const [data, setData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isError, setIsError] = useState(false);
-  const [retryKey, setRetryKey] = useState(0);
-
-  useEffect(() => {
-    const fetchOpsData = async () => {
-      if (!profile?.activeMembership?.partnerId) return;
-      setIsLoading(true);
-      setIsError(false);
-      try {
-        const hostId = profile.activeMembership.partnerId;
-        const token = user ? await user.getIdToken() : '';
-        const res = await fetch(`/api/partners/hosts/ops/tonight?hostId=${hostId}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (res.ok) {
-          const json = await res.json();
-          setData(json);
-        } else {
-          setIsError(true);
-        }
-      } catch {
-        setIsError(true);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchOpsData();
-    const interval = setInterval(fetchOpsData, 30000); // Pulse every 30s
-    return () => clearInterval(interval);
-  }, [profile, retryKey, user]);
+  const hostId = profile?.activeMembership?.partnerId || '';
+  const opsQuery = useQuery({
+    queryKey: ['host-ops-tonight', hostId],
+    queryFn: async ({ signal }) => {
+      const token = user ? await user.getIdToken() : '';
+      const res = await fetch(`/api/partners/hosts/ops/tonight?hostId=${hostId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal,
+      });
+      if (!res.ok) throw new Error('Failed to load ops data');
+      return res.json();
+    },
+    enabled: Boolean(hostId && user),
+    refetchInterval: 30_000,
+  });
+  const data = opsQuery.data;
+  const isLoading = opsQuery.isLoading;
+  const isError = opsQuery.isError;
 
   if (isLoading && !data) {
     return (
@@ -69,7 +54,7 @@ export default function HostOpsPage() {
       <ErrorState
         title="Failed to load ops data"
         message="We couldn't connect to the entry grid. Check your connection and try again."
-        onRetry={() => setRetryKey((k) => k + 1)}
+        onRetry={() => opsQuery.refetch()}
       />
     );
   }

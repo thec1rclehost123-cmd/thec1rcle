@@ -24,6 +24,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { VenuePageShell, VenueActionButton } from '@/components/venue-layout/VenuePageShell';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
+import { loadVenueDoorEntries } from '@/lib/venue/loadDoorEntries';
 import { useToast } from '@/components/ui/Toast';
 // Local component definition for CalendarFilterPopup used below
 import { useRef } from 'react';
@@ -796,6 +797,8 @@ export default function MarketingPage() {
       if (Array.isArray(data)) return data as any[];
       throw new Error('Malformed events response');
     },
+    staleTime: 60_000,
+    refetchOnMount: false,
   });
 
   const customersQuery = useQuery({
@@ -833,150 +836,71 @@ export default function MarketingPage() {
     staleTime: 60_000,
   });
 
-  // ── Door entries — self-contained fetch using Promise.all ────────────────────
-  const [doorEntries, setDoorEntries] = useState<DoorEntryRecord[]>([]);
-  const [doorLoading, setDoorLoading] = useState(false);
-  const [doorError, setDoorError] = useState<string | null>(null);
+  // One venue-scoped request per admission channel. The previous implementation
+  // fetched the events list twice and then issued two requests per event.
+  const doorEntriesQuery = useQuery({
+    queryKey: ['venue', venueId, 'marketing', 'door-entries', selectedEventId],
+    enabled: Boolean(venueId && user),
+    queryFn: async () => {
+      const token = await user!.getIdToken();
+      return loadVenueDoorEntries({
+        venueId: venueId!,
+        eventId: selectedEventId,
+        token,
+      });
+    },
+    staleTime: 30_000,
+    refetchOnMount: false,
+  });
 
-  useEffect(() => {
-    if (!venueId || !user) {
-      return;
-    }
-
-    let cancelled = false;
-
-    (async () => {
-      setDoorLoading(true);
-      try {
-        setDoorError(null);
-        const token = await user.getIdToken();
-        const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-
-        // ── Step 1: Fetch ALL events for this venue ───────────────────
-        const eventsRes = await fetch(`/api/partners/venues/events?venueId=${venueId}&limit=50`, {
-          headers,
-        });
-        if (cancelled) return;
-
-        if (!eventsRes.ok) {
-          throw new Error(`Failed to load CRM events (${eventsRes.status})`);
-        }
-
-        const eventsPayload = await eventsRes.json();
-        const allEvents: any[] = eventsPayload.events ?? [];
-
-        if (allEvents.length === 0) {
-          setDoorEntries([]);
-          return;
-        }
-
-        const targetEvents = selectedEventId
-          ? allEvents.filter((e: any) => e.id === selectedEventId)
-          : allEvents;
-
-        // ── Step 2: Walk-ins + dine-ins per event + venue-scoped ──────
-        const [walkInResults, dineinResults, venueDineinsPayload] = await Promise.all([
-          Promise.all(
-            targetEvents.map((ev: any) =>
-              fetch(`/api/partners/venues/walk-ins?eventId=${ev.id}&venueId=${venueId}&limit=50`, {
-                headers,
-              }).then(async (r) => {
-                const d = await r.json();
-                if (!r.ok) {
-                  throw new Error(d.error || `Walk-ins failed for ${ev.id}`);
-                }
-                return { ev, entries: d.entries ?? [] };
-              }),
-            ),
-          ),
-          Promise.all(
-            targetEvents.map((ev: any) =>
-              fetch(
-                `/api/partners/venues/door/dinein?eventId=${ev.id}&venueId=${venueId}&limit=50`,
-                { headers },
-              ).then(async (r) => {
-                const d = await r.json();
-                if (!r.ok) {
-                  throw new Error(d.error || `Dine-ins failed for ${ev.id}`);
-                }
-                return { ev, entries: d.entries ?? [] };
-              }),
-            ),
-          ),
-          selectedEventId
-            ? Promise.resolve({ entries: [] as any[] })
-            : fetch(
-                `/api/partners/venues/door/dinein?eventId=venue_${venueId}&venueId=${venueId}&limit=50`,
-                { headers },
-              ).then(async (r) => {
-                const d = await r.json();
-                if (!r.ok) {
-                  throw new Error(d.error || 'Venue dine-ins failed');
-                }
-                return d;
-              }),
-        ]);
-
-        if (cancelled) return;
-
-        // ── Step 3: Flatten + map ─────────────────────────────────────
-        const mapped: DoorEntryRecord[] = [
-          ...walkInResults.flatMap(({ ev, entries }) =>
-            entries.map((e: any) => ({
-              id: e.id,
-              guestName: e.guestName ?? '',
-              contact: e.phoneFull ?? e.phoneHash ?? '',
-              gender: e.gender ?? null,
-              age: e.guestAge != null ? Number(e.guestAge) : null,
-              eventId: e.eventId ?? ev.id,
-              eventTitle: ev.title ?? ev.name ?? null,
-              source: 'walkins' as const,
-              addedAt: e.addedAt ?? '',
-              partySize: e.partySize ?? 1,
-            })),
-          ),
-          ...dineinResults.flatMap(({ ev, entries }) =>
-            entries.map((e: any) => ({
-              id: e.id,
-              guestName: e.guestName ?? '',
-              contact: '',
-              gender: e.gender ?? null,
-              age: e.age != null ? Number(e.age) : null,
-              eventId: e.eventId ?? ev.id,
-              eventTitle: ev.title ?? ev.name ?? null,
-              source: 'dinein' as const,
-              addedAt: e.addedAt ?? '',
-              partySize: e.partySize ?? 1,
-            })),
-          ),
-          ...(venueDineinsPayload.entries ?? []).map((e: any) => ({
-            id: e.id,
-            guestName: e.guestName ?? '',
-            contact: '',
-            gender: e.gender ?? null,
-            age: e.age != null ? Number(e.age) : null,
-            eventId: `venue_${venueId}`,
-            eventTitle: null,
-            source: 'dinein' as const,
-            addedAt: e.addedAt ?? '',
-            partySize: e.partySize ?? 1,
-          })),
-        ].sort((a, b) => b.addedAt.localeCompare(a.addedAt));
-
-        setDoorEntries(mapped);
-      } catch (err: any) {
-        console.error('[Marketing] useEffect fetch error:', err);
-        setDoorEntries([]);
-        setDoorError(err?.message || 'Failed to load door entries');
-      } finally {
-        if (!cancelled) setDoorLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [venueId, user, selectedEventId]);
+  const eventNamesById = useMemo(
+    () =>
+      new Map(
+        (eventsQuery.data ?? []).map((event: any) => [
+          String(event.id || event.eventId || ''),
+          String(event.title || event.name || ''),
+        ]),
+      ),
+    [eventsQuery.data],
+  );
+  const doorEntries = useMemo<DoorEntryRecord[]>(() => {
+    const walkIns = doorEntriesQuery.data?.walkIns ?? [];
+    const dineIns = doorEntriesQuery.data?.dineIns ?? [];
+    return [
+      ...walkIns.map((entry: any) => {
+        const entryEventId = String(entry.eventId || selectedEventId || '');
+        return {
+          id: String(entry.id),
+          guestName: entry.guestName ?? '',
+          contact: entry.phoneFull ?? entry.phoneHash ?? '',
+          gender: entry.gender ?? null,
+          age: entry.guestAge != null ? Number(entry.guestAge) : null,
+          eventId: entryEventId,
+          eventTitle: eventNamesById.get(entryEventId) || null,
+          source: 'walkins' as const,
+          addedAt: entry.addedAt ?? '',
+          partySize: entry.partySize ?? 1,
+        };
+      }),
+      ...dineIns.map((entry: any) => {
+        const entryEventId = String(entry.eventId || selectedEventId || `venue_${venueId}`);
+        return {
+          id: String(entry.id),
+          guestName: entry.guestName ?? '',
+          contact: '',
+          gender: entry.gender ?? null,
+          age: entry.age != null ? Number(entry.age) : null,
+          eventId: entryEventId,
+          eventTitle: eventNamesById.get(entryEventId) || null,
+          source: 'dinein' as const,
+          addedAt: entry.addedAt ?? '',
+          partySize: entry.totalGuests ?? entry.partySize ?? 1,
+        };
+      }),
+    ].sort((left, right) => right.addedAt.localeCompare(left.addedAt));
+  }, [doorEntriesQuery.data, eventNamesById, selectedEventId, venueId]);
+  const doorLoading = doorEntriesQuery.isLoading;
+  const doorError = doorEntriesQuery.error instanceof Error ? doorEntriesQuery.error.message : null;
 
   // ── Derivative State ─────────────────────────────────────────────────────
 

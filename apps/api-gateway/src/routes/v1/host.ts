@@ -7,6 +7,7 @@ import {
   sanitizeEventResubmissionPatch,
 } from '../../lib/partner-hardening.js';
 import { enrichHostProfileWithSignedUrls, cleanHostProfilePatch } from '../../lib/signed-urls.js';
+import { getPartnerCommerceRows } from '../../lib/canonicalCommerceMetrics.js';
 
 const HostOverviewQuery = z
   .object({
@@ -84,6 +85,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({ querystring: HostOverviewQuery }),
         fastify.requireRoles(['admin', 'partner', 'host']),
@@ -169,6 +171,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -186,6 +189,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/host/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: HostProfilePatch })],
     },
     async (request: any, reply) => {
@@ -221,6 +225,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/partnerships',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -261,6 +266,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/notifications',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -281,6 +287,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/host/notifications/read',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: NotificationsReadBody })],
     },
     async (request: any, reply) => {
@@ -312,6 +319,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/orders',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostOrdersQuery })],
     },
     async (request: any, reply) => {
@@ -345,6 +353,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/finance/disputes',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -365,6 +374,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/finance/payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: HostFinanceQuery })],
     },
     async (request: any, reply) => {
@@ -392,6 +402,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/finance/bank-accounts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -477,6 +488,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/overview/summary',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -515,6 +527,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/team',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -527,13 +540,23 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         .where('partnerId', '==', hostId)
         .where('partnerType', '==', 'host')
         .get();
-      return { members: snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) };
+      const members = snap.docs
+        .map((d: any) => {
+          const data = d.data();
+          if (data.removedAt !== undefined && data.removedAt !== null) {
+            return null;
+          }
+          return { id: d.id, ...data };
+        })
+        .filter(Boolean);
+      return { members };
     },
   );
 
   fastify.patch(
     '/host/team/:memberId',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: TeamMemberPatch })],
     },
     async (request: any, reply) => {
@@ -590,6 +613,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/promoters',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {
@@ -645,10 +669,27 @@ export default async function hostRoutes(fastify: FastifyInstance) {
     } catch {
       return reply.status(403).send({ error: 'Forbidden' });
     }
-    await fastify.db
-      .collection('events')
-      .doc(eventId)
-      .update({ ticketTiers: tiers, updatedAt: new Date().toISOString() });
+    const activeTiers = tiers.filter((t: any) => t.status !== 'hidden' && t.status !== 'inactive');
+    const prices = activeTiers.length ? activeTiers.map((t: any) => Number(t.price) || 0) : [0];
+    const priceMin = Math.min(...prices);
+    const priceMax = Math.max(...prices);
+
+    const updatePayload: any = {
+      ticketTiers: tiers,
+      priceMin,
+      priceMax,
+      priceRange: { min: priceMin, max: priceMax, currency: ev.currency || 'INR' },
+      startingPrice: priceMin,
+      isFree: priceMin === 0,
+      updatedAt: new Date().toISOString(),
+    };
+    if (ev.ticketCatalog) {
+      updatePayload['ticketCatalog.tiers'] = tiers;
+    } else {
+      updatePayload.tickets = tiers;
+    }
+    await fastify.db.collection('events').doc(eventId).update(updatePayload);
+    await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
     await fastify.cache.delete('events:detail', eventId).catch(() => {});
     return { success: true };
   });
@@ -760,6 +801,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.validate({ querystring: HostEventsQuery }),
         fastify.requireRoles(['admin', 'partner', 'host']),
@@ -824,10 +866,10 @@ export default async function hostRoutes(fastify: FastifyInstance) {
           hasMore,
         };
 
-        // 4. Save to Cache (60s TTL)
-        await fastify.cache.set('host', cacheKey, response, 60);
+        // 4. Save to Cache (5min TTL)
+        await fastify.cache.set('host', cacheKey, response, 300);
 
-        return reply.header('Cache-Control', 'private, max-age=60').send(response);
+        return reply.header('Cache-Control', 'private, max-age=300').send(response);
       } catch (error: any) {
         fastify.log.error(`Host events list failed: ${error.message}`);
         return reply
@@ -851,6 +893,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/analytics/time-series',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostTimeSeriesQuery })],
     },
     async (request: any, reply) => {
@@ -880,6 +923,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/analytics/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -889,19 +933,13 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const [eventsSnap, ordersSnap, checkinsSnap] = await Promise.all([
+      const [eventsSnap, commerceRows, checkinsSnap] = await Promise.all([
         fastify.db
           .collection('events')
           .where('creatorId', '==', hostId)
           .get()
           .catch(() => ({ docs: [] as any[], size: 0 })),
-        fastify.db
-          .collection('orders')
-          .where('hostId', '==', hostId)
-          .where('status', 'in', ['confirmed', 'paid'])
-          .where('createdAt', '>=', thirtyDaysAgo)
-          .get()
-          .catch(() => ({ docs: [] as any[] })),
+        getPartnerCommerceRows(fastify.db, hostId, 'hostId'),
         fastify.db
           .collection('check_ins')
           .where('hostId', '==', hostId)
@@ -909,15 +947,12 @@ export default async function hostRoutes(fastify: FastifyInstance) {
           .get()
           .catch(() => ({ size: 0 })),
       ]);
-      const totalRevenuePaise = ((ordersSnap as any).docs || []).reduce(
-        (sum: number, doc: any) =>
-          sum + (doc.data().totalPaise || Math.round((doc.data().amount || 0) * 100)),
-        0,
-      );
-      const totalTickets = ((ordersSnap as any).docs || []).reduce(
-        (sum: number, doc: any) => sum + (doc.data().ticketCount || 0),
-        0,
-      );
+      const totalRevenuePaise = commerceRows.ledger
+        .filter((entry) => !entry.createdAtIso || entry.createdAtIso >= thirtyDaysAgo)
+        .reduce((sum, entry) => sum + Number(entry.amountPaise || 0), 0);
+      const totalTickets = commerceRows.tickets.filter(
+        (ticket) => !ticket.createdAtIso || ticket.createdAtIso >= thirtyDaysAgo,
+      ).length;
       const eventCount = (eventsSnap as any).size || ((eventsSnap as any).docs || []).length;
       return reply.send({
         period: '30d',
@@ -934,6 +969,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/venue-calendar',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostVenueCalendarQuery })],
     },
     async (request: any, reply) => {
@@ -973,6 +1009,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/finance/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: HostIdQuery })],
     },
     async (request: any, reply) => {

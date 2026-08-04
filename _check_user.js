@@ -4,7 +4,7 @@ const fs = require('fs');
 
 const email = 'epitome@gmail.com';
 const configs = {
-  dev: { file: 'apps/api-gateway/.env.development', project: 'thec1rcle-india' },
+  dev: { file: 'apps/api-gateway/.env.development', project: 'c1rcle-staging' },
   staging: { file: 'apps/api-gateway/.env.staging', project: 'c1rcle-staging' },
 };
 

@@ -4,7 +4,7 @@
  * Location: packages/core/order-engine.js
  */
 
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { getAdminDb } from './admin.js';
 
 export const PAYMENT_PENDING_ORDER_STATUS = 'payment_pending';
@@ -27,7 +27,7 @@ function generateOrderSequence() {
 /**
  * Validates if an order can be placed based on global and user-specific limits.
  */
-export async function validateOrder(event, items, userContext, options = {}) {
+export async function validateOrder(event, items, userContext, _options = {}) {
   const { existingTicketCount = 0, hasExistingRSVP = false, userGender = 'any' } = userContext;
   const { isRSVP = false } = event;
 
@@ -60,11 +60,11 @@ export async function validateOrder(event, items, userContext, options = {}) {
 
   // 1. RSVP Specific Rules
   if (isRSVP) {
-    if (totalRequested !== 1) {
-      return { success: false, error: 'RSVP is limited to 1 person per registration' };
-    }
     if (hasExistingRSVP) {
       return { success: false, error: "You have already RSVP'd for this event" };
+    }
+    if (totalRequested !== 1) {
+      return { success: false, error: 'RSVP is limited to 1 ticket per registration' };
     }
   }
 
@@ -137,34 +137,131 @@ export function generateOrderId(prefix = 'ORD') {
   return `${prefix}-${timestamp}-${random}`;
 }
 
+export function normalizeOrderSearchPrefix(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9@+._-]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, 64);
+}
+
+export function buildOrderSearchPrefixes(values) {
+  const prefixes = new Set();
+
+  for (const value of values) {
+    const normalized = normalizeOrderSearchPrefix(value);
+    if (!normalized) continue;
+
+    const candidates = new Set([normalized, ...normalized.split(' ')]);
+    for (const candidate of candidates) {
+      if (candidate.length < 2) continue;
+      const maxLength = Math.min(candidate.length, 64);
+      for (let length = 2; length <= maxLength; length += 1) {
+        prefixes.add(candidate.slice(0, length));
+        if (prefixes.size >= 200) return [...prefixes];
+      }
+    }
+  }
+
+  return [...prefixes];
+}
+
 /**
  * Builds a standardized Order payload
  */
 export function buildOrderPayload(params) {
-  const { reservation, event, pricing, user, promoterCode, workspaceId } = params;
+  const {
+    reservation,
+    event,
+    pricing,
+    user,
+    promoterCode,
+    promoterAttribution = null,
+    financialAttribution = null,
+    sourceChannel = 'direct',
+    hostUpdatesOptIn = false,
+    workspaceId,
+  } = params;
   const isRSVP = !!event.isRSVP;
   const orderId = generateOrderId(isRSVP ? 'RSVP' : 'ORD');
 
   const ticketCount = pricing.items.reduce((s, item) => s + item.quantity, 0);
+  const subtotalPaise = Math.round(Number(pricing.subtotal || 0) * 100);
+  const discountPaise = Math.round(Number(pricing.discountTotal || 0) * 100);
+  const platformFeePaise = Math.round(Number(pricing.fees?.total || 0) * 100);
+  const taxPaise = Math.round(Number(pricing.fees?.gst || 0) * 100);
+  const totalPaise = Math.round(Number(pricing.grandTotal || 0) * 100);
+  const venueSharePaise = Number(financialAttribution?.venueSharePaise || 0);
+  const promoterCommissionPaise = Number(promoterAttribution?.promoterCommissionPaise || 0);
+  const hostPayoutPaise = Number(
+    financialAttribution?.hostPayoutPaise ??
+      totalPaise - platformFeePaise - venueSharePaise - promoterCommissionPaise,
+  );
 
   return {
     id: orderId,
     eventId: event.id,
     eventName: event.title,
     workspaceId: workspaceId || event.workspaceId || null,
+    hostId: event.hostId || event.ownerId || event.creatorId || null,
+    venueId: event.venueId || null,
+    promoterId: promoterAttribution?.promoterId || null,
+    promoterLinkId: promoterAttribution?.promoterLinkId || null,
+    sourceChannel,
+    marketingConsent: {
+      allowPlatformMessages: hostUpdatesOptIn === true,
+      allowDirectContactShare: false,
+      consentStatement: 'checkout_partner_updates_v1',
+      recordedAt: new Date().toISOString(),
+    },
     queueId: reservation.queueId || null,
     userId: user.id,
     userName: user.name,
     userEmail: user.email,
     userPhone: user.phone,
+    searchPrefixes: buildOrderSearchPrefixes([
+      orderId,
+      user.name,
+      user.email,
+      user.phone,
+      event.title,
+      ...pricing.items.map((item) => item.tierName),
+    ]),
     ticketCount,
-    totalPaise: Math.round(pricing.grandTotal * 100),
+    coverCreditLiabilityPaise: Number(pricing.coverCreditLiabilityPaise || 0),
+    currency: pricing.currency || event.currency || 'INR',
+    subtotalPaise,
+    discountPaise,
+    taxPaise,
+    platformFeePaise,
+    venueSharePaise,
+    promoterCommissionPaise,
+    hostPayoutPaise,
+    totalPaise,
+    financialSchemaVersion: 1,
+    splitRuleSnapshot: {
+      schemaVersion: 1,
+      platformFeePaise,
+      venueSharePaise,
+      promoterCommissionPaise,
+      hostPayoutPaise,
+      venueRule: financialAttribution?.venueRule || null,
+      promoterRule: promoterAttribution?.splitRuleSnapshot || null,
+    },
     tickets: pricing.items.map((item) => ({
       ticketId: item.tierId,
       name: item.tierName,
       quantity: item.quantity,
       price: item.unitPrice,
+      priceLabel: item.priceLabel || null,
+      scheduleSource: item.scheduleSource || null,
       total: item.subtotal,
+      entryType: item.entryType || 'general',
+      genderRequirement: item.genderRequirement || null,
+      coverChargeConfig: item.coverChargeConfig || null,
     })),
     subtotal: pricing.subtotal,
     discounts: pricing.discounts,
@@ -186,7 +283,6 @@ export async function executeOrderCreation(
   transaction,
   { db, event, orderData, reservationId = null, inventoryEngine },
 ) {
-  const eventRef = db.collection('events').doc(event.id);
   const orderId = orderData.id;
   const orderRef = db.collection(orderData.isRSVP ? 'rsvp_orders' : 'orders').doc(orderId);
 
@@ -211,6 +307,7 @@ export async function executeOrderCreation(
       event,
       items: orderData.tickets,
       reservationId,
+      db,
     });
   }
 
@@ -334,6 +431,19 @@ export async function cancelOrder(orderId) {
   const order = await getOrderById(orderId);
   if (!order) throw new Error('Order not found');
   if (order.status === 'cancelled') return order;
+  if (
+    ['confirmed', 'checked_in', 'refund_requested', 'refund_processing', 'refunded'].includes(
+      String(order.status || '').toLowerCase(),
+    ) ||
+    Number(order.totalPaise || 0) > 0 ||
+    Number(order.totalAmount || 0) > 0
+  ) {
+    const error = new Error(
+      'LEGACY_PAID_ORDER_CANCELLATION_DISABLED: paid orders require canonical provider refund finalization',
+    );
+    error.code = 'LEGACY_PAID_ORDER_CANCELLATION_DISABLED';
+    throw error;
+  }
 
   const db = getAdminDb();
   const now = new Date().toISOString();

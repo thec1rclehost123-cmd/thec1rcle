@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,21 +24,15 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, {
-  Circle,
-  Defs,
-  Ellipse,
-  G,
-  LinearGradient as SvgLinearGradient,
-  Path,
-  Rect,
-  Stop,
-} from 'react-native-svg';
 import { useEventsStore, type Event, type TicketTier } from '@/store/eventsStore';
 import { useCartStore } from '@/store/cartStore';
+import { useShallow } from 'zustand/react/shallow';
 import { colors, gradients, typography } from '@/lib/design/theme';
+import { resolveEventAccentColor, TICKET_ACCENT } from '@/hooks/useEventAccent';
 import { getEventImage } from '@/lib/utils/event';
 import { formatEventDate, formatEventTime } from '@/lib/utils/date';
+import { discardPendingCheckout } from '@/lib/payments';
+import { formatInr } from '@/lib/money';
 
 const ticketFont = {
   regular: typography.fontFamily.body,
@@ -45,11 +40,6 @@ const ticketFont = {
   bold: typography.fontFamily.heading,
   black: typography.fontFamily.brandAccent,
 };
-
-function formatMoney(value: number) {
-  if (value <= 0) return 'Free';
-  return `₹${Math.round(value).toLocaleString('en-IN')}`;
-}
 
 function getTierMeta(tier: TicketTier, index: number) {
   const fallbackDescriptions = [
@@ -137,7 +127,7 @@ function MiniCharacter({
   const imageSource = getPersonaImage(persona.kind);
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 45).springify()}
+      entering={FadeInDown.delay(index * 45)}
       style={[styles.avatarWrap, { marginLeft: index > 0 ? -16 : 0, zIndex: 10 - index }]}
     >
       <Image source={imageSource} style={styles.avatarImage} contentFit="cover" transition={200} />
@@ -170,7 +160,7 @@ function TicketCharacterStage({
     .slice(0, 5);
 
   return (
-    <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.characterStage}>
+    <Animated.View entering={FadeInDown.delay(80)} style={styles.characterStage}>
       <View style={styles.characterRunway}>
         {characters.map((character, index) => (
           <MiniCharacter key={character.id} persona={character.persona} index={index} />
@@ -246,7 +236,10 @@ function TicketTierRow({
 }) {
   const isSoldOut = tier.remaining <= 0;
   const isLowStock = tier.remaining > 0 && tier.remaining <= 8;
-  const limit = Math.max(0, Math.min(tier.remaining || 0, 10));
+  const limit =
+    Number(tier.price || 0) <= 0
+      ? Math.min(Math.max(tier.remaining || 0, 0), 1)
+      : Math.max(0, Math.min(tier.remaining || 0, 10));
   const meta = getTierMeta(tier, index);
   const availabilityLabel = isSoldOut
     ? 'Sold out'
@@ -284,7 +277,7 @@ function TicketTierRow({
             />
           </Pressable>
           <View style={styles.tierMetaLine}>
-            <Text style={styles.tierPrice}>{formatMoney(tier.price)}</Text>
+            <Text style={styles.tierPrice}>{formatInr(tier.price)}</Text>
             {isLowStock || isSoldOut ? (
               <>
                 <View style={styles.tierMetaDot} />
@@ -350,8 +343,20 @@ export default function TicketSelectionScreen() {
   const { eventId, ref } = useLocalSearchParams<{ eventId?: string; ref?: string }>();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
-  const { getEventById, events, featuredEvents } = useEventsStore();
-  const { clearCart, addItem } = useCartStore();
+  const { getEventById, events, featuredEvents } = useEventsStore(
+    useShallow((state) => ({
+      getEventById: state.getEventById,
+      events: state.events,
+      featuredEvents: state.featuredEvents,
+    })),
+  );
+  const { cartItems, clearCart, addItem } = useCartStore(
+    useShallow((state) => ({
+      cartItems: state.items,
+      clearCart: state.clearCart,
+      addItem: state.addItem,
+    })),
+  );
   const [event, setEvent] = useState<Event | null>(() => {
     if (!eventId) return null;
     return (
@@ -361,7 +366,13 @@ export default function TicketSelectionScreen() {
     );
   });
   const [loading, setLoading] = useState(!event);
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [quantities, setQuantities] = useState<Record<string, number>>(() =>
+    Object.fromEntries(
+      cartItems
+        .filter((item) => item.eventId === eventId)
+        .map((item) => [item.tier.id, item.quantity]),
+    ),
+  );
   const [expandedTiers, setExpandedTiers] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -400,32 +411,27 @@ export default function TicketSelectionScreen() {
       ? selectedItems.map((item) => `${item.quantity}x ${item.tier.name}`).join(' · ')
       : 'Select tickets';
 
-  const posterAccent = event
-    ? (event as any).posterAccentColor ||
-      (event as any).dominantColor ||
-      (event as any).eventAccentColor ||
-      ((event as any).accentColor &&
-      String((event as any).accentColor).toUpperCase() !== colors.iris.toUpperCase()
-        ? (event as any).accentColor
-        : undefined) ||
-      '#D915A8'
-    : '#D915A8';
+  const posterAccent = event ? resolveEventAccentColor(event as any, 'ticket') : TICKET_ACCENT;
 
-  console.log(
-    "Checkout screen rendered with horizontal layout! If you don't see this, Metro cache is stuck.",
-  );
-
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (!event || selectedItems.length === 0) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await discardPendingCheckout();
+    } catch {
+      Alert.alert('Tickets still held', 'Could not release the current hold. Please retry.');
+      return;
+    }
     clearCart();
     selectedItems.forEach(({ tier, quantity }) => {
       addItem({
         eventId: event.id,
         eventTitle: event.title,
         eventDate: event.startDate,
+        eventTimezone: event.timezone,
         eventVenue: venueLabel,
         eventCoverImage: eventImage ?? undefined,
+        eventAccentColor: posterAccent,
         tier,
         quantity,
         promoterCode: typeof ref === 'string' ? ref : undefined,
@@ -499,7 +505,8 @@ export default function TicketSelectionScreen() {
             <View style={styles.heroMetaRow}>
               <Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.52)" />
               <Text style={styles.heroMetaText}>
-                {formatEventDate(event.startDate)} · {formatEventTime(event.startDate)}
+                {formatEventDate(event.startDate, event.timezone)} ·{' '}
+                {formatEventTime(event.startDate, event.timezone)}
               </Text>
             </View>
             <View style={styles.heroMetaRow}>
@@ -563,7 +570,7 @@ export default function TicketSelectionScreen() {
       <View style={[styles.bottomBar, { bottom: Math.max(insets.bottom, 12) }]}>
         <View style={styles.bottomCopy}>
           <Text style={styles.bottomLabel}>Total</Text>
-          <Text style={styles.bottomTotal}>{formatMoney(subtotal)}</Text>
+          <Text style={styles.bottomTotal}>{formatInr(subtotal)}</Text>
           <Text style={styles.bottomCount} numberOfLines={1}>
             {bottomHelper}
           </Text>
@@ -585,22 +592,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.base.DEFAULT,
-  },
-  backgroundGlowTop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 470,
-    opacity: 1,
-  },
-  backgroundGlowMid: {
-    position: 'absolute',
-    top: 210,
-    left: 0,
-    right: 0,
-    height: 520,
-    opacity: 0.95,
   },
   centerScreen: {
     flex: 1,
@@ -893,262 +884,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#161616',
-  },
-  figurePerson: {
-    width: 42,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    position: 'relative',
-  },
-  figureLegRow: {
-    position: 'absolute',
-    bottom: 7,
-    flexDirection: 'row',
-    gap: 4,
-    alignItems: 'flex-end',
-  },
-  figureLeg: {
-    width: 9,
-    borderRadius: 5,
-  },
-  figureShoeRow: {
-    position: 'absolute',
-    bottom: 3,
-    flexDirection: 'row',
-    gap: 5,
-  },
-  figureShoe: {
-    width: 14,
-    height: 6,
-    borderRadius: 5,
-  },
-  figureTorso: {
-    position: 'absolute',
-    bottom: 32,
-    width: 30,
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
-    borderBottomLeftRadius: 9,
-    borderBottomRightRadius: 9,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
-  },
-  figureJacket: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '45%',
-    opacity: 0.82,
-  },
-  figureStrap: {
-    position: 'absolute',
-    top: -2,
-    left: 14,
-    width: 4,
-    height: 46,
-    borderRadius: 3,
-    backgroundColor: 'rgba(48,31,23,0.58)',
-    transform: [{ rotate: '-22deg' }],
-  },
-  figureBag: {
-    position: 'absolute',
-    right: -6,
-    bottom: 7,
-    width: 13,
-    height: 15,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.36)',
-  },
-  figureArm: {
-    position: 'absolute',
-    bottom: 35,
-    width: 8,
-    height: 28,
-    borderRadius: 5,
-  },
-  figureLeftArm: {
-    left: 2,
-    transform: [{ rotate: '10deg' }],
-  },
-  figureRightArm: {
-    right: 2,
-    transform: [{ rotate: '-12deg' }],
-  },
-  figureHead: {
-    position: 'absolute',
-    bottom: 66,
-    width: 27,
-    height: 28,
-    borderRadius: 14,
-    overflow: 'hidden',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
-  },
-  figureHair: {
-    width: 30,
-    height: 11,
-    borderBottomLeftRadius: 11,
-    borderBottomRightRadius: 11,
-  },
-  figureFaceRow: {
-    position: 'absolute',
-    top: 15,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  figureSunglasses: {
-    position: 'absolute',
-    top: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  figureLens: {
-    width: 8,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#111',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.38)',
-  },
-  characterBody: {
-    width: 30,
-    height: 42,
-    borderTopLeftRadius: 15,
-    borderTopRightRadius: 15,
-    borderBottomLeftRadius: 11,
-    borderBottomRightRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.32)',
-  },
-  characterHead: {
-    position: 'absolute',
-    top: -18,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    overflow: 'hidden',
-    alignItems: 'center',
-  },
-  characterHair: {
-    width: 26,
-    height: 9,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
-  },
-  characterFaceRow: {
-    position: 'absolute',
-    top: -8,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  characterEye: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: '#161616',
-  },
-  characterJacket: {
-    width: 18,
-    height: 16,
-    borderRadius: 7,
-    marginTop: 18,
-    opacity: 0.86,
-  },
-  partnerHead: {
-    position: 'absolute',
-    top: -14,
-    right: -12,
-    width: 21,
-    height: 21,
-    borderRadius: 10.5,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.42)',
-  },
-  partnerHair: {
-    height: 9,
-    borderBottomLeftRadius: 9,
-    borderBottomRightRadius: 9,
-  },
-  stagTie: {
-    position: 'absolute',
-    top: 19,
-    width: 5,
-    height: 13,
-    borderRadius: 3,
-    backgroundColor: '#101010',
-  },
-  ladiesSpark: {
-    position: 'absolute',
-    right: 3,
-    top: 8,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#FFFFFF',
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
-  },
-  vipCrown: {
-    position: 'absolute',
-    top: -29,
-    color: '#F7C948',
-    fontFamily: ticketFont.black,
-    fontSize: 8,
-    fontWeight: '900',
-  },
-  emptyCharacterHint: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  emptyPreviewRow: {
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  emptyPreviewText: {
-    color: 'rgba(255,255,255,0.56)',
-    fontFamily: ticketFont.bold,
-    fontSize: 12,
-  },
-  characterLegend: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 2,
-  },
-  characterLegendPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  legendDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  characterLegendText: {
-    color: 'rgba(255,255,255,0.76)',
-    fontFamily: ticketFont.bold,
-    fontSize: 11,
   },
   tierRow: {
     position: 'relative',

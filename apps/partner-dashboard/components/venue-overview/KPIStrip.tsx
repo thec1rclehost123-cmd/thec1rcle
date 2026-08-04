@@ -2,6 +2,7 @@
 
 import { memo } from 'react';
 import { TrendingUp, TrendingDown, Minus, Calendar, Zap, Users, Banknote } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatINRCompact, formatNumberCompact } from '@/lib/utils/format';
 import { PermissionGate } from '@/components/shared/PermissionGate';
@@ -44,7 +45,7 @@ interface KPICardProps {
   subtext?: string;
   trend?: string | null;
   trendDirection?: 'up' | 'down' | 'neutral';
-  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  icon: LucideIcon;
   loading: boolean;
   /** Dim card while filter is updating but data is still visible */
   dimmed?: boolean;

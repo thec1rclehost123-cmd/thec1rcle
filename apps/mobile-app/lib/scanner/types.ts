@@ -140,12 +140,15 @@ export interface ScanResultData {
 export interface WalletContext {
   id: string;
   orderId: string;
+  eventId?: string;
+  venueId?: string;
   currentBalancePaise: number;
   openingBalancePaise: number;
   totalDebitedPaise: number;
   guestFirstName: string;
   state: string;
   terminationTime: string | null;
+  paymentQrJwt?: string;
   rules: {
     allowedPresetItems: PresetItem[];
     showBalanceToGuest: boolean;
@@ -168,12 +171,6 @@ export interface DebitRequest {
   presetItemId: string;
   quantity: number;
   idempotencyKey: string;
-  operatorId: string;
-  operatorName: string;
-  operatorRole: string;
-  deviceId: string;
-  eventCodeId: string;
-  isOnline: true;
 }
 
 export interface DebitResponse {

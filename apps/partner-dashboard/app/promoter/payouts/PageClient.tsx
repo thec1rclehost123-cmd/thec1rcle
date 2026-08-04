@@ -22,10 +22,6 @@ const StatTrendCard = dynamic(
   { ssr: false },
 );
 import { formatINR, formatDate } from '@/lib/utils/format';
-import {
-  TransferConfirmationModal,
-  type PromoterAccount,
-} from '@/components/finance/TransferConfirmationModal';
 import { BankSetupForm, type BankSetupData } from '@/components/finance/BankSetupForm';
 
 interface PayoutBalance {
@@ -73,12 +69,11 @@ export default function PayoutsPage() {
   const { profile, getIdToken } = useDashboardAuth();
   const [balance, setBalance] = useState<PayoutBalance | null>(null);
   const [payouts, setPayouts] = useState<Payout[]>([]);
-  const [accounts, setAccounts] = useState<PromoterAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showRequestModal, setShowRequestModal] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [setupError, setSetupError] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   const promoterId = profile?.activeMembership?.partnerId;
 
@@ -87,35 +82,22 @@ export default function PayoutsPage() {
   }, [promoterId]);
 
   const fetchPayoutData = async () => {
+    setLoadError('');
     try {
       const token = typeof getIdToken === 'function' ? await getIdToken() : '';
       const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
 
-      const [payoutRes, accountsRes] = await Promise.all([
-        fetch(`/api/partners/promoters/payouts?promoterId=${promoterId}`, { headers }),
-        fetch('/api/partners/promoters/finance/bank-accounts', { headers }),
-      ]);
-
-      if (payoutRes.ok) {
-        const payoutData = await payoutRes.json();
-        setBalance(payoutData.balance || null);
-        setPayouts(payoutData.payouts || []);
+      const payoutRes = await fetch(`/api/partners/promoters/payouts?promoterId=${promoterId}`, {
+        headers,
+      });
+      const payoutData = await payoutRes.json().catch(() => ({}));
+      if (!payoutRes.ok) {
+        throw new Error(payoutData.error?.message || 'Canonical payout data is unavailable');
       }
-
-      if (accountsRes.ok) {
-        const accountsData = await accountsRes.json();
-        setAccounts(
-          (accountsData.accounts ?? []).map((account: any) => ({
-            id: account.id,
-            bankName: account.bankName || 'Bank Account',
-            last4: account.last4 || '0000',
-            isDefault: account.isDefault ?? false,
-            paymentType: account.paymentType || 'bank_account',
-          })),
-        );
-      }
+      setBalance(payoutData.balance || null);
+      setPayouts(payoutData.payouts || []);
     } catch (err) {
-      console.error('Failed to fetch payout data:', err);
+      setLoadError(err instanceof Error ? err.message : 'Canonical payout data is unavailable');
     } finally {
       setLoading(false);
     }
@@ -150,20 +132,13 @@ export default function PayoutsPage() {
     [promoterId, getIdToken],
   );
 
-  const canRequest = balance && balance.available >= 100;
-
   return (
     <VenuePageShell
       title="Earnings & Payouts"
       actions={
-        <VenueActionButton
-          variant="primary"
-          icon={Wallet}
-          onClick={() => setShowRequestModal(true)}
-          disabled={!canRequest}
-        >
-          Request Payout
-        </VenueActionButton>
+        <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-xs font-bold text-amber-200">
+          Withdrawals unavailable during launch verification
+        </span>
       }
     >
       {/* Hero band */}
@@ -189,13 +164,15 @@ export default function PayoutsPage() {
               pending
             </p>
           </div>
-          {balance && balance.available < 100 && (
+          {balance && (
             <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/20">
               <AlertCircle className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-bold text-amber-300">Minimum payout ₹100</p>
+                <p className="text-xs font-bold text-amber-300">
+                  Provider verification in progress
+                </p>
                 <p className="text-xs text-amber-400/70 mt-0.5">
-                  Earn {formatINR(100 - balance.available)} more to withdraw
+                  Earnings remain visible while withdrawal mutations are disabled.
                 </p>
               </div>
             </div>
@@ -210,8 +187,6 @@ export default function PayoutsPage() {
           value={loading ? '—' : formatINR(balance?.totalEarned || 0)}
           color="#7c3aed"
           icon={<TrendingUp className="w-4 h-4" />}
-          trendUp
-          trend="+12%"
         />
         <StatTrendCard
           label="Available"
@@ -233,6 +208,19 @@ export default function PayoutsPage() {
           icon={<CheckCircle2 className="w-4 h-4" />}
         />
       </motion.div>
+
+      {loadError ? (
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-red-400/20 bg-red-400/10 px-5 py-4">
+          <p className="text-sm text-red-200">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => void fetchPayoutData()}
+            className="rounded-xl border border-red-300/30 px-3 py-2 text-xs font-bold text-red-100"
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
 
       {/* Bank Account Setup */}
       <motion.div {...mp(0.12)}>
@@ -348,44 +336,6 @@ export default function PayoutsPage() {
           </div>
         )}
       </motion.div>
-
-      {/* Request Modal */}
-      {showRequestModal && (
-        <TransferConfirmationModal
-          available={balance?.available || 0}
-          pending={balance?.pending || 0}
-          instantAvailable={0}
-          payoutAccount={accounts.find((account) => account.isDefault) || accounts[0] || null}
-          onClose={() => setShowRequestModal(false)}
-          onSubmit={async (amount, accountId) => {
-            const token = typeof getIdToken === 'function' ? await getIdToken() : '';
-            const headers: Record<string, string> = {
-              'Content-Type': 'application/json',
-              'x-idempotency-key': crypto.randomUUID(),
-            };
-            if (token) headers['Authorization'] = `Bearer ${token}`;
-
-            const amountPaise = Math.round(amount * 100);
-
-            const res = await fetch('/api/partners/promoters/payouts', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ amountPaise, bankAccountId: accountId }),
-            });
-
-            const data = await res.json();
-            if (!res.ok)
-              throw new Error(data.error?.message || data.error || 'Failed to process transfer.');
-
-            setShowRequestModal(false);
-            fetchPayoutData();
-          }}
-          onAddPayoutMethod={() => {
-            setShowRequestModal(false);
-            setShowSetup(true);
-          }}
-        />
-      )}
     </VenuePageShell>
   );
 }

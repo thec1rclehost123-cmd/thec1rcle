@@ -5,6 +5,10 @@ import { z } from 'zod';
 import { flagPaymentFailure } from '@c1rcle/core/surge';
 import { logPaymentEvent } from '../../lib/securityLogger';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
+import { publishTicketPurchaseSync } from '../../lib/ticketPurchaseSync';
+import { finalizeProcessedRefund } from '../../lib/refundLedger';
+// @ts-ignore
+import { finalizeTicketPayment } from '@c1rcle/core/workflows/ticketing';
 
 const PaymentOrderBody = z
   .object({
@@ -194,6 +198,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/payments/verify',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: PaymentVerifyBody })],
     },
     async (request: { body: any; user: any }, reply) => {
@@ -215,63 +220,33 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
 
       try {
         const work = async () => {
-          // Reject mock payment IDs in production
-          const isMockPayload = isMockRazorpayPayload(
-            razorpay_order_id,
-            razorpay_payment_id,
-            razorpay_signature,
-          );
-          if (process.env.NODE_ENV === 'production' && isMockPayload) {
-            throw new Error('Mock payments are disabled');
-          }
-
-          // Verify Signature — required; 503 if key unavailable
-          const razorpayKeySecret = getRazorpayKeySecret();
-          if (!razorpayKeySecret && !isMockPayload) {
-            throw new Error('Payment verification is not configured');
-          }
-
-          if (razorpayKeySecret && !isMockPayload) {
-            const data = `${razorpay_order_id}|${razorpay_payment_id}`;
-            const expected = crypto
-              .createHmac('sha256', razorpayKeySecret)
-              .update(data)
-              .digest('hex');
-            if (!timingSafeEqualHex(expected, razorpay_signature)) {
-              logPaymentEvent(request as any, 'SIGNATURE_MISMATCH', {
-                orderId,
-                razorpayOrderId: razorpay_order_id,
-                razorpayPaymentId: razorpay_payment_id,
-              });
-              throw new Error('Invalid signature');
-            }
-          }
-
-          // Atomic Confirmation via Service
-          const result = await (fastify as any).checkoutService.verifyPayment({
-            orderId,
+          const result = await finalizeTicketPayment({
+            db: (fastify as any).db,
+            userId,
+            source: 'client',
+            requestId: (request as any).id,
+            expectedOrderId: orderId,
             razorpayOrderId: razorpay_order_id,
             razorpayPaymentId: razorpay_payment_id,
-            userId,
+            razorpaySignature: razorpay_signature,
             paymentGatewayConfig: {
               keyId: getRazorpayKeyId(),
               keySecret: getRazorpayKeySecret(),
               allowMockPayment: allowMockRazorpay(),
             },
           });
-
-          if (result?.success === false) {
-            const verificationError = new Error(result.error || 'Payment verification failed');
-            (verificationError as any).code = 'PAYMENT_VERIFICATION_REJECTED';
-            (verificationError as any).payload = result;
-            throw verificationError;
-          }
+          await publishTicketPurchaseSync(fastify, result);
 
           return {
             success: true,
-            alreadyConfirmed: Boolean(result?.alreadyConfirmed),
+            alreadyConfirmed: Boolean(result?.alreadyFinalized),
+            alreadyFinalized: Boolean(result?.alreadyFinalized),
             order: result?.order || null,
-            message: result?.alreadyConfirmed ? 'Order already confirmed' : 'Order confirmed',
+            ticketIds: result?.ticketIds || [],
+            entitlementIds: result?.entitlementIds || [],
+            ledgerMarkerId: result?.ledgerMarkerId || null,
+            outboxEventId: result?.outboxEventId || null,
+            message: result?.alreadyFinalized ? 'Order already confirmed' : 'Order confirmed',
           };
         };
 
@@ -305,25 +280,30 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
           return reply.status(409).send((error as any).payload);
         }
         const status =
-          error.message === 'Order not found'
-            ? 404
-            : error.message === 'Unauthorized'
+          error.code === 'UNAUTHORIZED'
+            ? 401
+            : error.code === 'FORBIDDEN'
               ? 403
-              : error.message === 'Invalid signature'
-                ? 400
-                : error.message === 'Payment order not found'
-                  ? 404
-                  : error.message === 'Payment amount mismatch'
+              : error.code === 'NOT_FOUND' || error.message === 'Order not found'
+                ? 404
+                : error.code === 'PAYMENT_SIGNATURE_INVALID' ||
+                    error.message === 'Invalid signature'
+                  ? 400
+                  : [
+                        'PAYMENT_AMOUNT_MISMATCH',
+                        'PAYMENT_ALREADY_LINKED',
+                        'ORDER_ATTRIBUTION_MISSING',
+                        'ORDER_NOT_FINALIZABLE',
+                        'LEDGER_IDEMPOTENCY_CONFLICT',
+                        'INVENTORY_CONFLICT',
+                        'TICKET_TRANSACTION_LIMIT_EXCEEDED',
+                      ].includes(error.code)
                     ? 409
-                    : error.message === 'Payment does not belong to this Razorpay order'
-                      ? 409
-                      : error.message === 'Payment already linked to another order'
-                        ? 409
-                        : error.message === 'Payment is not successful'
-                          ? 409
-                          : error.message === 'Mock payments are disabled'
-                            ? 400
-                            : 500;
+                    : error.code === 'FINALIZATION_RETRY_REQUIRED'
+                      ? 503
+                      : error.message === 'Mock payments are disabled'
+                        ? 400
+                        : 500;
         return reply.status(status).send(
           buildErrorResponse({
             code:
@@ -382,21 +362,25 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
     try {
       if (
         (eventType === 'payment.captured' || eventType === 'payment_success') &&
-        orderId &&
         razorpayOrderId &&
         paymentId
       ) {
-        const result = await fastify.checkoutService.verifyPayment({
-          orderId,
+        const result = await finalizeTicketPayment({
+          db: fastify.db,
+          source: 'webhook',
+          requestId: request.id,
+          expectedOrderId: orderId,
           razorpayOrderId,
           razorpayPaymentId: paymentId,
-          userId: null,
+          webhookVerified: true,
+          providerPayment: paymentEntity,
           paymentGatewayConfig: {
             keyId: getRazorpayKeyId(),
             keySecret: getRazorpayKeySecret(),
             allowMockPayment: allowMockRazorpay(),
           },
         });
+        await publishTicketPurchaseSync(fastify, result);
 
         if (result?.success === false) {
           logPaymentEvent(request, 'WEBHOOK_REJECTED', {
@@ -417,29 +401,33 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
 
         logPaymentEvent(
           request,
-          result?.alreadyConfirmed ? 'WEBHOOK_DUPLICATE' : 'WEBHOOK_CONFIRMED',
+          result?.alreadyFinalized ? 'WEBHOOK_DUPLICATE' : 'WEBHOOK_CONFIRMED',
           {
-            orderId,
+            orderId: result?.orderId,
             razorpayOrderId,
             razorpayPaymentId: paymentId,
             eventType,
           },
         );
 
-        if (!result?.alreadyConfirmed && result?.eventId) {
-          fastify.broadcast(
+        if (!result?.alreadyFinalized && result?.order?.eventId) {
+          fastify.broadcast?.(
             {
               type: 'ORDER_CONFIRMED',
-              payload: { orderId, eventId: result.eventId },
+              payload: { orderId: result.orderId, eventId: result.order.eventId },
             },
-            `event:${result.eventId}`,
+            `event:${result.order.eventId}`,
           );
         }
 
         return {
           success: true,
-          alreadyConfirmed: Boolean(result?.alreadyConfirmed),
-          orderId,
+          alreadyConfirmed: Boolean(result?.alreadyFinalized),
+          alreadyFinalized: Boolean(result?.alreadyFinalized),
+          orderId: result?.orderId,
+          ticketIds: result?.ticketIds || [],
+          entitlementIds: result?.entitlementIds || [],
+          ledgerMarkerId: result?.ledgerMarkerId || null,
         };
       }
 
@@ -473,31 +461,33 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
       const refundEntity = payload?.payload?.refund?.entity || payload?.refund || null;
 
       if ((eventType === 'refund.processed' || eventType === 'refund.failed') && refundEntity?.id) {
-        const refundsSnap = await fastify.db
-          .collection('refund_requests')
-          .where('razorpayRefundId', '==', refundEntity.id)
-          .limit(1)
-          .get();
+        const refundRequestId = refundEntity.notes?.refundRequestId || null;
+        const refundsSnap = refundRequestId
+          ? null
+          : await fastify.db
+              .collection('refund_requests')
+              .where('razorpayRefundId', '==', refundEntity.id)
+              .limit(1)
+              .get();
+        const refundDoc = refundRequestId
+          ? await fastify.db.collection('refund_requests').doc(refundRequestId).get()
+          : refundsSnap?.docs[0];
 
-        if (refundsSnap.empty) {
+        if (!refundDoc?.exists) {
           fastify.log.warn(`Webhook ${eventType} received for unknown refund ${refundEntity.id}`);
           return { success: true, ignored: true, reason: 'refund_not_found' };
         }
 
-        const refundDoc = refundsSnap.docs[0];
         const refundData = refundDoc.data() as any;
         const now = new Date().toISOString();
 
         if (eventType === 'refund.processed') {
-          if (refundData.status !== 'completed') {
-            await fastify.db.runTransaction(async (t: any) => {
-              t.update(refundDoc.ref, { status: 'completed', updatedAt: now });
-              t.update(fastify.db.collection('orders').doc(refundData.orderId), {
-                refundStatus: 'completed',
-                updatedAt: now,
-              });
-            });
-          }
+          await finalizeProcessedRefund({
+            db: fastify.db,
+            refundId: refundDoc.id,
+            providerRefundId: refundEntity.id,
+            processedAt: now,
+          });
         } else if (refundData.status !== 'failed') {
           const previousStatus = refundData.previousStatus || 'confirmed';
           const orderUpdate: any = { refundStatus: 'failed', updatedAt: now };
@@ -525,79 +515,21 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
 
       const payoutEntity = payload?.payload?.payout?.entity || payload?.payout || null;
 
-      if (eventType === 'payout.processed' && payoutEntity) {
+      if (
+        ['payout.processed', 'payout.failed', 'payout.reversed'].includes(eventType) &&
+        payoutEntity
+      ) {
         const requestId = payoutEntity.reference_id || payoutEntity.notes?.payoutRequestId;
-        if (!requestId) {
-          fastify.log.warn('Webhook payout.processed received but missing requestId');
-          return { success: true, ignored: true, reason: 'missing_request_id' };
-        }
-
-        const ref = fastify.db.collection('payout_requests').doc(requestId);
-
-        // Transaction so two concurrent payout.processed deliveries can't both
-        // pass the status check and double-write the ledger.
-        const payoutResult = await fastify.db.runTransaction(async (t: any) => {
-          const snap = await t.get(ref);
-          if (!snap.exists) {
-            return { success: true, ignored: true, reason: 'payout_request_not_found' };
-          }
-          const data = snap.data() as any;
-          if (data.status === 'completed') {
-            return { success: true, alreadyProcessed: true };
-          }
-
-          t.update(ref, { status: 'completed', completedAt: new Date().toISOString() });
-
-          const ledgerRef = fastify.db.collection('partner_ledger').doc();
-          t.set(ledgerRef, {
-            toPartnerId: data.promoterId,
-            type: 'payout',
-            amount: -data.amountPaise,
-            currency: 'INR',
-            status: 'settled',
-            referenceId: requestId,
-            createdAt: new Date().toISOString(),
-          });
-
-          const auditRef = fastify.db.collection('promoter_audit_logs').doc();
-          t.set(auditRef, {
-            promoterId: data.promoterId,
-            action: 'PAYOUT_PROCESSED',
-            targetId: requestId,
-            amountPaise: data.amountPaise,
-            timestamp: new Date().toISOString(),
-            performedBy: 'system_webhook',
-          });
-
-          return { success: true, requestId, status: 'completed' };
-        });
-
-        return payoutResult;
-      }
-
-      if ((eventType === 'payout.failed' || eventType === 'payout.reversed') && payoutEntity) {
-        const requestId = payoutEntity.reference_id || payoutEntity.notes?.payoutRequestId;
-        if (!requestId) return { success: true, ignored: true };
-
-        const ref = fastify.db.collection('payout_requests').doc(requestId);
-        const doc = await ref.get();
-        if (doc.exists && (doc.data() as any).status !== 'failed') {
-          const batch = fastify.db.batch();
-          batch.update(ref, { status: 'failed', failedAt: new Date().toISOString() });
-
-          const auditRef = fastify.db.collection('promoter_audit_logs').doc();
-          batch.set(auditRef, {
-            promoterId: (doc.data() as any).promoterId,
-            action: 'PAYOUT_FAILED',
-            targetId: requestId,
-            amountPaise: (doc.data() as any).amountPaise,
-            timestamp: new Date().toISOString(),
-            performedBy: 'system_webhook',
-          });
-
-          await batch.commit();
-        }
-        return { success: true, requestId, status: 'failed' };
+        fastify.log.warn(
+          { eventType, requestId },
+          'Payout webhook ignored because launch payout mutations are disabled',
+        );
+        return {
+          success: true,
+          ignored: true,
+          reason: 'payout_mutations_disabled',
+          requestId: requestId || null,
+        };
       }
 
       return { success: true, ignored: true, eventType };

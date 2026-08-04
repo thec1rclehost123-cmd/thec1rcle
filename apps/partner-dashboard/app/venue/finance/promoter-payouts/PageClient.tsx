@@ -18,13 +18,16 @@ const STATUS_CHIPS: Record<string, string> = {
 };
 
 export function PromoterPayoutsClient() {
-  const { profile } = useDashboardAuth();
+  const { profile, getIdToken } = useDashboardAuth();
   const venueId = profile?.activeMembership?.partnerId;
 
   const { data, isLoading } = useQuery<PartnerPayoutsPageData>({
     queryKey: ['finance-promoter-payouts', venueId],
     queryFn: async () => {
-      const res = await fetch(`/api/partners/venues/finance/promoter-payouts?venueId=${venueId}`);
+      const token = await getIdToken();
+      const res = await fetch(`/api/partners/venues/finance/promoter-payouts?venueId=${venueId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error('Failed');
       return res.json();
     },

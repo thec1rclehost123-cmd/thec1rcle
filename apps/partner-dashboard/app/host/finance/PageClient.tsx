@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   AlertCircle,
   ChevronDown,
@@ -111,167 +112,6 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (value: boolean) => v
   );
 }
 
-function InitiatePayoutModal({
-  available,
-  currency,
-  onClose,
-  instantFeeRate = 0,
-}: {
-  available: number;
-  currency: string;
-  onClose: () => void;
-  instantFeeRate?: number;
-}) {
-  const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<'standard' | 'instant'>('standard');
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-
-  const fee = method === 'instant' ? Number(amount || 0) * instantFeeRate : 0;
-
-  const handleSubmit = async () => {
-    if (!amount || Number(amount) <= 0) return;
-    setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setSuccess(true);
-    setLoading(false);
-    setTimeout(onClose, 1200);
-  };
-
-  return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 16 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ duration: 0.2 }}
-        className="relative w-full max-w-[480px] overflow-hidden rounded-[28px]"
-        style={{ background: '#17171b', border: '1px solid rgba(255,255,255,0.08)' }}
-      >
-        <div className="flex items-center justify-end px-6 pt-5">
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full"
-            style={{ color: 'rgba(255,255,255,0.46)' }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-        <div className="px-8 pb-8">
-          <h2
-            className="mb-6 text-center text-[26px] font-bold"
-            style={{ color: 'rgba(255,255,255,0.96)' }}
-          >
-            Initiate Payout
-          </h2>
-
-          {success ? (
-            <p className="py-8 text-center text-[15px] font-semibold" style={{ color: '#86efac' }}>
-              Payout initiated successfully.
-            </p>
-          ) : (
-            <>
-              <div className="mb-2 flex items-center justify-center gap-3">
-                <span className="text-[20px] font-bold" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                  {currency === 'INR' ? '₹' : '$'}
-                </span>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  placeholder="0"
-                  max={available}
-                  className="w-40 bg-transparent text-center text-[56px] font-bold tabular-nums outline-none"
-                  style={{ color: 'rgba(255,255,255,0.96)' }}
-                />
-              </div>
-              <p
-                className="mb-6 text-center text-[13px]"
-                style={{ color: 'rgba(255,255,255,0.42)' }}
-              >
-                Transfer up to {fmt(available, currency)}
-              </p>
-
-              <div className="mb-6 grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setMethod('standard')}
-                  className="rounded-[18px] p-4 text-center"
-                  style={{
-                    background:
-                      method === 'standard' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${method === 'standard' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)'}`,
-                  }}
-                >
-                  <Landmark
-                    className="mx-auto mb-2"
-                    size={24}
-                    style={{ color: 'rgba(255,255,255,0.72)' }}
-                  />
-                  <span
-                    className="block text-[13px] font-bold"
-                    style={{ color: 'rgba(255,255,255,0.92)' }}
-                  >
-                    2-3 Biz Days
-                  </span>
-                  <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.42)' }}>
-                    No Fee
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMethod('instant')}
-                  className="rounded-[18px] p-4 text-center"
-                  style={{
-                    background:
-                      method === 'instant' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${method === 'instant' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)'}`,
-                  }}
-                >
-                  <Zap className="mx-auto mb-2" size={24} style={{ color: '#c4b5fd' }} />
-                  <span
-                    className="block text-[13px] font-bold"
-                    style={{ color: 'rgba(255,255,255,0.92)' }}
-                  >
-                    Instant
-                  </span>
-                  <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.42)' }}>
-                    3% Fee
-                  </span>
-                </button>
-              </div>
-
-              {method === 'instant' && Number(amount) > 0 ? (
-                <p
-                  className="mb-4 text-center text-[12px]"
-                  style={{ color: 'rgba(255,255,255,0.42)' }}
-                >
-                  Fee: {fmt(fee, currency)} · You receive {fmt(Number(amount) - fee, currency)}
-                </p>
-              ) : null}
-
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!amount || Number(amount) <= 0 || loading}
-                className="w-full rounded-[18px] py-4 text-[15px] font-bold"
-                style={{
-                  background: 'rgba(255,255,255,0.92)',
-                  color: '#050505',
-                  opacity: !amount || Number(amount) <= 0 ? 0.45 : 1,
-                }}
-              >
-                {loading ? 'Processing...' : 'Transfer Balance'}
-              </button>
-            </>
-          )}
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
 function AddBankModal({
   onClose,
   onAdded,
@@ -304,19 +144,21 @@ function DisputesView({
   onBack: () => void;
   getAuthHeaders: () => Promise<Record<string, string>>;
 }) {
-  const [disputes, setDisputes] = useState<Dispute[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    getAuthHeaders()
-      .then((headers) =>
-        fetch(`/api/partners/hosts/finance/disputes?hostId=${hostId}`, { headers }),
-      )
-      .then((response) => response.json())
-      .then((data) => setDisputes(data.disputes || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [getAuthHeaders, hostId]);
+  const disputesQuery = useQuery({
+    queryKey: ['host-finance-disputes', hostId],
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`/api/partners/hosts/finance/disputes?hostId=${hostId}`, {
+        headers: await getAuthHeaders(),
+        signal,
+      });
+      if (!response.ok) throw new Error('Failed to load disputes');
+      const data = await response.json();
+      return (data.disputes || []) as Dispute[];
+    },
+    enabled: Boolean(hostId),
+  });
+  const disputes = disputesQuery.data ?? [];
+  const loading = disputesQuery.isLoading;
 
   return (
     <div className="mx-auto max-w-[1280px]">
@@ -455,28 +297,14 @@ export default function HostFinancePageClient() {
   const hostId = profile?.activeMembership?.partnerId as string | undefined;
 
   const [view, setView] = useState<ActiveView>('main');
-  const [balance, setBalance] = useState<BalanceData>({
-    available: 0,
-    pending: 0,
-    instantAvailable: 0,
-  });
-  const [balanceLoading, setBalanceLoading] = useState(true);
-  const [payouts, setPayouts] = useState<Payout[]>([]);
-  const [payoutsLoading, setPayoutsLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-  const [accounts, setAccounts] = useState<BankAccount[]>([]);
-  const [accountsLoading, setAccountsLoading] = useState(true);
   const [settings, setSettings] = useState<Settings>({
     country: 'India',
     currency: 'INR',
     statementDescriptor: 'C1RCLE',
     dailyPayouts: false,
   });
-  const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [showAddBankModal, setShowAddBankModal] = useState(false);
-  const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
-  const [instantFeeRate, setInstantFeeRate] = useState(0);
 
   const getAuthHeaders = useCallback(
     async (includeJson = false) => {
@@ -489,96 +317,179 @@ export default function HostFinancePageClient() {
     [user],
   );
 
-  const fetchBalance = useCallback(async () => {
-    if (!hostId) return;
-    setBalanceLoading(true);
-    try {
+  const balanceQuery = useQuery({
+    queryKey: ['host-finance-balance', hostId],
+    queryFn: async ({ signal }) => {
       const res = await fetch(`/api/partners/hosts/finance/overview?hostId=${hostId}&period=30d`, {
         headers: await getAuthHeaders(),
+        signal,
       });
+      if (!res.ok) throw new Error('Failed to load finance balance');
       const data = await res.json();
       const metrics = data.metrics;
-      setBalance({
+      return {
         available: metrics?.availableBalance || 0,
         pending: metrics?.pendingPayouts || 0,
         instantAvailable: metrics?.availableBalance || 0,
-      });
-    } catch {}
-    setBalanceLoading(false);
-  }, [getAuthHeaders, hostId]);
-
-  const fetchPayouts = useCallback(
-    async (nextPage = 1) => {
-      if (!hostId) return;
-      setPayoutsLoading(true);
-      try {
-        const res = await fetch(
-          `/api/partners/hosts/finance/payouts?hostId=${hostId}&page=${nextPage}&limit=10`,
-          {
-            headers: await getAuthHeaders(),
-          },
-        );
-        const data = await res.json();
-        setPayouts(data.payouts || []);
-        setHasMore(data.hasMore || false);
-      } catch {}
-      setPayoutsLoading(false);
+      } as BalanceData;
     },
-    [getAuthHeaders, hostId],
-  );
+    enabled: Boolean(hostId && user),
+  });
 
-  const fetchAccounts = useCallback(async () => {
-    if (!hostId) return;
-    setAccountsLoading(true);
-    try {
+  const payoutsQuery = useQuery({
+    queryKey: ['host-finance-payouts', hostId, page],
+    queryFn: async ({ signal }) => {
+      const res = await fetch(
+        `/api/partners/hosts/finance/payouts?hostId=${hostId}&page=${page}&limit=10`,
+        {
+          headers: await getAuthHeaders(),
+          signal,
+        },
+      );
+      if (!res.ok) throw new Error('Failed to load payouts');
+      const data = await res.json();
+      return {
+        payouts: (data.payouts || []) as Payout[],
+        hasMore: Boolean(data.hasMore),
+      };
+    },
+    enabled: Boolean(hostId && user),
+  });
+
+  const accountsQuery = useQuery({
+    queryKey: ['host-finance-accounts', hostId],
+    queryFn: async ({ signal }) => {
       const res = await fetch(`/api/partners/hosts/finance/bank-accounts?hostId=${hostId}`, {
         headers: await getAuthHeaders(),
+        signal,
       });
+      if (!res.ok) throw new Error('Failed to load payout accounts');
       const data = await res.json();
-      setAccounts(data.accounts || []);
-    } catch {}
-    setAccountsLoading(false);
-  }, [getAuthHeaders, hostId]);
-
-  useEffect(() => {
-    fetchBalance();
-    fetchPayouts(1);
-    fetchAccounts();
-    setRefreshedAt(new Date());
-  }, [fetchAccounts, fetchBalance, fetchPayouts]);
-
-  useEffect(() => {
-    fetch('/api/finance/payout-config')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.instantFeeRate != null) setInstantFeeRate(data.instantFeeRate);
-      })
-      .catch(() => {});
-  }, []);
+      return (data.accounts || []) as BankAccount[];
+    },
+    enabled: Boolean(hostId && user),
+  });
 
   const handleRefreshAll = () => {
-    fetchBalance();
-    fetchPayouts(page);
-    fetchAccounts();
-    setRefreshedAt(new Date());
+    void Promise.all([balanceQuery.refetch(), payoutsQuery.refetch(), accountsQuery.refetch()]);
   };
 
   const handlePageChange = (nextPage: number) => {
     setPage(nextPage);
-    fetchPayouts(nextPage);
   };
 
-  const removeAccount = async (accountId: string) => {
-    if (!hostId) return;
-    await fetch(
-      `/api/partners/hosts/finance/bank-accounts?hostId=${hostId}&accountId=${accountId}`,
+  const removeAccount = useCallback(
+    async (accountId: string) => {
+      if (!hostId) return;
+      await fetch(
+        `/api/partners/hosts/finance/bank-accounts?hostId=${hostId}&accountId=${accountId}`,
+        {
+          method: 'DELETE',
+          headers: await getAuthHeaders(),
+        },
+      );
+      await accountsQuery.refetch();
+    },
+    [accountsQuery, getAuthHeaders, hostId],
+  );
+
+  const balance = balanceQuery.data ?? { available: 0, pending: 0, instantAvailable: 0 };
+  const balanceLoading = balanceQuery.isLoading;
+  const payouts = payoutsQuery.data?.payouts ?? [];
+  const hasMore = payoutsQuery.data?.hasMore ?? false;
+  const payoutsLoading = payoutsQuery.isLoading || payoutsQuery.isFetching;
+  const accounts = accountsQuery.data ?? [];
+  const accountsLoading = accountsQuery.isLoading;
+  const refreshedTimestamp = Math.max(
+    balanceQuery.dataUpdatedAt,
+    payoutsQuery.dataUpdatedAt,
+    accountsQuery.dataUpdatedAt,
+  );
+  const refreshedAt = refreshedTimestamp ? new Date(refreshedTimestamp) : null;
+
+  const balanceRows = useMemo<FinanceRow[]>(
+    () => [
+      { label: 'Available', value: balanceLoading ? '...' : fmt(balance.available) },
       {
-        method: 'DELETE',
-        headers: await getAuthHeaders(),
+        label: 'Pending',
+        value: balanceLoading ? '...' : fmt(balance.pending),
+        helpLabel: 'Funds settling from recent events.',
       },
-    );
-    fetchAccounts();
-  };
+      {
+        label: 'Instant Available',
+        value: balanceLoading ? '...' : fmt(balance.instantAvailable),
+        helpLabel: 'Eligible for instant transfer.',
+      },
+    ],
+    [balance.available, balance.instantAvailable, balance.pending, balanceLoading],
+  );
+
+  const settingsRows = useMemo<FinanceSettingRow[]>(
+    () => [
+      { label: 'Country', value: 'India' },
+      { label: 'Currency', value: settings.currency },
+      { label: 'Statement Descriptor', value: settings.statementDescriptor },
+      {
+        label: 'Payout Schedule',
+        value: (
+          <span className="inline-flex items-center gap-3">
+            <span
+              className="inline-flex items-center gap-2 rounded-[14px] px-3 py-2"
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.08)',
+              }}
+            >
+              {settings.dailyPayouts ? 'Daily' : 'Weekly'} <ChevronDown size={14} />
+            </span>
+            <Toggle
+              on={settings.dailyPayouts}
+              onChange={(value) => setSettings((prev) => ({ ...prev, dailyPayouts: value }))}
+            />
+          </span>
+        ),
+      },
+    ],
+    [settings.currency, settings.dailyPayouts, settings.statementDescriptor],
+  );
+
+  const bankAccounts = useMemo<FinanceBankAccount[]>(
+    () =>
+      accountsLoading
+        ? []
+        : accounts.map((account) => ({
+            id: account.id,
+            name:
+              account.paymentType === 'debit_card'
+                ? `${account.bankName} Debit Card`
+                : account.bankName,
+            detail: `${account.paymentType === 'debit_card' ? 'Card' : 'Account'} •••• ${account.last4}`,
+            badge: account.isDefault ? 'Default' : undefined,
+            onClick: () => removeAccount(account.id),
+          })),
+    [accounts, accountsLoading, removeAccount],
+  );
+
+  const payoutRows = useMemo<FinancePayoutRow[]>(
+    () =>
+      payouts.map((payout) => ({
+        id: payout.id,
+        date: fmtDate(payout.arrivalDate),
+        detail: payout.eventName
+          ? `${payout.eventName}${payout.eventDate ? ` · ${new Date(payout.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`
+          : payout.description || 'Host settlement',
+        amount: fmt(payout.amount, payout.currency),
+        status:
+          payout.status === 'in_transit'
+            ? 'In Transit'
+            : payout.status === 'failed'
+              ? 'Failed'
+              : 'Paid',
+        statusTone:
+          payout.status === 'paid' ? 'success' : payout.status === 'failed' ? 'danger' : 'info',
+      })),
+    [payouts],
+  );
 
   if (!hostId) {
     return (
@@ -607,76 +518,6 @@ export default function HostFinancePageClient() {
     );
   }
 
-  const balanceRows: FinanceRow[] = [
-    { label: 'Available', value: balanceLoading ? '...' : fmt(balance.available) },
-    {
-      label: 'Pending',
-      value: balanceLoading ? '...' : fmt(balance.pending),
-      helpLabel: 'Funds settling from recent events.',
-    },
-    {
-      label: 'Instant Available',
-      value: balanceLoading ? '...' : fmt(balance.instantAvailable),
-      helpLabel: 'Eligible for instant transfer.',
-    },
-  ];
-
-  const settingsRows: FinanceSettingRow[] = [
-    { label: 'Country', value: 'India' },
-    { label: 'Currency', value: settings.currency },
-    { label: 'Statement Descriptor', value: settings.statementDescriptor },
-    {
-      label: 'Payout Schedule',
-      value: (
-        <span className="inline-flex items-center gap-3">
-          <span
-            className="inline-flex items-center gap-2 rounded-[14px] px-3 py-2"
-            style={{
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.08)',
-            }}
-          >
-            {settings.dailyPayouts ? 'Daily' : 'Weekly'} <ChevronDown size={14} />
-          </span>
-          <Toggle
-            on={settings.dailyPayouts}
-            onChange={(value) => setSettings((prev) => ({ ...prev, dailyPayouts: value }))}
-          />
-        </span>
-      ),
-    },
-  ];
-
-  const bankAccounts: FinanceBankAccount[] = accountsLoading
-    ? []
-    : accounts.map((account) => ({
-        id: account.id,
-        name:
-          account.paymentType === 'debit_card'
-            ? `${account.bankName} Debit Card`
-            : account.bankName,
-        detail: `${account.paymentType === 'debit_card' ? 'Card' : 'Account'} •••• ${account.last4}`,
-        badge: account.isDefault ? 'Default' : undefined,
-        onClick: () => removeAccount(account.id),
-      }));
-
-  const payoutRows: FinancePayoutRow[] = payouts.map((payout) => ({
-    id: payout.id,
-    date: fmtDate(payout.arrivalDate),
-    detail: payout.eventName
-      ? `${payout.eventName}${payout.eventDate ? ` · ${new Date(payout.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`
-      : payout.description || 'Host settlement',
-    amount: fmt(payout.amount, payout.currency),
-    status:
-      payout.status === 'in_transit'
-        ? 'In Transit'
-        : payout.status === 'failed'
-          ? 'Failed'
-          : 'Paid',
-    statusTone:
-      payout.status === 'paid' ? 'success' : payout.status === 'failed' ? 'danger' : 'info',
-  }));
-
   return (
     <div className="mx-auto max-w-[1280px]">
       <div className="mb-5 flex items-center justify-between">
@@ -694,8 +535,6 @@ export default function HostFinancePageClient() {
         settingsRows={settingsRows}
         bankAccounts={bankAccounts}
         payouts={payoutRows}
-        balanceActionLabel="Transfer Balance"
-        onBalanceAction={() => setShowPayoutModal(true)}
         onRefresh={handleRefreshAll}
         refreshing={payoutsLoading || balanceLoading}
         lastUpdatedLabel={
@@ -762,22 +601,11 @@ export default function HostFinancePageClient() {
       />
 
       <AnimatePresence>
-        {showPayoutModal ? (
-          <InitiatePayoutModal
-            available={balance.available}
-            currency={settings.currency}
-            onClose={() => setShowPayoutModal(false)}
-            instantFeeRate={instantFeeRate}
-          />
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
         {showAddBankModal ? (
           <AddBankModal
             hostId={hostId}
             onClose={() => setShowAddBankModal(false)}
-            onAdded={fetchAccounts}
+            onAdded={() => void accountsQuery.refetch()}
             getAuthHeaders={getAuthHeaders}
           />
         ) : null}

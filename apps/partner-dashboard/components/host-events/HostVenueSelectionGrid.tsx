@@ -34,18 +34,20 @@ export function HostVenueSelectionGrid() {
 
     async function fetchPartnerships() {
       try {
-        const res = await authedFetch(`/api/discovery?action=list&partnerId=${hostId}&role=host`);
+        const res = await authedFetch(
+          `/api/partners/hosts/partnerships?hostId=${encodeURIComponent(hostId)}&status=active`,
+        );
         if (!res.ok) throw new Error('Failed to fetch');
         const data = await res.json();
-        const connections: any[] = data.connections || [];
-        const active = connections
-          .filter((c: any) => c.type === 'partnership' && c.status === 'active')
+        const canonicalPartnerships: any[] = data.partnerships || data.partners || [];
+        const active = canonicalPartnerships
+          .filter((partnership: any) => partnership.status === 'active')
           .map((c: any) => ({
             id: c.id,
-            venueId: c.venueId || c.otherId,
-            venueName: c.venueName || c.otherName || 'Partner Venue',
+            venueId: c.venueId,
+            venueName: c.venueName || c.venue?.name || 'Partner Venue',
             venueCity: c.venueCity || c.city || '',
-            venueLogo: c.venueLogo || null,
+            venueLogo: c.venueLogo || c.venue?.logo || null,
           }));
         setPartnerships(active);
       } catch (err) {

@@ -135,28 +135,28 @@ test('Checkout payment surfaces stay on typed guest API helpers', () => {
   );
   assert.equal(
     checkoutApi.includes("guestBffJson('/checkout/quote'"),
-    true,
-    'checkout API adapter must use the BFF quote route',
+    false,
+    'checkout API adapter must not use a duplicate BFF quote route',
   );
   assert.equal(
     checkoutApi.includes("guestBffJson('/checkout/reserve'"),
-    true,
-    'checkout API adapter must use the BFF reserve route',
+    false,
+    'checkout API adapter must not use a duplicate BFF reserve route',
   );
   assert.equal(
     checkoutApi.includes("guestBffJson('/checkout/initiate'"),
-    true,
-    'checkout API adapter must use the BFF initiate route',
+    false,
+    'checkout API adapter must not use a duplicate BFF initiate route',
   );
   assert.equal(
     checkoutApi.includes("guestBffJson('/checkout/verify'"),
-    true,
-    'checkout API adapter must use the BFF verify route',
+    false,
+    'checkout API adapter must not use a duplicate BFF verify route',
   );
   assert.equal(
     checkoutApi.includes('guestBffJson(`/checkout/recover?${query}`'),
-    true,
-    'checkout API adapter must use the BFF recovery route',
+    false,
+    'checkout API adapter must recover through the canonical order contract',
   );
   assert.equal(
     checkoutApi.includes('guestApi.checkout.calculate'),

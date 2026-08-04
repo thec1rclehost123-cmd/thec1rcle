@@ -5,6 +5,7 @@ import { CheckCheck, RefreshCw, Loader2, BellOff } from 'lucide-react';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { VenuePageShell, VenueActionButton } from '@/components/venue-layout/VenuePageShell';
 import { motion } from 'framer-motion';
+import { getFriendlyNotificationTitle, getFriendlyNotificationMessage } from './NotificationCenter';
 
 interface Notification {
   id: string;
@@ -180,13 +181,11 @@ export function NotificationsPageClient({
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-text-primary truncate">
-                    {n.title || n.type || 'Notification'}
+                    {getFriendlyNotificationTitle(n.type || '', n.title)}
                   </p>
-                  {(n.body || n.message) && (
-                    <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">
-                      {n.body || n.message}
-                    </p>
-                  )}
+                  <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">
+                    {getFriendlyNotificationMessage(n.type || '', n.body, n.message)}
+                  </p>
                 </div>
                 <span className="text-[10px] text-text-placeholder shrink-0 mt-0.5">
                   {timeAgo(n.createdAt)}

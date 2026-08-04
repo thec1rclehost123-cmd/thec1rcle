@@ -12,7 +12,7 @@ import { Alert, Linking, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
-import { API_BASE } from '@/lib/api';
+import { API_BASE, getAuthToken, apiFetch } from '@/lib/api';
 
 export interface PassData {
   orderId: string;
@@ -28,25 +28,60 @@ export interface PassData {
   coverImageUrl?: string;
 }
 
+type NativeWalletResult =
+  | { status: 'ready'; uri: string }
+  | { status: 'ready'; saveUrl: string }
+  | { status: 'unavailable'; code: 'not_configured' | 'not_implemented'; message?: string }
+  | { status: 'error'; message?: string };
+
+async function readDownloadedJson(fileUri: string): Promise<any | null> {
+  try {
+    const body = await FileSystem.readAsStringAsync(fileUri);
+    return JSON.parse(body);
+  } catch {
+    return null;
+  }
+}
+
+async function readResponseJson(response: Response): Promise<any | null> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function isWalletUnavailable(
+  body: any,
+): body is { code: 'not_configured' | 'not_implemented'; message?: string } {
+  return body?.code === 'not_configured' || body?.code === 'not_implemented';
+}
+
 // ─── Download Ticket PDF ────────────────────────────────────────────────────
 
 /**
  * Download a PDF ticket from the backend and save it to the device.
  * Returns the local file URI on success, null on failure.
  */
+async function getAuthHeaders(): Promise<Record<string, string> | undefined> {
+  const token = await getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
+}
+
 export async function downloadTicketPDF(orderId: string): Promise<string | null> {
   try {
     const fileUri = `${FileSystem.cacheDirectory}ticket-${orderId.substring(0, 8)}.pdf`;
 
-    // Check if already downloaded
     const existing = await FileSystem.getInfoAsync(fileUri);
     if (existing.exists) {
       return fileUri;
     }
 
+    const headers = await getAuthHeaders();
     const downloadResult = await FileSystem.downloadAsync(
       `${API_BASE}/api/v1/tickets/download?orderId=${encodeURIComponent(orderId)}`,
       fileUri,
+      headers ? { headers } : undefined,
     );
 
     if (downloadResult.status !== 200) {
@@ -55,7 +90,7 @@ export async function downloadTicketPDF(orderId: string): Promise<string | null>
 
     return downloadResult.uri;
   } catch (error) {
-    console.error('[Wallet] Download error:', error);
+    if (__DEV__) console.error('[Wallet] Download error:', error);
     return null;
   }
 }
@@ -89,7 +124,7 @@ export async function saveTicket(passData: PassData): Promise<boolean> {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     return true;
   } catch (error) {
-    console.error('[Wallet] Save ticket error:', error);
+    if (__DEV__) console.error('[Wallet] Save ticket error:', error);
     Alert.alert('Error', 'Failed to save ticket. Please try again.');
     return false;
   }
@@ -130,7 +165,7 @@ export async function shareTicket(passData: PassData): Promise<boolean> {
 
     return true;
   } catch (error) {
-    console.error('[Wallet] Share ticket error:', error);
+    if (__DEV__) console.error('[Wallet] Share ticket error:', error);
     Alert.alert('Error', 'Failed to share ticket.');
     return false;
   }
@@ -142,51 +177,74 @@ export async function shareTicket(passData: PassData): Promise<boolean> {
  * Generate and add Apple Wallet pass (.pkpass)
  * Requires server-side pass generation with Apple certificates.
  */
-export async function generateAppleWalletPass(passData: PassData): Promise<string | null> {
-  if (Platform.OS !== 'ios') return null;
+async function requestAppleWalletPass(passData: PassData): Promise<NativeWalletResult> {
+  if (Platform.OS !== 'ios')
+    return { status: 'error', message: 'Apple Wallet is only available on iOS.' };
 
   try {
     const fileUri = `${FileSystem.cacheDirectory}pass-${passData.orderId.substring(0, 8)}.pkpass`;
 
+    const headers = await getAuthHeaders();
     const downloadResult = await FileSystem.downloadAsync(
       `${API_BASE}/api/v1/passes/apple?orderId=${encodeURIComponent(passData.orderId)}`,
       fileUri,
+      headers ? { headers } : undefined,
     );
 
     if (downloadResult.status === 200) {
-      return downloadResult.uri;
+      return { status: 'ready', uri: downloadResult.uri };
     }
 
-    // API not yet available — show PDF fallback
-    return null;
+    const body = await readDownloadedJson(downloadResult.uri);
+    if (isWalletUnavailable(body)) {
+      return { status: 'unavailable', code: body.code, message: body.message };
+    }
+    return {
+      status: 'error',
+      message: `Apple Wallet failed with status ${downloadResult.status}.`,
+    };
   } catch (error) {
-    console.error('[Wallet] Apple pass error:', error);
-    return null;
+    if (__DEV__) console.error('[Wallet] Apple pass error:', error);
+    return { status: 'error', message: 'Apple Wallet pass request failed.' };
   }
+}
+
+export async function generateAppleWalletPass(passData: PassData): Promise<string | null> {
+  const result = await requestAppleWalletPass(passData);
+  return result.status === 'ready' && 'uri' in result ? result.uri : null;
 }
 
 /**
  * Generate and add Google Wallet pass
  * Requires server-side JWT generation with Google Wallet credentials.
  */
-export async function generateGoogleWalletPass(passData: PassData): Promise<string | null> {
-  if (Platform.OS !== 'android') return null;
+async function requestGoogleWalletPass(passData: PassData): Promise<NativeWalletResult> {
+  if (Platform.OS !== 'android')
+    return { status: 'error', message: 'Google Wallet is only available on Android.' };
 
   try {
-    const response = await fetch(
-      `${API_BASE}/api/v1/passes/google?orderId=${encodeURIComponent(passData.orderId)}`,
+    const data: any = await apiFetch(
+      `/api/v1/passes/google?orderId=${encodeURIComponent(passData.orderId)}`,
     );
 
-    if (response.ok) {
-      const { saveUrl } = await response.json();
-      return saveUrl;
+    const saveUrl = data?.saveUrl;
+    if (saveUrl) {
+      return { status: 'ready', saveUrl };
     }
 
-    return null;
-  } catch (error) {
-    console.error('[Wallet] Google pass error:', error);
-    return null;
+    return { status: 'error', message: 'Google Wallet save URL was missing.' };
+  } catch (error: any) {
+    if (error?.code === 'not_configured' || error?.code === 'not_implemented') {
+      return { status: 'unavailable', code: error.code, message: error.message };
+    }
+    if (__DEV__) console.error('[Wallet] Google pass error:', error);
+    return { status: 'error', message: 'Google Wallet pass request failed.' };
   }
+}
+
+export async function generateGoogleWalletPass(passData: PassData): Promise<string | null> {
+  const result = await requestGoogleWalletPass(passData);
+  return result.status === 'ready' && 'saveUrl' in result ? result.saveUrl : null;
 }
 
 /**
@@ -198,29 +256,36 @@ export async function addToWallet(passData: PassData): Promise<boolean> {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     if (Platform.OS === 'ios') {
-      const passUrl = await generateAppleWalletPass(passData);
-      if (passUrl) {
-        // .pkpass files auto-open in Apple Wallet
-        await Sharing.shareAsync(passUrl, {
+      const passResult = await requestAppleWalletPass(passData);
+      if (passResult.status === 'ready' && 'uri' in passResult) {
+        await Sharing.shareAsync(passResult.uri, {
           mimeType: 'application/vnd.apple.pkpass',
           UTI: 'com.apple.pkpass',
         });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         return true;
       }
+      if (passResult.status === 'error') {
+        Alert.alert('Apple Wallet', passResult.message || 'Apple Wallet pass is not available.');
+        return false;
+      }
     } else if (Platform.OS === 'android') {
-      const saveUrl = await generateGoogleWalletPass(passData);
-      if (saveUrl) {
-        await Linking.openURL(saveUrl);
+      const passResult = await requestGoogleWalletPass(passData);
+      if (passResult.status === 'ready' && 'saveUrl' in passResult) {
+        await Linking.openURL(passResult.saveUrl);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         return true;
       }
+      if (passResult.status === 'error') {
+        Alert.alert('Google Wallet', passResult.message || 'Google Wallet pass is not available.');
+        return false;
+      }
     }
 
-    // Fallback: download PDF instead
+    // Fallback: only when the backend explicitly says native wallet credentials are unavailable.
     Alert.alert(
       Platform.OS === 'ios' ? 'Apple Wallet' : 'Google Wallet',
-      'Wallet pass generation is coming soon. Would you like to download the ticket as a PDF instead?',
+      'Native wallet credentials are not configured yet. Would you like to download the ticket as a PDF instead?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -232,7 +297,7 @@ export async function addToWallet(passData: PassData): Promise<boolean> {
 
     return false;
   } catch (error) {
-    console.error('[Wallet] Add to wallet error:', error);
+    if (__DEV__) console.error('[Wallet] Add to wallet error:', error);
     Alert.alert('Error', 'Failed to add to wallet.');
     return false;
   }
@@ -276,6 +341,7 @@ export function generatePassPreview(passData: PassData): {
           weekday: 'short',
           month: 'short',
           day: 'numeric',
+          timeZone: 'Asia/Kolkata',
         }),
       },
       { label: 'TIME', value: passData.eventTime },

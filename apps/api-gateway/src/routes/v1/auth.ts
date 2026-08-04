@@ -15,8 +15,7 @@ import {
   getDefaultTabVisibility,
   PROMOTER_COMMISSION_TIERS,
 } from '../../lib/rbac-permissions';
-// @ts-ignore
-import { getGuestUnreadCount } from '@c1rcle/core/guest-wallet-profile-notification-service';
+import { encrypt, decrypt } from '../../lib/encryption';
 
 const SESSION_COOKIE_NAME = '__session';
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 5;
@@ -151,11 +150,15 @@ const HostVerificationSchema = z
     country: z.string().optional(),
   })
   .catchall(z.any()); // Allowed catchall just for host-verification because frontend fields vary, but will use .strict() in standard entities.
-async function getGuestOnboardingRequest(fastify: FastifyInstance, userId: string) {
+async function getGuestOnboardingRequest(
+  fastify: FastifyInstance,
+  userId: string,
+  knownUserData?: Record<string, any> | null,
+) {
   // 1. Direct lookup via onboardingRequestId stored on the user doc
   try {
-    const userDoc = await fastify.db.collection('users').doc(userId).get();
-    const userData = userDoc.data() || {};
+    const userData =
+      knownUserData || (await fastify.db.collection('users').doc(userId).get()).data() || {};
     const requestId = userData.onboardingRequestId;
     if (requestId) {
       const reqDoc = await fastify.db.collection('onboarding_requests').doc(requestId).get();
@@ -198,15 +201,6 @@ async function getGuestOnboardingRequest(fastify: FastifyInstance, userId: strin
   }
 
   return null;
-}
-
-async function getUnreadNotificationCount(fastify: FastifyInstance, userId: string) {
-  try {
-    return await getGuestUnreadCount(fastify.db, userId);
-  } catch (error) {
-    fastify.log.warn({ userId, error }, 'Unable to load guest unread notification count');
-    return 0;
-  }
 }
 
 function isProduction() {
@@ -277,15 +271,27 @@ function getPasswordResetContinueUrl(explicit?: string, email?: string) {
 }
 
 function encodeState(payload: Record<string, any>) {
-  // base64url is encoding, not encryption. Only use for non-secret data
-  // like redirect URLs. Never put tokens or PII in the state payload.
-  return Buffer.from(JSON.stringify(payload)).toString('base64url');
+  // Encrypt the JSON state payload using AES-256 before base64url encoding
+  // to prevent tampering, eavesdropping, or sensitive parameter exposure in URLs.
+  const json = JSON.stringify(payload);
+  const encrypted = encrypt(json);
+  return Buffer.from(encrypted, 'utf8').toString('base64url');
 }
 
 function decodeState(value?: string) {
   if (!value) return {};
   try {
-    return JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+    const raw = Buffer.from(value, 'base64url').toString('utf8');
+    if (!raw.includes(':')) return {};
+    const decrypted = decrypt(raw);
+    if (decrypted) {
+      try {
+        return JSON.parse(decrypted);
+      } catch {
+        return {};
+      }
+    }
+    return {};
   } catch {
     return {};
   }
@@ -360,7 +366,11 @@ function mapAuthErrorMessage(error: any) {
  * 🛡️ Self-Healing: Ensures a Firestore profile exists for an authenticated user.
  * Prevents "Ghost Users" if registration or OAuth callback fails mid-flow.
  */
-async function ensureProfile(fastify: FastifyInstance, user: any) {
+async function ensureProfile(
+  fastify: FastifyInstance,
+  user: any,
+  knownMemberships?: Array<Record<string, any>>,
+) {
   const userId = user.uid;
   const profileRef = fastify.db.collection('users').doc(userId);
 
@@ -368,25 +378,33 @@ async function ensureProfile(fastify: FastifyInstance, user: any) {
   if (doc.exists) {
     const data = doc.data() || {};
     // Self-heal: if user has active memberships but isApproved or onboardingComplete is false, update them!
-    const memberships = await fastify.db
-      .collection('partner_memberships')
-      .where('uid', '==', userId)
-      .get()
-      .catch(() => null);
+    const memberships = Array.isArray(knownMemberships)
+      ? knownMemberships
+      : await fastify.db
+          .collection('partner_memberships')
+          .where('uid', '==', userId)
+          .get()
+          .then((snapshot) => snapshot.docs.map((entry) => entry.data()))
+          .catch(() => []);
     const hasActiveMembership =
-      memberships &&
-      !memberships.empty &&
-      memberships.docs.some((d: any) => d.data()?.isActive === true);
+      memberships.length > 0 &&
+      memberships.some(
+        (membership: any) => membership?.isActive === true || membership?.status === 'active',
+      );
 
     if (
       hasActiveMembership &&
       (!data.isApproved || !data.onboardingComplete || data.role === 'user')
     ) {
-      const isVenueStaff = memberships.docs.some(
-        (d: any) => d.data()?.partnerType === 'venue' && d.data()?.isActive === true,
+      const isVenueStaff = memberships.some(
+        (membership: any) =>
+          membership?.partnerType === 'venue' &&
+          (membership?.isActive === true || membership?.status === 'active'),
       );
-      const isHostMember = memberships.docs.some(
-        (d: any) => d.data()?.partnerType === 'host' && d.data()?.isActive === true,
+      const isHostMember = memberships.some(
+        (membership: any) =>
+          membership?.partnerType === 'host' &&
+          (membership?.isActive === true || membership?.status === 'active'),
       );
       const updatedRole = isVenueStaff ? 'staff' : isHostMember ? 'host' : data.role || 'user';
 
@@ -432,27 +450,43 @@ async function ensureProfile(fastify: FastifyInstance, user: any) {
   });
 }
 
-async function buildBootstrapForUid(fastify: FastifyInstance, userLike: Record<string, any>) {
+async function optionalWithin<T>(promise: Promise<T>, fallback: T, timeoutMs: number): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timeout = setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } catch {
+    return fallback;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+async function buildBootstrapForUid(
+  fastify: FastifyInstance,
+  userLike: Record<string, any>,
+  memberships: Array<Record<string, any>> = [],
+) {
   const userId = userLike?.uid;
 
-  // We try to fetch the profile. If it's missing, we self-heal.
-  const [profile, onboardingRequestResult, unreadCountResult] = await Promise.allSettled([
-    ensureProfile(fastify, userLike),
-    getGuestOnboardingRequest(fastify, userId),
-    getUnreadNotificationCount(fastify, userId),
-  ]);
-
-  if (profile.status !== 'fulfilled') {
-    // If critical failure, throw
-    throw profile.reason;
-  }
+  // Profile is the only critical read. Notification count has a dedicated
+  // React Query endpoint and must not delay session restoration.
+  const profile = (await ensureProfile(fastify, userLike, memberships)) as Record<string, any>;
+  const shouldLoadOnboarding =
+    Boolean(profile?.onboardingRequestId) || profile?.onboardingComplete !== true;
+  const onboardingRequest = shouldLoadOnboarding
+    ? await optionalWithin(getGuestOnboardingRequest(fastify, userId, profile), null, 1_500)
+    : null;
 
   return buildGuestAuthBootstrap({
     user: userLike,
-    rawProfile: profile.value,
-    onboardingRequest:
-      onboardingRequestResult.status === 'fulfilled' ? onboardingRequestResult.value : null,
-    unreadNotificationCount: unreadCountResult.status === 'fulfilled' ? unreadCountResult.value : 0,
+    rawProfile: profile,
+    onboardingRequest,
+    unreadNotificationCount: 0,
     activeMembership: userLike.activeMembership || null,
   });
 }
@@ -508,7 +542,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       try {
         await fastify.enrichAuthContext(request);
-        const bootstrap = (await buildBootstrapForUid(fastify, request.user)) as any;
+        const bootstrap = (await buildBootstrapForUid(
+          fastify,
+          request.user,
+          request.authContext?.memberships || [],
+        )) as any;
         const activeMembership = (request.user as any)?.activeMembership || null;
         return {
           authenticated: true,
@@ -567,6 +605,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/login',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: LoginSchema })],
     },
     async (request: any, reply) => {
@@ -603,6 +642,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/register',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: RegisterSchema })],
     },
     async (request: any, reply) => {
@@ -610,10 +650,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
         const body = request.body;
         const email = String(body.email).trim().toLowerCase();
         const displayName = body.displayName || 'Member';
+        const e164Phone = body.phone ? toE164(body.phone) : null;
         const userRecord = await fastify.auth.createUser({
           email,
           password: body.password,
           displayName,
+          ...(e164Phone && { phoneNumber: e164Phone }),
         });
 
         const profileDoc = buildGuestProfileCreatePayload(
@@ -662,6 +704,26 @@ export default async function authRoutes(fastify: FastifyInstance) {
   );
 
   fastify.post('/logout', async (request: any, reply) => {
+    const uid = request.user?.uid;
+    if (uid) {
+      try {
+        await fastify.auth.revokeRefreshTokens(uid);
+      } catch (error: any) {
+        request.log.error(
+          { uid, requestId: request.id, error: error?.message || String(error) },
+          'Failed to revoke Firebase refresh tokens during logout',
+        );
+        clearCookie(reply);
+        return reply.status(503).send(
+          buildErrorResponse({
+            code: 'AUTH_LOGOUT_REVOCATION_FAILED',
+            message:
+              'The local session was cleared, but server session revocation must be retried.',
+            requestId: request.id,
+          }),
+        );
+      }
+    }
     clearCookie(reply);
     return { success: true };
   });
@@ -669,6 +731,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/password-reset',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: PasswordResetSchema })],
     },
     async (request: any, reply) => {
@@ -695,6 +758,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/change-password',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ChangePasswordSchema })],
     },
     async (request: any, reply) => {
@@ -743,6 +807,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
               { err, userId },
               'Failed to clear mustChangePassword flag in Firestore',
             );
+            throw err;
           });
 
         if (userRecord.email) {
@@ -767,6 +832,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
               { err, email: userRecord.email },
               'Failed to clear venue_staff mustChangePassword flag in Firestore',
             );
+            throw err;
           }
         }
 
@@ -790,6 +856,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/create-account',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CreateAccountSchema })],
     },
     async (request: any, reply) => {
@@ -887,6 +954,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/check-availability',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CheckAvailabilitySchema })],
     },
     async (request: any, reply) => {
@@ -937,10 +1005,17 @@ export default async function authRoutes(fastify: FastifyInstance) {
   /**
    * POST /api/v1/auth/check-email
    * Check if a specific email exists in the Firebase Auth database.
+   * Rate-limited heavily (5 req/min) to prevent bulk email harvesting / enumeration attacks.
    */
   fastify.post(
     '/check-email',
     {
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: '1 minute',
+        },
+      },
       preHandler: [fastify.validate({ body: CheckEmailSchema })],
     },
     async (request: any, reply) => {
@@ -967,6 +1042,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/google/start',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: GoogleStartQuerySchema })],
     },
     async (request: any, reply) => {
@@ -994,6 +1070,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/google/callback',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: GoogleCallbackQuerySchema })],
     },
     async (request: any, reply) => {
@@ -1141,6 +1218,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/onboarding-progress',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: OnboardingProgressSchema })],
     },
     async (request: any, reply) => {
@@ -1237,6 +1315,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/onboard',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: OnboardSchema })],
     },
     async (request: any, reply) => {
@@ -1289,24 +1368,41 @@ export default async function authRoutes(fastify: FastifyInstance) {
         if (body.role) updateData.onboardingRole = body.role;
         await userRef.set(updateData, { merge: true });
 
-        const requestId = `req_${Date.now()}_${userId.substring(0, 5)}`;
+        const userDoc = await userRef.get();
+        const existingRequestId = String(userDoc.data()?.onboardingRequestId || '');
+        const requestId = existingRequestId || `req_${type}_${userId}`;
+        const requestRef = fastify.db.collection('onboarding_requests').doc(requestId);
+        const existingRequest = await requestRef.get();
+        const existingData = existingRequest.exists ? existingRequest.data() || {} : null;
+        if (existingData?.status === 'approved') {
+          return buildSuccessResponse({ requestId, alreadyApproved: true });
+        }
+        if (existingData) {
+          const historyId = `${requestId}_${Date.now()}`;
+          await fastify.db
+            .collection('onboarding_request_history')
+            .doc(historyId)
+            .set({
+              ...existingData,
+              id: historyId,
+              sourceRequestId: requestId,
+              archivedAt: FieldValue.serverTimestamp(),
+            });
+        }
         // Store the requestId on the user doc so getGuestOnboardingRequest
         // can do a direct lookup instead of a Firestore query (which needs an index).
         await userRef.set({ onboardingRequestId: requestId }, { merge: true });
-        await fastify.db
-          .collection('onboarding_requests')
-          .doc(requestId)
-          .set({
-            id: requestId,
-            uid: userId,
-            type,
-            status: 'pending',
-            data: {
-              ...body,
-            },
-            submittedAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          });
+        await requestRef.set({
+          id: requestId,
+          uid: userId,
+          type,
+          status: 'pending',
+          data: {
+            ...body,
+          },
+          submittedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
 
         return buildSuccessResponse({ requestId });
       } catch (error: any) {
@@ -1327,6 +1423,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/onboard-status',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1373,6 +1470,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/host-verification',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: HostVerificationSchema })],
     },
     async (request: any, reply) => {
@@ -1417,6 +1515,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/partner-context',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -1467,6 +1566,26 @@ export default async function authRoutes(fastify: FastifyInstance) {
       const { partnerType, role, partnerId } = membership;
       const permissions = getPermissionsForRole(partnerType, role);
       const tabVisibility = getDefaultTabVisibility(partnerType, role);
+
+      let isSuspended = false;
+      try {
+        const partnerCollection =
+          partnerType === 'venue' ? 'venues' : partnerType === 'promoter' ? 'promoters' : 'hosts';
+        const partnerSnap = await fastify.db.collection(partnerCollection).doc(partnerId).get();
+        if (partnerSnap.exists) {
+          const partnerData = partnerSnap.data() || {};
+          if (partnerType === 'venue' || partnerType === 'promoter' || partnerType === 'host') {
+            isSuspended = partnerData.status === 'suspended' || partnerData.status === 'disabled';
+          }
+        }
+      } catch (err) {
+        fastify.log.warn(
+          { partnerId, partnerType, err },
+          'partner-context: partner lookup failed during context resolution',
+        );
+        isSuspended = true;
+      }
+
       const context: Record<string, unknown> = {
         partnerId,
         partnerType,
@@ -1474,6 +1593,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         permissions,
         tabVisibility,
         activeMembership: membership,
+        isSuspended,
         ...(partnerType === 'promoter' ? { commissionTiers: PROMOTER_COMMISSION_TIERS } : {}),
       };
       return buildSuccessResponse(context);

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Triggering reload for compiled packages/core/dist changes
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
@@ -364,6 +363,13 @@ async function main() {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptimeSeconds: process.uptime(),
+      environment: {
+        firebaseProjectId:
+          process.env.FIREBASE_PROJECT_ID ||
+          process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ||
+          'c1rcle-staging',
+        nodeEnv: process.env.NODE_ENV || 'development',
+      },
       services: {
         firestore: 'unknown',
         redis: 'unknown',

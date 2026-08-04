@@ -11,7 +11,7 @@ export default function AppWaitlistSection() {
       id="waitlist"
       className="relative flex h-screen items-center justify-center overflow-hidden bg-[#F44A22]"
     >
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-40 mix-blend-overlay" />
+      <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-40 mix-blend-overlay" />
 
       <div className="relative z-10 w-full max-w-4xl px-6 text-center">
         <h2 className="mb-12 text-[12vw] font-black uppercase leading-[0.8] tracking-tighter text-black">

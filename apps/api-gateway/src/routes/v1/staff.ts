@@ -152,6 +152,7 @@ export default async function staffRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/staff-profiles/resolve',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: ResolveQuerySchema })],
     },
     async (request: any, reply) => {
@@ -212,6 +213,7 @@ export default async function staffRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/staff-profiles/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [
         fastify.requireAuth,
         fastify.validate({ params: StaffIdParamSchema, querystring: VenueQuerySchema }),

@@ -34,6 +34,11 @@ export interface SlotRequestInput {
   startTime: string;
   endTime: string;
   notes?: string;
+  eventId?: string;
+  venueName?: string;
+  hostName?: string;
+  timezone?: string;
+  source?: string;
 }
 
 export class SchedulingService {
@@ -62,27 +67,73 @@ export class SchedulingService {
     // Filter and order the date range in Firestore so we only read slots inside
     // the requested window instead of scanning the venue's entire slot history.
     // Requires the composite index (venueId ASC, date ASC) in
-    // firestore.indexes.json; the .catch below degrades gracefully while it builds.
-    const snap = await this.db
-      .collection(SLOTS_COLLECTION)
-      .where('venueId', '==', venueId)
-      .where('date', '>=', startDate)
-      .where('date', '<=', endDate)
-      .orderBy('date', 'asc')
-      .limit(200)
-      .get()
-      .catch((err) => {
+    // firestore.indexes.json. A failed scheduling query must not be converted
+    // into an empty calendar because that advertises unavailable time as open.
+    let docs: FirebaseFirestore.QueryDocumentSnapshot[];
+    try {
+      const snap = await this.db
+        .collection(SLOTS_COLLECTION)
+        .where('venueId', '==', venueId)
+        .where('date', '>=', startDate)
+        .where('date', '<=', endDate)
+        .orderBy('date', 'asc')
+        .limit(200)
+        .get();
+      docs = snap.docs;
+    } catch (err: any) {
+      const message = err?.message ?? String(err);
+      const missingIndex =
+        String(err?.code) === '9' ||
+        String(err?.code) === 'FAILED_PRECONDITION' ||
+        message.includes('requires an index');
+      if (!missingIndex) {
+        this.log.error(
+          { service: 'SchedulingService', method: 'getCalendar', venueId, error: message },
+          'Firestore query failed',
+        );
+        throw schedulingUnavailable();
+      }
+
+      this.log.warn(
+        { service: 'SchedulingService', method: 'getCalendar', venueId },
+        'Composite calendar index unavailable; using bounded fail-closed fallback',
+      );
+      try {
+        const fallback = await this.db
+          .collection(SLOTS_COLLECTION)
+          .where('venueId', '==', venueId)
+          .limit(501)
+          .get();
+        if (fallback.docs.length > 500) {
+          const unavailable = schedulingUnavailable();
+          unavailable.code = 'SCHEDULING_WINDOW_LIMIT_EXCEEDED';
+          throw unavailable;
+        }
+        docs = fallback.docs
+          .filter((doc) => {
+            const date = safeStr(doc.data()?.date || doc.data()?.requestedDate);
+            return date >= startDate && date <= endDate;
+          })
+          .sort((left, right) => {
+            const leftDate = safeStr(left.data()?.date || left.data()?.requestedDate);
+            const rightDate = safeStr(right.data()?.date || right.data()?.requestedDate);
+            return leftDate.localeCompare(rightDate);
+          })
+          .slice(0, 200);
+      } catch (fallbackError: any) {
+        if (fallbackError?.code === 'SCHEDULING_WINDOW_LIMIT_EXCEEDED') throw fallbackError;
         this.log.error(
           {
             service: 'SchedulingService',
             method: 'getCalendar',
             venueId,
-            error: err?.message ?? String(err),
+            error: fallbackError?.message ?? String(fallbackError),
           },
-          'Firestore query failed',
+          'Bounded calendar fallback failed',
         );
-        return { docs: [] as any[] };
-      });
+        throw schedulingUnavailable();
+      }
+    }
 
     const durationMs = Date.now() - startedAt;
     if (durationMs > 200) {
@@ -92,13 +143,13 @@ export class SchedulingService {
           method: 'getCalendar',
           venueId,
           durationMs,
-          resultCount: (snap as any).docs.length,
+          resultCount: docs.length,
         },
         'Slow query detected',
       );
     }
 
-    return (snap as any).docs.map((doc: any) => this.legacyDocToSlot(doc, venueId));
+    return docs.map((doc: any) => this.legacyDocToSlot(doc, venueId));
   }
 
   // ── Slot CRUD ─────────────────────────────────────────────────────────────
@@ -160,7 +211,12 @@ export class SchedulingService {
         if (isExistingFullDayBlock || isInputFullDayBlock) {
           conflict = true;
         } else if (existingStart && existingEnd && input.startTime && input.endTime) {
-          conflict = timesOverlap(input.startTime, input.endTime, existingStart, existingEnd);
+          conflict = schedulingRangesOverlap(
+            input.startTime,
+            input.endTime,
+            existingStart,
+            existingEnd,
+          );
         }
 
         if (conflict) {
@@ -269,7 +325,12 @@ export class SchedulingService {
           if (isCandidateFullDayBlock) {
             conflict = true;
           } else if (candidateStart && candidateEnd && approvalStart && approvalEnd) {
-            conflict = timesOverlap(approvalStart, approvalEnd, candidateStart, candidateEnd);
+            conflict = schedulingRangesOverlap(
+              approvalStart,
+              approvalEnd,
+              candidateStart,
+              candidateEnd,
+            );
           }
 
           if (conflict) {
@@ -323,25 +384,30 @@ export class SchedulingService {
   async getPendingRequests(venueId: string): Promise<VenueSlot[]> {
     const startedAt = Date.now();
 
-    const snap = await this.db
-      .collection(SLOTS_COLLECTION)
-      .where('venueId', '==', venueId)
-      .where('status', 'in', ['pending', 'requested'])
-      .orderBy('date', 'asc')
-      .limit(100)
-      .get()
-      .catch((err) => {
-        this.log.error(
-          {
-            service: 'SchedulingService',
-            method: 'getPendingRequests',
-            venueId,
-            error: err?.message ?? String(err),
-          },
-          'Firestore query failed',
-        );
-        return { docs: [] };
-      });
+    let snap: FirebaseFirestore.QuerySnapshot;
+    try {
+      snap = await this.db
+        .collection(SLOTS_COLLECTION)
+        .where('venueId', '==', venueId)
+        .where('status', 'in', ['pending', 'requested'])
+        .orderBy('date', 'asc')
+        .limit(100)
+        .get();
+    } catch (err: any) {
+      this.log.error(
+        {
+          service: 'SchedulingService',
+          method: 'getPendingRequests',
+          venueId,
+          error: err?.message ?? String(err),
+        },
+        'Firestore query failed',
+      );
+      const unavailable: any = new Error('Venue slot requests are temporarily unavailable');
+      unavailable.statusCode = 503;
+      unavailable.code = 'SCHEDULING_DATA_UNAVAILABLE';
+      throw unavailable;
+    }
 
     const durationMs = Date.now() - startedAt;
     if (durationMs > 200) {
@@ -357,78 +423,14 @@ export class SchedulingService {
   }
 
   async requestSlot(ctx: PartnerContext, input: SlotRequestInput): Promise<VenueSlot> {
-    const now = new Date();
-    let newSlotId: string | null = null;
+    const slotsCollection = this.db.collection(SLOTS_COLLECTION);
+    const slotRef = input.eventId ? slotsCollection.doc(input.eventId) : slotsCollection.doc();
+    const newSlotId = slotRef.id;
 
     // P0-4: Wrap conflict check + write in a Firestore transaction to prevent
     // TOCTOU race condition that allows double-bookings.
     await this.db.runTransaction(async (txn) => {
-      const conflictSnap = await txn.get(
-        this.db
-          .collection(SLOTS_COLLECTION)
-          .where('venueId', '==', input.venueId)
-          .where('date', '==', input.date)
-          .limit(100),
-      );
-
-      for (const doc of conflictSnap.docs) {
-        const d = doc.data() as Record<string, any>;
-        const status = normalizeLegacyStatus(safeStr(d.status || d.slotStatus || 'open'));
-        if (!['requested', 'approved', 'occupied', 'blocked'].includes(status)) continue;
-
-        const existingStart = d.requestedStartTime || d.startTime || null;
-        const existingEnd = d.requestedEndTime || d.endTime || null;
-
-        const isExistingFullDayBlock = status === 'blocked' && (!existingStart || !existingEnd);
-
-        let conflict = false;
-        if (isExistingFullDayBlock) {
-          conflict = true;
-        } else if (existingStart && existingEnd && input.startTime && input.endTime) {
-          conflict = timesOverlap(input.startTime, input.endTime, existingStart, existingEnd);
-        }
-
-        if (conflict) {
-          this.log.warn(
-            {
-              service: 'SchedulingService',
-              method: 'requestSlot',
-              venueId: input.venueId,
-              date: input.date,
-              conflictSlotId: doc.id,
-            },
-            'Slot conflict detected — rejecting request',
-          );
-          const err: any = new Error(
-            'Time slot conflict: another event is already scheduled at this time',
-          );
-          err.statusCode = 409;
-          err.code = 'SLOT_CONFLICT';
-          throw err;
-        }
-      }
-
-      const ref = this.db.collection(SLOTS_COLLECTION).doc();
-      newSlotId = ref.id;
-      txn.set(ref, {
-        venueId: input.venueId,
-        date: input.date,
-        startTime: input.startTime,
-        endTime: input.endTime,
-        requestedDate: input.date,
-        requestedStartTime: input.startTime,
-        requestedEndTime: input.endTime,
-        status: 'pending',
-        requestedBy: ctx.partnerId,
-        hostId: ctx.partnerId,
-        approvedBy: null,
-        eventId: null,
-        notes: input.notes ?? null,
-        isActive: true,
-        source: 'partner_request',
-        createdAt: now,
-        updatedAt: now,
-      });
+      await this.requestSlotInTransaction(txn as any, ctx, input, slotRef as any);
     });
 
     this.log.info(
@@ -444,6 +446,114 @@ export class SchedulingService {
 
     const doc = await this.db.collection(SLOTS_COLLECTION).doc(newSlotId!).get();
     return this.legacyDocToSlot(doc as any, input.venueId);
+  }
+
+  async requestSlotInTransaction(
+    txn: FirebaseFirestore.Transaction,
+    ctx: PartnerContext,
+    input: SlotRequestInput,
+    providedRef?: FirebaseFirestore.DocumentReference,
+  ): Promise<string> {
+    const now = new Date();
+    const slotsCollection = this.db.collection(SLOTS_COLLECTION);
+    const ref =
+      providedRef ?? (input.eventId ? slotsCollection.doc(input.eventId) : slotsCollection.doc());
+    const existingDoc = await txn.get(ref);
+    const conflictSnap = await txn.get(
+      this.db
+        .collection(SLOTS_COLLECTION)
+        .where('venueId', '==', input.venueId)
+        .where('date', '==', input.date)
+        .limit(100),
+    );
+
+    if (existingDoc.exists) {
+      const existing = existingDoc.data() as Record<string, any>;
+      const existingEventId = safeStr(existing.eventId);
+      if (!input.eventId || existingEventId !== input.eventId) {
+        const err: any = new Error('Slot idempotency conflict');
+        err.statusCode = 409;
+        err.code = 'SLOT_IDEMPOTENCY_CONFLICT';
+        throw err;
+      }
+      const existingStatus = normalizeLegacyStatus(
+        safeStr(existing.status || existing.slotStatus || 'open'),
+      );
+      if (['approved', 'occupied'].includes(existingStatus)) {
+        const err: any = new Error('The event slot is already approved');
+        err.statusCode = 409;
+        err.code = 'SLOT_ALREADY_APPROVED';
+        throw err;
+      }
+    }
+
+    for (const doc of conflictSnap.docs) {
+      if (doc.id === ref.id) continue;
+      const d = doc.data() as Record<string, any>;
+      const status = normalizeLegacyStatus(safeStr(d.status || d.slotStatus || 'open'));
+      if (!['requested', 'approved', 'occupied', 'blocked'].includes(status)) continue;
+
+      const existingStart = d.requestedStartTime || d.startTime || null;
+      const existingEnd = d.requestedEndTime || d.endTime || null;
+      const isExistingFullDayBlock = status === 'blocked' && (!existingStart || !existingEnd);
+      const conflict =
+        isExistingFullDayBlock ||
+        (existingStart &&
+          existingEnd &&
+          input.startTime &&
+          input.endTime &&
+          schedulingRangesOverlap(input.startTime, input.endTime, existingStart, existingEnd));
+
+      if (conflict) {
+        this.log.warn(
+          {
+            service: 'SchedulingService',
+            method: 'requestSlot',
+            venueId: input.venueId,
+            date: input.date,
+            conflictSlotId: doc.id,
+          },
+          'Slot conflict detected — rejecting request',
+        );
+        const err: any = new Error(
+          'Time slot conflict: another event is already scheduled at this time',
+        );
+        err.statusCode = 409;
+        err.code = 'SLOT_CONFLICT';
+        throw err;
+      }
+    }
+
+    const existingData = existingDoc.exists ? (existingDoc.data() as Record<string, any>) : {};
+    const record = {
+      venueId: input.venueId,
+      venueName: input.venueName ?? existingData.venueName ?? null,
+      timezone: input.timezone ?? existingData.timezone ?? null,
+      date: input.date,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      requestedDate: input.date,
+      requestedStartTime: input.startTime,
+      requestedEndTime: input.endTime,
+      status: 'pending',
+      requestedBy: ctx.partnerId,
+      hostId: ctx.partnerId,
+      hostName: input.hostName ?? existingData.hostName ?? null,
+      approvedBy: null,
+      eventId: input.eventId ?? null,
+      notes: input.notes ?? null,
+      isActive: true,
+      source: input.source ?? (input.eventId ? 'host_event_request' : 'partner_request'),
+      createdAt: existingData.createdAt ?? now,
+      updatedAt: now,
+    };
+
+    if (existingDoc.exists) {
+      txn.set(ref, record, { merge: true });
+    } else {
+      txn.create(ref, record);
+    }
+    return ref.id;
   }
 
   async approveRequest(
@@ -515,8 +625,32 @@ export class SchedulingService {
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 
-function timesOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
-  return startA < endB && endA > startB;
+function schedulingUnavailable() {
+  const unavailable: any = new Error('Venue scheduling data is temporarily unavailable');
+  unavailable.statusCode = 503;
+  unavailable.code = 'SCHEDULING_DATA_UNAVAILABLE';
+  return unavailable;
+}
+
+function toNightlifeMinutes(value: string): number {
+  const [hour, minute] = value.split(':').map(Number);
+  const minutes = hour * 60 + minute;
+  return hour < 12 ? minutes + 24 * 60 : minutes;
+}
+
+export function schedulingRangesOverlap(
+  startA: string,
+  endA: string,
+  startB: string,
+  endB: string,
+): boolean {
+  const normalizedStartA = toNightlifeMinutes(startA);
+  let normalizedEndA = toNightlifeMinutes(endA);
+  const normalizedStartB = toNightlifeMinutes(startB);
+  let normalizedEndB = toNightlifeMinutes(endB);
+  if (normalizedEndA <= normalizedStartA) normalizedEndA += 24 * 60;
+  if (normalizedEndB <= normalizedStartB) normalizedEndB += 24 * 60;
+  return normalizedStartA < normalizedEndB && normalizedStartB < normalizedEndA;
 }
 
 function normalizeLegacyStatus(raw: string): SlotStatus {

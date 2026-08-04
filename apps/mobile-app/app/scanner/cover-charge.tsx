@@ -24,12 +24,12 @@ import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-ca
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
-import Constants from 'expo-constants';
 import { randomUUID } from 'expo-crypto';
 import { useScannerStore } from '@/store/scannerStore';
-import { fetchWalletByOrder, submitDebit } from '@/lib/scanner';
+import { fetchWalletByPaymentQr, submitDebit } from '@/lib/scanner';
 import { WalletContext, PresetItem } from '@/lib/scanner/types';
 import { PresetGrid } from '@/components/scanner/PresetGrid';
+import { CoverDeductionOverlay } from '@/components/scanner/CoverDeductionOverlay';
 import { colors } from '@/lib/design/theme';
 
 type ChargeState =
@@ -41,13 +41,10 @@ type ChargeState =
   | 'SUCCESS'
   | 'DEBIT_ERROR';
 
+type NoInfer<T> = [T][T extends any ? 0 : never];
+
 function formatPaiseCurrency(paise: number): string {
   return `₹${Math.round(paise / 100)}`;
-}
-
-function getDeviceId(): string {
-  const installId = (Constants as any).installationId || 'device';
-  return `${Constants.platform?.os || 'mobile'}-${installId}`.substring(0, 40);
 }
 
 export default function CoverChargeScreen() {
@@ -63,7 +60,8 @@ export default function CoverChargeScreen() {
   } | null>(null);
   const [isOffline, setIsOffline] = useState(false);
 
-  const { eventData, sessionToken } = useScannerStore();
+  const eventData = useScannerStore((state) => state.eventData);
+  const sessionToken = useScannerStore((state) => state.sessionToken);
   const mountedRef = useRef(true);
   const lastScannedRef = useRef<string | null>(null);
   // H12: idempotencyKey — generated once per item selection, never regenerated on retry
@@ -106,22 +104,6 @@ export default function CoverChargeScreen() {
         return;
       }
 
-      let orderId: string | null = null;
-      try {
-        const parsed = JSON.parse(data);
-        orderId = parsed.o || parsed.orderId || null;
-      } catch {
-        safeSetState(setErrorMessage, 'Invalid QR code — not a C1rcle ticket.');
-        safeSetState(setChargeState, 'DEBIT_ERROR');
-        return;
-      }
-
-      if (!orderId) {
-        safeSetState(setErrorMessage, 'QR code does not contain an order ID.');
-        safeSetState(setChargeState, 'DEBIT_ERROR');
-        return;
-      }
-
       const token = sessionToken || eventData?.sessionToken;
       if (!token) {
         safeSetState(setErrorMessage, 'Scanner session expired. Please re-enter the event code.');
@@ -129,7 +111,12 @@ export default function CoverChargeScreen() {
         return;
       }
 
-      const result = await fetchWalletByOrder(orderId, token);
+      const result = await fetchWalletByPaymentQr(data, token, {
+        eventId: eventData?.event.id,
+        eventCode: eventData?.code,
+        venueId: eventData?.event.venueId,
+        gate: eventData?.gate,
+      });
       if (!mountedRef.current) return;
 
       if ('error' in result) {
@@ -142,7 +129,16 @@ export default function CoverChargeScreen() {
       safeSetState(setChargeState, 'WALLET_LOADED');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
-    [chargeState, isOffline, sessionToken, eventData?.sessionToken],
+    [
+      chargeState,
+      isOffline,
+      sessionToken,
+      eventData?.sessionToken,
+      eventData?.event.id,
+      eventData?.event.venueId,
+      eventData?.code,
+      eventData?.gate,
+    ],
   );
 
   const handleItemSelect = (item: PresetItem) => {
@@ -169,20 +165,12 @@ export default function CoverChargeScreen() {
     safeSetState(setChargeState, 'SUBMITTING');
 
     const token = sessionToken || eventData?.sessionToken || '';
-    const codeId = eventData?.codeId || 'scanner';
-
     const result = await submitDebit(
       {
         walletId: wallet.id,
         presetItemId: selectedItem.id,
         quantity: 1,
         idempotencyKey: idempotencyKeyRef.current,
-        operatorId: codeId,
-        operatorName: 'Scanner',
-        operatorRole: 'door_staff',
-        deviceId: getDeviceId(),
-        eventCodeId: codeId,
-        isOnline: true,
       },
       token,
     );
@@ -246,6 +234,8 @@ export default function CoverChargeScreen() {
     lastScannedRef.current = null;
     safeSetState(setChargeState, 'IDLE');
   };
+
+  const activeSessionToken = sessionToken || eventData?.sessionToken || '';
 
   if (!permission) {
     return (
@@ -374,6 +364,15 @@ export default function CoverChargeScreen() {
           </Pressable>
         </SafeAreaView>
       )}
+
+      {chargeState === 'WALLET_LOADED' && wallet && activeSessionToken ? (
+        <CoverDeductionOverlay
+          wallet={wallet}
+          sessionToken={activeSessionToken}
+          onSuccess={() => handleNewGuest()}
+          onDismiss={() => handleNewGuest()}
+        />
+      ) : null}
 
       {/* CONFIRM_DEBIT */}
       {chargeState === 'CONFIRM_DEBIT' && wallet && selectedItem && (

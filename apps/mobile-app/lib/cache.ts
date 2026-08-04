@@ -43,7 +43,7 @@ export async function cacheData<T>(key: string, data: T, ttl: number = EVENTS_TT
     };
     await AsyncStorage.setItem(key, JSON.stringify(entry));
   } catch (error) {
-    console.warn('[Cache] Error caching data:', error);
+    if (__DEV__) console.warn('[Cache] Error caching data:', error);
   }
 }
 
@@ -60,11 +60,14 @@ export async function getCachedData<T>(
 
     const parsed: CachedData<T> = JSON.parse(raw);
     const age = Date.now() - parsed.timestamp;
-    const isStale = age > (parsed.ttl || maxAge);
+    // A cache entry is no longer fresh at the exact TTL boundary. Using `>`
+    // creates an extra millisecond of undocumented validity and makes short-TTL
+    // behavior dependent on scheduler timing.
+    const isStale = age >= (parsed.ttl || maxAge);
 
     return { data: parsed.data, isStale };
   } catch (error) {
-    console.warn('[Cache] Error getting cached data:', error);
+    if (__DEV__) console.warn('[Cache] Error getting cached data:', error);
     return { data: null, isStale: true };
   }
 }
@@ -87,7 +90,7 @@ export async function clearAllCaches(): Promise<void> {
       await AsyncStorage.multiRemove(cacheKeys);
     }
   } catch (error) {
-    console.warn('[Cache] Error clearing all caches:', error);
+    if (__DEV__) console.warn('[Cache] Error clearing all caches:', error);
   }
 }
 
@@ -115,15 +118,19 @@ export async function getCachedFeaturedEvents(): Promise<{
   return getCachedData<any[]>(CACHE_KEYS.featuredEvents, EVENTS_TTL);
 }
 
-export async function cacheUserOrders(orders: any[]): Promise<void> {
-  await cacheData(CACHE_KEYS.userOrders, orders, EVENTS_TTL);
+function getUserOrdersCacheKey(userId: string): string {
+  return `${CACHE_KEYS.userOrders}:${encodeURIComponent(userId)}`;
 }
 
-export async function getCachedUserOrders(): Promise<{
+export async function cacheUserOrders(userId: string, orders: any[]): Promise<void> {
+  await cacheData(getUserOrdersCacheKey(userId), orders, EVENTS_TTL);
+}
+
+export async function getCachedUserOrders(userId: string): Promise<{
   data: any[] | null;
   isStale: boolean;
 }> {
-  return getCachedData<any[]>(CACHE_KEYS.userOrders, EVENTS_TTL);
+  return getCachedData<any[]>(getUserOrdersCacheKey(userId), EVENTS_TTL);
 }
 
 export async function hasOfflineData(): Promise<boolean> {
@@ -220,6 +227,6 @@ async function revalidateInBackground<T>(
     await cacheData(key, freshData, ttl);
   } catch (error) {
     // Silent — we already have stale data showing
-    console.warn('[Cache] Background revalidation failed:', key);
+    if (__DEV__) console.warn('[Cache] Background revalidation failed:', key);
   }
 }

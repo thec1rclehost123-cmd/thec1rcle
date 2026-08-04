@@ -8,5 +8,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
   const { searchParams } = new URL(req.url);
   searchParams.set('venueId', ctx.venueId);
-  return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/finance/cover-recon?${searchParams}`, {});
+  return proxyToGateway(
+    req,
+    `${GATEWAY_URL}/api/v1/partners/venues/finance/cover-recon?${searchParams}`,
+    {},
+  );
 }

@@ -318,9 +318,55 @@ export class PromoterServiceV2 {
       })
       .slice(0, limit);
 
-    const eventMap = await this.loadEventsByIds(docs.map((doc) => String(doc.eventId || '')));
+    const [eventMap, ledgerSnapshot] = await Promise.all([
+      this.loadEventsByIds(docs.map((doc) => String(doc.eventId || ''))),
+      this.db.collection('partner_ledger').where('promoterId', '==', context.promoterId).get(),
+    ]);
+    const financeByLink = new Map<
+      string,
+      {
+        orderIds: Set<string>;
+        refundIds: Set<string>;
+        revenuePaise: number;
+        commissionPaise: number;
+      }
+    >();
+    for (const ledgerDocument of ledgerSnapshot.docs) {
+      const entry = ledgerDocument.data() as Record<string, any>;
+      if (
+        entry.status === 'reversed' ||
+        !entry.promoterLinkId ||
+        !['ticket_revenue', 'promoter_commission', 'refund'].includes(entry.type)
+      ) {
+        continue;
+      }
+      const finance = financeByLink.get(entry.promoterLinkId) || {
+        orderIds: new Set<string>(),
+        refundIds: new Set<string>(),
+        revenuePaise: 0,
+        commissionPaise: 0,
+      };
+      if (entry.type === 'ticket_revenue') {
+        if (!finance.orderIds.has(entry.orderId)) {
+          finance.orderIds.add(entry.orderId);
+          finance.revenuePaise += Number(entry.amountPaise || 0);
+        }
+      } else if (entry.type === 'promoter_commission') {
+        finance.commissionPaise += Number(entry.amountPaise || 0);
+      } else {
+        if (!finance.refundIds.has(entry.refundId)) {
+          finance.refundIds.add(entry.refundId);
+          finance.revenuePaise -= Number(entry.refundGrossPaise || 0);
+        }
+        if (entry.allocationType === 'promoter_commission') {
+          finance.commissionPaise += Number(entry.amountPaise || 0);
+        }
+      }
+      financeByLink.set(entry.promoterLinkId, finance);
+    }
     const items = docs.map((doc) => {
       const event = eventMap.get(String(doc.eventId || '')) || {};
+      const finance = financeByLink.get(String(doc.id));
       return {
         id: String(doc.id),
         code: pickString(doc.code),
@@ -338,9 +384,11 @@ export class PromoterServiceV2 {
         isActive:
           doc.isActive !== false && String(doc.status || '').toLowerCase() !== 'deactivated',
         clicks: toNumber(doc.clicks),
-        conversions: toNumber(doc.conversions),
-        revenue: toNumber(doc.revenue),
-        commission: toNumber(doc.commission),
+        conversions: finance?.orderIds.size || 0,
+        revenue: Number(finance?.revenuePaise || 0) / 100,
+        revenuePaise: Number(finance?.revenuePaise || 0),
+        commission: Number(finance?.commissionPaise || 0) / 100,
+        commissionPaise: Number(finance?.commissionPaise || 0),
         commissionRate: toNumber(doc.commissionRate),
         commissionType: pickString(doc.commissionType, 'percentage'),
         createdAt: toIso(doc.createdAt),
@@ -654,19 +702,7 @@ export class PromoterServiceV2 {
   }
 
   private async loadCommissionRows(promoterId: string, eventId?: string, limit = 200) {
-    const commissionRows = await this.loadCommissionCollectionRows(promoterId, eventId, limit);
-    if (commissionRows.length > 0) return commissionRows;
-
-    // partner_ledger is canonical — check before legacy promoter_ledger
-    const partnerLedgerRows = await this.loadPartnerLedgerRows(promoterId, eventId, limit);
-    if (partnerLedgerRows.length > 0) return partnerLedgerRows;
-
-    // promoter_ledger: historical fallback for entries created before migration
-    const ledgerRows = await this.loadLegacyLedgerRows(promoterId, eventId, limit);
-    if (ledgerRows.length > 0) return ledgerRows;
-
-    // promoter_assignments: oldest fallback — event-level aggregates only
-    return this.loadAssignmentRows(promoterId, eventId, limit);
+    return this.loadPartnerLedgerRows(promoterId, eventId, limit);
   }
 
   private async loadPartnerLedgerRows(promoterId: string, eventId?: string, limit = 200) {
@@ -698,8 +734,10 @@ export class PromoterServiceV2 {
           buyerName: maskName(
             pickString(order.guestName, order.buyerName, order.userName, 'Guest'),
           ),
-          amount: toNumber(row.amount),
-          revenue: toNumber(order.totalAmount || order.amount || 0),
+          amount: toNumber(row.amountPaise) / 100,
+          amountPaise: toNumber(row.amountPaise),
+          revenue: toNumber(row.grossPaise) / 100,
+          revenuePaise: toNumber(row.grossPaise),
           ticketsSold: Array.isArray(order.tickets)
             ? order.tickets.reduce((s: number, t: any) => s + toNumber(t?.quantity || 1), 0)
             : toNumber(order.quantity || 1),
@@ -711,147 +749,6 @@ export class PromoterServiceV2 {
           currency: 'INR',
         };
       });
-  }
-
-  private async loadCommissionCollectionRows(promoterId: string, eventId?: string, limit = 200) {
-    let query: Query = this.db
-      .collection('promoter_commissions')
-      .where('promoterId', '==', promoterId);
-    if (eventId) {
-      query = query.where('eventId', '==', String(eventId));
-    }
-
-    const snapshot = await safeOrderedQuery(query, limit);
-    const rows = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) })) as any[];
-    const orderMap = await this.loadOrdersByIds(rows.map((row) => String(row.orderId || '')));
-    const eventMap = await this.loadEventsByIds(rows.map((row) => String(row.eventId || '')));
-
-    return rows
-      .sort((left, right) => {
-        const leftTime = toDate(left.createdAt)?.getTime() || 0;
-        const rightTime = toDate(right.createdAt)?.getTime() || 0;
-        return rightTime - leftTime;
-      })
-      .slice(0, limit)
-      .map((row) => {
-        const order = orderMap.get(String(row.orderId || '')) || {};
-        const event = eventMap.get(String(row.eventId || '')) || {};
-        return {
-          id: String(row.id),
-          source: 'promoter_commissions',
-          orderId: pickString(row.orderId),
-          eventId: pickString(row.eventId),
-          eventName: pickString(event.title, event.name, row.eventName, 'Event'),
-          buyerName: maskName(
-            pickString(order.guestName, order.buyerName, order.userName, row.buyerName, 'Guest'),
-          ),
-          amount: toNumber(row.commissionAmount),
-          revenue: toNumber(row.orderAmount),
-          ticketsSold: 1,
-          commissionRate: toNumber(row.commissionRate),
-          linkCode: pickString(row.linkCode, row.code),
-          status: String(row.status || 'pending').toLowerCase(),
-          date: toIso(row.createdAt),
-          settledAt: toIso(row.updatedAt),
-          currency: 'INR',
-        };
-      });
-  }
-
-  private async loadLegacyLedgerRows(promoterId: string, eventId?: string, limit = 200) {
-    let query: Query = this.db.collection('promoter_ledger').where('promoterId', '==', promoterId);
-    const snapshot = await safeOrderedQuery(query, limit);
-    let rows = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) })) as any[];
-    if (eventId) {
-      rows = rows.filter((row) => String(row.eventId || '') === String(eventId));
-    }
-
-    const orderMap = await this.loadOrdersByIds(rows.map((row) => String(row.orderId || '')));
-    const eventMap = await this.loadEventsByIds(
-      rows.map((row) =>
-        String(row.eventId || orderMap.get(String(row.orderId || ''))?.eventId || ''),
-      ),
-    );
-
-    return rows
-      .sort((left, right) => {
-        const leftTime = toDate(left.createdAt)?.getTime() || 0;
-        const rightTime = toDate(right.createdAt)?.getTime() || 0;
-        return rightTime - leftTime;
-      })
-      .slice(0, limit)
-      .map((row) => {
-        const order = orderMap.get(String(row.orderId || '')) || {};
-        const resolvedEventId = pickString(row.eventId, order.eventId);
-        const event = eventMap.get(resolvedEventId) || {};
-        return {
-          id: String(row.id),
-          source: 'promoter_ledger',
-          orderId: pickString(row.orderId),
-          eventId: resolvedEventId,
-          eventName: pickString(event.title, order.eventTitle, row.eventName, 'Event'),
-          buyerName: maskName(
-            pickString(order.guestName, order.buyerName, order.userName, row.buyerName, 'Guest'),
-          ),
-          amount: toNumber(row.commissionAmount),
-          revenue: toNumber(row.orderAmount || order.totalAmount || order.amount),
-          ticketsSold: Array.isArray(order.tickets)
-            ? order.tickets.reduce(
-                (sum: number, ticket: any) => sum + toNumber(ticket?.quantity || 1),
-                0,
-              )
-            : toNumber(order.quantity || 1),
-          commissionRate: toNumber(
-            row.commissionRate || order?.promoterAttribution?.commissionRate,
-          ),
-          linkCode: pickString(row.promoCode, order.promoterCode),
-          status: isTruthyStatus(row.status, ['paid', 'completed'])
-            ? 'paid'
-            : isTruthyStatus(row.status, ['cleared', 'settled', 'eligible']) ||
-                isTruthyStatus(event.lifecycle || event.status, ['completed', 'ended', 'closed'])
-              ? 'cleared'
-              : 'pending',
-          date: toIso(row.createdAt || order.createdAt),
-          settledAt: toIso(row.settledAt || row.updatedAt || event.updatedAt || event.endDate),
-          currency: 'INR',
-        };
-      });
-  }
-
-  private async loadAssignmentRows(promoterId: string, eventId?: string, limit = 200) {
-    let query: Query = this.db
-      .collection('promoter_assignments')
-      .where('promoterId', '==', promoterId);
-    const snapshot = await safeOrderedQuery(query, limit);
-    let rows = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) })) as any[];
-    if (eventId) {
-      rows = rows.filter((row) => String(row.eventId || '') === String(eventId));
-    }
-
-    return rows
-      .sort((left, right) => {
-        const leftTime = toDate(left.createdAt)?.getTime() || 0;
-        const rightTime = toDate(right.createdAt)?.getTime() || 0;
-        return rightTime - leftTime;
-      })
-      .slice(0, limit)
-      .map((row) => ({
-        id: String(row.id),
-        source: 'promoter_assignments',
-        orderId: null,
-        eventId: pickString(row.eventId),
-        eventName: pickString(row.eventName, row.eventTitle, 'Event'),
-        buyerName: maskName(pickString(row.buyerName, row.guestName, 'Guest')),
-        amount: toNumber(row.totalCommission || row.commissionEarned),
-        revenue: toNumber(row.totalRevenue || row.revenue),
-        ticketsSold: toNumber(row.totalSales || row.ticketsSold),
-        commissionRate: toNumber(row.commissionRate),
-        linkCode: pickString(row.linkCode, row.code),
-        status: String(row.commissionStatus || row.status || 'pending').toLowerCase(),
-        date: toIso(row.createdAt),
-        settledAt: toIso(row.settledAt || row.updatedAt),
-        currency: 'INR',
-      }));
   }
 
   private async loadOrdersByIds(orderIds: string[]) {

@@ -5,12 +5,14 @@ import { useAuth } from '../../../components/providers/AuthProvider';
 import { useAvatarCropper } from './useAvatarCropper';
 
 function buildInitialForm(profile) {
+  const rawPhone = profile?.phoneNumber || profile?.phone || '';
+  const cleanPhone = rawPhone.replace(/\D/g, '').replace(/^91/, '').slice(0, 10);
   return {
     city: profile?.city || '',
     displayName: profile?.displayName || '',
     gender: profile?.gender || '',
     instagram: profile?.instagram || '',
-    phoneNumber: profile?.phoneNumber || '',
+    phoneNumber: cleanPhone,
     photoURL: profile?.photoURL || profile?.avatar || '',
   };
 }

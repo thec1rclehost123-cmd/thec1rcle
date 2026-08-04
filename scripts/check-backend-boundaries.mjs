@@ -7,6 +7,11 @@ const glob = require('glob');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..') + '/';
+const SOURCE_PATTERNS = [
+  'apps/**/*.{ts,tsx,js,jsx,mjs,cjs}',
+  'packages/**/*.{ts,tsx,js,jsx,mjs,cjs}',
+  'functions/**/*.{ts,tsx,js,jsx,mjs,cjs}',
+];
 
 const ALLOWED_PATTERNS = [
   'packages/core/**',
@@ -20,6 +25,7 @@ const ALLOWED_PATTERNS = [
 
 const IGNORE_PATTERNS = [
   '**/node_modules/**',
+  '**/node_modules*/**',
   '**/dist/**',
   '**/.next/**',
   '**/coverage/**',
@@ -54,7 +60,7 @@ function loadExceptions() {
 
 async function findViolations() {
   const exceptions = loadExceptions();
-  const files = glob.sync('**/*.{ts,tsx,js,jsx,mjs,cjs}', {
+  const files = glob.sync(SOURCE_PATTERNS, {
     cwd: ROOT,
     ignore: IGNORE_PATTERNS,
     nodir: true,

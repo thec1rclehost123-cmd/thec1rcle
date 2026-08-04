@@ -44,6 +44,7 @@ import { buildRequestAuthContext, type RequestAuthContext } from '../lib/auth-co
 import { writeAuditLog as persistAuditLog, type AuditLogInput } from '../lib/audit-log';
 import { parseCookieHeader, verifyGuestCsrfRequest } from '../lib/guest-csrf';
 import { PromoterServiceV2 } from '../services/promoter-v2';
+import { revalidateGuestEvent } from '../lib/guest-revalidation';
 
 export default fp(async (fastify) => {
   if (!getApps().length) {
@@ -129,12 +130,12 @@ export default fp(async (fastify) => {
   fastify.decorate('writeAuditLog', (entry: AuditLogInput) => persistAuditLog(fastify, entry));
 
   fastify.decorate('invalidatePublicDiscovery', async (target: any = 'all') => {
-    // @ts-ignore
-    await fastify.sendInngestEvent('discovery/sync', {
+    await fastify.sendInngestEvent(fastify.InngestEvents.PUBLIC_DISCOVERY_SYNC, {
       type: target === 'all' ? 'all' : target,
       id: 'system',
     });
   });
+  fastify.decorate('revalidateGuestEvent', revalidateGuestEvent);
 
   fastify.decorate('enrichAuthContext', async (request: any) => {
     if (request?.user) {
@@ -162,7 +163,19 @@ export default fp(async (fastify) => {
     request.log.info({ durationMs, ...details }, label);
   }
 
+  const membershipCache = new Map<
+    string,
+    { memberships: Array<Record<string, any>>; expiresAt: number }
+  >();
+  const membershipCacheTtlMs = 15_000;
+
   async function loadMemberships(uid: string) {
+    const cached = membershipCache.get(uid);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.memberships;
+    }
+    if (cached) membershipCache.delete(uid);
+
     const startedAt = Date.now();
     const activeQuery = db
       .collection('partner_memberships')
@@ -193,6 +206,14 @@ export default fp(async (fastify) => {
     }
 
     const memberships = finalSnapshot.docs.map((doc) => doc.data());
+    if (membershipCache.size >= 5_000) {
+      const oldestUid = membershipCache.keys().next().value;
+      if (oldestUid) membershipCache.delete(oldestUid);
+    }
+    membershipCache.set(uid, {
+      memberships,
+      expiresAt: Date.now() + membershipCacheTtlMs,
+    });
     const durationMs = Number((Date.now() - startedAt).toFixed(2));
     if (durationMs >= 150) {
       fastify.log.info(
@@ -203,12 +224,32 @@ export default fp(async (fastify) => {
     return memberships;
   }
 
+  fastify.decorate('invalidateAuthMembershipCache', (uid?: string) => {
+    if (uid) {
+      membershipCache.delete(uid);
+      return;
+    }
+    membershipCache.clear();
+  });
+
   function applyRequestAuth(
     request: any,
     user: Record<string, any>,
     memberships: Array<Record<string, any>> = [],
   ) {
-    const authContext = buildRequestAuthContext(user, memberships);
+    const verification = request.authVerification || {};
+    const authContext = buildRequestAuthContext(user, memberships, {
+      credentialKind:
+        verification.tokenSource === 'bearer'
+          ? 'id_token'
+          : verification.tokenSource === 'session_cookie'
+            ? 'session_cookie'
+            : verification.tokenSource === 'internal_key'
+              ? 'internal_key'
+              : null,
+      revokedChecked: verification.revokedChecked === true,
+      disabledChecked: verification.disabledChecked === true,
+    });
     request.user = {
       ...user,
       activeMembership: authContext.activeMembership || user.activeMembership || null,
@@ -250,18 +291,55 @@ export default fp(async (fastify) => {
     const authHeader = request.headers.authorization;
     const cookies = parseCookieHeader(request.headers.cookie);
     const sessionCookie = cookies.__session;
-    const tokenSource = authHeader?.startsWith('Bearer ')
-      ? 'bearer'
-      : sessionCookie
-        ? 'session_cookie'
-        : null;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : sessionCookie;
+    const bearerToken = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length).trim()
+      : null;
+
+    if (authHeader && !authHeader.startsWith('Bearer ')) {
+      return reply.status(401).send({
+        error: 'Unauthorized',
+        code: 'AUTH_CREDENTIAL_MALFORMED',
+        message: 'Authorization header must use the Bearer scheme.',
+      });
+    }
+    if (bearerToken && sessionCookie) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        code: 'AUTH_CREDENTIAL_AMBIGUOUS',
+        message: 'Submit exactly one authentication credential.',
+      });
+    }
+
+    const tokenSource = bearerToken ? 'bearer' : sessionCookie ? 'session_cookie' : null;
+    const token = bearerToken || sessionCookie;
 
     if (!token) return;
 
     // Validate internal system-to-system key before attempting Firebase verification
     const internalKey = process.env.INTERNAL_API_KEY;
     if (internalKey && token === internalKey) {
+      const isDev = process.env.NODE_ENV === 'development';
+      const internalAllowlist = process.env.INTERNAL_IP_ALLOWLIST;
+
+      if (!isDev || internalAllowlist) {
+        const allowedIPs = internalAllowlist
+          ? internalAllowlist
+              .split(',')
+              .map((ip: string) => ip.trim())
+              .filter(Boolean)
+          : [];
+        if (allowedIPs.length === 0 || !allowedIPs.includes(request.ip)) {
+          request.log.error(
+            { ip: request.ip, allowedIPs, requestId: request.id },
+            'SECURITY: System bypass blocked — Request IP not in INTERNAL_IP_ALLOWLIST',
+          );
+          return reply.status(403).send({
+            error: 'Forbidden',
+            message: 'Internal API access not permitted from this location',
+          });
+        }
+      }
+
       // @ts-ignore
       request.user = { uid: 'system', role: 'system', isSystem: true };
       // @ts-ignore
@@ -274,6 +352,8 @@ export default fp(async (fastify) => {
         status: 'valid',
         source: 'internal_key',
         tokenSource: 'internal_key',
+        revokedChecked: true,
+        disabledChecked: true,
       };
       return;
     }
@@ -290,6 +370,8 @@ export default fp(async (fastify) => {
               status: 'valid',
               user: await authService.verifyToken(token),
               source: tokenSource === 'session_cookie' ? 'session_cookie' : 'id_token',
+              revokedChecked: true,
+              disabledChecked: true,
               errorCode: null,
               errorMessage: null,
             };
@@ -330,7 +412,19 @@ export default fp(async (fastify) => {
           },
           'Auth service could not verify token',
         );
-        return reply.status(401).send({ error: 'Unauthorized: Invalid token' });
+        const code =
+          verification.status === 'revoked'
+            ? 'AUTH_TOKEN_REVOKED'
+            : verification.status === 'disabled'
+              ? 'AUTH_ACCOUNT_DISABLED'
+              : verification.status === 'credential_mismatch'
+                ? 'AUTH_CREDENTIAL_MISMATCH'
+                : 'AUTH_TOKEN_INVALID';
+        return reply.status(401).send({
+          error: 'Unauthorized',
+          code,
+          message: 'Authentication credential was rejected.',
+        });
       }
     } catch (error: any) {
       // @ts-ignore
@@ -455,14 +549,17 @@ export default fp(async (fastify) => {
       return reply.status(403).send({ error: 'Forbidden: Admin access required' });
     }
 
-    // IP allowlist — enforced only when the env var is explicitly set
+    // IP allowlist — enforced fail-closed in production/test or if explicitly set
+    const isDev = process.env.NODE_ENV === 'development';
     const allowlist = process.env.ADMIN_IP_ALLOWLIST;
-    if (allowlist) {
+    if (!isDev || allowlist) {
       const allowedIPs = allowlist
-        .split(',')
-        .map((ip: string) => ip.trim())
-        .filter(Boolean);
-      if (allowedIPs.length > 0 && !allowedIPs.includes(request.ip)) {
+        ? allowlist
+            .split(',')
+            .map((ip: string) => ip.trim())
+            .filter(Boolean)
+        : [];
+      if (allowedIPs.length === 0 || !allowedIPs.includes(request.ip)) {
         fastify.log.error(
           {
             uid: request.user.uid,
@@ -670,7 +767,9 @@ declare module 'fastify' {
     invalidatePublicDiscovery: (
       target?: 'events' | 'hosts' | 'venues' | 'search' | 'all',
     ) => Promise<void>;
+    revalidateGuestEvent: (eventId: string, mutation: string) => Promise<any>;
     enrichAuthContext: (request: any) => Promise<void>;
+    invalidateAuthMembershipCache: (uid?: string) => void;
     verifyPartnerAccess: (request: any, partnerId: string) => Promise<boolean>;
     requireAuth: (request: any, reply: any) => Promise<void>;
     requirePartnerAccess: (

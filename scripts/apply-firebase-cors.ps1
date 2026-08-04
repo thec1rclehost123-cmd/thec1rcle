@@ -4,7 +4,7 @@
 
 param(
     [Parameter(Mandatory=$false)]
-    [string]$Bucket = "thec1rcle-india.firebasestorage.app"
+    [string]$Bucket = "c1rcle-staging.firebasestorage.app"
 )
 
 $corsFile = Join-Path $PSScriptRoot ".." "firebase-storage-cors.json"

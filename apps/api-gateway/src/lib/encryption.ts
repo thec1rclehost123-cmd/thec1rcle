@@ -14,8 +14,12 @@ const secret = process.env.ENCRYPTION_KEY;
 if (!secret) {
   throw new Error('ENCRYPTION_KEY environment variable is required');
 }
-// Keep the derivation salt stable so previously-encrypted values still decrypt.
-const key = scryptSync(secret, 'salt', 32);
+// Derive primary key using configured salt or strong domain-separated salt.
+// Also keep legacy key derived from 'salt' to ensure backward compatibility for old encrypted records.
+const primarySalt =
+  process.env.ENCRYPTION_SALT || 'c1rcle_api_gateway_aes256_key_derivation_salt_v1';
+const primaryKey = scryptSync(secret, primarySalt, 32);
+const legacyKey = scryptSync(secret, 'salt', 32);
 
 /**
  * Encrypts a plaintext string to AES-256-CBC hex representation with IV prefix
@@ -23,7 +27,7 @@ const key = scryptSync(secret, 'salt', 32);
 export function encrypt(text: string): string {
   if (!text) return '';
   const iv = randomBytes(16);
-  const cipher = createCipheriv(algorithm, key, iv);
+  const cipher = createCipheriv(algorithm, primaryKey, iv);
   let encrypted = cipher.update(text, 'utf8', 'hex');
   encrypted += cipher.final('hex');
   return `${iv.toString('hex')}:${encrypted}`;
@@ -35,18 +39,29 @@ export function encrypt(text: string): string {
  */
 export function decrypt(encryptedText: string | null | undefined): string {
   if (!encryptedText) return '';
+  const parts = encryptedText.split(':');
+  if (parts.length !== 2) return encryptedText; // Fallback to raw text if not encrypted
+  const iv = Buffer.from(parts[0], 'hex');
+  const encrypted = parts[1];
+
+  // Try primary key first
   try {
-    const parts = encryptedText.split(':');
-    if (parts.length !== 2) return encryptedText; // Fallback to raw text if not encrypted
-    const iv = Buffer.from(parts[0], 'hex');
-    const encrypted = parts[1];
-    const decipher = createDecipheriv(algorithm, key, iv);
+    const decipher = createDecipheriv(algorithm, primaryKey, iv);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    if (decrypted) return decrypted;
+  } catch {
+    // Fall back to legacy key below if primary decryption fails
+  }
+
+  // Fallback: try legacy key for records encrypted before salt hardening
+  try {
+    const decipher = createDecipheriv(algorithm, legacyKey, iv);
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
     return decrypted;
   } catch (err) {
-    // Genuine decryption failure (corrupt data or wrong key). Never surface the
-    // raw ciphertext as if it were plaintext — return empty instead.
+    // Genuine decryption failure (corrupt data or wrong key). Return empty string.
     return '';
   }
 }

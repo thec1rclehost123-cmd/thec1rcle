@@ -6,6 +6,11 @@ import { auth } from '@/lib/firebase';
 
 import { useEvent } from '@/store/eventContext';
 
+type TabBarIconProps = {
+  color: string;
+  size: number;
+};
+
 export default function EventLayout() {
   const { isAuthenticated, eventData, isRestoring, clearEvent } = useEvent();
 
@@ -81,14 +86,16 @@ export default function EventLayout() {
           name="scan"
           options={{
             title: 'Scan',
-            tabBarIcon: ({ color, size }) => <Ionicons name="qr-code" size={size} color={color} />,
+            tabBarIcon: ({ color, size }: TabBarIconProps) => (
+              <Ionicons name="qr-code" size={size} color={color} />
+            ),
           }}
         />
         <Tabs.Screen
           name="door-entry"
           options={{
             title: 'Door Entry',
-            tabBarIcon: ({ color, size }) => (
+            tabBarIcon: ({ color, size }: TabBarIconProps) => (
               <Ionicons name="person-add" size={size} color={color} />
             ),
           }}
@@ -97,7 +104,7 @@ export default function EventLayout() {
           name="stats"
           options={{
             title: 'Stats',
-            tabBarIcon: ({ color, size }) => (
+            tabBarIcon: ({ color, size }: TabBarIconProps) => (
               <Ionicons name="stats-chart" size={size} color={color} />
             ),
           }}
@@ -106,7 +113,9 @@ export default function EventLayout() {
           name="guestlist"
           options={{
             title: 'Guests',
-            tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
+            tabBarIcon: ({ color, size }: TabBarIconProps) => (
+              <Ionicons name="people" size={size} color={color} />
+            ),
           }}
         />
       </Tabs>

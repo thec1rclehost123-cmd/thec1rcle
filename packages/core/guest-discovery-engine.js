@@ -362,13 +362,48 @@ export function buildSearchText(parts = []) {
 }
 
 export function derivePriceRange(rawEvent = {}, priceMin = 0, priceMax = priceMin) {
-  if (rawEvent.priceRange && typeof rawEvent.priceRange === 'object') {
-    return rawEvent.priceRange;
-  }
   return {
+    ...(rawEvent.priceRange && typeof rawEvent.priceRange === 'object' ? rawEvent.priceRange : {}),
     min: priceMin,
     max: priceMax,
-    currency: rawEvent.currency || 'INR',
+    currency: rawEvent.currency || rawEvent.priceRange?.currency || 'INR',
+  };
+}
+
+export function deriveTicketPriceBounds(rawEvent = {}) {
+  const prices = Array.isArray(rawEvent.tickets)
+    ? rawEvent.tickets
+        .map((ticket) => Number(ticket?.price))
+        .filter((price) => Number.isFinite(price) && price >= 0)
+    : [];
+
+  if (prices.length > 0) {
+    return {
+      priceMin: Math.min(...prices),
+      priceMax: Math.max(...prices),
+    };
+  }
+
+  const rawMin = Number(
+    rawEvent.priceMin ??
+      rawEvent.ticketPrice ??
+      rawEvent.minPrice ??
+      rawEvent.startingPrice ??
+      rawEvent.price ??
+      rawEvent.priceRange?.min ??
+      0,
+  );
+  const priceMin = Number.isFinite(rawMin) && rawMin >= 0 ? rawMin : 0;
+  const rawMax = Number(
+    rawEvent.priceMax ??
+      rawEvent.ticketPrice ??
+      rawEvent.maxPrice ??
+      rawEvent.priceRange?.max ??
+      priceMin,
+  );
+  return {
+    priceMin,
+    priceMax: Number.isFinite(rawMax) && rawMax >= priceMin ? rawMax : priceMin,
   };
 }
 
@@ -442,11 +477,11 @@ export function buildEventCardReadModel(rawEvent = {}, { readModelVersion = 2 } 
   const areaKey = slugify(event.area || event.neighborhood || '');
   const title = event.title || event.name || 'Untitled Event';
   const slug = event.slug || slugify(title);
-  const priceMin = Number(event.priceMin ?? event.ticketPrice ?? event.minPrice ?? 0);
-  const priceMax = Number(event.priceMax ?? event.ticketPrice ?? event.maxPrice ?? priceMin);
+  const { priceMin, priceMax } = deriveTicketPriceBounds(event);
   const isFree = Boolean(event.isFree || (priceMin <= 0 && priceMax <= 0));
-  const startAt = toIso(event.startAt || event.startDate || event.startDateTime);
-  const endAt = toIso(event.endAt || event.endDate);
+  const timestamps = getEventTimestamps(event);
+  const startAt = timestamps.startAt ? new Date(timestamps.startAt).toISOString() : null;
+  const endAt = timestamps.endAt ? new Date(timestamps.endAt).toISOString() : null;
   const tickets = deriveTickets(event, priceMin);
   const priceRange = derivePriceRange(event, priceMin, priceMax);
   const heatScore = computeHeatScore(event);
@@ -508,9 +543,9 @@ export function buildEventCardReadModel(rawEvent = {}, { readModelVersion = 2 } 
     city: event.city || event.cityLabel || null,
     date: typeof event.date === 'string' && event.date.trim() ? event.date : startAt || null,
     time: event.time || event.startTime || extractStartTime(startAt),
-    startDate: toIso(event.startDate || event.startDateTime || event.startAt) || startAt,
-    endDate: toIso(event.endDate || event.endAt) || endAt,
-    startDateTime: toIso(event.startDateTime || event.startDate || event.startAt) || startAt,
+    startDate: startAt,
+    endDate: endAt,
+    startDateTime: startAt,
     startTime: event.startTime || event.time || extractStartTime(startAt),
     endTime: event.endTime || extractStartTime(endAt),
     guests: Array.isArray(event.guests) ? event.guests : [],

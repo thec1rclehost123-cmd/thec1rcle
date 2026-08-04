@@ -56,6 +56,7 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
   fastify.get(
     '/me/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -68,6 +69,7 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
   fastify.get(
     '/me/analytics',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: AnalyticsQuery })],
     },
     async (request: any, reply) => {
@@ -81,6 +83,7 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
   fastify.get(
     '/me/links',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: LinksQuery })],
     },
     async (request: any, reply) => {
@@ -94,6 +97,7 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
   fastify.get(
     '/me/events',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: EventsQuery })],
     },
     async (request: any, reply) => {
@@ -107,6 +111,7 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
   fastify.get(
     '/me/finance',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: FinanceQuery })],
     },
     async (request: any, reply) => {
@@ -120,6 +125,7 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
   fastify.get(
     '/me/payouts',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ querystring: FinanceQuery })],
     },
     async (request: any, reply) => {
@@ -133,6 +139,7 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
   fastify.get(
     '/me/profile',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -146,6 +153,7 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
   fastify.get(
     '/me/settings',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {

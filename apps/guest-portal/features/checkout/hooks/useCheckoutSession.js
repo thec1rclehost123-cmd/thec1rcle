@@ -20,6 +20,7 @@ import {
   deriveCheckoutConstraints,
   getPromoterCodeFromSearch,
   getReservationItemsSignature,
+  isPendingOrderSnapshotCurrent,
   isReservationActive,
   mergeAttendeeDetails,
   readAdmissionToken,
@@ -37,7 +38,6 @@ import { useReservationStorage } from './useReservationStorage';
 import { useRazorpayCheckout } from './useRazorpayCheckout';
 
 const PENDING_ORDER_STORAGE_KEY = 'c1rcle_checkout_pending_order';
-const PENDING_ORDER_TTL_MS = 30 * 60 * 1000;
 const QUOTE_REUSE_WINDOW_MS = 30_000;
 
 function readPendingOrderSnapshot() {
@@ -68,13 +68,6 @@ function clearPendingOrderSnapshot() {
   try {
     window.localStorage.removeItem(PENDING_ORDER_STORAGE_KEY);
   } catch {}
-}
-
-function isPendingOrderSnapshotCurrent(snapshot, eventId, userId) {
-  if (!snapshot?.orderId) return false;
-  if (snapshot?.eventId && eventId && snapshot.eventId !== eventId) return false;
-  if (snapshot?.userId && userId && snapshot.userId !== userId) return false;
-  return Date.now() - Number(snapshot?.savedAt || 0) < PENDING_ORDER_TTL_MS;
 }
 
 export function useCheckoutSession({
@@ -121,6 +114,10 @@ export function useCheckoutSession({
       setSelectedTickets,
       userId: user?.uid || null,
     });
+  const selectedTicketSignature = useMemo(
+    () => getReservationItemsSignature(selectedTickets),
+    [selectedTickets],
+  );
 
   const clearCheckoutAdmissionToken = useCallback(() => {
     clearAdmissionToken(event?.id);
@@ -162,10 +159,11 @@ export function useCheckoutSession({
       persistPendingOrderSnapshot({
         eventId: event?.id,
         orderId,
+        ticketSignature: selectedTicketSignature,
         userId: user?.uid || null,
       });
     },
-    [event?.id, user?.uid],
+    [event?.id, selectedTicketSignature, user?.uid],
   );
 
   const clearPendingOrder = useCallback(() => {
@@ -176,13 +174,20 @@ export function useCheckoutSession({
   const readCurrentPendingOrderId = useCallback(() => {
     if (pendingOrderIdRef.current) return pendingOrderIdRef.current;
     const saved = readPendingOrderSnapshot();
-    if (!isPendingOrderSnapshotCurrent(saved, event?.id, user?.uid || null)) {
+    if (
+      !isPendingOrderSnapshotCurrent({
+        eventId: event?.id,
+        snapshot: saved,
+        ticketSignature: selectedTicketSignature,
+        userId: user?.uid || null,
+      })
+    ) {
       clearPendingOrder();
       return null;
     }
     pendingOrderIdRef.current = saved.orderId;
     return saved.orderId;
-  }, [clearPendingOrder, event?.id, user?.uid]);
+  }, [clearPendingOrder, event?.id, selectedTicketSignature, user?.uid]);
 
   const finishSuccessfulCheckout = useCallback(
     (orderId) => {
@@ -192,10 +197,11 @@ export function useCheckoutSession({
       setIsSuccess(true);
       router.prefetch('/tickets');
       redirectTimeoutRef.current = window.setTimeout(() => {
+        clearPendingOrder();
         router.push(`/confirmation/${orderId}`);
       }, 4000);
     },
-    [clearCheckoutReservation, persistPendingOrder, router],
+    [clearCheckoutReservation, clearPendingOrder, persistPendingOrder, router],
   );
 
   const resolveFinalOrderState = useCallback(
@@ -246,10 +252,6 @@ export function useCheckoutSession({
     }
   }, [clearCheckoutReservation, clearPendingOrder, profile, user]);
 
-  const selectedTicketSignature = useMemo(
-    () => getReservationItemsSignature(selectedTickets),
-    [selectedTickets],
-  );
   const hasExpiredReservation =
     Boolean(cartReservation?.reservationId) && !isReservationActive(cartReservation, event?.id);
   const currentQuotePayload = useMemo(
@@ -300,6 +302,7 @@ export function useCheckoutSession({
 
   useEffect(() => {
     checkoutActionIdRef.current = null;
+    pendingOrderIdRef.current = null;
   }, [appliedPromoCode, event?.id, selectedTicketSignature]);
 
   useEffect(() => {
@@ -409,12 +412,13 @@ export function useCheckoutSession({
       }
     };
 
-    syncCheckoutQuote();
+    const debounceTimer = setTimeout(syncCheckoutQuote, 300);
     return () => {
       cancelled = true;
+      clearTimeout(debounceTimer);
     };
   }, [
-    cartReservation,
+    cartReservation?.reservationId,
     clearPersistedReservation,
     currentQuotePayload,
     event?.id,

@@ -1,0 +1,72 @@
+{
+  "passed": true,
+  "email": "qa_guest_2026@test.c1rcle.com",
+  "stage": "complete",
+  "elapsedMs": 32636,
+  "authenticatedPath": "/profile/GQjUbW8NlvZwyqhbuZ4Rr8yCxkC3",
+  "reloadPath": "/profile/GQjUbW8NlvZwyqhbuZ4Rr8yCxkC3",
+  "ticketsPath": "/tickets",
+  "logoutPath": "/login",
+  "protectedPathAfterLogout": "/login",
+  "authMeAfterLogout": {
+    "status": 200,
+    "body": {
+      "authenticated": false,
+      "user": null,
+      "profile": null,
+      "csrfToken": "o5hKaKeyA4l3eJdIrhLpspoUVzabOjmTRLPF2T2SC6g"
+    }
+  },
+  "cookiesAfterLogin": [
+    "__session",
+    "guest_csrf"
+  ],
+  "cookiesAfterLogout": [],
+  "responses": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3000/api/v1/auth/me",
+      "status": 200,
+      "elapsedMs": 1755
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:3000/api/v1/auth/login",
+      "status": 200,
+      "elapsedMs": 2548
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3000/api/v1/auth/me",
+      "status": 200,
+      "elapsedMs": 2435
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3000/api/v1/tickets",
+      "status": 200,
+      "elapsedMs": 208
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:3000/api/v1/auth/logout",
+      "status": 200,
+      "elapsedMs": 465
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3000/api/v1/auth/me",
+      "status": 200,
+      "elapsedMs": 67
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3000/api/v1/auth/me",
+      "status": 200,
+      "elapsedMs": 1
+    }
+  ],
+  "resourceFailures": [],
+  "consoleErrors": [],
+  "pageErrors": []
+}

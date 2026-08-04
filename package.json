@@ -2,10 +2,13 @@
   "name": "@c1rcle/monorepo",
   "private": true,
   "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": ">=20 <21",
+    "npm": ">=10 <11"
+  },
   "type": "module",
   "workspaces": [
     "apps/*",
-    "!apps/mobile-app-backup",
     "packages/*"
   ],
   "scripts": {
@@ -24,12 +27,12 @@
     "install:all": "npm install",
     "prepare": "node scripts/prepare-husky.mjs",
     "format:check": "prettier --check .",
-    "stylelint:check": "stylelint \"**/*.css\" --allow-empty-input",
+    "stylelint:check": "stylelint \"apps/**/*.css\" \"packages/**/*.css\" --ignore-pattern \"**/node_modules/**\" --allow-empty-input",
     "test:integration": "echo 'No integration tests configured yet' && exit 0",
     "guardrails:check": "node scripts/check-backend-boundaries.mjs",
     "test:guardrails": "node --test scripts/check-backend-boundaries.test.mjs",
     "architecture:guest": "npm test -w apps/guest-portal",
-    "prepush": "npm run lint && npm run stylelint:check && npm run type-check && (npm test || echo Tests non-blocking per CI continue-on-error policy) && cross-env SKIP_ENV_VALIDATION=1 npm run build && npm run guardrails:check"
+    "prepush": "npm run lint && npm run stylelint:check && npm run type-check && npm test && cross-env SKIP_ENV_VALIDATION=1 npm run build && npm run guardrails:check"
   },
   "lint-staged": {
     "*": "prettier --write --ignore-unknown",
@@ -43,7 +46,7 @@
     "@size-limit/file": "^12.1.0",
     "@vitest/coverage-v8": "4.1.9",
     "cross-env": "^10.1.0",
-    "expo": "^56.0.12",
+    "expo": "~55.0.28",
     "husky": "^9.1.7",
     "lint-staged": "^15.2.11",
     "prettier": "^3.8.4",
@@ -51,11 +54,13 @@
     "stylelint": "^17.13.0",
     "stylelint-config-standard": "^40.0.0",
     "turbo": "^2.7.3",
+    "typescript": "5.9.3",
     "vitest": "4.1.9"
   },
   "overrides": {
     "@types/react": "^19.1.1",
     "@types/react-dom": "^19.1.1",
+    "typescript": "$typescript",
     "@xmldom/xmldom": ">=0.9.0",
     "tar": ">=7.5.16",
     "tmp": ">=0.2.7"

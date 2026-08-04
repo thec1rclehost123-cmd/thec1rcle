@@ -5,21 +5,28 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  KeyboardAvoidingView,
   Platform,
   Modal,
   TextInput,
-  ActivityIndicator,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, MessageCircle } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, spacing } from '@/lib/design/theme';
-import { MOCK_PROFILES } from '@/lib/data/mockDating';
-import type { DatingProfile, Prompt, DatingPhoto } from '@/lib/data/mockDating';
+import { useAuthStore } from '@/store/authStore';
+import {
+  useDatingStore,
+  type DatingProfile,
+  type Prompt,
+  type DatingPhoto,
+} from '@/store/datingStore';
+import AnthemPlayer from '@/components/ui/AnthemPlayer';
+import { PremiumBadgeDot } from '@/components/ui/PremiumBadge';
 
 type ReplyTarget = {
   profile: DatingProfile;
@@ -39,9 +46,9 @@ function PromptBlock({ prompt, onReply }: { prompt: Prompt; onReply: () => void 
   );
 }
 
-function PhotoSection({ photo }: { photo: DatingPhoto }) {
+function PhotoSection({ photo, onReply }: { photo: DatingPhoto; onReply: () => void }) {
   return (
-    <View style={styles.photoSection}>
+    <Pressable onPress={onReply} style={styles.photoSection}>
       <Image source={photo.source} style={styles.sectionImage} contentFit="cover" />
       {photo.caption ? (
         <LinearGradient
@@ -50,8 +57,17 @@ function PhotoSection({ photo }: { photo: DatingPhoto }) {
         >
           <Text style={styles.captionText}>{photo.caption}</Text>
         </LinearGradient>
-      ) : null}
-    </View>
+      ) : (
+        <LinearGradient
+          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.4)']}
+          style={styles.captionGradient}
+        >
+          <Text style={[styles.captionText, { fontSize: 13, fontWeight: '700' }]}>
+            Tap photo to reply
+          </Text>
+        </LinearGradient>
+      )}
+    </Pressable>
   );
 }
 
@@ -70,9 +86,12 @@ function ReplySheet({
 }) {
   return (
     <Modal visible={target !== null} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}
         style={styles.modalRoot}
+        enableOnAndroid={true}
+        extraScrollHeight={20}
+        bounces={false}
       >
         <Pressable style={styles.modalScrim} onPress={onClose} />
         <View style={styles.replySheet}>
@@ -103,7 +122,7 @@ function ReplySheet({
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </Modal>
   );
 }
@@ -111,10 +130,25 @@ function ReplySheet({
 export default function DatingProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const user = useAuthStore((state) => state.user);
+  const currentUserId = user?.uid?.trim() || null;
+  const ownerUserId = useDatingStore((state) => state.ownerUserId);
+  const profilesOwnerUserId = useDatingStore((state) => state.profilesOwnerUserId);
+  const profiles = useDatingStore((state) => state.profiles);
+  const sendAskOut = useDatingStore((state) => state.sendAskOut);
   const [replyTarget, setReplyTarget] = useState<ReplyTarget>(null);
   const [replyText, setReplyText] = useState('');
+  const storeProfile =
+    currentUserId && ownerUserId === currentUserId && profilesOwnerUserId === currentUserId
+      ? profiles.find(
+          (candidate) =>
+            candidate.userId !== currentUserId &&
+            candidate.id !== currentUserId &&
+            (candidate.id === id || candidate.userId === id || candidate.profileRouteId === id),
+        )
+      : undefined;
 
-  const profile = MOCK_PROFILES.find((p) => p.id === id);
+  const profile = storeProfile || null;
 
   if (!profile) {
     return (
@@ -131,13 +165,43 @@ export default function DatingProfileScreen() {
   }
 
   const handleOpenReply = (prompt: Prompt) => {
+    if (!currentUserId || profile.userId === currentUserId) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setReplyTarget({ profile, prompt });
     setReplyText('');
   };
 
-  const handleSendReply = () => {
+  const handleOpenPhotoReply = () => {
+    if (!currentUserId || profile.userId === currentUserId) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const photoPrompt: Prompt = {
+      id: `photo-${Date.now()}`,
+      title: (profile?.name ?? 'User') + "'s photo",
+      answer: '',
+    };
+    setReplyTarget({ profile: profile as any, prompt: photoPrompt });
+    setReplyText('');
+  };
+
+  const handleSendReply = async () => {
     if (!replyText.trim() || !replyTarget) return;
+    const target = replyTarget;
+    if (
+      !currentUserId ||
+      ownerUserId !== currentUserId ||
+      profilesOwnerUserId !== currentUserId ||
+      target.profile.userId === currentUserId ||
+      !profiles.some((candidate) => candidate.userId === target.profile.userId)
+    ) {
+      setReplyTarget(null);
+      setReplyText('');
+      return;
+    }
+    const message = replyText.trim();
+    if (target.profile.userId) {
+      const result = await sendAskOut(currentUserId, target.profile as any, message);
+      if (result.paywalled) return;
+    }
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setReplyTarget(null);
     setReplyText('');
@@ -178,9 +242,13 @@ export default function DatingProfileScreen() {
             style={StyleSheet.absoluteFill}
           />
           <View style={styles.heroInfo}>
-            <Text style={styles.heroName}>
-              {profile.name}, {profile.age}
-            </Text>
+            <View style={styles.heroNameRow}>
+              <Text style={styles.heroName}>
+                {profile.name}
+                {profile.age ? `, ${profile.age}` : ''}
+              </Text>
+              <PremiumBadgeDot visible={(profile as any).isPremium === true} />
+            </View>
             <Text style={styles.heroHeadline}>{profile.headline}</Text>
           </View>
         </View>
@@ -188,7 +256,7 @@ export default function DatingProfileScreen() {
         <View style={styles.content}>
           <View style={styles.quickFacts}>
             <Text style={styles.quickFact}>{profile.distance}</Text>
-            <Text style={styles.quickFact}>{profile.sharedEvent}</Text>
+            <Text style={styles.quickFact}>{profile.sharedEventTitle}</Text>
             <Text style={styles.quickFact}>{profile.venue}</Text>
           </View>
 
@@ -200,20 +268,26 @@ export default function DatingProfileScreen() {
             ))}
           </View>
 
+          {(profile as any).anthem ? <AnthemPlayer anthem={(profile as any).anthem} /> : null}
+
           {profile.prompts[0] && (
             <PromptBlock
               prompt={profile.prompts[0]}
               onReply={() => handleOpenReply(profile.prompts[0])}
             />
           )}
-          {profile.photos[1] && <PhotoSection photo={profile.photos[1]} />}
+          {profile.photos[1] && (
+            <PhotoSection photo={profile.photos[1]} onReply={handleOpenPhotoReply} />
+          )}
           {profile.prompts[1] && (
             <PromptBlock
               prompt={profile.prompts[1]}
               onReply={() => handleOpenReply(profile.prompts[1])}
             />
           )}
-          {profile.photos[2] && <PhotoSection photo={profile.photos[2]} />}
+          {profile.photos[2] && (
+            <PhotoSection photo={profile.photos[2]} onReply={handleOpenPhotoReply} />
+          )}
           {profile.prompts[2] && (
             <PromptBlock
               prompt={profile.prompts[2]}
@@ -292,6 +366,12 @@ const styles = StyleSheet.create({
     fontSize: 29,
     fontWeight: '800',
     letterSpacing: 0,
+    flexShrink: 1,
+  },
+  heroNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
   },
   heroHeadline: {
     color: 'rgba(255,255,255,0.82)',

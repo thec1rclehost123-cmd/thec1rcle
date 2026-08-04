@@ -262,9 +262,9 @@ test('event detail business helpers no longer hide ticket availability rules in 
     'ticket availability logic should stay scoped to the event selection seam',
   );
   assert.equal(
-    eventSelectionHook.includes('function getTierLimit'),
+    eventSelectionHook.includes("from '../ticketSelectionLimits'"),
     true,
-    'ticket limit logic should stay scoped to the event selection seam',
+    'ticket limit logic should stay scoped to the event ticket-selection seam',
   );
   assert.equal(
     exploreModel.includes('event.tickets.reduce'),

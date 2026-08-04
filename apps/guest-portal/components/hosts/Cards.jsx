@@ -1,13 +1,65 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { BadgeCheck, Heart } from 'lucide-react';
 import Skeleton from '../ui/Skeleton';
 import ShimmerImage from '../ShimmerImage';
+import { useAuth } from '../providers/AuthProvider';
+import {
+  getHostFollowStatus,
+  followHost,
+  unfollowHost,
+  getVenueFollowStatus,
+  followVenue,
+  unfollowVenue,
+} from '../../features/social/api/socialApi';
 
 export const VenueCard = memo(function VenueCard({ venue, onFollow }) {
+  const { user } = useAuth() || {};
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(venue.followers ?? 0);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
+
+  useEffect(() => {
+    if (!user || !venue?.id) return;
+    getVenueFollowStatus(venue.id)
+      .then(setIsFollowing)
+      .catch(() => {});
+  }, [user, venue?.id]);
+
+  useEffect(() => {
+    setFollowersCount(venue.followers ?? 0);
+  }, [venue.followers]);
+
+  const handleFollowClick = async (e) => {
+    e.preventDefault();
+    if (isFollowLoading) return;
+    if (!user) {
+      onFollow && onFollow(venue.id);
+      return;
+    }
+
+    const newStatus = !isFollowing;
+    setIsFollowing(newStatus);
+    setFollowersCount((prev) => (newStatus ? prev + 1 : Math.max(0, prev - 1)));
+    setIsFollowLoading(true);
+
+    try {
+      if (newStatus) {
+        await followVenue(venue.id);
+      } else {
+        await unfollowVenue(venue.id);
+      }
+    } catch {
+      setIsFollowing(!newStatus);
+      setFollowersCount((prev) => (!newStatus ? prev + 1 : Math.max(0, prev - 1)));
+    } finally {
+      setIsFollowLoading(false);
+    }
+  };
+
   const imageUrl = venue.image || venue.coverURL || venue.bannerImage || '/events/neon-nights.jpg';
 
   return (
@@ -47,6 +99,11 @@ export const VenueCard = memo(function VenueCard({ venue, onFollow }) {
                 Tables
               </span>
             )}
+            {isFollowing && (
+              <span className="px-2.5 py-1 rounded-full bg-emerald-500/90 text-[9px] font-black uppercase tracking-widest text-white">
+                Following
+              </span>
+            )}
           </div>
 
           {/* Bottom overlay content */}
@@ -76,21 +133,22 @@ export const VenueCard = memo(function VenueCard({ venue, onFollow }) {
         <div className="flex items-center justify-between p-4 bg-black/[0.02] dark:bg-white/[0.02]">
           <div>
             <p className="text-sm font-black text-black dark:text-white">
-              {(venue.followers || 0).toLocaleString('en-IN')}
+              {followersCount.toLocaleString('en-IN')}
             </p>
             <p className="text-[9px] uppercase font-bold tracking-widest text-black/40 dark:text-white/40">
               Followers
             </p>
           </div>
           <button
-            onClick={(e) => {
-              e.preventDefault();
-              onFollow && onFollow(venue.id);
-            }}
+            onClick={handleFollowClick}
             className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-black dark:bg-white text-white dark:text-black text-[10px] font-black uppercase tracking-widest transition-all hover:opacity-80 active:scale-95 shadow"
           >
-            <Heart size={12} fill="currentColor" />
-            Follow
+            <Heart
+              size={12}
+              fill={isFollowing ? 'currentColor' : 'none'}
+              className={isFollowing ? 'text-[#F44A22]' : ''}
+            />
+            {isFollowing ? 'Following' : 'Follow'}
           </button>
         </div>
       </Link>
@@ -99,6 +157,49 @@ export const VenueCard = memo(function VenueCard({ venue, onFollow }) {
 });
 
 export const HostCard = memo(function HostCard({ host, onFollow }) {
+  const { user } = useAuth() || {};
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(host.followers ?? 0);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
+
+  useEffect(() => {
+    if (!user || !host?.id) return;
+    getHostFollowStatus(host.id)
+      .then(setIsFollowing)
+      .catch(() => {});
+  }, [user, host?.id]);
+
+  useEffect(() => {
+    setFollowersCount(host.followers ?? 0);
+  }, [host.followers]);
+
+  const handleFollowClick = async (e) => {
+    e.preventDefault();
+    if (isFollowLoading) return;
+    if (!user) {
+      onFollow && onFollow(host.id);
+      return;
+    }
+
+    const newStatus = !isFollowing;
+    setIsFollowing(newStatus);
+    setFollowersCount((prev) => (newStatus ? prev + 1 : Math.max(0, prev - 1)));
+    setIsFollowLoading(true);
+
+    try {
+      if (newStatus) {
+        await followHost(host.id);
+      } else {
+        await unfollowHost(host.id);
+      }
+    } catch {
+      setIsFollowing(!newStatus);
+      setFollowersCount((prev) => (!newStatus ? prev + 1 : Math.max(0, prev - 1)));
+    } finally {
+      setIsFollowLoading(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
@@ -131,9 +232,16 @@ export const HostCard = memo(function HostCard({ host, onFollow }) {
                 className="object-cover"
               />
             </div>
-            <span className="px-2.5 py-0.5 rounded-full bg-[#F44A22]/20 border border-[#F44A22]/30 text-[9px] font-black uppercase tracking-widest text-[#F44A22] mb-2">
-              {host.role || 'Host'}
-            </span>
+            <div className="flex items-center gap-1.5 flex-wrap mb-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-[#F44A22]/20 border border-[#F44A22]/30 text-[9px] font-black uppercase tracking-widest text-[#F44A22]">
+                {host.role || 'Host'}
+              </span>
+              {isFollowing && (
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[9px] font-black uppercase tracking-widest text-emerald-400">
+                  Following
+                </span>
+              )}
+            </div>
             <h3 className="text-lg font-heading font-black uppercase tracking-tight text-white text-center leading-tight">
               {host.name}
             </h3>
@@ -156,7 +264,7 @@ export const HostCard = memo(function HostCard({ host, onFollow }) {
           <div className="flex gap-5">
             <div>
               <p className="text-sm font-black text-black dark:text-white">
-                {(host.followers || 0).toLocaleString('en-IN')}
+                {followersCount.toLocaleString('en-IN')}
               </p>
               <p className="text-[9px] font-bold text-black/40 dark:text-white/40 uppercase tracking-widest">
                 Followers
@@ -172,14 +280,15 @@ export const HostCard = memo(function HostCard({ host, onFollow }) {
             </div>
           </div>
           <button
-            onClick={(e) => {
-              e.preventDefault();
-              onFollow && onFollow(host.id);
-            }}
+            onClick={handleFollowClick}
             className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-black dark:bg-white text-white dark:text-black text-[10px] font-black uppercase tracking-widest hover:opacity-80 active:scale-95 transition-all shadow"
           >
-            <Heart size={12} fill="currentColor" />
-            Follow
+            <Heart
+              size={12}
+              fill={isFollowing ? 'currentColor' : 'none'}
+              className={isFollowing ? 'text-[#F44A22]' : ''}
+            />
+            {isFollowing ? 'Following' : 'Follow'}
           </button>
         </div>
       </Link>

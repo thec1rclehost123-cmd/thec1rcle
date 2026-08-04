@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { buildErrorResponse } from '../../lib/api-contracts';
+import { getPartnerCommerceRows } from '../../lib/canonicalCommerceMetrics';
 
 const VenueQuery = z.object({ venueId: z.string() }).strict();
 const VenueUpdatesBody = z
@@ -101,6 +102,7 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/settings',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: VenueQuery })],
     },
     async (request: any, reply) => {
@@ -160,6 +162,7 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/settings',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth],
     },
     async (request: any, reply) => {
@@ -198,6 +201,7 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: VenueQuery })],
     },
     async (request: any, reply) => {
@@ -231,6 +235,7 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: VenueUpdatesBody })],
     },
     async (request: any, reply) => {
@@ -298,6 +303,7 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/venue/reservations',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: GuestReservationCreateBody })],
     },
     async (request: any, reply) => {
@@ -368,6 +374,7 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/venue/reservations',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: ReservationsQuery })],
     },
     async (request: any, reply) => {
@@ -403,6 +410,7 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/venue/reservations/:id',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ params: ReservationIdParam, body: ReservationStatusBody })],
     },
     async (request: any, reply) => {
@@ -456,6 +464,7 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostQuery })],
     },
     async (request: any, reply) => {
@@ -489,6 +498,7 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/host',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: HostSettingsBody })],
     },
     async (request: any, reply) => {
@@ -548,6 +558,7 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/host/overview',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: HostQuery })],
     },
     async (request: any, reply) => {
@@ -578,20 +589,11 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
       const liveEvents = events.filter((e: any) => e.status === 'live' || e.status === 'approved');
       const draftEvents = events.filter((e: any) => e.status === 'draft');
 
-      // Aggregate revenue from orders for these events
-      const eventIds = events.map((e: any) => e.id);
-      let totalRevenue = 0;
-      if (eventIds.length > 0) {
-        const ordersSnap = await fastify.db
-          .collection('orders')
-          .where('hostId', '==', hostId)
-          .where('status', 'in', ['confirmed', 'paid'])
-          .get();
-        totalRevenue = ordersSnap.docs.reduce(
-          (s: number, d: any) => s + (d.data().hostPayout || d.data().total || 0),
-          0,
-        );
-      }
+      const commerce = await getPartnerCommerceRows(fastify.db, hostId, 'hostId');
+      const totalRevenuePaise = commerce.ledger.reduce(
+        (sum, entry) => sum + Number(entry.amountPaise || 0),
+        0,
+      );
 
       return {
         hostId,
@@ -599,7 +601,8 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
           totalEvents: allEvents.length,
           liveEvents: liveEvents.length,
           draftEvents: draftEvents.length,
-          totalRevenue,
+          totalRevenue: totalRevenuePaise / 100,
+          totalRevenuePaise,
           partnerships: partnershipsSnap.docs.length,
         },
         recentEvents: events.slice(0, 5),

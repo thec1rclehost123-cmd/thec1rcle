@@ -146,7 +146,7 @@ function TicketCarousel() {
                   />
                 )}
 
-                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
+                <div className="absolute inset-0 opacity-[0.03] bg-[url('/noise.svg')]" />
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
 
                 {[...Array(3)].map((_, sparkIndex) => (

@@ -7,11 +7,12 @@ import { calculatePricing, getEffectivePrice } from '@c1rcle/core/pricing-engine
 import { flagPaymentFailure } from '@c1rcle/core/surge';
 // @ts-ignore
 import {
-  calculateEffectiveInventory,
+  calculateEffectiveInventories,
   releaseReservation,
   InventoryReadError,
   InventoryUnavailableError,
   LockAcquisitionError,
+  PurchaseValidationError,
   ReservationCommitError,
 } from '@c1rcle/core/inventory-engine';
 // @ts-ignore
@@ -24,11 +25,16 @@ import {
 import { z } from 'zod';
 import * as Sentry from '@sentry/node';
 import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
+import { publishTicketPurchaseSync } from '../../lib/ticketPurchaseSync';
 
 function allowMockRazorpay() {
   const isProduction =
     process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
   return !isProduction && process.env.C1RCLE_ALLOW_MOCK_RAZORPAY === 'true';
+}
+
+function forceMockRazorpay() {
+  return allowMockRazorpay() && process.env.C1RCLE_FORCE_MOCK_RAZORPAY === 'true';
 }
 
 function buildWebhookRawBody(request: any): string {
@@ -114,6 +120,7 @@ const CheckoutInitiateBody = z
     userName: z.string().max(120).optional(),
     userEmail: z.string().email().max(254).optional(),
     userPhone: z.string().max(20).optional(),
+    hostUpdatesOptIn: z.boolean().optional(),
   })
   .strict();
 
@@ -139,36 +146,34 @@ function extractQueueId(admissionToken?: string | null): string | null {
 
 async function buildCheckoutQuote(event: any, items: any[], pricing: any, db: any, redis: any) {
   const tiers = event.ticketCatalog?.tiers || event.tickets || [];
+  const eventDefaultScheduledPrices: any[] = Array.isArray(event?.defaultScheduledPrices)
+    ? event.defaultScheduledPrices
+    : [];
   const selectedByTier = new Map(
     (items || []).map((item: any) => [item.tierId, Number(item.quantity) || 0]),
   );
   const minTickets = event.isRSVP ? 1 : Number(event.minTicketsPerOrder || 1);
   const maxTickets = event.isRSVP ? 1 : Number(event.maxTicketsPerOrder || 10);
   const totalQuantity = [...selectedByTier.values()].reduce((sum, quantity) => sum + quantity, 0);
-  const eventDocRef = db?.collection?.('events')?.doc?.(event.id);
-  const inventoryDb = typeof eventDocRef?.collection === 'function' ? db : null;
+  const inventoryByTier = await calculateEffectiveInventories(tiers, event);
+  const tierConstraints = tiers.map((tier: any) => {
+    const available = inventoryByTier.get(tier.id) ?? 0;
+    const isFree = Number(tier.basePrice ?? tier.price ?? 0) === 0;
+    const perOrderLimit = isFree ? 1 : maxTickets;
 
-  const tierConstraints = await Promise.all(
-    tiers.map(async (tier: any) => {
-      // Use the authoritative effective inventory — same source as reservation enforcement
-      const available = await calculateEffectiveInventory(tier, event, null, inventoryDb);
-      const isFree = Number(tier.basePrice ?? tier.price ?? 0) === 0;
-      const perOrderLimit = isFree ? 1 : maxTickets;
-
-      return {
-        tierId: tier.id,
-        name: tier.name || tier.label || tier.id,
-        description: tier.description || tier.summary || null,
-        selectedQuantity: selectedByTier.get(tier.id) || 0,
-        available,
-        minPerOrder: 0,
-        maxPerOrder: Math.max(0, Math.min(available || perOrderLimit, perOrderLimit)),
-        isFree,
-        soldOut: available <= 0,
-        unitPrice: getEffectivePrice(tier).price,
-      };
-    }),
-  );
+    return {
+      tierId: tier.id,
+      name: tier.name || tier.label || tier.id,
+      description: tier.description || tier.summary || null,
+      selectedQuantity: selectedByTier.get(tier.id) || 0,
+      available,
+      minPerOrder: 0,
+      maxPerOrder: Math.max(0, Math.min(available || perOrderLimit, perOrderLimit)),
+      isFree,
+      soldOut: available <= 0,
+      unitPrice: getEffectivePrice(tier, new Date(), eventDefaultScheduledPrices).price,
+    };
+  });
 
   return {
     pricing,
@@ -238,6 +243,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/calculate',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CheckoutCalculateBody })],
     },
     async (request: any, reply) => {
@@ -315,6 +321,9 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           linkId: resolvedLinkId,
         };
       } catch (error: any) {
+        if (error.code === 'COVER_WALLET_UNFUNDED') {
+          return reply.status(400).send({ success: false, code: error.code, error: error.message });
+        }
         if (isInventoryError(error)) {
           fastify.log.warn(`Inventory service unavailable during calculate: ${error.message}`);
           reply.header('Retry-After', '5');
@@ -336,6 +345,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/validate',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: CheckoutValidateBody })],
     },
     async (request: any, reply) => {
@@ -358,6 +368,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/promo',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutPromoBody })],
     },
     async (request: { body: any; user: any }, reply) => {
@@ -413,6 +424,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/reserve',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutReserveBody })],
     },
     async (request: any, reply) => {
@@ -461,6 +473,19 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
 
         return result;
       } catch (error: any) {
+        if (error instanceof PurchaseValidationError) {
+          return reply.status(400).send({
+            success: false,
+            error: {
+              code: error.code,
+              message: error.message,
+              fields: Object.fromEntries(
+                (error.issues || []).map((issue: any) => [issue.field, issue.message]),
+              ),
+            },
+            requestId: request.id,
+          });
+        }
         if (isInventoryError(error)) {
           fastify.log.warn(`Inventory service unavailable during reserve: ${error.message}`);
           reply.header('Retry-After', '5');
@@ -482,6 +507,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/intent',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutIntentBody })],
     },
     async (request: any, reply) => {
@@ -513,6 +539,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
               keyId: process.env.RAZORPAY_KEY_ID,
               keySecret: process.env.RAZORPAY_KEY_SECRET,
               allowMockPayment: allowMockRazorpay(),
+              forceMockPayment: forceMockRazorpay(),
             },
           });
 
@@ -563,7 +590,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           return reply.status(404).send({ success: false, error: 'Event not found' });
         }
 
-        if (error.code === 'BAD_REQUEST') {
+        if (error.code === 'BAD_REQUEST' || error.code === 'COVER_WALLET_UNFUNDED') {
           return reply.status(400).send({ success: false, error: error.message });
         }
 
@@ -624,15 +651,17 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
 
         const result = await finalizeRazorpayTicketPurchase({
           db: fastify.db,
-          checkoutService: fastify.checkoutService,
+          requestId: request.id,
           razorpayOrderId,
           razorpayPaymentId,
+          providerPayment: paymentEntity,
           paymentGatewayConfig: {
             keyId: process.env.RAZORPAY_KEY_ID,
             keySecret: process.env.RAZORPAY_KEY_SECRET,
             allowMockPayment: allowMockRazorpay(),
           },
         });
+        await publishTicketPurchaseSync(fastify, result);
 
         request.log.info(
           {
@@ -640,28 +669,43 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             razorpayPaymentId,
             orderId: result?.order?.id,
             ticketsCount: result?.ticketsCount,
-            alreadyConfirmed: result?.alreadyConfirmed,
+            alreadyFinalized: result?.alreadyFinalized,
           },
           'Checkout webhook finalized tickets',
         );
 
         return {
           success: true,
-          alreadyConfirmed: Boolean(result?.alreadyConfirmed),
+          alreadyConfirmed: Boolean(result?.alreadyFinalized),
+          alreadyFinalized: Boolean(result?.alreadyFinalized),
           orderId: result?.order?.id || null,
           ticketsCount: result?.ticketsCount || 0,
+          ticketIds: result?.ticketIds || [],
+          entitlementIds: result?.entitlementIds || [],
+          ledgerMarkerId: result?.ledgerMarkerId || null,
         };
       } catch (error: any) {
         const status =
-          error.code === 'INVALID_SIGNATURE'
+          error.code === 'PAYMENT_SIGNATURE_INVALID'
             ? 401
             : error.code === 'NOT_FOUND'
               ? 404
-              : error.code === 'CONFLICT'
+              : [
+                    'CONFLICT',
+                    'PAYMENT_AMOUNT_MISMATCH',
+                    'PAYMENT_ALREADY_LINKED',
+                    'ORDER_ATTRIBUTION_MISSING',
+                    'ORDER_NOT_FINALIZABLE',
+                    'LEDGER_IDEMPOTENCY_CONFLICT',
+                    'INVENTORY_CONFLICT',
+                    'TICKET_TRANSACTION_LIMIT_EXCEEDED',
+                  ].includes(error.code)
                 ? 409
-                : error.code === 'PAYMENT_NOT_CONFIGURED'
-                  ? 500
-                  : 500;
+                : error.code === 'FINALIZATION_RETRY_REQUIRED'
+                  ? 503
+                  : error.code === 'PAYMENT_NOT_CONFIGURED'
+                    ? 500
+                    : 500;
 
         if (status >= 500) {
           fastify.log.error(`Checkout webhook failed: ${error.message}`);
@@ -706,7 +750,9 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             keySecret: process.env.RAZORPAY_KEY_SECRET,
             allowMockPayment: allowMockRazorpay(),
           },
+          requestId: request.id,
         });
+        await publishTicketPurchaseSync(fastify, result);
 
         request.log.info(
           {
@@ -724,6 +770,15 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         return {
           success: true,
           alreadyVerified: Boolean(result.alreadyVerified),
+          alreadyFinalized: Boolean(result.alreadyFinalized),
+          orderId: result.orderId,
+          paymentId: result.paymentId,
+          status: result.status,
+          ticketIds: result.ticketIds,
+          entitlementIds: result.entitlementIds,
+          ledgerMarkerId: result.ledgerMarkerId,
+          reservationReleased: result.reservationReleased,
+          outboxEventId: result.outboxEventId,
           order: result.order,
           tickets: result.tickets,
           ticketsCount: result.ticketsCount,
@@ -748,13 +803,24 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
               ? 403
               : error.code === 'NOT_FOUND'
                 ? 404
-                : error.code === 'INVALID_SIGNATURE' || error.code === 'BAD_REQUEST'
+                : error.code === 'PAYMENT_SIGNATURE_INVALID' || error.code === 'BAD_REQUEST'
                   ? 400
-                  : error.code === 'CONFLICT'
+                  : [
+                        'CONFLICT',
+                        'PAYMENT_AMOUNT_MISMATCH',
+                        'PAYMENT_ALREADY_LINKED',
+                        'ORDER_ATTRIBUTION_MISSING',
+                        'ORDER_NOT_FINALIZABLE',
+                        'LEDGER_IDEMPOTENCY_CONFLICT',
+                        'INVENTORY_CONFLICT',
+                        'TICKET_TRANSACTION_LIMIT_EXCEEDED',
+                      ].includes(error.code)
                     ? 409
-                    : error.code === 'PAYMENT_NOT_CONFIGURED'
-                      ? 500
-                      : 500;
+                    : error.code === 'FINALIZATION_RETRY_REQUIRED'
+                      ? 503
+                      : error.code === 'PAYMENT_NOT_CONFIGURED'
+                        ? 500
+                        : 500;
 
         if (status >= 500) {
           fastify.log.error(`Checkout verification failed: ${error.message}`);
@@ -804,11 +870,17 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             return result;
           }
 
-          const payment = await fastify.checkoutService.preparePayment(result.order.id, userId, {
-            keyId: process.env.RAZORPAY_KEY_ID,
-            keySecret: process.env.RAZORPAY_KEY_SECRET,
-            allowMockPayment: allowMockRazorpay(),
-          });
+          const payment = await fastify.checkoutService.preparePayment(
+            result.order.id,
+            userId,
+            {
+              keyId: process.env.RAZORPAY_KEY_ID,
+              keySecret: process.env.RAZORPAY_KEY_SECRET,
+              allowMockPayment: allowMockRazorpay(),
+              forceMockPayment: forceMockRazorpay(),
+            },
+            result.order,
+          );
 
           return {
             success: true,
@@ -821,6 +893,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             razorpay: {
               orderId: payment.razorpayOrderId,
               amount: payment.amount,
+              amountPaise: payment.amountPaise,
               currency: payment.currency,
               key: payment.key,
             },
@@ -833,39 +906,6 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           if (finalResult.cached) return finalResult.body;
         } else {
           finalResult = await work();
-        }
-
-        // Denormalize hostId/venueId from event into order for finance queries
-        if (finalResult?.order?.id) {
-          const orderEventId = finalResult.order.eventId || request.body?.eventId;
-          const orderLinkId = (request.body as any).linkId || null;
-          if (orderEventId) {
-            fastify.db
-              .collection('events')
-              .doc(orderEventId)
-              .get()
-              .then(async (evDoc: any) => {
-                if (!evDoc.exists) return;
-                const ev = evDoc.data() as any;
-                const updates: Record<string, any> = {};
-                if (ev.hostId) updates.hostId = ev.hostId;
-                if (ev.venueId) updates.venueId = ev.venueId;
-                if (orderLinkId) updates.promoterLinkId = orderLinkId;
-                if (Object.keys(updates).length > 0) {
-                  await fastify.db
-                    .collection('orders')
-                    .doc(finalResult.order.id)
-                    .update(updates)
-                    .catch((e: any) =>
-                      fastify.log.warn(
-                        { orderId: finalResult.order.id, error: e.message },
-                        'Failed to denormalize order fields',
-                      ),
-                    );
-                }
-              })
-              .catch(() => null); // non-critical, fire-and-forget
-          }
         }
 
         request.log.info(
@@ -932,6 +972,21 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
           });
         }
 
+        if (
+          error.code === 'FREE_TICKET_LIMIT_EXCEEDED' ||
+          error.code === 'FREE_TICKET_ALREADY_CLAIMED'
+        ) {
+          return reply.status(409).send({
+            success: false,
+            error: {
+              code: error.code,
+              message: error.message,
+              fields: { items: error.message },
+            },
+            requestId: request.id,
+          });
+        }
+
         fastify.log.error(`Initiate checkout failed: ${error.message}`);
         return reply.status(500).send({ success: false, error: 'Internal server error' });
       }
@@ -941,6 +996,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/failure',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutFailureBody })],
     },
     async (request: any, reply) => {
@@ -982,7 +1038,9 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         const resDoc = await fastify.db.collection('cart_reservations').doc(reservationId).get();
         if (!resDoc.exists)
           return reply.status(404).send({ success: false, error: 'Reservation not found' });
-        if ((resDoc.data() as any).userId !== userId) {
+        const reservation = resDoc.data() as any;
+        const reservationOwnerId = reservation.customerId || reservation.userId || null;
+        if (reservationOwnerId !== userId) {
           fastify.log.warn(
             { uid: userId, reservationId, ip: request.ip },
             'SECURITY: Unauthorized cancel attempt on reservation',

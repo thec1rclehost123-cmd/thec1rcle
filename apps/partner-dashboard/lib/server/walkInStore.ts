@@ -11,6 +11,8 @@
  * based on caller role before returning list/search results.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { getAdminDb, isFirebaseConfigured } from '../firebase/admin';
 import type {
@@ -21,6 +23,95 @@ import type {
 } from '../types/walkIns';
 
 const _entries = new Map<string, WalkInEntry>();
+let _loaded = false;
+let _dataFileCachedPath = '';
+
+// ── Fallback mutation atomicity ──────────────────────────────────────────────
+//
+// The JSON-file fallback store below (used only when Firebase isn't configured —
+// local / dev) does read-modify-write against the module-level `_entries` Map
+// plus synchronous fs reads/writes.
+//
+// The concurrency bug this guards against was never the file I/O: it was that
+// `createWalkIn` `await`ed its idempotency check and only *then* wrote. That
+// await yields the event loop, so N concurrent creates sharing one
+// idempotencyKey all observed "not present" before any of them inserted, and
+// each inserted its own row (verified: 8 concurrent creates produced 8 door
+// entries and 8x the revenue in the event summary).
+//
+// INVARIANT: every fallback read-modify-write-persist cycle below must stay in
+// ONE fully synchronous block, with no `await` between reading `_entries` and
+// persisting it. Node then runs the cycle to completion before any other
+// request can observe or mutate `_entries`, which makes it atomic without a
+// lock. Introducing an `await` inside one of those blocks reopens the race and
+// would require a real async mutex instead.
+//
+// (Production's Firestore path is separate and unaffected by any of this.)
+
+function getDataFilePath(): string {
+  if (_dataFileCachedPath) return _dataFileCachedPath;
+  let currentDir = process.cwd();
+  for (let i = 0; i < 4; i++) {
+    const candidate = path.join(currentDir, 'data');
+    if (fs.existsSync(candidate)) {
+      _dataFileCachedPath = path.join(candidate, 'walk_in_entries_fallback.json');
+      return _dataFileCachedPath;
+    }
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) break;
+    currentDir = parentDir;
+  }
+  _dataFileCachedPath = path.join(process.cwd(), 'data', 'walk_in_entries_fallback.json');
+  return _dataFileCachedPath;
+}
+
+function ensureLoaded() {
+  if (_loaded) return;
+  const filePath = getDataFilePath();
+  try {
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf8');
+      const entriesArray = JSON.parse(data);
+      _entries.clear();
+      for (const entry of entriesArray) {
+        _entries.set(entry.id, entry);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load fallback walk-in entries:', error);
+  }
+  _loaded = true;
+}
+
+function persistEntries() {
+  const filePath = getDataFilePath();
+  try {
+    const dirPath = path.dirname(filePath);
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+    const entriesArray = Array.from(_entries.values());
+    fs.writeFileSync(filePath, JSON.stringify(entriesArray, null, 2), 'utf8');
+  } catch (error) {
+    console.error('Failed to persist fallback walk-in entries:', error);
+  }
+}
+
+export function __resetFallbackStoreForTests() {
+  _entries.clear();
+  _loaded = false;
+  const filePath = getDataFilePath();
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch {}
+}
+
+export function __clearInMemoryCacheForTests() {
+  _entries.clear();
+  _loaded = false;
+}
 
 function maskEntry(entry: WalkInEntry, showPhone: boolean): WalkInEntry {
   if (showPhone) return entry;
@@ -74,7 +165,20 @@ export async function createWalkIn(
   };
 
   if (!isFirebaseConfigured()) {
+    // Synchronous critical section — see "Fallback mutation atomicity" above.
+    ensureLoaded();
+    // Authoritative idempotency check. The `await`ed check at the top of this
+    // function is only a fast path — by the time it resolves, a concurrent
+    // create may already have inserted this key. Re-checking here, in the same
+    // synchronous block as the insert, is what actually makes create idempotent
+    // under concurrency.
+    for (const e of _entries.values()) {
+      if (e.eventId === eventId && e.idempotencyKey === payload.idempotencyKey) {
+        return maskEntry(e, piiShowPhone);
+      }
+    }
     _entries.set(id, entry);
+    persistEntries();
     return maskEntry(entry, piiShowPhone);
   }
 
@@ -91,6 +195,7 @@ export async function listWalkIns(
   const limit = params.limit ?? 50;
 
   if (!isFirebaseConfigured()) {
+    ensureLoaded();
     let entries = Array.from(_entries.values());
 
     if (params.eventId) {
@@ -212,10 +317,13 @@ export async function updateWalkIn(
   const now = new Date().toISOString();
 
   if (!isFirebaseConfigured()) {
+    // Synchronous critical section — see "Fallback mutation atomicity" above.
+    ensureLoaded();
     const e = _entries.get(logId);
     if (!e) throw new Error('Entry not found');
     const merged = { ...e, ...updates, lastEditedBy: actor.uid, updatedAt: now };
     _entries.set(logId, merged);
+    persistEntries();
     return maskEntry(merged, piiShowPhone);
   }
 
@@ -242,8 +350,13 @@ export async function voidWalkIn(
   const now = new Date().toISOString();
 
   if (!isFirebaseConfigured()) {
+    // Synchronous critical section — see "Fallback mutation atomicity" above.
+    ensureLoaded();
     const e = _entries.get(logId);
-    if (e) _entries.set(logId, { ...e, status: 'void', lastEditedBy: actor.uid, updatedAt: now });
+    if (e) {
+      _entries.set(logId, { ...e, status: 'void', lastEditedBy: actor.uid, updatedAt: now });
+      persistEntries();
+    }
     return;
   }
 
@@ -258,6 +371,7 @@ export async function voidWalkIn(
 
 async function getByIdempotencyKey(eventId: string, key: string): Promise<WalkInEntry | null> {
   if (!isFirebaseConfigured()) {
+    ensureLoaded();
     for (const e of Array.from(_entries.values())) {
       if (e.eventId === eventId && e.idempotencyKey === key) return e;
     }
@@ -282,7 +396,20 @@ export async function getWalkInEventSummary(eventId: string): Promise<{
   byPaymentMode: Record<string, number>;
 }> {
   if (!isFirebaseConfigured()) {
-    return { totalEntries: 0, totalPaise: 0, totalPartySize: 0, byPaymentMode: {} };
+    ensureLoaded();
+    const entries = Array.from(_entries.values()).filter(
+      (e) => e.eventId === eventId && e.status === 'active',
+    );
+    const byPaymentMode: Record<string, number> = {};
+    for (const e of entries) {
+      byPaymentMode[e.paymentMode] = (byPaymentMode[e.paymentMode] ?? 0) + e.amountPaise;
+    }
+    return {
+      totalEntries: entries.length,
+      totalPaise: entries.reduce((s, e) => s + e.amountPaise, 0),
+      totalPartySize: entries.reduce((s, e) => s + (e.totalGuests || 1), 0),
+      byPaymentMode,
+    };
   }
 
   const snap = await getAdminDb()

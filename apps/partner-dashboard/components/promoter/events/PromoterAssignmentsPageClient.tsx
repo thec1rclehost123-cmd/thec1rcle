@@ -4,15 +4,20 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, CalendarX2 } from 'lucide-react';
 import { PromoterAssignmentCard } from './PromoterAssignmentCard';
+import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 
 export function PromoterAssignmentsPageClient() {
+  const { getIdToken } = useDashboardAuth();
   const [statusFilter, setStatusFilter] = useState('active');
   const [searchQuery, setSearchQuery] = useState('');
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['promoter', 'events', statusFilter],
     queryFn: async () => {
-      const res = await fetch(`/api/partners/promoters/events?status=${statusFilter}`);
+      const token = await getIdToken();
+      const res = await fetch(`/api/partners/promoters/events?status=${statusFilter}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error('Failed to fetch assignments');
       return res.json();
     },

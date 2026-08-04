@@ -25,6 +25,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    if (error?.message?.includes("VideoPlayer.pause' has been rejected")) {
+      return { hasError: false, error: null };
+    }
     return { hasError: true, error };
   }
 
