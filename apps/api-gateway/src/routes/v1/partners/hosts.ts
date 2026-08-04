@@ -37,6 +37,7 @@ import {
   getOrderCommerceAmounts,
   getPartnerCommerceRows,
 } from '../../../lib/canonicalCommerceMetrics.js';
+import { aggregateAudience } from '../../../lib/analyticsAudience.js';
 
 const OverviewQuerySchema = z
   .object({
@@ -744,6 +745,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       eventDoc,
       commerce,
       eventViewsSnap,
+      audience,
     ] = await Promise.all([
       ordersQuery.orderBy('createdAt', 'desc').limit(200).get(),
       ordersQuery.count().get(),
@@ -757,6 +759,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         .doc(eventId)
         .get()
         .catch(() => null),
+      aggregateAudience(fastify.db, { eventId }, '1970-01-01T00:00:00.000Z'),
     ]);
 
     const orders = ordersSnap.docs.map((d) => ({
@@ -988,6 +991,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       peakSalesHour,
       peakCheckInHour,
       timeZone: eventData.timeZone || 'Asia/Kolkata',
+      genderRatio: audience.genderRatio,
+      ageBands: audience.ageBands,
       // Keep legacy shape for backwards compat
       event: {
         id: event.eventId,

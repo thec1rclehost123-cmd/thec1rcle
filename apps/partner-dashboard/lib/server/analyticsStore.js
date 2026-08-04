@@ -181,7 +181,7 @@ function getGuestListDate(entry) {
 function getGuestAge(order) {
   const directAge = toNumber(order?.age ?? order?.guestAge);
   if (directAge > 0) return directAge;
-  const dob = toDate(order?.dob || order?.birthDate);
+  const dob = toDate(order?.dob || order?.birthDate || order?.dateOfBirth);
   if (!dob) return 0;
   const now = new Date();
   let age = now.getFullYear() - dob.getFullYear();
@@ -425,14 +425,16 @@ function buildFunnel(orders, guestLists, totals) {
 async function hydrateGuestProfiles(db, guestMap) {
   const missingGenderIds = [];
   const missingAgeIds = [];
+  const missingCityIds = [];
 
   for (const [guestId, guest] of guestMap.entries()) {
     if (!guestId || guestId.includes('@')) continue;
     if (!guest.gender) missingGenderIds.push(guestId);
     if (!guest.age) missingAgeIds.push(guestId);
+    if (!guest.city) missingCityIds.push(guestId);
   }
 
-  const lookupIds = [...new Set([...missingGenderIds, ...missingAgeIds])];
+  const lookupIds = [...new Set([...missingGenderIds, ...missingAgeIds, ...missingCityIds])];
   if (!lookupIds.length) return;
 
   const userSnapshots = await Promise.all(
@@ -440,7 +442,7 @@ async function hydrateGuestProfiles(db, guestMap) {
       db
         .collection('users')
         .where(FieldPath.documentId(), 'in', batch)
-        .select('gender', 'sex', 'age', 'dob', 'birthDate')
+        .select('gender', 'sex', 'age', 'dob', 'birthDate', 'dateOfBirth', 'city')
         .get(),
     ),
   );
@@ -452,6 +454,7 @@ async function hydrateGuestProfiles(db, guestMap) {
       if (!guest) continue;
       guest.gender = guest.gender || getGender(user);
       guest.age = guest.age || getGuestAge(user);
+      guest.city = guest.city || getCity(user);
     }
   }
 }
@@ -857,12 +860,24 @@ async function buildOverviewPayload(role, events, orders, guestLists, range, db)
   let orderRevenue = 0;
   let orderTickets = 0;
   let orderCheckIns = 0;
+  let grossAmt = 0;
+  let refundAmt = 0;
   for (const order of orders) {
-    if (!isActiveOrder(order)) continue;
-    orderRevenue += getOrderAmount(order);
-    orderTickets += getOrderQuantity(order);
-    if (isCheckedIn(order)) orderCheckIns += getOrderQuantity(order);
+    const amount = getOrderAmount(order);
+    const status = String(order?.status || '')
+      .trim()
+      .toLowerCase();
+    if (status === 'refunded') {
+      refundAmt += amount;
+      grossAmt += amount;
+    } else if (isActiveOrder(order)) {
+      grossAmt += amount;
+      orderRevenue += amount;
+      orderTickets += getOrderQuantity(order);
+      if (isCheckedIn(order)) orderCheckIns += getOrderQuantity(order);
+    }
   }
+  const refundRate = grossAmt > 0 ? (refundAmt / grossAmt) * 100 : 0;
 
   const guestlistCheckIns = guestLists.reduce((sum, entry) => sum + (entry?.checkedIn ? 1 : 0), 0);
   const totalRevenue = eventRevenue || orderRevenue;
@@ -905,7 +920,7 @@ async function buildOverviewPayload(role, events, orders, guestLists, range, db)
     occupancyRate,
     sellThroughRate,
     avgTicketPrice,
-    refundRate: 0,
+    refundRate,
     noShowRate,
     repeatGuestRate: audience.repeatGuestPct,
     firstTimeGuestRate:

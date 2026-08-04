@@ -25,6 +25,7 @@ import {
   getOrderCommerceAmounts,
   getPartnerCommerceRows,
 } from '../../../lib/canonicalCommerceMetrics.js';
+import { aggregateAudience } from '../../../lib/analyticsAudience.js';
 import { getPermissionsForRole, type Permission } from '../../../lib/rbac-permissions.js';
 
 import { uploadPartnerAsset } from '../../../lib/partner-upload.js';
@@ -163,6 +164,32 @@ import { encrypt, decrypt } from '../../../lib/encryption.js';
 function toNumber(value: any): number {
   const amount = Number(value ?? 0);
   return Number.isFinite(amount) ? amount : 0;
+}
+
+function toIso(value: any): string | null {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value?.toDate === 'function') return value.toDate().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  return null;
+}
+
+async function fetchVenueOrders(db: any, venueId: string, limit: number): Promise<any[]> {
+  const ordered = await db
+    .collection('orders')
+    .where('venueId', '==', venueId)
+    .orderBy('createdAt', 'desc')
+    .limit(limit)
+    .get()
+    .catch(() => null);
+  if (ordered) return ordered.docs || [];
+  const fallback = await db
+    .collection('orders')
+    .where('venueId', '==', venueId)
+    .limit(limit)
+    .get()
+    .catch(() => ({ docs: [] as any[] }));
+  return (fallback as any).docs || [];
 }
 
 async function sendPushToUsers(
@@ -2748,35 +2775,37 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         const eventOverviewMatch = rest.match(/^events\/([^/]+)\/overview$/);
         if (eventOverviewMatch && request.method === 'GET') {
           const evtId = eventOverviewMatch[1];
-          const [eventDoc, ordersSnap, checkinsSnap, viewsSnap, commerce] = await Promise.all([
-            fastify.db.collection('events').doc(evtId).get(),
-            fastify.db
-              .collection('orders')
-              .where('eventId', '==', evtId)
-              .where('status', 'in', ['confirmed', 'paid'])
-              .get()
-              .catch((err: any) => {
-                request.log.error({ err, eventId: evtId }, 'Failed to query orders for overview');
-                return { docs: [] as any[] };
-              }),
-            fastify.db
-              .collection('check_ins')
-              .where('eventId', '==', evtId)
-              .get()
-              .catch((err: any) => {
-                request.log.error(
-                  { err, eventId: evtId },
-                  'Failed to query check_ins for overview',
-                );
-                return { size: 0 };
-              }),
-            fastify.db
-              .collection('event_views')
-              .doc(evtId)
-              .get()
-              .catch(() => null),
-            getEventCommerceMetrics(fastify.db, evtId),
-          ]);
+          const [eventDoc, ordersSnap, checkinsSnap, viewsSnap, commerce, audience] =
+            await Promise.all([
+              fastify.db.collection('events').doc(evtId).get(),
+              fastify.db
+                .collection('orders')
+                .where('eventId', '==', evtId)
+                .where('status', 'in', ['confirmed', 'paid'])
+                .get()
+                .catch((err: any) => {
+                  request.log.error({ err, eventId: evtId }, 'Failed to query orders for overview');
+                  return { docs: [] as any[] };
+                }),
+              fastify.db
+                .collection('check_ins')
+                .where('eventId', '==', evtId)
+                .get()
+                .catch((err: any) => {
+                  request.log.error(
+                    { err, eventId: evtId },
+                    'Failed to query check_ins for overview',
+                  );
+                  return { size: 0 };
+                }),
+              fastify.db
+                .collection('event_views')
+                .doc(evtId)
+                .get()
+                .catch(() => null),
+              getEventCommerceMetrics(fastify.db, evtId),
+              aggregateAudience(fastify.db, { eventId: evtId }, '1970-01-01T00:00:00.000Z'),
+            ]);
           if (!eventDoc.exists)
             return reply.status(404).send(
               buildErrorResponse({
@@ -2942,6 +2971,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                   checkIns: peakCheckInEntry.checkIns,
                 }
               : null,
+            genderRatio: audience.genderRatio,
+            ageBands: audience.ageBands,
             timeZone: event.timeZone || 'Asia/Kolkata',
           });
         }
@@ -5365,7 +5396,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         // analytics/overview — real aggregation
         if (rest === 'analytics/overview' && request.method === 'GET') {
           const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-          const [eventsSnap, commerceRows, checkinsSnap] = await Promise.all([
+          const [eventsSnap, commerceRows, checkinsSnap, rsvpsSnap] = await Promise.all([
             fastify.db
               .collection('events')
               .where('venueId', '==', ctx.partnerId)
@@ -5378,24 +5409,43 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .where('checkedInAt', '>=', thirtyDaysAgo)
               .get()
               .catch(() => ({ size: 0 })),
+            fastify.db
+              .collection('rsvp_orders')
+              .where('venueId', '==', ctx.partnerId)
+              .orderBy('createdAt', 'desc')
+              .limit(2000)
+              .get()
+              .catch(() => ({ docs: [] as any[] })),
           ]);
           const totalRevenuePaise = commerceRows.ledger
             .filter((row) => !row.createdAtIso || row.createdAtIso >= thirtyDaysAgo)
             .reduce((sum, row) => sum + Number(row.amountPaise || 0), 0);
-          const totalTickets = commerceRows.tickets.filter(
+          const paidTickets = commerceRows.tickets.filter(
             (ticket) => !ticket.createdAtIso || ticket.createdAtIso >= thirtyDaysAgo,
           ).length;
+          const rsvpTickets = ((rsvpsSnap as any).docs || []).reduce((count: number, doc: any) => {
+            const rsvp = doc.data() || {};
+            const rsvpCreatedAt = rsvp.createdAt?.toDate?.()
+              ? rsvp.createdAt.toDate().toISOString()
+              : rsvp.createdAt;
+            if (rsvp.status !== 'confirmed') return count;
+            if (rsvpCreatedAt && rsvpCreatedAt < thirtyDaysAgo) return count;
+            return count + (Number(rsvp.ticketCount || rsvp.quantity || 1) || 1);
+          }, 0);
+          const totalTicketsSold = paidTickets + rsvpTickets;
           const totalCheckIns = (checkinsSnap as any).size || 0;
           const eventCount = (eventsSnap as any).size || 0;
           return reply.send({
             period: '30d',
             totalRevenue: totalRevenuePaise / 100,
-            totalTicketsSold: totalTickets,
+            totalTicketsSold,
+            ticketsSoldPaid: paidTickets,
+            ticketsSoldRsvp: rsvpTickets,
             totalCheckIns,
             totalEvents: eventCount,
             events: { total: eventCount },
             revenue: { totalPaise: totalRevenuePaise, total: totalRevenuePaise / 100 },
-            tickets: { sold: totalTickets },
+            tickets: { sold: totalTicketsSold, paid: paidTickets, rsvp: rsvpTickets },
             attendance: { checkedIn: totalCheckIns },
           });
         }
@@ -5403,15 +5453,48 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         // analytics/audience — guest demographic aggregation
         if (rest === 'analytics/audience' && request.method === 'GET') {
           const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-          const ordersSnap = await fastify.db
-            .collection('orders')
-            .where('venueId', '==', ctx.partnerId)
-            .where('status', 'in', ['confirmed', 'paid'])
-            .where('createdAt', '>=', thirtyDaysAgo)
-            .limit(2000)
-            .get()
-            .catch(() => ({ docs: [] as any[] }));
-          const orderDocs2 = (ordersSnap as any).docs || [];
+          const allDocs = await fetchVenueOrders(fastify.db, ctx.partnerId, 2000);
+          const orderDocs2 = allDocs.filter((doc: any) => {
+            const d = doc.data() || {};
+            if (!['confirmed', 'paid'].includes(String(d.status || ''))) return false;
+            const created = toIso(d.createdAt);
+            return !created || created >= thirtyDaysAgo;
+          });
+          const buyerIds = new Set<string>();
+          for (const doc of orderDocs2) {
+            const d = doc.data() || {};
+            if (d.userId) buyerIds.add(d.userId);
+          }
+          const profileByUserId: Record<string, { gender?: string; age?: number; city?: string }> =
+            {};
+          const idArr = Array.from(buyerIds);
+          for (let i = 0; i < idArr.length; i += 30) {
+            const chunk = idArr.slice(i, i + 30);
+            const snap = await fastify.db
+              .collection('users')
+              .where('__name__', 'in', chunk)
+              .get()
+              .catch(() => ({ docs: [] as any[] }));
+            for (const pdoc of (snap as any).docs || []) {
+              const p = pdoc.data() || {};
+              let pAge = toNumber(p.age);
+              if (pAge <= 0) {
+                const dob = p.dob || p.dateOfBirth;
+                if (dob) {
+                  const birth = typeof dob.toDate === 'function' ? dob.toDate() : new Date(dob);
+                  if (!Number.isNaN(birth.getTime())) {
+                    const diff = Date.now() - birth.getTime();
+                    pAge = Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
+                  }
+                }
+              }
+              profileByUserId[pdoc.id] = {
+                gender: p.gender,
+                age: pAge > 0 ? pAge : undefined,
+                city: p.city || p.location?.city || p.address?.city || undefined,
+              };
+            }
+          }
           const genderSplit: Record<string, number> = { male: 0, female: 0, other: 0 };
           const ageBuckets: Record<string, number> = {
             '18-22': 0,
@@ -5421,16 +5504,19 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             '45+': 0,
           };
           const cityMap: Record<string, number> = {};
-          const buyerIds = new Set<string>();
           let totalAge = 0,
             ageCount = 0;
-          for (const doc of orderDocs2) {
-            const d = doc.data() || {};
-            const g = String(d.buyerGender || d.gender || '').toLowerCase();
+          for (const userId of idArr) {
+            const profile = profileByUserId[userId] || {};
+            const userOrders = orderDocs2.filter((doc: any) => doc.data()?.userId === userId);
+            const d = userOrders[0]?.data() || {};
+
+            const g = String(d.buyerGender || d.gender || profile.gender || '').toLowerCase();
             if (g === 'male') genderSplit.male++;
             else if (g === 'female') genderSplit.female++;
             else genderSplit.other++;
-            const age = toNumber(d.buyerAge || d.age || 0);
+
+            const age = toNumber(d.buyerAge || d.age || profile.age || 0);
             if (age >= 18) {
               totalAge += age;
               ageCount++;
@@ -5440,23 +5526,19 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               else if (age <= 44) ageBuckets['35-44']++;
               else ageBuckets['45+']++;
             }
-            const city = String(d.buyerCity || d.city || '').trim();
+
+            const city = String(d.buyerCity || d.city || profile.city || '').trim();
             if (city) cityMap[city] = (cityMap[city] || 0) + 1;
-            if (d.userId) buyerIds.add(d.userId);
           }
           const repeatIds = new Set<string>();
-          const idArr = Array.from(buyerIds);
           if (idArr.length > 0) {
-            const allOrdersSnap = await fastify.db
-              .collection('orders')
-              .where('venueId', '==', ctx.partnerId)
-              .where('status', 'in', ['confirmed', 'paid'])
-              .where('createdAt', '<', thirtyDaysAgo)
-              .limit(2000)
-              .get()
-              .catch(() => ({ docs: [] as any[] }));
-            for (const d of (allOrdersSnap as any).docs || []) {
-              const uid = d.data().userId;
+            const olderDocs = await fetchVenueOrders(fastify.db, ctx.partnerId, 2000);
+            for (const d of olderDocs) {
+              const data = d.data() || {};
+              if (!['confirmed', 'paid'].includes(String(data.status || ''))) continue;
+              const created = toIso(data.createdAt);
+              if (created && created >= thirtyDaysAgo) continue;
+              const uid = data.userId;
               if (uid && buyerIds.has(uid)) repeatIds.add(uid);
             }
           }

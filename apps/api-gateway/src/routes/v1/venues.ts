@@ -12,6 +12,7 @@ import {
   getPartnerCommerceRows,
 } from '../../lib/canonicalCommerceMetrics';
 import { isBlockingCalendarEvent } from '../../lib/calendar-visibility.js';
+import { aggregateAudience } from '../../lib/analyticsAudience.js';
 import { generateReconciliation } from '@c1rcle/core/cover-charge-engine';
 import { loadVenueScopedEvent } from '../../lib/venueEventScope.js';
 import { getPermissionsForRole } from '../../lib/rbac-permissions.js';
@@ -504,7 +505,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const [eventsSnap, commerceRows, checkinsSnap] = await Promise.all([
+      const [eventsSnap, commerceRows, checkinsSnap, rsvpsSnap, audience] = await Promise.all([
         fastify.db
           .collection('events')
           .where('venueId', '==', venueId)
@@ -517,6 +518,14 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           .where('checkedInAt', '>=', thirtyDaysAgo)
           .get()
           .catch(() => ({ size: 0 })),
+        fastify.db
+          .collection('rsvp_orders')
+          .where('venueId', '==', venueId)
+          .orderBy('createdAt', 'desc')
+          .limit(2000)
+          .get()
+          .catch(() => ({ docs: [] as any[] })),
+        aggregateAudience(fastify.db, { venueId }, thirtyDaysAgo),
       ]);
       const totalRevenuePaise = commerceRows.ledger
         .filter((entry) => !entry.createdAtIso || entry.createdAtIso >= thirtyDaysAgo)
@@ -524,18 +533,31 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       const totalTickets = commerceRows.tickets.filter(
         (ticket) => !ticket.createdAtIso || ticket.createdAtIso >= thirtyDaysAgo,
       ).length;
+      const rsvpTickets = ((rsvpsSnap as any).docs || []).reduce((count: number, doc: any) => {
+        const rsvp = doc.data() || {};
+        const created = rsvp.createdAt?.toDate?.()
+          ? rsvp.createdAt.toDate().toISOString()
+          : rsvp.createdAt;
+        if (rsvp.status !== 'confirmed') return count;
+        if (created && created < thirtyDaysAgo) return count;
+        return count + (Number(rsvp.ticketCount || rsvp.quantity || 1) || 1);
+      }, 0);
       const totalCheckIns = (checkinsSnap as any).size || 0;
       const eventCount = (eventsSnap as any).size || ((eventsSnap as any).docs || []).length;
       return reply.send({
         period: '30d',
         totalRevenue: totalRevenuePaise / 100,
-        totalTicketsSold: totalTickets,
+        totalTicketsSold: totalTickets + rsvpTickets,
+        ticketsSoldPaid: totalTickets,
+        ticketsSoldRsvp: rsvpTickets,
         totalCheckIns,
         totalEvents: eventCount,
         events: { total: eventCount },
         revenue: { totalPaise: totalRevenuePaise, total: totalRevenuePaise / 100 },
-        tickets: { sold: totalTickets },
+        tickets: { sold: totalTickets + rsvpTickets, paid: totalTickets, rsvp: rsvpTickets },
         attendance: { checkedIn: totalCheckIns },
+        genderRatio: audience.genderRatio,
+        ageBands: audience.ageBands,
       });
     },
   );
