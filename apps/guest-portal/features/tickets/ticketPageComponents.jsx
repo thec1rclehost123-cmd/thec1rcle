@@ -493,9 +493,16 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
   );
 };
 
-const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
+const QRModal = ({ isOpen, ticket, onClose, onPartner, onTransfer }) => {
   const { profile } = useAuth();
-  const tickets = ticket.tickets || [ticket];
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  const tickets = ticket?.tickets || (ticket ? [ticket] : []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentTicketBase = tickets[currentIndex];
 
@@ -508,6 +515,7 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
 
   const currentTicket = detailTicket || currentTicketBase;
 
+  if (!mounted) return null;
   if (!ticket) return null;
 
   const isUsed = currentTicket.status === 'used';
@@ -524,425 +532,439 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
     setCurrentIndex((prev) => (prev - 1 + tickets.length) % tickets.length);
   };
 
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] flex items-center justify-center p-0 md:p-8"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/40 dark:bg-black/90 backdrop-blur-2xl"
-      />
+  const { createPortal } = require('react-dom');
 
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+  return createPortal(
+    <AnimatePresence>
+      {isOpen && ticket && (
         <motion.div
-          animate={{
-            scale: [1, 1.25, 1],
-            opacity: [0.35, 0.65, 0.35],
-          }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-          className="h-[700px] w-[700px] rounded-full blur-[140px]"
-          style={{
-            backgroundColor: color,
-            boxShadow: `0 0 250px 120px rgba(${rgb}, 0.45)`,
-          }}
-        />
-      </div>
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 flex items-center justify-center p-0 md:p-8"
+          style={{ zIndex: 10000 }}
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/40 dark:bg-black/90 backdrop-blur-2xl"
+          />
 
-      <motion.div
-        initial={{ scale: 0.9, y: 40, opacity: 0 }}
-        animate={{ scale: 1, y: 0, opacity: 1 }}
-        exit={{ scale: 0.9, y: 40, opacity: 0 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="relative w-full h-full md:h-auto md:max-w-[400px] overflow-hidden md:rounded-[48px] p-[1px] shadow-[0_32px_120px_-20px_rgba(0,0,0,0.5)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          className="absolute inset-0 opacity-40 blur-sm"
-          style={{ background: `linear-gradient(135deg, ${color}, transparent, ${color})` }}
-        />
-
-        <div className="rounded-none md:rounded-[44px] h-full w-full p-6 md:p-8 pt-12 sm:pt-20 md:pt-8 flex flex-col items-center bg-white/40 dark:bg-black/40 backdrop-blur-3xl border-none md:border md:border-white/60 dark:md:border-white/20">
-          {/* Header */}
-          <div className="mb-4 w-full text-center">
-            <motion.h2 className="font-heading text-2xl md:text-3xl font-black uppercase text-black dark:text-white max-w-[320px] leading-tight mx-auto tracking-tighter">
-              {ticket.eventTitle}
-            </motion.h2>
-
-            {/* Claim Status Overview */}
-            <div className="mt-4 flex flex-col items-center gap-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-black/40 dark:text-white/40">
-                Ticket {currentIndex + 1} of {tickets.length}
-              </p>
-              <div className="flex gap-1.5">
-                {tickets.map((_, i) => (
-                  <div
-                    key={i}
-                    className={`h-1 rounded-full transition-all duration-300 ${i === currentIndex ? 'w-4 bg-orange shadow-[0_0_8px_rgba(255,165,0,0.5)]' : 'w-1 bg-black/10 dark:bg-white/10'}`}
-                  />
-                ))}
-              </div>
-            </div>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+            <motion.div
+              animate={{
+                scale: [1, 1.25, 1],
+                opacity: [0.35, 0.65, 0.35],
+              }}
+              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+              className="h-[700px] w-[700px] rounded-full blur-[140px]"
+              style={{
+                backgroundColor: color,
+                boxShadow: `0 0 250px 120px rgba(${rgb}, 0.45)`,
+              }}
+            />
           </div>
 
-          {/* Carousel Area */}
-          <div className="relative w-full flex items-center justify-center py-4">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentTicket.ticketId || `ticket-${currentIndex}`}
-                initial={{ x: 50, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: -50, opacity: 0 }}
-                className="w-full flex flex-col items-center"
-              >
-                <div className="relative w-full aspect-square max-w-[240px] flex flex-col justify-center items-center bg-white rounded-[32px] shadow-2xl border border-white/40 overflow-hidden">
-                  {currentTicket.isTransferPending ? (
-                    <div className="text-center space-y-4">
-                      <div className="w-16 h-16 rounded-3xl bg-amber-500/10 flex items-center justify-center mx-auto">
-                        <svg
-                          className="w-8 h-8 text-amber-500"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2.5}
-                            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                          />
-                        </svg>
-                      </div>
-                      <p className="text-[10px] text-black/40 uppercase tracking-widest font-bold leading-relaxed px-4">
-                        QR disabled during transfer
-                      </p>
-                    </div>
-                  ) : currentTicket.isClaimedByOther ? (
-                    <div className="text-center space-y-4 flex flex-col items-center">
-                      <div className="relative">
-                        <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-iris/30 bg-iris/5 flex items-center justify-center shadow-inner">
-                          {currentTicket.assignment?.avatar ? (
-                            <img
-                              src={currentTicket.assignment.avatar}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-xl font-black text-iris">
-                              {currentTicket.assignment?.userName?.charAt(0) ||
-                                currentTicket.assignment?.redeemerId?.slice(0, 1).toUpperCase() ||
-                                'G'}
-                            </span>
-                          )}
+          <motion.div
+            initial={{ scale: 0.9, y: 40, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            exit={{ scale: 0.9, y: 40, opacity: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="relative w-full h-full md:h-auto md:max-w-[400px] overflow-hidden md:rounded-[48px] p-[1px] shadow-[0_32px_120px_-20px_rgba(0,0,0,0.5)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="absolute inset-0 opacity-40 blur-sm"
+              style={{ background: `linear-gradient(135deg, ${color}, transparent, ${color})` }}
+            />
+
+            <div className="rounded-none md:rounded-[44px] h-full w-full p-6 md:p-8 pt-12 sm:pt-20 md:pt-8 flex flex-col items-center bg-white/40 dark:bg-black/40 backdrop-blur-3xl border-none md:border md:border-white/60 dark:md:border-white/20">
+              {/* Header */}
+              <div className="mb-4 w-full text-center">
+                <motion.h2 className="font-heading text-2xl md:text-3xl font-black uppercase text-black dark:text-white max-w-[320px] leading-tight mx-auto tracking-tighter">
+                  {ticket.eventTitle}
+                </motion.h2>
+
+                {/* Claim Status Overview */}
+                <div className="mt-4 flex flex-col items-center gap-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-black/40 dark:text-white/40">
+                    Ticket {currentIndex + 1} of {tickets.length}
+                  </p>
+                  <div className="flex gap-1.5">
+                    {tickets.map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-1 rounded-full transition-all duration-300 ${i === currentIndex ? 'w-4 bg-orange shadow-[0_0_8px_rgba(255,165,0,0.5)]' : 'w-1 bg-black/10 dark:bg-white/10'}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Carousel Area */}
+              <div className="relative w-full flex items-center justify-center py-4">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentTicket.ticketId || `ticket-${currentIndex}`}
+                    initial={{ x: 50, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: -50, opacity: 0 }}
+                    className="w-full flex flex-col items-center"
+                  >
+                    <div className="relative w-full aspect-square max-w-[240px] flex flex-col justify-center items-center bg-white rounded-[32px] shadow-2xl border border-white/40 overflow-hidden">
+                      {currentTicket.isTransferPending ? (
+                        <div className="text-center space-y-4">
+                          <div className="w-16 h-16 rounded-3xl bg-amber-500/10 flex items-center justify-center mx-auto">
+                            <svg
+                              className="w-8 h-8 text-amber-500"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2.5}
+                                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                              />
+                            </svg>
+                          </div>
+                          <p className="text-[10px] text-black/40 uppercase tracking-widest font-bold leading-relaxed px-4">
+                            QR disabled during transfer
+                          </p>
                         </div>
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
-                          <svg
-                            className="w-3 h-3 text-white"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={3}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
+                      ) : currentTicket.isClaimedByOther ? (
+                        <div className="text-center space-y-4 flex flex-col items-center">
+                          <div className="relative">
+                            <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-iris/30 bg-iris/5 flex items-center justify-center shadow-inner">
+                              {currentTicket.assignment?.avatar ? (
+                                <img
+                                  src={currentTicket.assignment.avatar}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-xl font-black text-iris">
+                                  {currentTicket.assignment?.userName?.charAt(0) ||
+                                    currentTicket.assignment?.redeemerId
+                                      ?.slice(0, 1)
+                                      .toUpperCase() ||
+                                    'G'}
+                                </span>
+                              )}
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+                              <svg
+                                className="w-3 h-3 text-white"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={3}
+                                  d="M5 13l4 4L19 7"
+                                />
+                              </svg>
+                            </div>
+                          </div>
+                          <div className="px-4 mt-2">
+                            <p className="text-sm font-black text-black uppercase tracking-tight text-center">
+                              {currentTicket.assignment?.userName || 'Guest'}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="px-4 mt-2">
-                        <p className="text-sm font-black text-black uppercase tracking-tight text-center">
-                          {currentTicket.assignment?.userName || 'Guest'}
-                        </p>
-                      </div>
-                    </div>
-                  ) : currentTicket.genderMismatch ? (
-                    <div className="text-center space-y-4">
-                      <div className="w-16 h-16 rounded-3xl bg-red-500/10 flex items-center justify-center mx-auto">
-                        <svg
-                          className="w-8 h-8 text-red-500"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2.5}
-                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                          />
-                        </svg>
-                      </div>
-                      <p className="text-[10px] text-black/40 uppercase tracking-widest mt-2 font-bold leading-relaxed px-4">
-                        {currentTicket.requiredGender} Only
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      {isDetailLoading ? (
-                        <div className="flex flex-col items-center justify-center gap-4 py-8">
-                          <div className="animate-pulse w-[160px] h-[160px] rounded-2xl bg-black/5" />
-                          <p className="text-[8px] font-black text-black/20 uppercase tracking-widest">
-                            Verifying Identity...
+                      ) : currentTicket.genderMismatch ? (
+                        <div className="text-center space-y-4">
+                          <div className="w-16 h-16 rounded-3xl bg-red-500/10 flex items-center justify-center mx-auto">
+                            <svg
+                              className="w-8 h-8 text-red-500"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2.5}
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                              />
+                            </svg>
+                          </div>
+                          <p className="text-[10px] text-black/40 uppercase tracking-widest mt-2 font-bold leading-relaxed px-4">
+                            {currentTicket.requiredGender} Only
                           </p>
                         </div>
                       ) : (
                         <>
-                          <div
-                            className={`relative ${isUsed || isCancelled ? 'opacity-10 grayscale' : ''}`}
-                          >
-                            <IdentityQR
-                              entitlementId={currentTicket.qrPayload || currentTicket.entitlementId}
-                              slotTicketId={currentTicket.ticketId}
-                            />
-                          </div>
-                          {isUsed && (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <span className="border-[3px] border-black px-6 py-3 text-3xl font-black uppercase tracking-[0.2em] text-black bg-white shadow-2xl z-20 rotate-[-12deg]">
-                                USED
-                              </span>
+                          {isDetailLoading ? (
+                            <div className="flex flex-col items-center justify-center gap-4 py-8">
+                              <div className="animate-pulse w-[160px] h-[160px] rounded-2xl bg-black/5" />
+                              <p className="text-[8px] font-black text-black/20 uppercase tracking-widest">
+                                Verifying Identity...
+                              </p>
                             </div>
+                          ) : (
+                            <>
+                              <div
+                                className={`relative ${isUsed || isCancelled ? 'opacity-10 grayscale' : ''}`}
+                              >
+                                <IdentityQR
+                                  entitlementId={
+                                    currentTicket.qrPayload || currentTicket.entitlementId
+                                  }
+                                  slotTicketId={currentTicket.ticketId}
+                                />
+                              </div>
+                              {isUsed && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <span className="border-[3px] border-black px-6 py-3 text-3xl font-black uppercase tracking-[0.2em] text-black bg-white shadow-2xl z-20 rotate-[-12deg]">
+                                    USED
+                                  </span>
+                                </div>
+                              )}
+                            </>
                           )}
                         </>
                       )}
-                    </>
-                  )}
-                </div>
-
-                {/* Ticket Specific Details */}
-                <div className="mt-8 flex flex-col items-center gap-4 w-full">
-                  <div className="flex items-center gap-3">
-                    <span className="px-3 py-1 rounded-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 text-[10px] font-black uppercase tracking-widest text-black dark:text-white">
-                      {currentTicket.ticketType}
-                    </span>
-                    {currentTicket.isCouple && (
-                      <span className="px-3 py-1 rounded-full bg-orange/10 border border-orange/20 text-[10px] font-black uppercase tracking-widest text-orange">
-                        Couple Entry
-                      </span>
-                    )}
-                  </div>
-
-                  {currentTicket.isCouple && (
-                    <div className="flex items-center gap-3 mt-2">
-                      <div className="flex flex-col items-center">
-                        <div className="w-8 h-8 rounded-full bg-black dark:bg-white flex items-center justify-center text-white dark:text-black font-bold text-[10px]">
-                          P1
-                        </div>
-                        <span className="text-[8px] font-black uppercase tracking-widest mt-1 opacity-40">
-                          Buyer
-                        </span>
-                      </div>
-                      <div className="h-[1px] w-8 bg-black/10 dark:bg-white/10" />
-                      <div className="flex flex-col items-center">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold ${currentTicket.assignment ? 'bg-orange text-white' : 'bg-black/5 dark:bg-white/5 text-black/40 dark:text-white/40'}`}
-                        >
-                          {currentTicket.assignment ? 'P2' : '?'}
-                        </div>
-                        <span className="text-[8px] font-black uppercase tracking-widest mt-1 opacity-40">
-                          Partner
-                        </span>
-                      </div>
                     </div>
-                  )}
 
-                  {/* Check-in Status Badge */}
-                  <div className="mt-2 flex items-center gap-2">
-                    <span
-                      className={clsx(
-                        'px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border',
-                        isUsed
-                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
-                          : 'bg-blue-500/10 border-blue-500/20 text-blue-500',
+                    {/* Ticket Specific Details */}
+                    <div className="mt-8 flex flex-col items-center gap-4 w-full">
+                      <div className="flex items-center gap-3">
+                        <span className="px-3 py-1 rounded-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 text-[10px] font-black uppercase tracking-widest text-black dark:text-white">
+                          {currentTicket.ticketType}
+                        </span>
+                        {currentTicket.isCouple && (
+                          <span className="px-3 py-1 rounded-full bg-orange/10 border border-orange/20 text-[10px] font-black uppercase tracking-widest text-orange">
+                            Couple Entry
+                          </span>
+                        )}
+                      </div>
+
+                      {currentTicket.isCouple && (
+                        <div className="flex items-center gap-3 mt-2">
+                          <div className="flex flex-col items-center">
+                            <div className="w-8 h-8 rounded-full bg-black dark:bg-white flex items-center justify-center text-white dark:text-black font-bold text-[10px]">
+                              P1
+                            </div>
+                            <span className="text-[8px] font-black uppercase tracking-widest mt-1 opacity-40">
+                              Buyer
+                            </span>
+                          </div>
+                          <div className="h-[1px] w-8 bg-black/10 dark:bg-white/10" />
+                          <div className="flex flex-col items-center">
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold ${currentTicket.assignment ? 'bg-orange text-white' : 'bg-black/5 dark:bg-white/5 text-black/40 dark:text-white/40'}`}
+                            >
+                              {currentTicket.assignment ? 'P2' : '?'}
+                            </div>
+                            <span className="text-[8px] font-black uppercase tracking-widest mt-1 opacity-40">
+                              Partner
+                            </span>
+                          </div>
+                        </div>
                       )}
-                    >
-                      {isUsed ? 'Checked In' : 'Active'}
-                    </span>
-                  </div>
 
-                  <div className="flex flex-wrap justify-center gap-4 mt-8">
-                    <button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        const shareUrl = `${window.location.origin}/ticket/${currentTicket.entitlementId || currentTicket.ticketId}`;
-                        if (typeof navigator !== 'undefined' && navigator.share) {
-                          try {
-                            await navigator.share({
-                              title: `Ticket for ${currentTicket.eventTitle}`,
-                              text: `Here is my ticket for ${currentTicket.eventTitle}:`,
-                              url: shareUrl,
+                      {/* Check-in Status Badge */}
+                      <div className="mt-2 flex items-center gap-2">
+                        <span
+                          className={clsx(
+                            'px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border',
+                            isUsed
+                              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
+                              : 'bg-blue-500/10 border-blue-500/20 text-blue-500',
+                          )}
+                        >
+                          {isUsed ? 'Checked In' : 'Active'}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap justify-center gap-4 mt-8">
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const shareUrl = `${window.location.origin}/ticket/${currentTicket.entitlementId || currentTicket.ticketId}`;
+                            if (typeof navigator !== 'undefined' && navigator.share) {
+                              try {
+                                await navigator.share({
+                                  title: `Ticket for ${currentTicket.eventTitle}`,
+                                  text: `Here is my ticket for ${currentTicket.eventTitle}:`,
+                                  url: shareUrl,
+                                });
+                              } catch (err) {}
+                            } else {
+                              navigator.clipboard.writeText(shareUrl);
+                              alert('Ticket share link copied to clipboard!');
+                            }
+                          }}
+                          title="Share Ticket"
+                          className="group/btn h-12 w-12 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
+                        >
+                          <Share2 className="h-5 w-5 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />
+                        </button>
+
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const QRCode = (await import('qrcode')).default;
+                            const canvas = document.createElement('canvas');
+                            const qrValue =
+                              currentTicket.qrPayload ||
+                              currentTicket.entitlementId ||
+                              currentTicket.ticketId;
+                            await QRCode.toCanvas(canvas, qrValue, {
+                              width: 300,
+                              margin: 2,
                             });
-                          } catch (err) {}
-                        } else {
-                          navigator.clipboard.writeText(shareUrl);
-                          alert('Ticket share link copied to clipboard!');
-                        }
-                      }}
-                      title="Share Ticket"
-                      className="group/btn h-12 w-12 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
-                    >
-                      <Share2 className="h-5 w-5 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />
-                    </button>
+                            const link = document.createElement('a');
+                            link.download = `ticket-${currentTicket.entitlementId || currentTicket.ticketId}.png`;
+                            link.href = canvas.toDataURL();
+                            link.click();
+                          }}
+                          title="Download Ticket QR"
+                          className="group/btn h-12 w-12 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
+                        >
+                          <Download className="h-5 w-5 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />
+                        </button>
 
-                    <button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        const QRCode = (await import('qrcode')).default;
-                        const canvas = document.createElement('canvas');
-                        const qrValue =
-                          currentTicket.qrPayload ||
-                          currentTicket.entitlementId ||
-                          currentTicket.ticketId;
-                        await QRCode.toCanvas(canvas, qrValue, {
-                          width: 300,
-                          margin: 2,
-                        });
-                        const link = document.createElement('a');
-                        link.download = `ticket-${currentTicket.entitlementId || currentTicket.ticketId}.png`;
-                        link.href = canvas.toDataURL();
-                        link.click();
-                      }}
-                      title="Download Ticket QR"
-                      className="group/btn h-12 w-12 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
-                    >
-                      <Download className="h-5 w-5 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />
-                    </button>
+                        {!currentTicket.isClaimedByOther && !currentTicket.isTransferPending && (
+                          <button
+                            onClick={() => onTransfer(currentTicket)}
+                            className="group/btn h-12 w-12 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-iris/20 shadow-sm"
+                          >
+                            <ArrowLeftRight className="h-5 w-5 text-black/40 dark:text-white/40 group-hover/btn:text-iris transition-colors" />
+                          </button>
+                        )}
 
-                    {!currentTicket.isClaimedByOther && !currentTicket.isTransferPending && (
-                      <button
-                        onClick={() => onTransfer(currentTicket)}
-                        className="group/btn h-12 w-12 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-iris/20 shadow-sm"
-                      >
-                        <ArrowLeftRight className="h-5 w-5 text-black/40 dark:text-white/40 group-hover/btn:text-iris transition-colors" />
-                      </button>
-                    )}
-
-                    {currentTicket.isCouple && !currentTicket.isClaimedByOther && (
-                      <button
-                        onClick={() => onPartner(currentTicket)}
-                        className="px-6 py-2.5 rounded-xl border border-orange/30 text-orange font-black text-[10px] uppercase tracking-[0.2em] hover:bg-orange/5 transition-colors"
-                      >
-                        {currentTicket.assignment ? 'Change Partner' : 'Invite Partner'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-
-            {/* Navigation Arrows */}
-            {tickets.length > 1 && (
-              <>
-                <button
-                  onClick={handlePrev}
-                  className="absolute left-[-20px] p-2 text-black/20 dark:text-white/20 hover:text-black dark:hover:text-white transition-colors"
-                >
-                  <ChevronLeft className="w-8 h-8" />
-                </button>
-                <button
-                  onClick={handleNext}
-                  className="absolute right-[-20px] p-2 text-black/20 dark:text-white/20 hover:text-black dark:hover:text-white transition-colors"
-                >
-                  <ChevronRight className="w-8 h-8" />
-                </button>
-              </>
-            )}
-          </div>
-
-          <div className="flex-1" />
-
-          <div className="mt-4 flex flex-col items-center gap-4">
-            {/* Assignment Details Badge */}
-            <div className="flex flex-col items-center gap-2">
-              {currentTicket.isClaimedByOther ? (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-iris/5 border border-iris/10">
-                  <div className="w-5 h-5 rounded-full overflow-hidden border border-iris/20 bg-iris/5 relative">
-                    <ShimmerImage
-                      src={currentTicket.assignment?.avatar || currentTicket.assignment?.photoURL}
-                      alt={currentTicket.assignment?.userName || 'Assigned User'}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-iris">
-                    Assigned to {currentTicket.assignment?.userName || 'Guest'}
-                  </span>
-                </div>
-              ) : currentTicket.isClaimed ? (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/5 border border-emerald-500/10">
-                  <div className="relative">
-                    <div className="w-5 h-5 rounded-full overflow-hidden border border-emerald-500/20 bg-emerald-500/5 relative">
-                      <ShimmerImage
-                        src={profile?.avatar || profile?.photoURL}
-                        alt={profile?.displayName || 'You'}
-                        fill
-                        className="object-cover"
-                      />
+                        {currentTicket.isCouple && !currentTicket.isClaimedByOther && (
+                          <button
+                            onClick={() => onPartner(currentTicket)}
+                            className="px-6 py-2.5 rounded-xl border border-orange/30 text-orange font-black text-[10px] uppercase tracking-[0.2em] hover:bg-orange/5 transition-colors"
+                          >
+                            {currentTicket.assignment ? 'Change Partner' : 'Invite Partner'}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white" />
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600">
-                    Assigned to You
-                  </span>
+                  </motion.div>
+                </AnimatePresence>
+
+                {/* Navigation Arrows */}
+                {tickets.length > 1 && (
+                  <>
+                    <button
+                      onClick={handlePrev}
+                      className="absolute left-[-20px] p-2 text-black/20 dark:text-white/20 hover:text-black dark:hover:text-white transition-colors"
+                    >
+                      <ChevronLeft className="w-8 h-8" />
+                    </button>
+                    <button
+                      onClick={handleNext}
+                      className="absolute right-[-20px] p-2 text-black/20 dark:text-white/20 hover:text-black dark:hover:text-white transition-colors"
+                    >
+                      <ChevronRight className="w-8 h-8" />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="flex-1" />
+
+              <div className="mt-4 flex flex-col items-center gap-4">
+                {/* Assignment Details Badge */}
+                <div className="flex flex-col items-center gap-2">
+                  {currentTicket.isClaimedByOther ? (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-iris/5 border border-iris/10">
+                      <div className="w-5 h-5 rounded-full overflow-hidden border border-iris/20 bg-iris/5 relative">
+                        <ShimmerImage
+                          src={
+                            currentTicket.assignment?.avatar || currentTicket.assignment?.photoURL
+                          }
+                          alt={currentTicket.assignment?.userName || 'Assigned User'}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-iris">
+                        Assigned to {currentTicket.assignment?.userName || 'Guest'}
+                      </span>
+                    </div>
+                  ) : currentTicket.isClaimed ? (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/5 border border-emerald-500/10">
+                      <div className="relative">
+                        <div className="w-5 h-5 rounded-full overflow-hidden border border-emerald-500/20 bg-emerald-500/5 relative">
+                          <ShimmerImage
+                            src={profile?.avatar || profile?.photoURL}
+                            alt={profile?.displayName || 'You'}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white" />
+                      </div>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600">
+                        Assigned to You
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
 
-            <Link
-              href={`/event/${currentTicket.eventSlug}`}
-              className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40 dark:text-white/40 hover:text-orange transition-colors flex items-center gap-2"
-            >
-              View Event Page <ExternalLink className="w-3 h-3" />
-            </Link>
+                <Link
+                  href={`/event/${currentTicket.eventSlug}`}
+                  className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40 dark:text-white/40 hover:text-orange transition-colors flex items-center gap-2"
+                >
+                  View Event Page <ExternalLink className="w-3 h-3" />
+                </Link>
 
-            <div className="text-center text-[9px] font-bold text-black/20 dark:text-white/20 uppercase tracking-[0.3em]">
-              {currentTicket.orderType} Pass • Paid by you
-            </div>
+                <div className="text-center text-[9px] font-bold text-black/20 dark:text-white/20 uppercase tracking-[0.3em]">
+                  {currentTicket.orderType} Pass • Paid by you
+                </div>
 
-            {/* Cancel Order action — only for primary buyer, upcoming, confirmed tickets */}
-            {ticket.isPrimaryBuyer && ticket.orderId && !isUsed && !isCancelled && (
+                {/* Cancel Order action — only for primary buyer, upcoming, confirmed tickets */}
+                {ticket.isPrimaryBuyer && ticket.orderId && !isUsed && !isCancelled && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onClose();
+                      if (typeof window !== 'undefined') {
+                        window.__cancelOrderData = {
+                          orderId: ticket.orderId,
+                          eventTitle: ticket.eventTitle,
+                          ticketCount: tickets.length,
+                        };
+                        window.dispatchEvent(new CustomEvent('openCancelOrder'));
+                      }
+                    }}
+                    className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-red-400 hover:text-red-500 transition-colors mt-2"
+                  >
+                    <XCircle className="w-3 h-3" />
+                    Cancel Order
+                  </button>
+                )}
+              </div>
+
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClose();
-                  if (typeof window !== 'undefined') {
-                    window.__cancelOrderData = {
-                      orderId: ticket.orderId,
-                      eventTitle: ticket.eventTitle,
-                      ticketCount: tickets.length,
-                    };
-                    window.dispatchEvent(new CustomEvent('openCancelOrder'));
-                  }
-                }}
-                className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-red-400 hover:text-red-500 transition-colors mt-2"
+                onClick={onClose}
+                className="absolute top-6 right-6 p-2 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
               >
-                <XCircle className="w-3 h-3" />
-                Cancel Order
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={3}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
               </button>
-            )}
-          </div>
-
-          <button
-            onClick={onClose}
-            className="absolute top-6 right-6 p-2 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
-          >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={3}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 };
 
