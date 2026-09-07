@@ -33,7 +33,7 @@
     "@types/node": "^25.3.0",
     "@vitest/coverage-v8": "4.1.9",
     "fix-esm-import-path": "^1.10.3",
-    "tsx": "^4.21.0",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "vitest": "4.1.9"
   }
