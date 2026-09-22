@@ -172,8 +172,14 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
         });
       });
       set({ interestedUsers: { ...get().interestedUsers, [eventId]: users } });
-    } catch (e) {
-      console.warn('[EventInterestStore] fetchInterestedUsers:', e);
+    } catch (e: any) {
+      if (e?.code === 'permission-denied') {
+        console.log(
+          '[EventInterestStore] fetchInterestedUsers: permission denied (expected if unauthenticated)',
+        );
+      } else {
+        console.warn('[EventInterestStore] fetchInterestedUsers:', e);
+      }
     } finally {
       set({ loadingInterested: { ...get().loadingInterested, [eventId]: false } });
     }

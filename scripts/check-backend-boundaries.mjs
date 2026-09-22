@@ -90,29 +90,81 @@ async function findViolations() {
   return violations;
 }
 
+/**
+ * 🚫 Config-separation rule (T03): `packages/core/src/domain/**` must never
+ * read `process.env`. All configuration is injected via `CoreConfig`.
+ */
+function findEnvInCoreDomainViolations() {
+  const files = glob.sync('packages/core/src/domain/**/*.{ts,tsx,js,jsx}', {
+    cwd: ROOT,
+    ignore: ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx'],
+    nodir: true,
+  });
+
+  const pattern = /process\.env/;
+  const violations = [];
+
+  for (const file of files) {
+    try {
+      const content = readFileSync(`${ROOT}${file}`, 'utf8');
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+        if (pattern.test(lines[i]) && !trimmed.startsWith('//') && !trimmed.startsWith('*')) {
+          violations.push({ file, line: i + 1, importLine: trimmed });
+        }
+      }
+    } catch {
+      // skip unreadable files
+    }
+  }
+
+  return violations;
+}
+
 async function main() {
   const violations = await findViolations();
+  const envViolations = findEnvInCoreDomainViolations();
 
-  if (violations.length === 0) {
+  if (violations.length === 0 && envViolations.length === 0) {
     console.log('✅ All backend boundary checks passed!');
     console.log(
       '   firebase-admin only used in: packages/core, apps/api-gateway, functions,\n' +
         '   scripts/, apps/admin-console, app scripts dirs, and approved exceptions\n',
     );
+    console.log(
+      '   process.env not read inside packages/core/src/domain/** (config is injected)\n',
+    );
     process.exit(0);
   }
 
-  console.log(`❌ Found ${violations.length} unauthorized firebase-admin import(s):\n`);
-  for (const v of violations) {
-    console.log(`   ${v.file}:${v.line}`);
-    console.log(`     → ${v.importLine}`);
+  if (violations.length > 0) {
+    console.log(`❌ Found ${violations.length} unauthorized firebase-admin import(s):\n`);
+    for (const v of violations) {
+      console.log(`   ${v.file}:${v.line}`);
+      console.log(`     → ${v.importLine}`);
+    }
+    console.log('\nfirebase-admin is ONLY allowed in: packages/core, apps/api-gateway, functions,');
+    console.log('scripts/, apps/admin-console, app-level scripts dirs, and files listed in');
+    console.log('governance/backend-boundary-exceptions.json');
+    console.log(
+      'Frontend apps (guest-portal, partner-dashboard, mobile-app, scanner-app) must NOT use firebase-admin directly.\n',
+    );
   }
-  console.log('\nfirebase-admin is ONLY allowed in: packages/core, apps/api-gateway, functions,');
-  console.log('scripts/, apps/admin-console, app-level scripts dirs, and files listed in');
-  console.log('governance/backend-boundary-exceptions.json');
-  console.log(
-    'Frontend apps (guest-portal, partner-dashboard, mobile-app, scanner-app) must NOT use firebase-admin directly.\n',
-  );
+
+  if (envViolations.length > 0) {
+    console.log(
+      `❌ Found ${envViolations.length} process.env read(s) in packages/core/src/domain:\n`,
+    );
+    for (const v of envViolations) {
+      console.log(`   ${v.file}:${v.line}`);
+      console.log(`     → ${v.importLine}`);
+    }
+    console.log(
+      '\nConfig must be injected via CoreConfig; domain code never reads process.env directly.\n',
+    );
+  }
+
   process.exit(1);
 }
 

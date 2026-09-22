@@ -10,6 +10,8 @@ import fastifyStatic from '@fastify/static';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
+import * as requestTracing from './lib/request-tracing';
+import * as loggerConfig from './lib/logger-config';
 import { config } from './config';
 import firebasePlugin from './plugins/firebase';
 import cachePlugin from './plugins/cache';
@@ -81,12 +83,11 @@ const __dirname = path.dirname(__filename);
 
 const server = Fastify({
   trustProxy: process.env.NODE_ENV === 'production',
+  disableRequestLogging: true, // Prevents duplicate default request logs, as we use a custom onResponse hook
   bodyLimit: 11 * 1024 * 1024, // 🛡️ Security: bound request body size (OOM protection) while covering the 10MB multipart fileSize limit registered below
-  genReqId: function (req) {
-    return (req.headers['x-request-id'] as string) || crypto.randomUUID();
-  },
+  genReqId: requestTracing.genReqId,
   logger: {
-    redact: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-api-key"]'],
+    redact: loggerConfig.redactPaths,
     serializers: {
       req(request) {
         return {
@@ -122,10 +123,7 @@ async function main() {
   });
 
   // ⚡ REQUEST TRACING & SENTRY CONTEXT
-  server.addHook('onRequest', async (request, reply) => {
-    Sentry.setTag('request_id', request.id);
-    reply.header('x-request-id', request.id);
-  });
+  server.addHook('onRequest', requestTracing.onRequestHook);
 
   // 🛡️ SECURITY HEADERS — applied to every response
   server.addHook('onSend', async (request, reply, payload) => {
@@ -201,6 +199,13 @@ async function main() {
   // ⚡ PERFORMANCE LOGGING: Track request duration
   server.addHook('preHandler', async (request: any) => {
     request.startTime = process.hrtime();
+    // Sentry tags (non-PII) after auth has resolved userId/organizationId
+    if (request.user?.uid) {
+      Sentry.setTag('user_id', request.user.uid);
+    }
+    if (request.workspaceId || request.authContext?.organizationId) {
+      Sentry.setTag('organization_id', request.workspaceId || request.authContext?.organizationId);
+    }
   });
 
   server.addHook('onResponse', async (request: any, reply: any) => {
@@ -210,6 +215,8 @@ async function main() {
       const duration = parseFloat(durationMs);
 
       // 📊 Observability: Tag performance metrics
+      // `userId`/`organizationId` are attached by the firebase auth hook after
+      // token verification; they are absent (undefined) for anonymous routes.
       const logData = {
         requestId: request.id,
         url: request.url,
@@ -218,6 +225,10 @@ async function main() {
         statusCode: reply.statusCode,
         durationMs: duration,
         cache: reply.getHeader('Cache-Control') || 'no-cache',
+        userId: (request as any).user?.uid || null,
+        organizationId:
+          (request as any).workspaceId || (request as any).authContext?.organizationId || null,
+        clientIp: request.ip,
       };
 
       // 🛡️ Reliability: Log Alert for Slow Targets (> 500ms)

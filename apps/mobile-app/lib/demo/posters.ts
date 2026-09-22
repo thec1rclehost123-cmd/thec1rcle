@@ -1,6 +1,6 @@
-import { Image } from 'react-native';
+import { Asset } from 'expo-asset';
 
-const assetUri = (source: number) => Image.resolveAssetSource(source).uri;
+const assetUri = (source: number) => Asset.fromModule(source).uri;
 
 export const DEMO_POSTERS = {
   afterhours: assetUri(require('../../assets/posters/afterhours.jpg')),

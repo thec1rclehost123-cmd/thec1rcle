@@ -1,9 +1,21 @@
 {
   "name": "@c1rcle/types",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist"
   ],
@@ -11,7 +23,11 @@
     "build": "node ../../node_modules/typescript/bin/tsc",
     "dev": "node ../../node_modules/typescript/bin/tsc --watch",
     "lint": "node ../../node_modules/typescript/bin/tsc --noEmit",
-    "type-check": "node ../../node_modules/typescript/bin/tsc --noEmit"
+    "type-check": "node ../../node_modules/typescript/bin/tsc --noEmit",
+    "test": "node --test test/contract.test.mjs"
+  },
+  "dependencies": {
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

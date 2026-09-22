@@ -3,6 +3,9 @@ import { z } from 'zod';
 const serverEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   GATEWAY_URL: z.string().url().optional(),
+  // C1RCLE-BACKEND gateway (standalone repo) — V2 rewrites target this while
+  // the legacy in-repo gateway keeps serving /api/v1.
+  V2_GATEWAY_URL: z.string().url().optional(),
   SENTRY_ORG: z.string().optional(),
   SENTRY_PROJECT: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
@@ -19,6 +22,10 @@ const clientEnvSchema = z.object({
   NEXT_PUBLIC_GUEST_PORTAL_URL: z.string().url().optional(),
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
   NEXT_PUBLIC_DEFAULT_CITY: z.string().optional().default('Pune'),
+  // T21 feature-flag: when "true" the V2 partner slice is enabled for
+  // partners (V2 Studio route, /api/v2 rewrites). Defaults to off so the
+  // V1 surface stays the default for the one release during the switch.
+  NEXT_PUBLIC_V2_ENABLED: z.enum(['true', 'false']).default('false'),
 });
 
 const _serverEnv = serverEnvSchema.safeParse(process.env);
@@ -28,6 +35,7 @@ const _clientEnv = clientEnvSchema.safeParse({
   NEXT_PUBLIC_GUEST_PORTAL_URL: process.env.NEXT_PUBLIC_GUEST_PORTAL_URL,
   NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
   NEXT_PUBLIC_DEFAULT_CITY: process.env.NEXT_PUBLIC_DEFAULT_CITY,
+  NEXT_PUBLIC_V2_ENABLED: process.env.NEXT_PUBLIC_V2_ENABLED,
 });
 
 if (!process.env.SKIP_ENV_VALIDATION) {

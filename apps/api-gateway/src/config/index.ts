@@ -1,3 +1,4 @@
+import { createCoreConfig } from '@c1rcle/core/config';
 import { z } from 'zod';
 
 export const DEFAULT_FRONTEND_ORIGINS = [
@@ -80,3 +81,14 @@ if (_env.data.NODE_ENV === 'production') {
 
 export const config = _env.data;
 export const env = _env.data;
+
+// ─── Core DI config ────────────────────────────────────────────────────────────
+// The gateway owns ALL env reading. Core services receive this validated
+// object; `packages/core` never touches process.env.
+export const coreConfig = createCoreConfig({
+  redis: { url: _env.data.REDIS_URL },
+  firestore: { projectId: _env.data.FIREBASE_PROJECT_ID },
+  features: {
+    searchIndexer: process.env.FF_SEARCH_INDEXER === 'true',
+  },
+});

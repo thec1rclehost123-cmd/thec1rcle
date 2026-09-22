@@ -2,6 +2,22 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> ⚠️ **STALE — this is the V1 monorepo, reference-only.** The active V2 work is in
+> two sibling repos: `C1RCLE-BACKEND/` (Fastify modular monolith, `/api/v2`) and
+> `C1RCLE-FRONTEND/` (Next 16 monorepo) — see `Circle1/AGENTS.md` and the
+> `circle1-architecture` skill (`Circle1/.claude/skills/circle1-architecture/`).
+> This repo (`thec1rcle/`) is consulted only for proven V1 business rules/design
+> principles to port forward — see the `circle1-v1-lessons-and-principles` memory
+> entry for what's already been mined out of it. Do not treat anything below as
+> describing the live system.
+>
+> Known-wrong claim in this file as of 2026-09-05: the "Canonical Repo Root"
+> section below claims the active monorepo is nested at `thec1rcle/thec1rcle` —
+> no such nested folder exists in this checkout; `apps/`, `packages/`, `docs/`
+> etc. live directly under this `thec1rcle/` root. This file's own line 6 already
+> says "if this file and the live code disagree, trust the live code" — this is
+> exactly that case.
+
 > Auto-loaded working instructions for the C1RCLE monorepo.
 > If this file and the live code disagree, trust the live code and current guardrail docs.
 > Refreshed against the repo on 2026-06-16.

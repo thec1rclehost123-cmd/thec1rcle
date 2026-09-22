@@ -56,8 +56,12 @@ export const useFollowStore = create<FollowState>((set, get) => ({
         followedHostIds: new Set(hostSnap.docs.map((d) => d.id)),
         loaded: true,
       });
-    } catch (e) {
-      console.error('[FollowStore] fetchFollows error', e);
+    } catch (e: any) {
+      if (e?.code === 'permission-denied') {
+        console.log('[FollowStore] fetchFollows: permission denied (expected if unauthenticated)');
+      } else {
+        console.warn('[FollowStore] fetchFollows error', e);
+      }
     }
   },
 

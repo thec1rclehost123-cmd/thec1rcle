@@ -34,6 +34,12 @@ function getApiBase(): string {
       console.log(`[API] Dev mode — using gateway: ${devUrl}`);
       return devUrl;
     }
+
+    if (typeof window !== 'undefined' && window.location) {
+      return process.env.EXPO_PUBLIC_API_BASE_URL || `http://${window.location.hostname}:4000`;
+    }
+
+    return process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:4000';
   }
 
   return 'https://api.thec1rcle.com';

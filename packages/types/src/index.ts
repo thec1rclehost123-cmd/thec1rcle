@@ -26,6 +26,113 @@ export interface StandardErrorResponse {
 
 export type ApiErrorPayload = StandardErrorPayload;
 
+/**
+ * ─── V2 API contract primitives ─────────────────────────────────────────────
+ * Backend-owned contract. The frontend imports these; it never defines them.
+ * Mirrors the wire contract used by @c1rcle/api-client.
+ */
+
+/**
+ * Discriminated error codes returned by the gateway and understood by the
+ * frontend `ApiClient`. `statusToErrorCode` on the client maps HTTP status to
+ * these codes; the backend must emit the same codes and shapes.
+ */
+export type ApiErrorCode =
+  | 'validation'
+  | 'unauthorized'
+  | 'forbidden'
+  | 'not_found'
+  | 'conflict'
+  | 'rate_limited'
+  | 'server'
+  | 'timeout'
+  | 'network'
+  | 'aborted'
+  | 'parse'
+  | 'unknown';
+
+/** Opaque correlation id for one request, echoed to clients as `x-request-id`. */
+export type RequestId = string;
+
+/** A single field-level validation error, keyed by field name. */
+export type FieldErrors = Readonly<Record<string, readonly string[]>>;
+
+/** The error contract every API endpoint surfaces. */
+export interface ApiError {
+  code: ApiErrorCode;
+  message: string;
+  status?: number;
+  requestId?: RequestId;
+  fieldErrors?: FieldErrors;
+  details?: unknown;
+}
+
+/** Canonical platform role. Derived from organization memberships at runtime. */
+export type Role = 'guest' | 'partner' | 'admin';
+
+/** Canonical user shape shared across every authenticated client. */
+export interface User {
+  id: string;
+  email: string;
+  displayName: string;
+  role: Role;
+  avatarUrl: string | null;
+}
+
+/** Canonical session returned by `/api/v2/session`. */
+export interface Session {
+  user: User;
+  expiresAt: number;
+}
+
+/** Cursor-free page info used by paginated responses. */
+export interface PageInfo {
+  page: number;
+  pageSize: number;
+  total: number;
+  hasNextPage: boolean;
+}
+
+/** Generic paginated envelope. */
+export interface Paginated<TItem> {
+  items: TItem[];
+  pageInfo: PageInfo;
+}
+
+/** Role a member holds within an organization (org-scoped, not global `Role`). */
+export type OrganizationRole = 'owner' | 'admin' | 'manager' | 'member';
+
+export type OrganizationStatus = 'active' | 'suspended' | 'archived';
+
+/** Organization read model returned by the V2 partner slice. */
+export interface OrganizationDto {
+  id: string;
+  name: string;
+  slug: string;
+  role: OrganizationRole;
+  status: OrganizationStatus;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type VenueStatus = 'active' | 'suspended';
+
+/** Venue read model returned by the V2 partner slice (public-facing only). */
+export interface VenueDto {
+  id: string;
+  organizationId: string;
+  name: string;
+  slug: string;
+  status: VenueStatus;
+  description: string;
+  capacity: number | null;
+  city: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Venue {
   id: string;
   name: string;

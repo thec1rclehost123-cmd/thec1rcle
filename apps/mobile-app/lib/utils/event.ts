@@ -65,16 +65,22 @@ export function getEventImage(event: any): string | null {
   return null;
 }
 
+import { API_BASE } from '../api';
+
 /**
  * Ensures relative paths are resolved against the API base URL.
  */
 function resolveUrl(url: string): string {
   if (!url) return '';
 
+  // Expo local web assets (e.g., from Asset.fromModule) shouldn't be routed to the API Gateway
+  if (url.startsWith('/assets/')) {
+    return url;
+  }
+
   // Handle relative paths from the backend assets
   if (url.startsWith('/')) {
-    const apiBase = getMobileApiBase();
-    return `${apiBase}${url}`;
+    return `${API_BASE}${url}`;
   }
 
   return url;
@@ -84,23 +90,7 @@ function resolveUrl(url: string): string {
  * Helper to get the same API base URL as the main API client.
  */
 function getMobileApiBase(): string {
-  if (process.env.EXPO_PUBLIC_API_BASE_URL) {
-    return process.env.EXPO_PUBLIC_API_BASE_URL;
-  }
-
-  if (__DEV__) {
-    const debuggerHost =
-      Constants.expoConfig?.hostUri ||
-      (Constants.manifest2 as any)?.extra?.expoClient?.hostUri ||
-      (Constants.manifest as any)?.debuggerHost;
-
-    if (debuggerHost) {
-      const host = debuggerHost.split(':')[0];
-      return `http://${host}:3001`;
-    }
-  }
-
-  return 'https://api.thec1rcle.com';
+  return API_BASE;
 }
 
 /**

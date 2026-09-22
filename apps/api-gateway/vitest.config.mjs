@@ -15,6 +15,12 @@ export default defineConfig({
       // placeholder never has anything real to protect. Mirrors the
       // REDIS_URL placeholder pattern in packages/core/vitest.config.ts.
       ENCRYPTION_KEY: 'test-only-encryption-key-do-not-use-in-production',
+      // src/config/index.ts validates the env at import time. V2 partner
+      // routes build their services via lib/v2-services.ts, which reads
+      // coreConfig from there — so any suite touching a V2 route needs a
+      // FIREBASE_PROJECT_ID. Tests only use the memory repositories; nothing
+      // real is created or contacted.
+      FIREBASE_PROJECT_ID: 'test-project',
     },
   },
   coverage: {

@@ -92,12 +92,24 @@ const nextConfig = {
   },
   async rewrites() {
     const gatewayUrl = process.env.GATEWAY_URL || 'http://127.0.0.1:4000';
-    return [
+    // V2 traffic goes to the C1RCLE-BACKEND gateway (standalone repo), not the
+    // legacy in-repo gateway. Falls back to 127.0.0.1:8080 (C1RCLE-BACKEND dev
+    // default) when unset.
+    const v2GatewayUrl = process.env.V2_GATEWAY_URL || 'http://127.0.0.1:8080';
+    const rewrites = [
       {
         source: '/api/v1/:path*',
         destination: `${gatewayUrl}/api/v1/:path*`,
       },
     ];
+    // T21 feature-flag: only forward V2 traffic while the switch is on.
+    if (process.env.NEXT_PUBLIC_V2_ENABLED === 'true') {
+      rewrites.push({
+        source: '/api/v2/:path*',
+        destination: `${v2GatewayUrl}/api/v2/:path*`,
+      });
+    }
+    return rewrites;
   },
 };
 

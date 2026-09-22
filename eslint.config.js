@@ -58,4 +58,38 @@ export default [
       'no-undef': 'off',
     },
   },
+  {
+    // T07 gate: the new V2 domain/application boundaries (ports, models,
+    // application services) must depend on repository ports — never on the
+    // Firebase SDK. Legacy V1 `domain/services/*` and `domain/repositories/*`
+    // are excluded (pre-existing firebase imports, migration debt).
+    files: ['packages/core/src/**/*.ts'],
+    ignores: [
+      'packages/core/src/infrastructure/**',
+      'packages/core/src/domain/services/**',
+      'packages/core/src/domain/repositories/**',
+      'packages/core/src/domain/auth/**',
+      'packages/core/src/main.ts',
+      'packages/core/src/client.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'firebase-admin/firestore',
+              message:
+                'firebase-admin is only allowed inside packages/core/src/infrastructure/** (T07 repository gate).',
+            },
+            {
+              name: 'firebase-admin',
+              message:
+                'firebase-admin is only allowed inside packages/core/src/infrastructure/** (T07 repository gate).',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];

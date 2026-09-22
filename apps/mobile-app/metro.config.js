@@ -11,6 +11,16 @@ config.resolver.extraNodeModules = {
   'lucide-react-native': path.resolve(__dirname, 'vendor/lucide-react-native'),
 };
 
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (platform === 'web' && moduleName === 'react-native-maps') {
+    return {
+      filePath: path.resolve(__dirname, 'vendor/react-native-maps-web.js'),
+      type: 'sourceFile',
+    };
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
+
 module.exports = withSentryConfig(
   withNativeWind(config, {
     input: './global.css',
